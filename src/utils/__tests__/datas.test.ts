@@ -1,0 +1,31 @@
+import {
+  adicionarDias,
+  diaDaSemana,
+  diferencaEmDias,
+  formatarDataCurta,
+  formatarDataLonga,
+} from '../datas';
+
+describe('utils/datas', () => {
+  it('adicionarDias soma e atravessa a virada de mês', () => {
+    expect(adicionarDias('2026-04-06', 3)).toBe('2026-04-09');
+    expect(adicionarDias('2026-04-28', 3)).toBe('2026-05-01');
+    expect(adicionarDias('2026-01-01', -1)).toBe('2025-12-31');
+  });
+
+  it('diferencaEmDias devolve dias inteiros (ate - de)', () => {
+    expect(diferencaEmDias('2026-04-06', '2026-04-09')).toBe(3);
+    expect(diferencaEmDias('2026-05-01', '2026-04-28')).toBe(-3);
+  });
+
+  it('diaDaSemana é determinístico', () => {
+    // 2026-04-06 é uma segunda-feira.
+    expect(diaDaSemana('2026-04-06')).toBe('Seg');
+    expect(diaDaSemana('2026-04-09')).toBe('Qui');
+  });
+
+  it('formatadores produzem rótulos legíveis', () => {
+    expect(formatarDataCurta('2026-04-06')).toBe('Seg 06/04');
+    expect(formatarDataLonga('2026-04-06')).toBe('Seg, 6 de abril');
+  });
+});

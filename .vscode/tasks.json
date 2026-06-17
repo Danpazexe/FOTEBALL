@@ -1,0 +1,63 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Metro",
+      "type": "npm",
+      "script": "start",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "metro",
+        "pattern": [
+          {
+            "regexp": ".",
+            "file": 1,
+            "location": 2,
+            "message": 3
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "react-native start|Welcome to Metro|Starting dev server",
+          "endsPattern": "Dev server ready|Welcome to Metro"
+        }
+      },
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always",
+        "group": "metro"
+      }
+    },
+    {
+      "label": "Android Emulator",
+      "type": "shell",
+      "command": "if ! adb devices | awk 'NR > 1 && $2 == \"device\" { found = 1 } END { exit found ? 0 : 1 }'; then nohup emulator @ANDROID -no-snapshot-load -netdelay none -netspeed full >/tmp/foteball-emulator.log 2>&1 & fi; adb wait-for-device; until [ \"$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\\r')\" = \"1\" ]; do sleep 2; done; echo \"Android emulator ready\"",
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always",
+        "group": "android"
+      }
+    },
+    {
+      "label": "Android",
+      "type": "npm",
+      "script": "android",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always",
+        "group": "android"
+      }
+    },
+    {
+      "label": "Run Android With Metro",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Metro", "Android Emulator", "Android"],
+      "problemMatcher": [],
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always"
+      }
+    }
+  ]
+}

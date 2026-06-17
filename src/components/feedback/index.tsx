@@ -1,0 +1,290 @@
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  Animated,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+import {cores, espaco, raio} from '../../theme';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Confirmação + Toast: provider único usado por toda a UI.
+// Telas chamam useConfirm() para pedir confirmação antes de ações importantes
+// (vender/comprar, etc.) e useToast() para dar feedback do resultado.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ConfirmOpcoes {
+  titulo: string;
+  mensagem?: string;
+  confirmarLabel?: string;
+  cancelarLabel?: string;
+  /** Destaca o botão de confirmação em vermelho (ações destrutivas). */
+  perigo?: boolean;
+  /** Linhas de detalhe (ex.: "Valor: R$ X", "Saldo após: R$ Y"). */
+  detalhes?: {rotulo: string; valor: string; alerta?: boolean}[];
+}
+
+type ToastTipo = 'info' | 'sucesso' | 'erro';
+
+interface FeedbackContextValor {
+  confirm: (opcoes: ConfirmOpcoes) => Promise<boolean>;
+  toast: (mensagem: string, tipo?: ToastTipo) => void;
+}
+
+const FeedbackContext = createContext<FeedbackContextValor | null>(null);
+
+interface ConfirmEstado extends ConfirmOpcoes {
+  visivel: boolean;
+}
+
+export function FeedbackProvider({children}: {children: React.ReactNode}) {
+  const [confirmEstado, setConfirmEstado] = useState<ConfirmEstado>({
+    visivel: false,
+    titulo: '',
+  });
+  const resolverRef = useRef<((valor: boolean) => void) | null>(null);
+
+  const [toastMsg, setToastMsg] = useState<{texto: string; tipo: ToastTipo} | null>(
+    null,
+  );
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const confirm = useCallback((opcoes: ConfirmOpcoes) => {
+    return new Promise<boolean>(resolve => {
+      resolverRef.current = resolve;
+      setConfirmEstado({...opcoes, visivel: true});
+    });
+  }, []);
+
+  const fechar = useCallback(
+    (valor: boolean) => {
+      setConfirmEstado(estado => ({...estado, visivel: false}));
+      resolverRef.current?.(valor);
+      resolverRef.current = null;
+    },
+    [],
+  );
+
+  const toast = useCallback(
+    (mensagem: string, tipo: ToastTipo = 'info') => {
+      if (toastTimer.current) {
+        clearTimeout(toastTimer.current);
+      }
+      setToastMsg({texto: mensagem, tipo});
+      Animated.timing(toastOpacity, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }).start();
+      toastTimer.current = setTimeout(() => {
+        Animated.timing(toastOpacity, {
+          toValue: 0,
+          duration: 280,
+          useNativeDriver: true,
+        }).start(() => setToastMsg(null));
+      }, 2200);
+    },
+    [toastOpacity],
+  );
+
+  const valor = useMemo<FeedbackContextValor>(
+    () => ({confirm, toast}),
+    [confirm, toast],
+  );
+
+  const corConfirmar = confirmEstado.perigo ? cores.perigo : cores.primaria;
+  const corToast =
+    toastMsg?.tipo === 'erro'
+      ? cores.perigo
+      : toastMsg?.tipo === 'sucesso'
+      ? cores.primaria
+      : cores.borda;
+
+  return (
+    <FeedbackContext.Provider value={valor}>
+      {children}
+
+      <Modal
+        visible={confirmEstado.visivel}
+        transparent
+        animationType="fade"
+        onRequestClose={() => fechar(false)}>
+        <Pressable style={styles.backdrop} onPress={() => fechar(false)}>
+          <Pressable style={styles.dialog}>
+            <Text style={styles.titulo}>{confirmEstado.titulo}</Text>
+            {confirmEstado.mensagem ? (
+              <Text style={styles.mensagem}>{confirmEstado.mensagem}</Text>
+            ) : null}
+
+            {confirmEstado.detalhes && confirmEstado.detalhes.length > 0 ? (
+              <View style={styles.detalhes}>
+                {confirmEstado.detalhes.map(linha => (
+                  <View key={linha.rotulo} style={styles.detalheLinha}>
+                    <Text style={styles.detalheRotulo}>{linha.rotulo}</Text>
+                    <Text
+                      style={[
+                        styles.detalheValor,
+                        linha.alerta ? styles.detalheAlerta : null,
+                      ]}>
+                      {linha.valor}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+
+            <View style={styles.acoes}>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.botao, styles.botaoCancelar]}
+                onPress={() => fechar(false)}>
+                <Text style={styles.botaoCancelarTexto}>
+                  {confirmEstado.cancelarLabel ?? 'Cancelar'}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.botao, {backgroundColor: corConfirmar}]}
+                onPress={() => fechar(true)}>
+                <Text style={styles.botaoConfirmarTexto}>
+                  {confirmEstado.confirmarLabel ?? 'Confirmar'}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {toastMsg ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.toast, {opacity: toastOpacity, borderColor: corToast}]}>
+          <Text style={styles.toastTexto}>{toastMsg.texto}</Text>
+        </Animated.View>
+      ) : null}
+    </FeedbackContext.Provider>
+  );
+}
+
+export function useConfirm(): (opcoes: ConfirmOpcoes) => Promise<boolean> {
+  const ctx = useContext(FeedbackContext);
+  if (!ctx) {
+    throw new Error('useConfirm precisa estar dentro de <FeedbackProvider>');
+  }
+  return ctx.confirm;
+}
+
+export function useToast(): (mensagem: string, tipo?: ToastTipo) => void {
+  const ctx = useContext(FeedbackContext);
+  if (!ctx) {
+    throw new Error('useToast precisa estar dentro de <FeedbackProvider>');
+  }
+  return ctx.toast;
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(5,8,14,0.78)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: espaco.xl,
+  },
+  dialog: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.md,
+    padding: espaco.xl,
+    width: '100%',
+  },
+  titulo: {
+    color: cores.texto,
+    fontSize: 19,
+    fontWeight: '800',
+  },
+  mensagem: {
+    color: cores.textoSecundario,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  detalhes: {
+    backgroundColor: cores.fundo,
+    borderRadius: raio.md,
+    gap: espaco.xs,
+    padding: espaco.md,
+  },
+  detalheLinha: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  detalheRotulo: {
+    color: cores.textoSecundario,
+    fontSize: 13,
+  },
+  detalheValor: {
+    color: cores.texto,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  detalheAlerta: {
+    color: cores.perigo,
+  },
+  acoes: {
+    flexDirection: 'row',
+    gap: espaco.sm,
+    marginTop: espaco.xs,
+  },
+  botao: {
+    alignItems: 'center',
+    borderRadius: raio.sm,
+    flex: 1,
+    minHeight: 46,
+    justifyContent: 'center',
+    paddingHorizontal: espaco.md,
+  },
+  botaoCancelar: {
+    backgroundColor: 'transparent',
+    borderColor: cores.borda,
+    borderWidth: 1,
+  },
+  botaoCancelarTexto: {
+    color: cores.texto,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  botaoConfirmarTexto: {
+    color: cores.contrastePrimaria,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  toast: {
+    alignSelf: 'center',
+    backgroundColor: cores.superficie,
+    borderRadius: raio.md,
+    borderWidth: 1,
+    bottom: 90,
+    maxWidth: '90%',
+    paddingHorizontal: espaco.lg,
+    paddingVertical: espaco.md,
+    position: 'absolute',
+  },
+  toastTexto: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+});

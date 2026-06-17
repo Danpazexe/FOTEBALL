@@ -1,0 +1,842 @@
+/**
+ * Tela de partida narrada — simulação AO VIVO (estilo Brasfoot).
+ *
+ * O jogo NÃO é pré-carregado: cada minuto é simulado na hora, conforme o
+ * relógio avança. Por isso as decisões do usuário durante a partida (pausar e
+ * fazer substituições) influenciam o restante do jogo — a força do time é
+ * recalculada a cada minuto a partir da escalação atual.
+ *
+ * Para no intervalo (45') e só continua quando o usuário aperta "Retomar";
+ * também há "Pausar" a qualquer momento para mexer no time. Ao terminar, o
+ * resultado é fechado e os demais jogos da rodada (IA) são simulados.
+ */
+
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {
+  Animated,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+
+import {trocarTitular} from '../../api/database/seed/defaults';
+import {
+  definirSomHabilitado,
+  inicializarSons,
+  tocarFimDeJogo,
+  tocarGol,
+} from '../../audio/sons';
+import {Botao, ScreenContainer} from '../../components/ui';
+import Icone from '../../components/Icone';
+import {EventItem, type LadoEvento} from '../../components/MatchNarration/EventItem';
+import Placar from '../../components/MatchNarration/Placar';
+import AjustesPartida from '../../components/MatchNarration/AjustesPartida';
+import BarrasForca from '../../components/BarrasForca';
+import {
+  narrarEvento,
+  narrarFim,
+  narrarInicio,
+  narrarIntervalo,
+  narrarSegundoTempo,
+} from '../../engine/simulation/narrativeTemplates';
+import {
+  calcularContextoMinuto,
+  iniciarPartidaAoVivo,
+  simularMinuto,
+  type EstadoPartidaAoVivo,
+} from '../../engine/simulation/matchSimulator';
+import {
+  calcularForcaTime,
+  type ForcaTime,
+} from '../../engine/simulation/teamStrength';
+import {
+  selecionarClubeUsuario,
+  selecionarProximoJogo,
+  useGameStore,
+} from '../../store/useGameStore';
+import {cores, corDoTime, espaco, raio} from '../../theme';
+import {nomeClube, siglaClube} from '../../utils/formatters';
+import type {Clube, EventoPartida, Formacao, Partida, Player} from '../../types';
+import {useAppNavigation} from '../../navigation/types';
+
+type ItemTimeline = {
+  minuto: number;
+  tipo: string;
+  descricao: string;
+  lado: LadoEvento;
+  sigla?: string;
+  corTime?: string;
+  timeId?: string;
+};
+
+const MINUTO_INTERVALO = 45;
+const DURACAO = 90;
+// Limite oficial do Brasileirão: 5 substituições por equipe.
+const MAX_SUBSTITUICOES = 5;
+const SEG_INTERVALO = MINUTO_INTERVALO * 60;
+const DURACAO_SEG = DURACAO * 60;
+// Velocidades de tempo (multiplicadores). A cada tick o relógio avança
+// PASSO_BASE × multiplicador segundos de jogo: 1x é o ritmo base, 10x voa.
+const MULTIPLICADORES = [1, 2, 5, 10] as const;
+const TICK_MS = 90;
+const PASSO_BASE_SEG = 6;
+
+/** Formata segundos de jogo como MM:SS. */
+function formatarTempo(segundos: number): string {
+  const m = Math.floor(segundos / 60);
+  const s = Math.floor(segundos % 60);
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+function mapearNomesJogadores(jogadores: Player[]): Record<string, string> {
+  const mapa: Record<string, string> = {};
+  for (const jogador of jogadores) {
+    mapa[jogador.id] = jogador.apelido ?? jogador.nome;
+  }
+  return mapa;
+}
+
+/** Força do clube pela escalação atual (cai para a média de overall se faltar). */
+function forcaDoClube(clube: Clube, jogadores: Player[]): ForcaTime {
+  if (clube.formacaoAtual && clube.taticaAtual) {
+    return calcularForcaTime(
+      clube.formacaoAtual,
+      jogadores.filter(jogador => jogador.clubeId === clube.id),
+      clube.taticaAtual,
+    );
+  }
+  const doClube = jogadores
+    .filter(jogador => jogador.clubeId === clube.id)
+    .sort((a, b) => b.overall - a.overall)
+    .slice(0, 11);
+  const media = doClube.length
+    ? Math.round(doClube.reduce((s, j) => s + j.overall, 0) / doClube.length)
+    : 60;
+  return {ataque: media, meio: media, defesa: media, forcaGoleiro: media, overall: media};
+}
+
+function MatchSimulation(): React.JSX.Element | null {
+  const nav = useAppNavigation();
+  const clubeUsuario = useGameStore(selecionarClubeUsuario);
+  const jogadores = useGameStore(state => state.jogadores);
+  const atualizarFormacaoUsuario = useGameStore(
+    state => state.atualizarFormacaoUsuario,
+  );
+  const atualizarTaticaUsuario = useGameStore(
+    state => state.atualizarTaticaUsuario,
+  );
+
+  const iniciado = useRef(false);
+  const [fixture, setFixture] = useState<Partida | null>(null);
+  const [siglaCasa, setSiglaCasa] = useState('');
+  const [siglaFora, setSiglaFora] = useState('');
+  const [corCasa, setCorCasa] = useState<string>(cores.primaria);
+  const [corFora, setCorFora] = useState<string>(cores.primaria);
+
+  const estadoRef = useRef<EstadoPartidaAoVivo | null>(null);
+  const minutoSimuladoRef = useRef(0);
+  const adversarioRef = useRef<Clube | null>(null);
+  const nomeCasaRef = useRef('');
+  const nomeForaRef = useRef('');
+  const nomesRef = useRef<Record<string, string>>({});
+  const ladoUsuarioRef = useRef<LadoEvento>('casa');
+  const pausarNoIntervaloRef = useRef(true);
+  const marcosRef = useRef({intervalo: false, segundoTempo: false, fim: false});
+  const comitadoRef = useRef(false);
+
+  const pulsePlacar = useRef(new Animated.Value(1)).current;
+  const golsPulseRef = useRef(0);
+  const golsSomRef = useRef(0);
+
+  const [relogioSeg, setRelogioSeg] = useState(0);
+  const [multiplicador, setMultiplicador] = useState<number>(() =>
+    useGameStore.getState().config.velocidadeNarracao === 'rapido' ? 5 : 2,
+  );
+  const [pausado, setPausado] = useState(false);
+  const [intervalo, setIntervalo] = useState(false);
+  const [segundoTempoLiberado, setSegundoTempoLiberado] = useState(false);
+
+  const [eventos, setEventos] = useState<ItemTimeline[]>([]);
+  const [placar, setPlacar] = useState({casa: 0, fora: 0});
+  const [subsFeitas, setSubsFeitas] = useState(0);
+  const [ajustesVisivel, setAjustesVisivel] = useState(false);
+  // Jogadores que já saíram não podem voltar (regra oficial).
+  const [jaSairam, setJaSairam] = useState<Set<string>>(() => new Set());
+
+  const listaRef = useRef<FlatList<ItemTimeline>>(null);
+
+  // Prepara a partida do usuário (sem simular nada ainda).
+  useEffect(() => {
+    if (iniciado.current) {
+      return;
+    }
+    iniciado.current = true;
+
+    const estado = useGameStore.getState();
+    pausarNoIntervaloRef.current = estado.config.pausarNoIntervalo;
+    definirSomHabilitado(estado.config.som);
+    inicializarSons();
+
+    const proximo = selecionarProximoJogo(estado);
+    if (!proximo || !estado.clubeUsuarioId) {
+      nav.goBack();
+      return;
+    }
+
+    const ehCasa = proximo.timeCasa === estado.clubeUsuarioId;
+    ladoUsuarioRef.current = ehCasa ? 'casa' : 'fora';
+    const adversarioId = ehCasa ? proximo.timeFora : proximo.timeCasa;
+    adversarioRef.current =
+      estado.clubes.find(clube => clube.id === adversarioId) ?? null;
+    nomeCasaRef.current = nomeClube(estado.clubes, proximo.timeCasa);
+    nomeForaRef.current = nomeClube(estado.clubes, proximo.timeFora);
+    nomesRef.current = mapearNomesJogadores(estado.jogadores);
+
+    const seed =
+      estado.rodadaAtual * 1000 +
+      (proximo.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 1000);
+    estadoRef.current = iniciarPartidaAoVivo(seed);
+
+    setSiglaCasa(siglaClube(estado.clubes, proximo.timeCasa));
+    setSiglaFora(siglaClube(estado.clubes, proximo.timeFora));
+    setCorCasa(corDoTime(proximo.timeCasa));
+    setCorFora(corDoTime(proximo.timeFora));
+    setEventos([
+      {
+        minuto: 0,
+        tipo: 'inicio',
+        descricao: narrarInicio(nomeCasaRef.current, nomeForaRef.current),
+        lado: 'neutro',
+      },
+    ]);
+    setFixture(proximo);
+  }, [nav]);
+
+  const minuto = Math.min(DURACAO, Math.floor(relogioSeg / 60));
+  const terminou = fixture !== null && relogioSeg >= DURACAO_SEG;
+
+  // Intervalo: ao chegar aos 45:00 para e espera o usuário.
+  useEffect(() => {
+    if (
+      pausarNoIntervaloRef.current &&
+      relogioSeg >= SEG_INTERVALO &&
+      !segundoTempoLiberado &&
+      !terminou
+    ) {
+      setIntervalo(true);
+    }
+  }, [relogioSeg, segundoTempoLiberado, terminou]);
+
+  // Relógio (segundos de jogo). Para no fim, no intervalo ou pausado.
+  useEffect(() => {
+    if (!fixture || terminou || pausado || intervalo) {
+      return;
+    }
+    const tickMs = TICK_MS;
+    const passoSeg = PASSO_BASE_SEG * multiplicador;
+    const id = setInterval(() => {
+      setRelogioSeg(atual => {
+        if (atual >= DURACAO_SEG) {
+          return DURACAO_SEG;
+        }
+        const prox = atual + passoSeg;
+        if (
+          pausarNoIntervaloRef.current &&
+          !segundoTempoLiberado &&
+          prox >= SEG_INTERVALO
+        ) {
+          return SEG_INTERVALO;
+        }
+        return Math.min(prox, DURACAO_SEG);
+      });
+    }, tickMs);
+    return () => clearInterval(id);
+  }, [fixture, terminou, pausado, intervalo, segundoTempoLiberado, multiplicador]);
+
+  // SIMULAÇÃO AO VIVO: simula os minutos ainda não simulados até o minuto atual,
+  // recalculando a força a partir da escalação ATUAL (subs valem aqui).
+  useEffect(() => {
+    const estado = estadoRef.current;
+    if (!fixture || !estado) {
+      return;
+    }
+    const alvo = Math.min(minuto, DURACAO);
+    if (minutoSimuladoRef.current >= alvo) {
+      return;
+    }
+
+    const st = useGameStore.getState();
+    const usuario = st.clubes.find(c => c.id === st.clubeUsuarioId);
+    const adversario = adversarioRef.current;
+    if (!usuario || !adversario) {
+      return;
+    }
+    const usuarioEhCasa = ladoUsuarioRef.current === 'casa';
+    const clubeCasa = usuarioEhCasa ? usuario : adversario;
+    const clubeFora = usuarioEhCasa ? adversario : usuario;
+    const jogadoresCasa = st.jogadores.filter(j => j.clubeId === clubeCasa.id);
+    const jogadoresFora = st.jogadores.filter(j => j.clubeId === clubeFora.id);
+
+    const novosItens: ItemTimeline[] = [];
+    const criarItem = (ev: EventoPartida): ItemTimeline => {
+      const ehCasa = ev.timeId === fixture.timeCasa;
+      return {
+        minuto: ev.minuto,
+        tipo: ev.tipo,
+        descricao: narrarEvento(ev, {
+          nomeJogador: nomesRef.current[ev.jogadorId] ?? 'O jogador',
+          nomeJogadorEntra: ev.jogadorEntraId
+            ? nomesRef.current[ev.jogadorEntraId] ?? 'o reserva'
+            : undefined,
+          nomeTime: ehCasa ? nomeCasaRef.current : nomeForaRef.current,
+          placar: `${estado.placarCasa} x ${estado.placarFora}`,
+        }),
+        lado: ehCasa ? 'casa' : 'fora',
+        sigla: ehCasa ? siglaCasa : siglaFora,
+        corTime: ehCasa ? corCasa : corFora,
+        timeId: ev.timeId,
+      };
+    };
+
+    while (minutoSimuladoRef.current < alvo) {
+      const proximoMinuto = minutoSimuladoRef.current + 1;
+      if (proximoMinuto === MINUTO_INTERVALO + 1 && !marcosRef.current.segundoTempo) {
+        marcosRef.current.segundoTempo = true;
+        novosItens.push({
+          minuto: MINUTO_INTERVALO + 1,
+          tipo: 'segundo_tempo',
+          descricao: narrarSegundoTempo(),
+          lado: 'neutro',
+        });
+      }
+      // Recalcula o contexto por minuto (passando o estado): expulsões,
+      // lesões e fadiga acumuladas valem no resto do jogo.
+      let ctx;
+      try {
+        ctx = calcularContextoMinuto(
+          clubeCasa,
+          clubeFora,
+          jogadoresCasa,
+          jogadoresFora,
+          estado,
+        );
+      } catch {
+        break;
+      }
+      const novos = simularMinuto(estado, ctx);
+      minutoSimuladoRef.current = proximoMinuto;
+      for (const ev of novos) {
+        novosItens.push(criarItem(ev));
+      }
+      if (proximoMinuto === MINUTO_INTERVALO && !marcosRef.current.intervalo) {
+        marcosRef.current.intervalo = true;
+        novosItens.push({
+          minuto: MINUTO_INTERVALO,
+          tipo: 'intervalo',
+          descricao: narrarIntervalo(
+            nomeCasaRef.current,
+            nomeForaRef.current,
+            estado.placarCasa,
+            estado.placarFora,
+          ),
+          lado: 'neutro',
+        });
+      }
+      if (proximoMinuto === DURACAO && !marcosRef.current.fim) {
+        marcosRef.current.fim = true;
+        novosItens.push({
+          minuto: DURACAO,
+          tipo: 'fim',
+          descricao: narrarFim(
+            nomeCasaRef.current,
+            nomeForaRef.current,
+            estado.placarCasa,
+            estado.placarFora,
+          ),
+          lado: 'neutro',
+        });
+      }
+    }
+
+    if (novosItens.length > 0) {
+      setEventos(prev => [...prev, ...novosItens]);
+    }
+    setPlacar({casa: estado.placarCasa, fora: estado.placarFora});
+  }, [minuto, fixture, siglaCasa, siglaFora, corCasa, corFora]);
+
+  // Rola a lista a cada novo lance.
+  useEffect(() => {
+    if (eventos.length > 0) {
+      listaRef.current?.scrollToEnd({animated: true});
+    }
+  }, [eventos.length]);
+
+  // Pulso + som quando o placar aumenta.
+  const totalGols = placar.casa + placar.fora;
+  useEffect(() => {
+    if (totalGols > golsPulseRef.current) {
+      Animated.sequence([
+        Animated.timing(pulsePlacar, {toValue: 1.12, duration: 160, useNativeDriver: true}),
+        Animated.timing(pulsePlacar, {toValue: 1, duration: 160, useNativeDriver: true}),
+      ]).start();
+    }
+    golsPulseRef.current = totalGols;
+  }, [totalGols, pulsePlacar]);
+
+  useEffect(() => {
+    if (totalGols > golsSomRef.current) {
+      tocarGol();
+    }
+    golsSomRef.current = totalGols;
+  }, [totalGols]);
+
+  // Fecha a partida e simula o resto da rodada ao terminar.
+  useEffect(() => {
+    if (terminou && fixture && estadoRef.current && !comitadoRef.current) {
+      comitadoRef.current = true;
+      tocarFimDeJogo();
+      const e = estadoRef.current;
+      useGameStore
+        .getState()
+        .concluirPartidaAoVivo(fixture.id, e.eventos, e.placarCasa, e.placarFora);
+    }
+  }, [terminou, fixture]);
+
+  const retomarSegundoTempo = () => {
+    setSegundoTempoLiberado(true);
+    setIntervalo(false);
+  };
+
+  const pularParaFim = () => {
+    setSegundoTempoLiberado(true);
+    setIntervalo(false);
+    setPausado(false);
+    setRelogioSeg(DURACAO_SEG);
+  };
+
+  // Apito do árbitro: encerra o tempo atual. No 1º tempo vai ao intervalo; no
+  // 2º tempo, encerra a partida.
+  const apitar = () => {
+    if (relogioSeg < SEG_INTERVALO && !segundoTempoLiberado) {
+      setPausado(false);
+      setRelogioSeg(SEG_INTERVALO);
+      setIntervalo(true);
+    } else {
+      pularParaFim();
+    }
+  };
+
+  const realizarSubstituicao = (slotIndex: number, entranteId: string) => {
+    const formacao = clubeUsuario?.formacaoAtual;
+    if (!formacao || subsFeitas >= MAX_SUBSTITUICOES) {
+      return;
+    }
+    const saiId = formacao.titulares[slotIndex]?.jogadorId;
+    if (!saiId || saiId === entranteId) {
+      return;
+    }
+    const entrante = jogadores.find(jogador => jogador.id === entranteId);
+    if (!entrante || entrante.lesionado || entrante.suspenso) {
+      return;
+    }
+    const nomeSai = nomesRef.current[saiId] ?? 'o titular';
+    const nomeEntra = nomesRef.current[entranteId] ?? 'o reserva';
+    const lado = ladoUsuarioRef.current;
+
+    atualizarFormacaoUsuario(trocarTitular(formacao, slotIndex, entranteId));
+    setJaSairam(atual => {
+      const proximo = new Set(atual);
+      proximo.add(saiId);
+      return proximo;
+    });
+
+    setEventos(atuais => [
+      ...atuais,
+      {
+        minuto,
+        tipo: 'substituicao',
+        descricao: `Substituição: sai ${nomeSai}, entra ${nomeEntra}.`,
+        lado,
+        sigla: lado === 'casa' ? siglaCasa : siglaFora,
+        corTime: corDoTime(clubeUsuario?.id ?? ''),
+        timeId: clubeUsuario?.id,
+      },
+    ]);
+    setSubsFeitas(n => n + 1);
+  };
+
+  const eventosOrdenados = useMemo(
+    () => [...eventos].sort((a, b) => a.minuto - b.minuto),
+    [eventos],
+  );
+
+  // Força em campo AO VIVO — recalculada quando a escalação muda (subs/tática),
+  // mostrando o efeito das decisões durante a partida.
+  const forcasAoVivo = useMemo<{casa: ForcaTime; fora: ForcaTime} | null>(() => {
+    const adversario = adversarioRef.current;
+    if (!clubeUsuario || !adversario) {
+      return null;
+    }
+    const forcaUsuario = forcaDoClube(clubeUsuario, jogadores);
+    const forcaAdversario = forcaDoClube(adversario, jogadores);
+    const usuarioEhCasa = ladoUsuarioRef.current === 'casa';
+    return {
+      casa: usuarioEhCasa ? forcaUsuario : forcaAdversario,
+      fora: usuarioEhCasa ? forcaAdversario : forcaUsuario,
+    };
+  }, [clubeUsuario, jogadores]);
+
+  if (!fixture) {
+    return null;
+  }
+
+  const formacaoUsuario: Formacao | null = clubeUsuario?.formacaoAtual ?? null;
+  const elencoUsuario = clubeUsuario
+    ? jogadores.filter(jogador => jogador.clubeId === clubeUsuario.id)
+    : [];
+
+  return (
+    <ScreenContainer>
+      <View style={styles.conteudo}>
+        <View style={styles.topo}>
+          <Animated.View
+            style={[styles.placarWrap, {transform: [{scale: pulsePlacar}]}]}>
+            <Placar
+              siglaCasa={siglaCasa}
+              siglaFora={siglaFora}
+              divisao={clubeUsuario?.divisao}
+              placarCasa={placar.casa}
+              placarFora={placar.fora}
+              tempo={
+                terminou
+                  ? 'FINAL'
+                  : intervalo
+                  ? 'INTERVALO'
+                  : formatarTempo(relogioSeg)
+              }
+            />
+          </Animated.View>
+          <View style={styles.arbitroLinha}>
+            <Icone nome="apito" tamanho={13} cor={cores.textoSecundario} />
+            <Text style={styles.arbitroTexto}>Árbitro no comando</Text>
+          </View>
+          {forcasAoVivo ? (
+            <View style={styles.forcasWrap}>
+              <Text style={styles.forcasLabel}>Força em campo</Text>
+              <BarrasForca
+                casa={forcasAoVivo.casa}
+                fora={forcasAoVivo.fora}
+                corCasa={corCasa}
+                corFora={corFora}
+              />
+            </View>
+          ) : null}
+        </View>
+
+        <FlatList
+          ref={listaRef}
+          style={styles.lista}
+          contentContainerStyle={styles.listaConteudo}
+          data={eventosOrdenados}
+          keyExtractor={(item, index) => `${item.minuto}_${item.tipo}_${index}`}
+          renderItem={({item}) => (
+            <EventItem
+              minuto={item.minuto}
+              tipo={item.tipo}
+              descricao={item.descricao}
+              lado={item.lado}
+              sigla={item.sigla}
+              corTime={item.corTime}
+              clubeId={item.timeId}
+            />
+          )}
+          onContentSizeChange={() =>
+            listaRef.current?.scrollToEnd({animated: true})
+          }
+        />
+
+        <View style={styles.controles}>
+          {terminou ? (
+            <>
+              <Botao
+                titulo="Ver súmula"
+                onPress={() => nav.navigate('MatchResult', {partidaId: fixture.id})}
+              />
+              <Botao
+                variante="secundaria"
+                titulo="Continuar"
+                onPress={() => nav.navigate('MainTabs')}
+              />
+            </>
+          ) : intervalo ? (
+            <>
+              <Text style={styles.avisoIntervalo}>
+                Intervalo — faça ajustes e retome quando quiser.
+              </Text>
+              <View style={styles.linhaBotoes}>
+                <View style={styles.botaoFlex}>
+                  <BotaoIcone
+                    nome="substituicao"
+                    titulo="Ajustes"
+                    variante="secundaria"
+                    onPress={() => setAjustesVisivel(true)}
+                  />
+                </View>
+                <View style={styles.botaoFlex}>
+                  <BotaoIcone
+                    nome="jogar"
+                    titulo="Retomar (2º T)"
+                    onPress={retomarSegundoTempo}
+                  />
+                </View>
+              </View>
+            </>
+          ) : pausado ? (
+            <View style={styles.linhaBotoes}>
+              <View style={styles.botaoFlex}>
+                <BotaoIcone
+                  nome="substituicao"
+                  titulo="Ajustes"
+                  variante="secundaria"
+                  onPress={() => setAjustesVisivel(true)}
+                />
+              </View>
+              <View style={styles.botaoFlex}>
+                <BotaoIcone
+                  nome="jogar"
+                  titulo="Retomar"
+                  onPress={() => setPausado(false)}
+                />
+              </View>
+            </View>
+          ) : (
+            <>
+              <View style={styles.linhaVelocidade}>
+                <Icone
+                  nome="relogio"
+                  tamanho={15}
+                  cor={cores.textoSecundario}
+                />
+                {MULTIPLICADORES.map(mult => {
+                  const ativo = multiplicador === mult;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={mult}
+                      onPress={() => setMultiplicador(mult)}
+                      style={[
+                        styles.chipVel,
+                        ativo ? styles.chipVelAtivo : null,
+                      ]}>
+                      <Text
+                        style={[
+                          styles.chipVelTexto,
+                          ativo ? styles.chipVelTextoAtivo : null,
+                        ]}>
+                        {mult}x
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <View style={styles.linhaBotoes}>
+                <View style={styles.botaoFlex}>
+                  <BotaoIcone
+                    nome="substituicao"
+                    titulo="Ajustes"
+                    variante="secundaria"
+                    onPress={() => {
+                      setPausado(true);
+                      setAjustesVisivel(true);
+                    }}
+                  />
+                </View>
+                <View style={styles.botaoFlex}>
+                  <BotaoIcone
+                    nome="pausar"
+                    titulo="Pausar"
+                    variante="secundaria"
+                    onPress={() => setPausado(true)}
+                  />
+                </View>
+                <View style={styles.botaoFlex}>
+                  <BotaoIcone nome="apito" titulo="Apitar" onPress={apitar} />
+                </View>
+              </View>
+            </>
+          )}
+        </View>
+      </View>
+
+      {ajustesVisivel && formacaoUsuario && clubeUsuario?.taticaAtual ? (
+        <AjustesPartida
+          formacao={formacaoUsuario}
+          tatica={clubeUsuario.taticaAtual}
+          elenco={elencoUsuario}
+          nomes={nomesRef.current}
+          subsRestantes={MAX_SUBSTITUICOES - subsFeitas}
+          jaSairamIds={jaSairam}
+          onSubstituir={realizarSubstituicao}
+          onAtualizarFormacao={atualizarFormacaoUsuario}
+          onAtualizarTatica={atualizarTaticaUsuario}
+          onFechar={() => setAjustesVisivel(false)}
+        />
+      ) : null}
+    </ScreenContainer>
+  );
+}
+
+/** Botão com ícone à esquerda do título. */
+function BotaoIcone({
+  nome,
+  titulo,
+  onPress,
+  variante = 'primaria',
+  disabled,
+}: {
+  nome: React.ComponentProps<typeof Icone>['nome'];
+  titulo: string;
+  onPress: () => void;
+  variante?: 'primaria' | 'secundaria';
+  disabled?: boolean;
+}): React.JSX.Element {
+  const primaria = variante === 'primaria';
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        styles.botaoIcone,
+        primaria ? styles.botaoIconePrimaria : styles.botaoIconeSecundaria,
+        disabled ? styles.botaoIconeDisabled : null,
+      ]}>
+      <Icone
+        nome={nome}
+        tamanho={16}
+        cor={primaria ? cores.contrastePrimaria : cores.texto}
+      />
+      <Text
+        style={primaria ? styles.botaoIconeTextoPrimaria : styles.botaoIconeTexto}>
+        {titulo}
+      </Text>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  conteudo: {
+    flex: 1,
+    gap: espaco.md,
+    padding: espaco.lg,
+  },
+  topo: {
+    gap: espaco.md,
+  },
+  placarWrap: {
+    alignItems: 'center',
+  },
+  forcasWrap: {
+    alignItems: 'center',
+    gap: espaco.xs,
+  },
+  forcasLabel: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  lista: {
+    flex: 1,
+  },
+  listaConteudo: {
+    gap: espaco.sm,
+    paddingVertical: espaco.sm,
+  },
+  controles: {
+    gap: espaco.sm,
+  },
+  avisoIntervalo: {
+    color: cores.secundaria,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  linhaBotoes: {
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  linhaVelocidade: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  arbitroLinha: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  arbitroTexto: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  botaoFlex: {
+    flex: 1,
+  },
+  chipVel: {
+    alignItems: 'center',
+    borderColor: cores.borda,
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  chipVelAtivo: {
+    backgroundColor: cores.primaria,
+    borderColor: cores.primaria,
+  },
+  chipVelTexto: {
+    color: cores.texto,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  chipVelTextoAtivo: {
+    color: cores.contrastePrimaria,
+  },
+  botaoIcone: {
+    alignItems: 'center',
+    borderRadius: raio.sm,
+    flexDirection: 'row',
+    gap: espaco.sm,
+    justifyContent: 'center',
+    minHeight: 46,
+    paddingHorizontal: espaco.md,
+  },
+  botaoIconePrimaria: {
+    backgroundColor: cores.primaria,
+  },
+  botaoIconeSecundaria: {
+    borderColor: cores.borda,
+    borderWidth: 1,
+  },
+  botaoIconeDisabled: {
+    opacity: 0.45,
+  },
+  botaoIconeTexto: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  botaoIconeTextoPrimaria: {
+    color: cores.contrastePrimaria,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+});
+
+export default MatchSimulation;

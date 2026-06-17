@@ -1,0 +1,37 @@
+export type {
+  AtributoChave,
+  PernaDominante,
+  Player,
+  PlayerAttributes,
+  PlayerSeasonStats,
+  Position,
+  ProgressoAtributos,
+} from './player';
+export type {
+  Clube,
+  DespesaDetalhada,
+  Estadio,
+  FinancasClube,
+  Formacao,
+  FormacaoPreset,
+  FormacaoTipo,
+  InstrucaoIndividual,
+  Patrocinio,
+  ReceitaDetalhada,
+  Tatica,
+  TitularFormacao,
+  Transacao,
+} from './club';
+export type {
+  EventoPartida,
+  EventoPartidaTipo,
+  Partida,
+  PenaltiResultado,
+} from './match';
+export type {
+  Competicao,
+  Confronto,
+  PremiacaoCompeticao,
+  TabelaClassificacao,
+} from './competition';
+export type {ConfiguracoesJogo, SaveGame} from './save';
