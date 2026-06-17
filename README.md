@@ -1,97 +1,118 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# ⚽ FOTEBALL
 
-# Getting Started
+> Jogo de **gerência de futebol brasileiro** estilo Brasfoot, feito em React Native.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+[![CI](https://github.com/Danpazexe/FOTEBALL/actions/workflows/ci.yml/badge.svg)](https://github.com/Danpazexe/FOTEBALL/actions/workflows/ci.yml)
+![React Native](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.8%20strict-3178C6?logo=typescript)
 
-## Step 1: Start Metro
+Assuma um clube, dispute o **Brasileirão** (Séries A, B e C), monte o time a cada
+partida, negocie no mercado e busque o acesso — fugindo do rebaixamento.
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+---
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## ✨ Funcionalidades
 
-```sh
-# Using npm
-npm start
+- **Partida narrada ao vivo** — cada minuto é simulado na hora; pausar e fazer
+  substituições durante o jogo muda o resultado (a força do time é recalculada
+  minuto a minuto).
+- **Pirâmide de divisões** — Séries A, B e C com **acesso e rebaixamento** ao fim
+  da temporada (4 sobem / 4 descem).
+- **Identidade visual por divisão** — emblema e cores do placar mudam conforme a
+  série em que o clube joga.
+- **Mercado de transferências** — propostas, contratações e vendas.
+- **Calendário** round-robin (turno e returno) com tabela de classificação.
+- **Progressão** — moral, evolução de jogadores e finanças do clube.
 
-# OR using Yarn
-yarn start
+## 🧱 Stack
+
+| Camada | Tecnologia |
+|--------|-----------|
+| App | React Native **0.86** (bare CLI, **não** Expo) + React 19.2 |
+| Linguagem | TypeScript 5.8 (strict) |
+| Estado | Zustand v5 |
+| Persistência | SQLite via `@op-engineering/op-sqlite` |
+| UI | `react-native-svg` (placar/gráficos), `react-native-vector-icons` |
+| Testes | Jest |
+
+## 📁 Estrutura
+
+```
+src/
+├── engine/      # Lógica pura do jogo (simulação, temporada, transferências,
+│                # finanças, progressão, táticas) — sem React, determinística
+├── store/       # useGameStore (Zustand) + persistência (SQLite)
+├── screens/     # Telas (partida, mercado, tabela, carreira…)
+├── components/  # Componentes de UI reutilizáveis (ex.: Placar)
+├── api/         # Repositórios de dados + seed (JSON dos clubes/jogadores)
+├── data/        # Dados de seed
+├── assets/      # Escudos dos clubes e logos das divisões (PNG)
+├── audio/       # Sons (gol, fim de jogo…)
+├── navigation/  # React Navigation
+├── theme/       # Cores, espaçamentos, paletas
+├── types/       # Tipos do domínio
+└── utils/       # Helpers (formatadores etc.)
 ```
 
-## Step 2: Build and run your app
+> **Convenção:** nomes de domínio em **português** (`calcularMoral`), termos
+> técnicos genéricos em inglês. A `engine/` é pura e **determinística** (sem
+> `Math.random`/`Date.now`; aleatoriedade via seed).
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+## 🚀 Começando
 
-### Android
+### Pré-requisitos
 
-```sh
-# Using npm
-npm run android
+- **Node ≥ 22** e o ambiente de [React Native](https://reactnative.dev/docs/set-up-your-environment)
+  configurado (Android Studio / Xcode conforme a plataforma).
 
-# OR using Yarn
-yarn android
-```
-
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+### Instalação
 
 ```sh
-bundle install
+npm install
+# iOS (apenas macOS, na 1ª vez e após mudar deps nativas):
+bundle install && bundle exec pod install
 ```
 
-Then, and every time you update your native dependencies, run:
+### Rodando
 
 ```sh
-bundle exec pod install
+npm start          # inicia o Metro
+npm run android    # builda e roda no Android (emulador/dispositivo)
+npm run ios        # builda e roda no iOS (macOS)
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## 🛠️ Scripts
 
-```sh
-# Using npm
-npm run ios
+| Comando | O que faz |
+|---------|-----------|
+| `npm start` | Inicia o Metro (bundler) |
+| `npm run android` / `npm run ios` | Builda e roda o app |
+| `npm run typecheck` | `tsc --noEmit` (checagem de tipos) |
+| `npm run lint` | ESLint |
+| `npm test` | Suíte de testes (Jest) |
 
-# OR using Yarn
-yarn ios
-```
+**Barra de qualidade:** `typecheck` limpo + `lint` sem erros + Jest verde.
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## 🤖 CI & build de APK
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+Há dois workflows do GitHub Actions em [`.github/workflows`](.github/workflows):
 
-## Step 3: Modify your app
+- **CI** ([`ci.yml`](.github/workflows/ci.yml)) — roda `typecheck`, `lint` e
+  testes a cada push/PR na `main`.
+- **Android APK** ([`android.yml`](.github/workflows/android.yml)) — builda um
+  **APK debug** e o disponibiliza como *artifact*. É acionado **manualmente**
+  (aba **Actions → Android APK → Run workflow**) ou ao criar uma **tag** de
+  versão:
 
-Now that you have successfully run the app, let's make changes!
+  ```sh
+  git tag v0.1.0 && git push origin v0.1.0
+  ```
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+  Baixe o APK em **Actions → (execução) → Artifacts → `foteball-debug-apk`**.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+  > Para um **APK release assinado**, adicione a keystore como *secret* do repo e
+  > troque o build para `assembleRelease` com a config de assinatura.
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+## 📄 Licença
 
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+Projeto privado/pessoal — todos os direitos reservados.
