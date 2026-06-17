@@ -95,23 +95,32 @@ npm run ios        # builda e roda no iOS (macOS)
 
 ## 🤖 CI & build de APK
 
-Há dois workflows do GitHub Actions em [`.github/workflows`](.github/workflows):
+Dois workflows do GitHub Actions em [`.github/workflows`](.github/workflows):
 
-- **CI** ([`ci.yml`](.github/workflows/ci.yml)) — roda `typecheck`, `lint` e
-  testes a cada push/PR na `main`.
-- **Android APK** ([`android.yml`](.github/workflows/android.yml)) — builda um
-  **APK debug** e o disponibiliza como *artifact*. É acionado **manualmente**
-  (aba **Actions → Android APK → Run workflow**) ou ao criar uma **tag** de
-  versão:
+### CI — [`ci.yml`](.github/workflows/ci.yml)
+Roda a cada push/PR na `main`. Cada checagem é um **job próprio** (status
+individual, fácil de rastrear), com **annotations inline** no código quando há
+erro e um **gate final** (`CI status`) que resume tudo:
 
-  ```sh
-  git tag v0.1.0 && git push origin v0.1.0
-  ```
+| Job | Comando |
+|-----|---------|
+| Typecheck | `tsc --noEmit` |
+| Lint | `eslint .` |
+| Testes | `jest` |
 
-  Baixe o APK em **Actions → (execução) → Artifacts → `foteball-debug-apk`**.
+### Android APK — [`android.yml`](.github/workflows/android.yml)
+Builda um APK instalável e o publica como **artifact** baixável. Disparo:
 
-  > Para um **APK release assinado**, adicione a keystore como *secret* do repo e
-  > troque o build para `assembleRelease` com a config de assinatura.
+- **Manual:** aba **Actions → Android APK → Run workflow** (escolha `debug` ou `release`).
+- **Por tag:** `git tag v0.1.0 && git push origin v0.1.0` (sempre `release`).
+
+Baixe em **Actions → (execução) → Artifacts → `foteball-apk-<tipo>`**. Se o build
+falhar, os relatórios do Gradle sobem como artifact (`android-build-reports`)
+para diagnóstico.
+
+> Assinatura: debug e release usam a *debug key* do projeto — **sem segredos**.
+> Para distribuir de verdade, gere uma *release keystore*, guarde-a como **secret**
+> do repositório e ajuste a `signingConfig` em `android/app/build.gradle`.
 
 ## 📄 Licença
 

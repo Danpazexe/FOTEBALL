@@ -1,39 +1,92 @@
 name: CI
 
-# Checagens rápidas a cada push/PR na main: typecheck, lint e testes.
+# Checagens de qualidade a cada push/PR na main: typecheck, lint e testes.
+# Cada checagem roda como um job próprio (status individual = erro rastreável),
+# com annotations inline no código e um gate final que resume tudo.
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 # Cancela execuções antigas da mesma branch/PR quando chega um push novo.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Princípio do menor privilégio.
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+
 jobs:
-  checks:
-    name: Typecheck · Lint · Testes
+  quality:
+    name: ${{ matrix.task }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task: Typecheck
+            script: typecheck
+            args: --pretty false
+            matcher: tsc
+          - task: Lint
+            script: lint
+            args: --format stylish
+            matcher: eslint-stylish
+          - task: Testes
+            script: test
+            args: --ci --reporters=default --reporters=github-actions
+            matcher: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node 22
+      - name: Setup Node ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Instalar dependências
+      - name: Ambiente (versões)
+        run: |
+          echo "Node: $(node -v)"
+          echo "npm:  $(npm -v)"
+
+      - name: Instalar dependências (npm ci)
         run: npm ci
 
-      - name: Typecheck (tsc --noEmit)
-        run: npm run typecheck
+      - name: Registrar problem matcher (${{ matrix.matcher }})
+        if: matrix.matcher != ''
+        run: echo "::add-matcher::.github/matchers/${{ matrix.matcher }}.json"
 
-      - name: Lint (eslint)
-        run: npm run lint
+      - name: ${{ matrix.task }}
+        run: npm run ${{ matrix.script }} -- ${{ matrix.args }}
 
-      - name: Testes (jest)
-        run: npm test -- --ci
+      - name: Resumo
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          ICON="✅"; [ "$STATUS" != "success" ] && ICON="❌"
+          echo "### $ICON ${{ matrix.task }} — \`$STATUS\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # Gate único: serve como status check obrigatório (resume os 3 jobs acima).
+  ci-status:
+    name: CI status
+    if: always()
+    needs: [quality]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Avaliar resultado
+        run: |
+          echo "Resultado das checagens: ${{ needs.quality.result }}"
+          if [ "${{ needs.quality.result }}" != "success" ]; then
+            echo "::error::Uma ou mais checagens falharam (veja os jobs acima)."
+            exit 1
+          fi
+          echo "Todas as checagens passaram. ✅"
