@@ -20,8 +20,20 @@ import Svg, {
 } from 'react-native-svg';
 
 import Escudo from '../Escudo';
+import Icone from '../Icone';
 import {nivelCarta} from '../../theme';
 import type {Player} from '../../types';
+
+/** Cor da moral: alta (verde), média (amarelo), baixa (vermelho). */
+function corMoral(moral: number): string {
+  if (moral >= 75) {
+    return '#22C55E';
+  }
+  if (moral >= 50) {
+    return '#F59E0B';
+  }
+  return '#EF4444';
+}
 
 type CartaJogadorProps = {
   jogador: Player;
@@ -67,6 +79,11 @@ function CartaJogador({
   const esquerda = stats.slice(0, 3);
   const direita = stats.slice(3, 6);
   const escala = largura / 260;
+  const statusIndisponivel = jogador.lesionado
+    ? {icone: 'lesao' as const, rotulo: 'LESIONADO'}
+    : jogador.suspenso
+    ? {icone: 'cartao' as const, rotulo: 'SUSPENSO'}
+    : null;
 
   return (
     <View style={[styles.card, {width: largura, height: altura}]}>
@@ -200,6 +217,33 @@ function CartaJogador({
         ) : null}
       </View>
 
+      {/* Moral + status (lesão/suspensão) no canto superior direito */}
+      <View style={[styles.statusArea, {top: 46 * escala, right: 30 * escala}]}>
+        <View style={styles.moralBadge}>
+          <View
+            style={[
+              styles.moralPonto,
+              {backgroundColor: corMoral(jogador.moral)},
+            ]}
+          />
+          <Text style={[styles.moralValor, {color: tema.text, fontSize: 15 * escala}]}>
+            {jogador.moral}
+          </Text>
+        </View>
+        {statusIndisponivel ? (
+          <View style={[styles.statusBadge, {marginTop: 5 * escala}]}>
+            <Icone
+              nome={statusIndisponivel.icone}
+              tamanho={Math.round(12 * escala)}
+              cor="#EF4444"
+            />
+            <Text style={[styles.statusTexto, {fontSize: 9 * escala}]}>
+              {statusIndisponivel.rotulo}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+
       <Text
         style={[
           styles.cardType,
@@ -269,6 +313,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'absolute',
     zIndex: 4,
+  },
+  statusArea: {
+    alignItems: 'center',
+    position: 'absolute',
+    zIndex: 4,
+  },
+  moralBadge: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  moralPonto: {
+    borderRadius: 5,
+    height: 9,
+    width: 9,
+  },
+  moralValor: {
+    fontWeight: '900',
+  },
+  statusBadge: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(8,11,20,0.78)',
+    borderRadius: 6,
+    flexDirection: 'row',
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  statusTexto: {
+    color: '#EF4444',
+    fontWeight: '900',
+    letterSpacing: 0.4,
   },
   overall: {
     fontWeight: '900',

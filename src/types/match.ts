@@ -42,4 +42,9 @@ export interface Partida {
   eventos: EventoPartida[];
   jogada: boolean;
   modoJogado: 'simulado' | 'interativo';
+  /**
+   * Vencedor decidido nos pênaltis (só em mata-mata empatado após a
+   * prorrogação). Ausente em jogos de liga e em jogos resolvidos no tempo.
+   */
+  vencedorPenaltis?: string;
 }

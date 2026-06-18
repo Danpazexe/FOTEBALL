@@ -17,6 +17,10 @@ import ToastConquista from './src/components/ToastConquista';
 import Loading from './src/screens/Loading';
 import {carregarJogo, limparSave, salvarJogo} from './src/store/persistence';
 import {useGameStore} from './src/store/useGameStore';
+import {
+  conquistasParaSalvar,
+  useAchievementsStore,
+} from './src/store/useAchievementsStore';
 import {cores} from './src/theme';
 
 const DEBOUNCE_SALVAR_MS = 800;
@@ -45,10 +49,17 @@ function App(): React.JSX.Element {
   useEffect(() => {
     let ativo = true;
     carregarJogo()
-      .then(estado => {
-        if (estado && ativo) {
-          useGameStore.setState(estado);
+      .then(resultado => {
+        if (!ativo || resultado.tipo !== 'ok') {
+          // 'vazio' (sem save) e 'erro' (corrompido sem backup) caem no estado
+          // inicial limpo — nunca apagamos o save aqui, para não perder a chance
+          // de recuperação manual de um save danificado.
+          return;
         }
+        useGameStore.setState(resultado.estado);
+        useAchievementsStore
+          .getState()
+          .restaurarConquistas(resultado.conquistas);
       })
       .catch(() => {})
       .finally(() => {
@@ -79,7 +90,10 @@ function App(): React.JSX.Element {
         return;
       }
       timer = setTimeout(() => {
-        salvarJogo(estado).catch(() => {});
+        const conquistas = conquistasParaSalvar(
+          useAchievementsStore.getState().conquistas,
+        );
+        salvarJogo(estado, conquistas).catch(() => {});
       }, DEBOUNCE_SALVAR_MS);
     });
     return () => {

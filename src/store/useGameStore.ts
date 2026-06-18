@@ -2,10 +2,15 @@ import {useMemo} from 'react';
 import {create} from 'zustand';
 
 import {verificarConquistas} from '../engine/conquistas/verificadorConquistas';
-import {aplicarBilheteria, aplicarFolhaMensal, registrarTransacao} from '../engine/finance/financeEngine';
+import {
+  aplicarAcertoFinanceiroAnual,
+  aplicarBilheteria,
+  registrarTransacao,
+} from '../engine/finance/financeEngine';
 import {
   aplicarMoral,
   calcularDeltasMoralPartida,
+  converteComGrupo,
   type ResultadoPartida,
 } from '../engine/progression/moralEngine';
 import {
@@ -96,7 +101,19 @@ export interface ConfigJogo {
   som: boolean;
 }
 
-const CONFIG_PADRAO: ConfigJogo = {
+/**
+ * Escalação/tática do clube do usuário ANTES de uma partida ao vivo. As trocas e
+ * ajustes feitos durante o jogo mexem na formação do clube (para a força ao vivo
+ * refletir as decisões), mas isso é só para aquela partida — ao concluir (ou
+ * abandonar), restauramos este retrato para não "vazar" subs na escalação oficial.
+ */
+interface FormacaoPreLive {
+  clubeId: string;
+  formacao: Formacao;
+  tatica: Tatica;
+}
+
+export const CONFIG_PADRAO: ConfigJogo = {
   velocidadeNarracao: 'normal',
   confirmarAcoes: true,
   pausarNoIntervalo: true,
@@ -122,10 +139,16 @@ export interface GameState {
   config: ConfigJogo;
   jovensDisponiveis: JovemTalento[];
   propostasRecebidas: PropostaTransferencia[];
+  /** Retrato da escalação do usuário antes da partida ao vivo (transitório). */
+  formacaoPreLive: FormacaoPreLive | null;
   /** Data atual do calendário (ISO YYYY-MM-DD). Avança até o próximo evento. */
   dataAtual: string;
   /** O usuário já treinou para o próximo jogo? Porta o "treino obrigatório". */
   treinouProximoJogo: boolean;
+  /** O usuário já conversou com o grupo nesta semana? (libera 1x por ciclo). */
+  conversouComGrupo: boolean;
+  /** O usuário já concedeu a coletiva desta rodada? (libera 1x por jogo). */
+  coletivaConcedida: boolean;
   iniciarNovaCarreira: (clubeId: string) => void;
   avancarRodada: () => void;
   /** Move a data atual para um dia (usado ao avançar para treino/jogo). */
@@ -138,6 +161,14 @@ export interface GameState {
   ) => void;
   atualizarTaticaUsuario: (tatica: Tatica) => void;
   atualizarFormacaoUsuario: (formacao: Formacao) => void;
+  /** Conversa com o grupo: +5 de moral a todo o elenco (1x por semana). */
+  conversarComGrupo: () => boolean;
+  /** Concede a coletiva: aplica o efeito de moral acumulado (1x por rodada). */
+  concederColetiva: (deltaTotal: number) => boolean;
+  /** Tira um retrato da escalação do usuário ao entrar numa partida ao vivo. */
+  prepararPartidaAoVivo: () => void;
+  /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
+  restaurarFormacaoPreLive: () => void;
   aplicarTreino: (treinoId: string, intensidade: IntensidadeTreino) => void;
   aplicarMoralElenco: (delta: number) => void;
   renovarContrato: (jogadorId: string, anos: number, salario: number) => boolean;
@@ -184,6 +215,8 @@ function dataInicialDeTemporada(partidas: Partida[], temporada: string): string 
 }
 
 const DIVISAO_PADRAO = 'Série A';
+/** Ano em que toda carreira começa (fonte única — usada em criar/reiniciar). */
+const TEMPORADA_INICIAL = '2026';
 
 /**
  * Monta a liga ATIVA de UMA divisão: filtra clubes/jogadores da divisão, gera o
@@ -223,7 +256,7 @@ function criarEstadoInicial() {
   return {
     todosClubes: seed.clubes,
     todosJogadores: seed.jogadores,
-    ...gerarLiga(seed.clubes, seed.jogadores, DIVISAO_PADRAO, '2026'),
+    ...gerarLiga(seed.clubes, seed.jogadores, DIVISAO_PADRAO, TEMPORADA_INICIAL),
   };
 }
 
@@ -539,47 +572,61 @@ export const useGameStore = create<GameState>((set, get) => ({
   partidas: inicial.partidas,
   tabela: inicial.tabela,
   clubeUsuarioId: null,
-  temporadaAtual: '2026',
+  temporadaAtual: TEMPORADA_INICIAL,
   rodadaAtual: 1,
   ultimaPartidaUsuario: null,
   mensagens: [],
   config: CONFIG_PADRAO,
   jovensDisponiveis: [],
   propostasRecebidas: [],
+  formacaoPreLive: null,
   dataAtual: inicial.dataAtual,
   treinouProximoJogo: false,
+  conversouComGrupo: false,
+  coletivaConcedida: false,
 
   iniciarNovaCarreira: clubeId => {
-    set(state => {
-      // Monta a liga da DIVISÃO do clube escolhido (Série A ou B). Assim o
-      // calendário e a tabela ficam restritos à divisão correta.
-      const escolhido = state.todosClubes.find(clube => clube.id === clubeId);
-      const divisao = escolhido?.divisao ?? DIVISAO_PADRAO;
-      const liga = gerarLiga(
-        state.todosClubes,
-        state.todosJogadores,
-        divisao,
-        state.temporadaAtual,
-      );
-      return {
-        clubeUsuarioId: clubeId,
-        rodadaAtual: 1,
-        ultimaPartidaUsuario: null,
-        treinouProximoJogo: false,
-        jogadores: liga.jogadores,
-        partidas: liga.partidas,
-        tabela: liga.tabela,
-        dataAtual: liga.dataAtual,
-        clubes: liga.clubes.map(clube => ({
-          ...clube,
-          controladoPorIA: clube.id !== clubeId,
-        })),
-        mensagens: adicionarMensagem(
-          state.mensagens,
-          `Carreira iniciada no ${escolhido?.nome ?? 'clube escolhido'} (${divisao}).`,
-        ),
-      };
+    // SEMPRE parte do seed limpo (e da temporada inicial): uma "nova carreira"
+    // não pode herdar elencos/finanças evoluídos nem a temporada de uma carreira
+    // anterior ainda em memória (todosClubes/todosJogadores mudam ao virar a
+    // temporada). Espelha reiniciarCarreira, mas já escolhendo o clube/divisão.
+    const base = criarEstadoInicial();
+    const escolhido = base.todosClubes.find(clube => clube.id === clubeId);
+    const divisao = escolhido?.divisao ?? DIVISAO_PADRAO;
+    const liga = gerarLiga(
+      base.todosClubes,
+      base.todosJogadores,
+      divisao,
+      TEMPORADA_INICIAL,
+    );
+    set({
+      todosClubes: base.todosClubes,
+      todosJogadores: base.todosJogadores,
+      clubeUsuarioId: clubeId,
+      temporadaAtual: TEMPORADA_INICIAL,
+      rodadaAtual: 1,
+      ultimaPartidaUsuario: null,
+      treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
+      jogadores: liga.jogadores,
+      partidas: liga.partidas,
+      tabela: liga.tabela,
+      dataAtual: liga.dataAtual,
+      jovensDisponiveis: [],
+      propostasRecebidas: [],
+      formacaoPreLive: null,
+      clubes: liga.clubes.map(clube => ({
+        ...clube,
+        controladoPorIA: clube.id !== clubeId,
+      })),
+      mensagens: adicionarMensagem(
+        [],
+        `Carreira iniciada no ${escolhido?.nome ?? 'clube escolhido'} (${divisao}).`,
+      ),
     });
+    // Nova carreira = conquistas zeradas (são vinculadas à carreira).
+    useAchievementsStore.getState().reiniciarConquistas();
   },
 
   avancarParaData: data => {
@@ -666,6 +713,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       // o próximo ciclo (volta a exigir treino antes do próximo jogo).
       dataAtual: partidaUsuarioCompleta?.data ?? state.dataAtual,
       treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
       mensagens: adicionarMensagem(
         state.mensagens,
         `Rodada ${state.rodadaAtual} simulada.`,
@@ -751,15 +800,29 @@ export const useGameStore = create<GameState>((set, get) => ({
       );
     });
 
+    // Restaura a escalação/tática oficial do usuário: as trocas feitas durante a
+    // partida ao vivo valeram só para este jogo, não viram a escalação padrão.
+    const preLive = state.formacaoPreLive;
+    const clubesFinais = preLive
+      ? clubesComBilheteria.map(clube =>
+          clube.id === preLive.clubeId
+            ? {...clube, formacaoAtual: preLive.formacao, taticaAtual: preLive.tatica}
+            : clube,
+        )
+      : clubesComBilheteria;
+
     set({
       jogadores: jogadoresAtualizados,
       partidas: partidasAtualizadas,
       tabela,
-      clubes: clubesComBilheteria,
+      clubes: clubesFinais,
+      formacaoPreLive: null,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
       ultimaPartidaUsuario: partidaUsuario,
       dataAtual: partidaUsuario?.data ?? state.dataAtual,
       treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
       mensagens: adicionarMensagem(
         state.mensagens,
         `Rodada ${state.rodadaAtual} disputada.`,
@@ -771,7 +834,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       jogadores: jogadoresAtualizados,
       partidas: partidasAtualizadas,
       tabela,
-      clubes: clubesComBilheteria,
+      clubes: clubesFinais,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
     });
     get().processarPropostasIA();
@@ -805,6 +868,37 @@ export const useGameStore = create<GameState>((set, get) => ({
       ),
       mensagens: adicionarMensagem(state.mensagens, 'Escalação atualizada.'),
     }));
+  },
+
+  prepararPartidaAoVivo: () => {
+    const state = get();
+    const clube = state.clubes.find(c => c.id === state.clubeUsuarioId);
+    if (!clube?.formacaoAtual || !clube.taticaAtual) {
+      return;
+    }
+    set({
+      formacaoPreLive: {
+        clubeId: clube.id,
+        formacao: clube.formacaoAtual,
+        tatica: clube.taticaAtual,
+      },
+    });
+  },
+
+  restaurarFormacaoPreLive: () => {
+    const state = get();
+    const snap = state.formacaoPreLive;
+    if (!snap) {
+      return; // já restaurado (ex.: partida concluída) — idempotente.
+    }
+    set({
+      clubes: state.clubes.map(clube =>
+        clube.id === snap.clubeId
+          ? {...clube, formacaoAtual: snap.formacao, taticaAtual: snap.tatica}
+          : clube,
+      ),
+      formacaoPreLive: null,
+    });
   },
 
   aplicarTreino: (treinoId, intensidade) => {
@@ -884,6 +978,58 @@ export const useGameStore = create<GameState>((set, get) => ({
           : jogador,
       ),
     }));
+  },
+
+  conversarComGrupo: () => {
+    const state = get();
+    const {clubeUsuarioId} = state;
+    if (!clubeUsuarioId || state.conversouComGrupo) {
+      return false; // sem carreira ou já usado nesta semana.
+    }
+    const elenco = jogadoresDoClube(state.jogadores, clubeUsuarioId);
+    const deltaPorJogador = new Map(
+      converteComGrupo(elenco).map(delta => [delta.jogadorId, delta.delta]),
+    );
+    set({
+      jogadores: state.jogadores.map(jogador =>
+        deltaPorJogador.has(jogador.id)
+          ? {
+              ...jogador,
+              moral: aplicarMoral(jogador.moral, deltaPorJogador.get(jogador.id) ?? 0),
+            }
+          : jogador,
+      ),
+      conversouComGrupo: true,
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        'Você conversou com o grupo. A moral do elenco subiu.',
+      ),
+    });
+    return true;
+  },
+
+  concederColetiva: deltaTotal => {
+    const state = get();
+    const {clubeUsuarioId} = state;
+    if (!clubeUsuarioId || state.coletivaConcedida) {
+      return false; // sem carreira ou coletiva já concedida nesta rodada.
+    }
+    set({
+      jogadores:
+        deltaTotal === 0
+          ? state.jogadores
+          : state.jogadores.map(jogador =>
+              jogador.clubeId === clubeUsuarioId
+                ? {...jogador, moral: aplicarMoral(jogador.moral, deltaTotal)}
+                : jogador,
+            ),
+      coletivaConcedida: true,
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        'Você concedeu a coletiva de imprensa.',
+      ),
+    });
+    return true;
   },
 
   renovarContrato: (jogadorId, anos, salario) => {
@@ -1328,9 +1474,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       };
     });
 
-    // Folha mensal de fim de temporada em todos os clubes.
+    // Acerto financeiro de fim de temporada (patrocínio, salários, manutenção
+    // e juros sobre dívida) em todos os clubes.
     const clubesComFolha = clubesMaster.map(clube =>
-      aplicarFolhaMensal(
+      aplicarAcertoFinanceiroAnual(
         clube,
         jogadoresDoClube(jogadoresEvoluidos, clube.id),
         `${state.temporadaAtual}-fim`,
@@ -1446,6 +1593,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       ultimaPartidaUsuario: null,
       dataAtual: liga.dataAtual,
       treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
       jovensDisponiveis,
       propostasRecebidas: [],
       mensagens,
@@ -1509,13 +1658,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       partidas: novo.partidas,
       tabela: novo.tabela,
       clubeUsuarioId: null,
-      temporadaAtual: '2026',
+      temporadaAtual: TEMPORADA_INICIAL,
       rodadaAtual: 1,
       ultimaPartidaUsuario: null,
       dataAtual: novo.dataAtual,
       treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
       jovensDisponiveis: [],
       propostasRecebidas: [],
+      formacaoPreLive: null,
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

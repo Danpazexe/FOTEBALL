@@ -18,6 +18,7 @@ import {
   TextoVazio,
 } from '../../components/ui';
 import CartaJogador from '../../components/CartaJogador';
+import AttributeRadar from '../../components/AttributeRadar';
 import Icone, {type IconeNome} from '../../components/Icone';
 import OverallBadge from '../../components/OverallBadge';
 import {useConfirm, useToast} from '../../components/feedback';
@@ -218,6 +219,12 @@ function PlayerDetail(): React.JSX.Element {
         </Text>
       </Section>
 
+      <Section titulo="Radar de atributos">
+        <View style={styles.radarWrap}>
+          <AttributeRadar jogador={jogador} />
+        </View>
+      </Section>
+
       <Section titulo="Atributos">
         <View style={styles.atributosGrid}>
           {ATRIBUTOS.map(attr => (
@@ -294,6 +301,10 @@ const styles = StyleSheet.create({
   cartaWrap: {
     alignItems: 'center',
     marginVertical: espaco.md,
+  },
+  radarWrap: {
+    alignItems: 'center',
+    paddingVertical: espaco.sm,
   },
   statusChip: {
     alignItems: 'center',

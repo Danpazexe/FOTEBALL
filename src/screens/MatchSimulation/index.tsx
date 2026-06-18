@@ -185,6 +185,10 @@ function MatchSimulation(): React.JSX.Element | null {
       return;
     }
 
+    // Retrato da escalação ANTES do jogo: as substituições/ajustes feitos durante
+    // a partida valem só para ela; ao concluir/abandonar a escalação é restaurada.
+    estado.prepararPartidaAoVivo();
+
     const ehCasa = proximo.timeCasa === estado.clubeUsuarioId;
     ladoUsuarioRef.current = ehCasa ? 'casa' : 'fora';
     const adversarioId = ehCasa ? proximo.timeFora : proximo.timeCasa;
@@ -213,6 +217,14 @@ function MatchSimulation(): React.JSX.Element | null {
     ]);
     setFixture(proximo);
   }, [nav]);
+
+  // Se o usuário sair da partida sem concluí-la, desfaz as trocas in-game (o
+  // concluirPartidaAoVivo já restaura no caminho normal, tornando isto um no-op).
+  useEffect(() => {
+    return () => {
+      useGameStore.getState().restaurarFormacaoPreLive();
+    };
+  }, []);
 
   const minuto = Math.min(DURACAO, Math.floor(relogioSeg / 60));
   const terminou = fixture !== null && relogioSeg >= DURACAO_SEG;

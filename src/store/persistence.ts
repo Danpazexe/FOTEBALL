@@ -9,10 +9,14 @@
  */
 
 import type {JovemTalento} from '../engine/progression/academiaEngine';
+import type {PropostaTransferencia} from '../engine/transfers/negociacaoEngine';
+import type {ConquistaSalva} from '../data/conquistas';
 import type {Clube, Partida, Player, TabelaClassificacao} from '../types';
-import type {GameState} from './useGameStore';
+import {CONFIG_PADRAO, type ConfigJogo, type GameState} from './useGameStore';
+import {migrarSnapshot, VERSAO_SAVE} from './saveMigrations';
 
-export const VERSAO_SAVE = 1;
+// Reexporta a versão atual do save (definida em saveMigrations p/ evitar ciclo).
+export {VERSAO_SAVE};
 
 export interface SnapshotJogo {
   versao: number;
@@ -21,15 +25,28 @@ export interface SnapshotJogo {
   rodadaAtual: number;
   dataAtual?: string;
   treinouProximoJogo?: boolean;
+  conversouComGrupo?: boolean;
+  coletivaConcedida?: boolean;
   clubes: Clube[];
   jogadores: Player[];
   partidas: Partida[];
   tabela: TabelaClassificacao[];
   jovensDisponiveis: JovemTalento[];
+  // Adicionados na v2 (opcionais para ler saves v1):
+  config?: ConfigJogo;
+  propostasRecebidas?: PropostaTransferencia[];
+  conquistas?: ConquistaSalva[];
 }
 
-/** Extrai do estado apenas o que precisa ser persistido (sem as ações). */
-export function montarSnapshot(state: GameState): SnapshotJogo {
+/**
+ * Extrai do estado apenas o que precisa ser persistido (sem as ações). As
+ * conquistas vivem em outro store (`useAchievementsStore`), então entram por
+ * parâmetro — quem salva passa `conquistasParaSalvar(...)`.
+ */
+export function montarSnapshot(
+  state: GameState,
+  conquistas: ConquistaSalva[] = [],
+): SnapshotJogo {
   return {
     versao: VERSAO_SAVE,
     clubeUsuarioId: state.clubeUsuarioId,
@@ -37,11 +54,16 @@ export function montarSnapshot(state: GameState): SnapshotJogo {
     rodadaAtual: state.rodadaAtual,
     dataAtual: state.dataAtual,
     treinouProximoJogo: state.treinouProximoJogo,
+    conversouComGrupo: state.conversouComGrupo,
+    coletivaConcedida: state.coletivaConcedida,
     clubes: state.clubes,
     jogadores: state.jogadores,
     partidas: state.partidas,
     tabela: state.tabela,
     jovensDisponiveis: state.jovensDisponiveis,
+    config: state.config,
+    propostasRecebidas: state.propostasRecebidas,
+    conquistas,
   };
 }
 
@@ -53,19 +75,37 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     rodadaAtual: snapshot.rodadaAtual,
     dataAtual: snapshot.dataAtual ?? `${snapshot.temporadaAtual}-04-04`,
     treinouProximoJogo: snapshot.treinouProximoJogo ?? false,
+    conversouComGrupo: snapshot.conversouComGrupo ?? false,
+    coletivaConcedida: snapshot.coletivaConcedida ?? false,
     clubes: snapshot.clubes,
     jogadores: snapshot.jogadores,
     partidas: snapshot.partidas,
     tabela: snapshot.tabela,
     jovensDisponiveis: snapshot.jovensDisponiveis ?? [],
+    config: {...CONFIG_PADRAO, ...snapshot.config},
+    propostasRecebidas: snapshot.propostasRecebidas ?? [],
   };
 }
 
 export interface ArmazenamentoSave {
+  /** Grava o save atual; antes disso, copia o save válido anterior para backup. */
   escrever(json: string): Promise<void>;
   ler(): Promise<string | null>;
+  /** Último save íntegro anterior, usado como rede de segurança no carregamento. */
+  lerBackup(): Promise<string | null>;
   limpar(): Promise<void>;
 }
+
+/** Resultado tipado do carregamento — nunca "engole" um erro silenciosamente. */
+export type ResultadoCarregamento =
+  | {tipo: 'vazio'}
+  | {
+      tipo: 'ok';
+      estado: Partial<GameState>;
+      conquistas: ConquistaSalva[];
+      origem: 'principal' | 'backup';
+    }
+  | {tipo: 'erro'; mensagem: string};
 
 let armazenamento: ArmazenamentoSave | null = null;
 
@@ -84,23 +124,54 @@ async function obterArmazenamento(): Promise<ArmazenamentoSave> {
 }
 
 /** Salva o estado atual (sobrescreve o save anterior — idempotente). */
-export async function salvarJogo(state: GameState): Promise<void> {
+export async function salvarJogo(
+  state: GameState,
+  conquistas: ConquistaSalva[] = [],
+): Promise<void> {
   const arm = await obterArmazenamento();
-  await arm.escrever(JSON.stringify(montarSnapshot(state)));
+  await arm.escrever(JSON.stringify(montarSnapshot(state, conquistas)));
 }
 
-/** Carrega o último save e devolve a fatia de estado, ou null se não houver. */
-export async function carregarJogo(): Promise<Partial<GameState> | null> {
+/** Faz parse + valida + migra um JSON de save para uma fatia de estado aplicável. */
+function decodificar(json: string): {
+  estado: Partial<GameState>;
+  conquistas: ConquistaSalva[];
+} {
+  const snapshot = migrarSnapshot(JSON.parse(json)); // lança em JSON/save inválido
+  return {
+    estado: aplicarSnapshot(snapshot),
+    conquistas: snapshot.conquistas ?? [],
+  };
+}
+
+/**
+ * Carrega o save com rede de segurança: tenta o principal; se ele estiver
+ * corrompido ou for de versão incompatível, cai para o backup; só então
+ * retorna erro (sem nunca apagar nada nem fingir que não há save).
+ */
+export async function carregarJogo(): Promise<ResultadoCarregamento> {
   const arm = await obterArmazenamento();
-  const json = await arm.ler();
-  if (!json) {
-    return null;
+  const principal = await arm.ler();
+  if (!principal) {
+    return {tipo: 'vazio'};
   }
   try {
-    const snapshot = JSON.parse(json) as SnapshotJogo;
-    return aplicarSnapshot(snapshot);
+    const {estado, conquistas} = decodificar(principal);
+    return {tipo: 'ok', estado, conquistas, origem: 'principal'};
   } catch {
-    return null;
+    const backup = await arm.lerBackup();
+    if (backup) {
+      try {
+        const {estado, conquistas} = decodificar(backup);
+        return {tipo: 'ok', estado, conquistas, origem: 'backup'};
+      } catch {
+        // backup também ilegível — cai no erro abaixo.
+      }
+    }
+    return {
+      tipo: 'erro',
+      mensagem: 'Save corrompido e sem backup recuperável.',
+    };
   }
 }
 

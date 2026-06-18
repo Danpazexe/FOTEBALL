@@ -22,6 +22,61 @@ export interface SimularPartidaInput {
   competicaoId?: string;
   rodada?: number;
   data?: string;
+  /**
+   * Mata-mata: se o jogo terminar empatado em 90', joga prorrogação e, persistindo
+   * o empate, decide nos pênaltis (preenche `Partida.vencedorPenaltis`). Em liga
+   * (padrão) fica falso e o empate é mantido.
+   */
+  desempate?: boolean;
+}
+
+function mediaOverall(jogadores: Player[]): number {
+  if (jogadores.length === 0) {
+    return 60;
+  }
+  return jogadores.reduce((soma, j) => soma + j.overall, 0) / jogadores.length;
+}
+
+/**
+ * Disputa de pênaltis determinística (usa o RNG semeado da partida). Cinco
+ * cobranças para cada lado e, persistindo o empate, morte súbita. A habilidade
+ * dá uma leve vantagem na conversão. Retorna o id do clube vencedor.
+ */
+export function disputarPenaltis(
+  rng: RandomGenerator,
+  habilidadeCasa: number,
+  habilidadeFora: number,
+  casaId: string,
+  foraId: string,
+): string {
+  const probDe = (hab: number) => limitar(0.55 + hab / 300, 0.6, 0.85);
+  const probCasa = probDe(habilidadeCasa);
+  const probFora = probDe(habilidadeFora);
+  let golsCasa = 0;
+  let golsFora = 0;
+  for (let i = 0; i < 5; i += 1) {
+    if (rng() < probCasa) {
+      golsCasa += 1;
+    }
+    if (rng() < probFora) {
+      golsFora += 1;
+    }
+  }
+  // Morte súbita: rodadas extras até alguém abrir vantagem na mesma rodada.
+  while (golsCasa === golsFora) {
+    const fezCasa = rng() < probCasa;
+    const fezFora = rng() < probFora;
+    if (fezCasa) {
+      golsCasa += 1;
+    }
+    if (fezFora) {
+      golsFora += 1;
+    }
+    if (fezCasa !== fezFora) {
+      break;
+    }
+  }
+  return golsCasa > golsFora ? casaId : foraId;
 }
 
 function pesoGol(posicao: Position): number {
@@ -591,6 +646,30 @@ export function simularPartida(input: SimularPartidaInput): Partida {
     simularMinuto(estado, ctx);
   }
 
+  // Mata-mata empatado: prorrogação (91'–120') e, persistindo, pênaltis.
+  let vencedorPenaltis: string | undefined;
+  if (input.desempate && estado.placarCasa === estado.placarFora) {
+    for (let minuto = 91; minuto <= 120; minuto += 1) {
+      const ctx = calcularContextoMinuto(
+        input.timeCasa,
+        input.timeFora,
+        input.jogadoresCasa,
+        input.jogadoresFora,
+        estado,
+      );
+      simularMinuto(estado, ctx);
+    }
+    if (estado.placarCasa === estado.placarFora) {
+      vencedorPenaltis = disputarPenaltis(
+        estado.rng,
+        mediaOverall(input.jogadoresCasa),
+        mediaOverall(input.jogadoresFora),
+        input.timeCasa.id,
+        input.timeFora.id,
+      );
+    }
+  }
+
   return {
     id: `match_${input.timeCasa.id}_${input.timeFora.id}_${input.seed}_${inteiroEntre(
       estado.rng,
@@ -607,5 +686,6 @@ export function simularPartida(input: SimularPartidaInput): Partida {
     eventos: estado.eventos.sort((a, b) => a.minuto - b.minuto),
     jogada: true,
     modoJogado: 'simulado',
+    vencedorPenaltis,
   };
 }

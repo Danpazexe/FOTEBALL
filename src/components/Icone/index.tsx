@@ -46,7 +46,9 @@ export type IconeNome =
   | 'troca'
   | 'trofeu'
   | 'jovem'
-  | 'calendario';
+  | 'calendario'
+  | 'conversa'
+  | 'moral';
 
 /** Nome semântico → glyph do MaterialCommunityIcons. */
 const GLYPHS: Record<IconeNome, string> = {
@@ -80,6 +82,8 @@ const GLYPHS: Record<IconeNome, string> = {
   trofeu: 'trophy',
   jovem: 'account-star-outline',
   calendario: 'calendar-month',
+  conversa: 'bullhorn',
+  moral: 'emoticon-happy-outline',
 };
 
 type IconeProps = {

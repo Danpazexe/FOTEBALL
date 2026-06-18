@@ -1,6 +1,7 @@
 import type {Clube, Formacao, Player, Position, Tatica} from '../../../types';
 
-import {simularPartida} from '../matchSimulator';
+import {disputarPenaltis, simularPartida} from '../matchSimulator';
+import {criarRNGComSeed} from '../rng';
 
 const posicoes433: Position[] = [
   'GOL',
@@ -267,5 +268,50 @@ describe('simularPartida', () => {
       }),
     ).reduce((t, p) => t + (p.placarCasa ?? 0), 0);
     expect(golsContraParedao).toBeLessThan(golsContraFrango);
+  });
+});
+
+describe('mata-mata e pênaltis', () => {
+  function montar(overallCasa: number, overallFora: number) {
+    const jogadoresCasa = criarJogadores('casa', overallCasa);
+    const jogadoresFora = criarJogadores('fora', overallFora);
+    return {
+      timeCasa: criarClube('casa', jogadoresCasa),
+      timeFora: criarClube('fora', jogadoresFora),
+      jogadoresCasa,
+      jogadoresFora,
+    };
+  }
+
+  it('com desempate, nenhum jogo termina sem vencedor', () => {
+    const base = montar(75, 75);
+    const partidas = Array.from({length: 200}, (_, i) =>
+      simularPartida({...base, seed: i + 1, desempate: true}),
+    );
+    for (const p of partidas) {
+      const decididoNoTempo = p.placarCasa !== p.placarFora;
+      expect(decididoNoTempo || p.vencedorPenaltis !== undefined).toBe(true);
+      if (p.vencedorPenaltis !== undefined) {
+        expect(['casa', 'fora']).toContain(p.vencedorPenaltis);
+      }
+    }
+    // Pelo menos um jogo precisou ir aos pênaltis na amostra.
+    expect(partidas.some(p => p.vencedorPenaltis !== undefined)).toBe(true);
+  });
+
+  it('sem desempate (liga), empates são mantidos e não há pênaltis', () => {
+    const base = montar(75, 75);
+    const partidas = Array.from({length: 200}, (_, i) =>
+      simularPartida({...base, seed: i + 1}),
+    );
+    expect(partidas.some(p => p.placarCasa === p.placarFora)).toBe(true);
+    expect(partidas.every(p => p.vencedorPenaltis === undefined)).toBe(true);
+  });
+
+  it('disputarPenaltis é determinístico e retorna um dos dois clubes', () => {
+    const a = disputarPenaltis(criarRNGComSeed(7), 75, 70, 'casa', 'fora');
+    const b = disputarPenaltis(criarRNGComSeed(7), 75, 70, 'casa', 'fora');
+    expect(a).toBe(b);
+    expect(['casa', 'fora']).toContain(a);
   });
 });
