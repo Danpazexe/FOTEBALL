@@ -55,6 +55,23 @@ export function diaDaSemana(iso: string): string {
   return DIAS_SEMANA[new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay()] ?? '';
 }
 
+/** Índice do dia da semana (0 = Dom … 6 = Sáb). */
+export function indiceDiaSemana(iso: string): number {
+  const {ano, mes, dia} = partes(iso);
+  return new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay();
+}
+
+/** Quantidade de dias no mês (1-12). */
+export function diasNoMes(ano: number, mes: number): number {
+  return new Date(Date.UTC(ano, mes, 0)).getUTCDate();
+}
+
+/** Nome do mês capitalizado ("Abril"). */
+export function nomeMes(mes: number): string {
+  const nome = MESES[mes - 1] ?? '';
+  return nome ? nome[0].toUpperCase() + nome.slice(1) : '';
+}
+
 /** "Qua 08/04" — dia da semana + dia/mês. */
 export function formatarDataCurta(iso: string): string {
   const {mes, dia} = partes(iso);

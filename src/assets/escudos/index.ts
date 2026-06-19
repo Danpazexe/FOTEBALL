@@ -33,6 +33,8 @@ export const ESCUDOS: Record<string, ImageSourcePropType> = {
 export const LOGO_SERIE_A: ImageSourcePropType = require('../brasileiraoA.png');
 export const LOGO_SERIE_B: ImageSourcePropType = require('../brasileiraoB.png');
 export const LOGO_SERIE_C: ImageSourcePropType = require('../brasileiraoC.png');
+/** Logo oficial da Copa do Brasil. */
+export const LOGO_COPA: ImageSourcePropType = require('../copaDoBrasil.png');
 
 const LOGO_POR_DIVISAO: Record<string, ImageSourcePropType> = {
   'Série A': LOGO_SERIE_A,

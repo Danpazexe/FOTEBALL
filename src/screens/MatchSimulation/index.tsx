@@ -43,23 +43,25 @@ import {
 } from '../../engine/simulation/narrativeTemplates';
 import {
   calcularContextoMinuto,
+  disputarPenaltis,
   iniciarPartidaAoVivo,
   simularMinuto,
   type EstadoPartidaAoVivo,
 } from '../../engine/simulation/matchSimulator';
-import {
-  calcularForcaTime,
-  type ForcaTime,
-} from '../../engine/simulation/teamStrength';
+import {confrontoDoClube} from '../../engine/season/copaEngine';
+import {criarRNGComSeed, hashString} from '../../engine/simulation/rng';
+import type {ForcaTime} from '../../engine/simulation/teamStrength';
+import {forcaDoClube} from '../../utils/forca';
 import {
   selecionarClubeUsuario,
+  selecionarCopaNaVez,
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
 import {cores, corDoTime, espaco, raio} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {Clube, EventoPartida, Formacao, Partida, Player} from '../../types';
-import {useAppNavigation} from '../../navigation/types';
+import {useAppNavigation, useAppRoute} from '../../navigation/types';
 
 type ItemTimeline = {
   minuto: number;
@@ -90,6 +92,13 @@ function formatarTempo(segundos: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+function mediaOverall(jogadores: Player[]): number {
+  if (jogadores.length === 0) {
+    return 60;
+  }
+  return jogadores.reduce((soma, j) => soma + j.overall, 0) / jogadores.length;
+}
+
 function mapearNomesJogadores(jogadores: Player[]): Record<string, string> {
   const mapa: Record<string, string> = {};
   for (const jogador of jogadores) {
@@ -98,27 +107,10 @@ function mapearNomesJogadores(jogadores: Player[]): Record<string, string> {
   return mapa;
 }
 
-/** Força do clube pela escalação atual (cai para a média de overall se faltar). */
-function forcaDoClube(clube: Clube, jogadores: Player[]): ForcaTime {
-  if (clube.formacaoAtual && clube.taticaAtual) {
-    return calcularForcaTime(
-      clube.formacaoAtual,
-      jogadores.filter(jogador => jogador.clubeId === clube.id),
-      clube.taticaAtual,
-    );
-  }
-  const doClube = jogadores
-    .filter(jogador => jogador.clubeId === clube.id)
-    .sort((a, b) => b.overall - a.overall)
-    .slice(0, 11);
-  const media = doClube.length
-    ? Math.round(doClube.reduce((s, j) => s + j.overall, 0) / doClube.length)
-    : 60;
-  return {ataque: media, meio: media, defesa: media, forcaGoleiro: media, overall: media};
-}
-
 function MatchSimulation(): React.JSX.Element | null {
   const nav = useAppNavigation();
+  const route = useAppRoute<'MatchSimulation'>();
+  const modoCopa = route.params?.copa === true;
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const jogadores = useGameStore(state => state.jogadores);
   const atualizarFormacaoUsuario = useGameStore(
@@ -138,6 +130,9 @@ function MatchSimulation(): React.JSX.Element | null {
   const estadoRef = useRef<EstadoPartidaAoVivo | null>(null);
   const minutoSimuladoRef = useRef(0);
   const adversarioRef = useRef<Clube | null>(null);
+  const modoCopaRef = useRef(false);
+  // Jogadores do adversário da Copa (pode ser de outra divisão → vêm do mestre).
+  const jogadoresAdversarioRef = useRef<Player[]>([]);
   const nomeCasaRef = useRef('');
   const nomeForaRef = useRef('');
   const nomesRef = useRef<Record<string, string>>({});
@@ -179,8 +174,8 @@ function MatchSimulation(): React.JSX.Element | null {
     definirSomHabilitado(estado.config.som);
     inicializarSons();
 
-    const proximo = selecionarProximoJogo(estado);
-    if (!proximo || !estado.clubeUsuarioId) {
+    const userId = estado.clubeUsuarioId;
+    if (!userId) {
       nav.goBack();
       return;
     }
@@ -189,24 +184,90 @@ function MatchSimulation(): React.JSX.Element | null {
     // a partida valem só para ela; ao concluir/abandonar a escalação é restaurada.
     estado.prepararPartidaAoVivo();
 
-    const ehCasa = proximo.timeCasa === estado.clubeUsuarioId;
-    ladoUsuarioRef.current = ehCasa ? 'casa' : 'fora';
-    const adversarioId = ehCasa ? proximo.timeFora : proximo.timeCasa;
-    adversarioRef.current =
-      estado.clubes.find(clube => clube.id === adversarioId) ?? null;
-    nomeCasaRef.current = nomeClube(estado.clubes, proximo.timeCasa);
-    nomeForaRef.current = nomeClube(estado.clubes, proximo.timeFora);
-    nomesRef.current = mapearNomesJogadores(estado.jogadores);
+    let fixtureMontada: Partida;
 
-    const seed =
-      estado.rodadaAtual * 1000 +
-      (proximo.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 1000);
-    estadoRef.current = iniciarPartidaAoVivo(seed);
+    if (modoCopa) {
+      // Confronto de mata-mata: o usuário manda o jogo; adversário pode ser de
+      // outra divisão (clube/jogadores vêm do conjunto-mestre).
+      modoCopaRef.current = true;
+      const meu = estado.copa
+        ? confrontoDoClube(estado.copa, userId)
+        : null;
+      // Só joga no dia: a Copa precisa ser o compromisso da vez.
+      if (!meu || !selecionarCopaNaVez(estado)) {
+        nav.goBack();
+        return;
+      }
+      const adversarioId = meu.timeA === userId ? meu.timeB : meu.timeA;
+      const advClube =
+        estado.todosClubes.find(c => c.id === adversarioId) ??
+        estado.clubes.find(c => c.id === adversarioId) ??
+        null;
+      if (!advClube) {
+        nav.goBack();
+        return;
+      }
+      const advDoMestre = estado.todosJogadores.filter(
+        j => j.clubeId === adversarioId,
+      );
+      const advJogadores =
+        advDoMestre.length > 0
+          ? advDoMestre
+          : estado.jogadores.filter(j => j.clubeId === adversarioId);
 
-    setSiglaCasa(siglaClube(estado.clubes, proximo.timeCasa));
-    setSiglaFora(siglaClube(estado.clubes, proximo.timeFora));
-    setCorCasa(corDoTime(proximo.timeCasa));
-    setCorFora(corDoTime(proximo.timeFora));
+      ladoUsuarioRef.current = 'casa';
+      adversarioRef.current = advClube;
+      jogadoresAdversarioRef.current = advJogadores;
+      nomeCasaRef.current = nomeClube(estado.clubes, userId);
+      nomeForaRef.current = advClube.nome;
+      nomesRef.current = mapearNomesJogadores([
+        ...estado.jogadores,
+        ...advJogadores,
+      ]);
+      estadoRef.current = iniciarPartidaAoVivo(hashString(meu.id) % 1_000_000);
+
+      setSiglaCasa(siglaClube(estado.clubes, userId));
+      setSiglaFora(advClube.sigla);
+      setCorCasa(corDoTime(userId));
+      setCorFora(corDoTime(adversarioId));
+      fixtureMontada = {
+        id: meu.id,
+        competicaoId: 'copa_brasil',
+        rodada: 0,
+        data: estado.dataAtual,
+        timeCasa: userId,
+        timeFora: adversarioId,
+        placarCasa: 0,
+        placarFora: 0,
+        eventos: [],
+        jogada: false,
+        modoJogado: 'interativo',
+      };
+    } else {
+      const proximo = selecionarProximoJogo(estado);
+      if (!proximo) {
+        nav.goBack();
+        return;
+      }
+      const ehCasa = proximo.timeCasa === userId;
+      ladoUsuarioRef.current = ehCasa ? 'casa' : 'fora';
+      const adversarioId = ehCasa ? proximo.timeFora : proximo.timeCasa;
+      adversarioRef.current =
+        estado.clubes.find(clube => clube.id === adversarioId) ?? null;
+      nomeCasaRef.current = nomeClube(estado.clubes, proximo.timeCasa);
+      nomeForaRef.current = nomeClube(estado.clubes, proximo.timeFora);
+      nomesRef.current = mapearNomesJogadores(estado.jogadores);
+      estadoRef.current = iniciarPartidaAoVivo(
+        estado.rodadaAtual * 1000 +
+          (proximo.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 1000),
+      );
+      setSiglaCasa(siglaClube(estado.clubes, proximo.timeCasa));
+      setSiglaFora(siglaClube(estado.clubes, proximo.timeFora));
+      setCorCasa(corDoTime(proximo.timeCasa));
+      setCorFora(corDoTime(proximo.timeFora));
+      fixtureMontada = proximo;
+    }
+
     setEventos([
       {
         minuto: 0,
@@ -215,8 +276,8 @@ function MatchSimulation(): React.JSX.Element | null {
         lado: 'neutro',
       },
     ]);
-    setFixture(proximo);
-  }, [nav]);
+    setFixture(fixtureMontada);
+  }, [nav, modoCopa]);
 
   // Se o usuário sair da partida sem concluí-la, desfaz as trocas in-game (o
   // concluirPartidaAoVivo já restaura no caminho normal, tornando isto um no-op).
@@ -288,8 +349,13 @@ function MatchSimulation(): React.JSX.Element | null {
     const usuarioEhCasa = ladoUsuarioRef.current === 'casa';
     const clubeCasa = usuarioEhCasa ? usuario : adversario;
     const clubeFora = usuarioEhCasa ? adversario : usuario;
-    const jogadoresCasa = st.jogadores.filter(j => j.clubeId === clubeCasa.id);
-    const jogadoresFora = st.jogadores.filter(j => j.clubeId === clubeFora.id);
+    // Na Copa, o adversário pode ser de outra divisão (jogadores do mestre).
+    const jogadoresUsuario = st.jogadores.filter(j => j.clubeId === usuario.id);
+    const jogadoresAdversario = modoCopaRef.current
+      ? jogadoresAdversarioRef.current
+      : st.jogadores.filter(j => j.clubeId === adversario.id);
+    const jogadoresCasa = usuarioEhCasa ? jogadoresUsuario : jogadoresAdversario;
+    const jogadoresFora = usuarioEhCasa ? jogadoresAdversario : jogadoresUsuario;
 
     const novosItens: ItemTimeline[] = [];
     const criarItem = (ev: EventoPartida): ItemTimeline => {
@@ -406,15 +472,39 @@ function MatchSimulation(): React.JSX.Element | null {
 
   // Fecha a partida e simula o resto da rodada ao terminar.
   useEffect(() => {
-    if (terminou && fixture && estadoRef.current && !comitadoRef.current) {
-      comitadoRef.current = true;
-      tocarFimDeJogo();
-      const e = estadoRef.current;
+    if (!(terminou && fixture && estadoRef.current && !comitadoRef.current)) {
+      return;
+    }
+    comitadoRef.current = true;
+    tocarFimDeJogo();
+    const e = estadoRef.current;
+    if (modoCopaRef.current) {
+      // Usuário manda o jogo: gols dele = placar da casa. Empate → pênaltis.
+      const golsUsuario = e.placarCasa;
+      const golsAdversario = e.placarFora;
+      let vencedorPenaltis: string | undefined;
+      if (golsUsuario === golsAdversario) {
+        const meus = useGameStore
+          .getState()
+          .jogadores.filter(j => j.clubeId === fixture.timeCasa);
+        vencedorPenaltis = disputarPenaltis(
+          criarRNGComSeed(hashString(`${fixture.id}_pen`)),
+          mediaOverall(meus),
+          mediaOverall(jogadoresAdversarioRef.current),
+          fixture.timeCasa,
+          fixture.timeFora,
+        );
+      }
+      useGameStore
+        .getState()
+        .avancarFaseCopa({golsUsuario, golsAdversario, vencedorPenaltis});
+      nav.navigate('Copa');
+    } else {
       useGameStore
         .getState()
         .concluirPartidaAoVivo(fixture.id, e.eventos, e.placarCasa, e.placarFora);
     }
-  }, [terminou, fixture]);
+  }, [terminou, fixture, nav]);
 
   const retomarSegundoTempo = () => {
     setSegundoTempoLiberado(true);

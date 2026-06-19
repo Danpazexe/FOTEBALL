@@ -7,16 +7,20 @@ import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {Clube, TabelaClassificacao} from '../../types';
 
 /**
- * Tabela de classificação do campeonato (Brasileirão Série A).
- * Cabeçalho fixo (#, Clube, P, J, SG) e uma linha por clube.
- * Destaca a linha do clube do usuário e marca, com borda esquerda colorida,
- * as zonas de Libertadores (1º-4º) e de rebaixamento (17º-20º).
+ * Tabela de classificação do campeonato. Cabeçalho fixo (#, Clube, P, J, SG) e
+ * uma linha por clube. Destaca a linha do clube do usuário e marca, com borda
+ * esquerda colorida, as zonas de acesso/Libertadores (topo) e de rebaixamento.
+ * As faixas das zonas são configuráveis por divisão (`zonaAcesso`/`zonaQueda`).
  */
-function corZona(posicao: number): string {
-  if (posicao <= 4) {
+function corZona(
+  posicao: number,
+  zonaAcesso: number,
+  zonaQueda: number | null,
+): string {
+  if (posicao <= zonaAcesso) {
     return cores.primaria;
   }
-  if (posicao >= 17) {
+  if (zonaQueda !== null && posicao >= zonaQueda) {
     return cores.perigo;
   }
   return 'transparent';
@@ -26,10 +30,16 @@ export function ClassificationTable({
   tabela,
   clubes,
   clubeDestaqueId,
+  zonaAcesso = 4,
+  zonaQueda = 17,
 }: {
   tabela: TabelaClassificacao[];
   clubes: Clube[];
   clubeDestaqueId?: string | null;
+  /** Posições do topo destacadas (Libertadores/acesso). Padrão 1º–4º. */
+  zonaAcesso?: number;
+  /** Posição a partir da qual é rebaixamento; `null` desliga (última divisão). */
+  zonaQueda?: number | null;
 }) {
   return (
     <View style={styles.container}>
@@ -49,7 +59,7 @@ export function ClassificationTable({
             key={linha.clubeId}
             style={[
               styles.row,
-              {borderLeftColor: corZona(posicao)},
+              {borderLeftColor: corZona(posicao, zonaAcesso, zonaQueda)},
               destaque ? styles.rowDestaque : null,
             ]}>
             <Text

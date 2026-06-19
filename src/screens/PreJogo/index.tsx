@@ -80,7 +80,7 @@ function PreJogo(): React.JSX.Element {
     <ScreenContainer scroll>
       <AppHeader
         titulo={`Rodada ${proximo.rodada}`}
-        subtitulo="Brasileirão Série A"
+        subtitulo={`Brasileirão ${confronto.casa.divisao ?? 'Série A'}`}
         onBack={() => nav.goBack()}
       />
 

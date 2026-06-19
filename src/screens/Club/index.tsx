@@ -17,9 +17,18 @@ import {
 } from '../../components/ui';
 import DonutChart, {type FatiaDonut} from '../../components/DonutChart';
 import Icone from '../../components/Icone';
+import {useToast} from '../../components/feedback';
 import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
 import {useAppNavigation} from '../../navigation/types';
-import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
+import {
+  CAPACIDADE_MAX_ESTADIO,
+  INFRA_MAX_ESTADIO,
+  LUGARES_POR_AMPLIACAO,
+  custoAmpliacaoEstadio,
+  custoMelhoriaInfra,
+  selecionarClubeUsuario,
+  useGameStore,
+} from '../../store/useGameStore';
 import {cores, espaco, raio} from '../../theme';
 import {moeda, moedaCompacta} from '../../utils/formatters';
 import type {Transacao} from '../../types';
@@ -65,8 +74,10 @@ function agregar(
 
 function Club(): React.JSX.Element {
   const nav = useAppNavigation();
+  const toast = useToast();
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const jogadores = useGameStore(state => state.jogadores);
+  const melhorarEstadio = useGameStore(state => state.melhorarEstadio);
 
   const elenco = useMemo(
     () => jogadores.filter(j => j.clubeId === clubeUsuario?.id),
@@ -99,6 +110,14 @@ function Club(): React.JSX.Element {
 
   const {financas, estadio} = clubeUsuario;
   const historico = financas.historicoTransacoes;
+  const capacidadeMaxima = estadio.capacidade >= CAPACIDADE_MAX_ESTADIO;
+  const infraMaxima = estadio.nivelInfraestrutura >= INFRA_MAX_ESTADIO;
+  const custoCapacidade = custoAmpliacaoEstadio(estadio.capacidade);
+  const custoInfra = custoMelhoriaInfra(estadio.nivelInfraestrutura);
+  const aoMelhorar = (tipo: 'capacidade' | 'infraestrutura') => {
+    const resultado = melhorarEstadio(tipo);
+    toast(resultado.mensagem, resultado.ok ? 'sucesso' : 'erro');
+  };
   const folha = calcularFolhaSalarial(elenco);
   const pctFolha = receitas.total > 0 ? (folha / receitas.total) * 100 : 0;
   const folhaAlta = pctFolha > 80;
@@ -193,6 +212,34 @@ function Club(): React.JSX.Element {
             <Text style={styles.linhaLabel}>Infraestrutura</Text>
             <Text style={styles.linhaValor}>Nível {estadio.nivelInfraestrutura}</Text>
           </View>
+          <Text style={styles.obraNota}>
+            Capacidade aumenta a bilheteria e o mando; infraestrutura acelera a
+            base e o treino.
+          </Text>
+        </View>
+        <View style={styles.obras}>
+          <Botao
+            variante="secundaria"
+            icone="dinheiro"
+            disabled={capacidadeMaxima || financas.saldo < custoCapacidade}
+            titulo={
+              capacidadeMaxima
+                ? 'Capacidade máxima'
+                : `Ampliar +${LUGARES_POR_AMPLIACAO.toLocaleString('pt-BR')} · ${moedaCompacta(custoCapacidade)}`
+            }
+            onPress={() => aoMelhorar('capacidade')}
+          />
+          <Botao
+            variante="secundaria"
+            icone="tatica"
+            disabled={infraMaxima || financas.saldo < custoInfra}
+            titulo={
+              infraMaxima
+                ? 'Infraestrutura máxima'
+                : `Melhorar infra (nível ${estadio.nivelInfraestrutura + 1}) · ${moedaCompacta(custoInfra)}`
+            }
+            onPress={() => aoMelhorar('infraestrutura')}
+          />
         </View>
       </Section>
 
@@ -352,6 +399,15 @@ const styles = StyleSheet.create({
     color: cores.texto,
     fontSize: 18,
     fontWeight: '800',
+  },
+  obraNota: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    marginTop: espaco.xs,
+  },
+  obras: {
+    gap: espaco.sm,
+    marginTop: espaco.sm,
   },
   linha: {
     alignItems: 'center',

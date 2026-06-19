@@ -34,4 +34,3 @@ export type {
   PremiacaoCompeticao,
   TabelaClassificacao,
 } from './competition';
-export type {ConfiguracoesJogo, SaveGame} from './save';

@@ -9,6 +9,7 @@
  */
 
 import type {JovemTalento} from '../engine/progression/academiaEngine';
+import type {EstadoCopa} from '../engine/season/copaEngine';
 import type {PropostaTransferencia} from '../engine/transfers/negociacaoEngine';
 import type {ConquistaSalva} from '../data/conquistas';
 import type {Clube, Partida, Player, TabelaClassificacao} from '../types';
@@ -36,6 +37,7 @@ export interface SnapshotJogo {
   config?: ConfigJogo;
   propostasRecebidas?: PropostaTransferencia[];
   conquistas?: ConquistaSalva[];
+  copa?: EstadoCopa | null;
 }
 
 /**
@@ -64,6 +66,7 @@ export function montarSnapshot(
     config: state.config,
     propostasRecebidas: state.propostasRecebidas,
     conquistas,
+    copa: state.copa,
   };
 }
 
@@ -84,6 +87,7 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     jovensDisponiveis: snapshot.jovensDisponiveis ?? [],
     config: {...CONFIG_PADRAO, ...snapshot.config},
     propostasRecebidas: snapshot.propostasRecebidas ?? [],
+    copa: snapshot.copa ?? null,
   };
 }
 

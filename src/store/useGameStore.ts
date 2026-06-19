@@ -31,6 +31,15 @@ import {
 } from '../engine/progression/treinoTipos';
 import {calcularTabela} from '../engine/season/classification';
 import {gerarCalendarioLiga} from '../engine/season/calendarGenerator';
+import {
+  avancarCopa,
+  confrontoDoClube,
+  definirResultadoConfronto,
+  faseAtualCopa,
+  gerarCopaDoBrasil,
+  type ConfrontoCopa,
+  type EstadoCopa,
+} from '../engine/season/copaEngine';
 import {simularPartida} from '../engine/simulation/matchSimulator';
 import {
   calcularNotaPartida,
@@ -79,6 +88,14 @@ export interface ResultadoProposta {
   mensagem: string;
 }
 
+/** Resultado de um confronto de copa jogado pelo usuário (ao vivo ou simulado). */
+export interface ResultadoConfrontoUsuario {
+  golsUsuario: number;
+  golsAdversario: number;
+  /** Id do clube vencedor nos pênaltis (quando o jogo terminou empatado). */
+  vencedorPenaltis?: string;
+}
+
 
 /** Multiplicadores de mercado — fonte única usada pela ação e pela UI. */
 export const MULTIPLICADOR_COMPRA = 1.22;
@@ -90,6 +107,22 @@ export function precoCompra(jogador: Player): number {
 
 export function precoVenda(jogador: Player): number {
   return Math.round(jogador.valorMercado * MULTIPLICADOR_VENDA);
+}
+
+// --- Melhorias de estádio ---
+export type TipoMelhoriaEstadio = 'capacidade' | 'infraestrutura';
+export const LUGARES_POR_AMPLIACAO = 5000;
+export const CAPACIDADE_MAX_ESTADIO = 90000;
+export const INFRA_MAX_ESTADIO = 5;
+
+/** Custo de ampliar o estádio (+5.000 lugares) — sobe com o porte atual. */
+export function custoAmpliacaoEstadio(capacidade: number): number {
+  return Math.round(capacidade * 220);
+}
+
+/** Custo de subir um nível de infraestrutura (mais caro a cada nível). */
+export function custoMelhoriaInfra(nivelAtual: number): number {
+  return nivelAtual * 2_500_000;
 }
 
 export type VelocidadeNarracao = 'normal' | 'rapido';
@@ -149,6 +182,8 @@ export interface GameState {
   conversouComGrupo: boolean;
   /** O usuário já concedeu a coletiva desta rodada? (libera 1x por jogo). */
   coletivaConcedida: boolean;
+  /** Copa do Brasil da temporada (mata-mata em paralelo à liga). */
+  copa: EstadoCopa | null;
   iniciarNovaCarreira: (clubeId: string) => void;
   avancarRodada: () => void;
   /** Move a data atual para um dia (usado ao avançar para treino/jogo). */
@@ -165,6 +200,11 @@ export interface GameState {
   conversarComGrupo: () => boolean;
   /** Concede a coletiva: aplica o efeito de moral acumulado (1x por rodada). */
   concederColetiva: (deltaTotal: number) => boolean;
+  /**
+   * Joga a fase atual da Copa: resolve o confronto do usuário (pelo resultado
+   * informado ou simulando) e simula os demais, avança a chave e paga premiação.
+   */
+  avancarFaseCopa: (resultadoUsuario?: ResultadoConfrontoUsuario) => void;
   /** Tira um retrato da escalação do usuário ao entrar numa partida ao vivo. */
   prepararPartidaAoVivo: () => void;
   /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
@@ -181,6 +221,8 @@ export interface GameState {
   atualizarConfig: (parcial: Partial<ConfigJogo>) => void;
   promoverJovem: (jovemId: string) => void;
   liberarJovem: (jovemId: string) => void;
+  /** Investe no estádio: amplia a capacidade ou sobe a infraestrutura. */
+  melhorarEstadio: (tipo: TipoMelhoriaEstadio) => ResultadoTransacao;
   reiniciarCarreira: () => void;
 }
 
@@ -249,6 +291,43 @@ function gerarLiga(
     tabela: calcularTabela(clubes, partidas),
     dataAtual: dataInicialDeTemporada(partidas, temporada),
   };
+}
+
+/** Premiação da Copa creditada ao usuário por fase VENCIDA (avançou). */
+const PREMIACAO_COPA: Record<string, number> = {
+  'Oitavas de final': 2_000_000,
+  'Quartas de final': 4_000_000,
+  Semifinal: 8_000_000,
+  Final: 20_000_000,
+};
+
+/** Rodadas da liga em torno das quais cada fase da Copa é disputada (meio de semana). */
+const RODADAS_GATILHO_COPA = [8, 16, 24, 32];
+
+/** Datas das fases da Copa: ~3 dias após a rodada-gatilho da liga (meio de semana). */
+function calcularDatasFasesCopa(partidas: Partida[]): string[] {
+  return RODADAS_GATILHO_COPA.map(rodada => {
+    const jogo = partidas.find(partida => partida.rodada === rodada);
+    return jogo ? adicionarDias(jogo.data, 3) : '';
+  });
+}
+
+/** Gera a Copa do Brasil da temporada a partir do conjunto-mestre (todas as divisões). */
+function gerarCopaParaTemporada(
+  todosClubes: Clube[],
+  todosJogadores: Player[],
+  temporada: string,
+  clubeUsuarioId: string | null,
+  datasFases: string[],
+): EstadoCopa {
+  return gerarCopaDoBrasil(
+    todosClubes,
+    todosJogadores,
+    temporada,
+    clubeUsuarioId,
+    criarRNGComSeed(hashString(`${temporada}_copa`)),
+    datasFases,
+  );
 }
 
 function criarEstadoInicial() {
@@ -584,6 +663,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   treinouProximoJogo: false,
   conversouComGrupo: false,
   coletivaConcedida: false,
+  copa: null,
 
   iniciarNovaCarreira: clubeId => {
     // SEMPRE parte do seed limpo (e da temporada inicial): uma "nova carreira"
@@ -616,6 +696,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       jovensDisponiveis: [],
       propostasRecebidas: [],
       formacaoPreLive: null,
+      copa: gerarCopaParaTemporada(
+        base.todosClubes,
+        base.todosJogadores,
+        TEMPORADA_INICIAL,
+        clubeId,
+        calcularDatasFasesCopa(liga.partidas),
+      ),
       clubes: liga.clubes.map(clube => ({
         ...clube,
         controladoPorIA: clube.id !== clubeId,
@@ -1030,6 +1117,120 @@ export const useGameStore = create<GameState>((set, get) => ({
       ),
     });
     return true;
+  },
+
+  avancarFaseCopa: resultadoUsuario => {
+    const state = get();
+    const copa = state.copa;
+    if (!copa || copa.campeao) {
+      return;
+    }
+    const userId = state.clubeUsuarioId;
+    const fase = faseAtualCopa(copa);
+
+    // Lookup de clube/jogadores: prefere o estado ATIVO (escalação/fadiga atuais)
+    // e cai para o conjunto-mestre (clubes de outras divisões).
+    const clubeAtivo = new Map(state.clubes.map(c => [c.id, c]));
+    const clubeMaster = new Map(state.todosClubes.map(c => [c.id, c]));
+    const clubeDe = (id: string): Clube | undefined =>
+      clubeAtivo.get(id) ?? clubeMaster.get(id);
+    const jogadoresDe = (id: string): Player[] => {
+      const ativos = jogadoresDoClube(state.jogadores, id);
+      return ativos.length > 0
+        ? ativos
+        : jogadoresDoClube(state.todosJogadores, id);
+    };
+
+    const confrontosResolvidos = fase.confrontos.map(confronto => {
+      if (confronto.vencedor) {
+        return confronto;
+      }
+      const ehDoUsuario =
+        !!userId && (confronto.timeA === userId || confronto.timeB === userId);
+      if (ehDoUsuario && resultadoUsuario) {
+        const usuarioEhA = confronto.timeA === userId;
+        const golsA = usuarioEhA
+          ? resultadoUsuario.golsUsuario
+          : resultadoUsuario.golsAdversario;
+        const golsB = usuarioEhA
+          ? resultadoUsuario.golsAdversario
+          : resultadoUsuario.golsUsuario;
+        return definirResultadoConfronto(
+          confronto,
+          golsA,
+          golsB,
+          resultadoUsuario.vencedorPenaltis,
+        );
+      }
+      const clubeA = clubeDe(confronto.timeA);
+      const clubeB = clubeDe(confronto.timeB);
+      if (!clubeA || !clubeB) {
+        return confronto;
+      }
+      const partida = simularPartida({
+        timeCasa: clubeA,
+        timeFora: clubeB,
+        jogadoresCasa: jogadoresDe(confronto.timeA),
+        jogadoresFora: jogadoresDe(confronto.timeB),
+        seed: hashString(confronto.id),
+        competicaoId: 'copa_brasil',
+        desempate: true,
+      });
+      return definirResultadoConfronto(
+        confronto,
+        partida.placarCasa ?? 0,
+        partida.placarFora ?? 0,
+        partida.vencedorPenaltis,
+      );
+    });
+
+    const copaResolvida: EstadoCopa = {
+      ...copa,
+      fases: copa.fases.map((f, i) =>
+        i === copa.faseAtual ? {...f, confrontos: confrontosResolvidos} : f,
+      ),
+    };
+    const copaAvancada = avancarCopa(copaResolvida);
+
+    // Premiação + mensagem conforme o destino do clube do usuário nesta fase.
+    let clubes = state.clubes;
+    let mensagens = state.mensagens;
+    const meu = userId
+      ? confrontosResolvidos.find(
+          c => c.timeA === userId || c.timeB === userId,
+        )
+      : undefined;
+    if (userId && meu) {
+      if (meu.vencedor === userId) {
+        const premio = PREMIACAO_COPA[fase.nome] ?? 0;
+        if (premio > 0) {
+          clubes = clubes.map(clube =>
+            clube.id === userId
+              ? registrarTransacao(clube, {
+                  data: `${copa.temporada}-copa`,
+                  tipo: 'receita',
+                  categoria: 'premiacao',
+                  valor: premio,
+                  descricao: `Premiação Copa do Brasil — ${fase.nome}`,
+                })
+              : clube,
+          );
+        }
+        mensagens = adicionarMensagem(
+          mensagens,
+          copaAvancada.campeao === userId
+            ? 'CAMPEÃO DA COPA DO BRASIL! 🏆'
+            : `Classificado na Copa (${fase.nome}).`,
+        );
+      } else {
+        mensagens = adicionarMensagem(
+          mensagens,
+          `Eliminado da Copa do Brasil na ${fase.nome}.`,
+        );
+      }
+    }
+
+    set({copa: copaAvancada, clubes, mensagens});
   },
 
   renovarContrato: (jogadorId, anos, salario) => {
@@ -1597,6 +1798,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       coletivaConcedida: false,
       jovensDisponiveis,
       propostasRecebidas: [],
+      copa: gerarCopaParaTemporada(
+        todosClubesNovos,
+        jogadoresEvoluidos,
+        proximaTemporada,
+        state.clubeUsuarioId,
+        calcularDatasFasesCopa(liga.partidas),
+      ),
       mensagens,
     });
   },
@@ -1644,6 +1852,67 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
 
+  melhorarEstadio: tipo => {
+    const state = get();
+    const {clubeUsuarioId} = state;
+    const clube = state.clubes.find(c => c.id === clubeUsuarioId);
+    if (!clubeUsuarioId || !clube) {
+      return {ok: false, mensagem: 'Sem clube ativo.'};
+    }
+    const estadio = clube.estadio;
+
+    let custo: number;
+    let novoEstadio: typeof estadio;
+    let descricao: string;
+    if (tipo === 'capacidade') {
+      if (estadio.capacidade >= CAPACIDADE_MAX_ESTADIO) {
+        return {ok: false, mensagem: 'O estádio já está na capacidade máxima.'};
+      }
+      custo = custoAmpliacaoEstadio(estadio.capacidade);
+      novoEstadio = {
+        ...estadio,
+        capacidade: Math.min(
+          CAPACIDADE_MAX_ESTADIO,
+          estadio.capacidade + LUGARES_POR_AMPLIACAO,
+        ),
+      };
+      descricao = `Ampliação do estádio (+${LUGARES_POR_AMPLIACAO} lugares)`;
+    } else {
+      if (estadio.nivelInfraestrutura >= INFRA_MAX_ESTADIO) {
+        return {ok: false, mensagem: 'A infraestrutura já está no nível máximo.'};
+      }
+      custo = custoMelhoriaInfra(estadio.nivelInfraestrutura);
+      novoEstadio = {
+        ...estadio,
+        nivelInfraestrutura: estadio.nivelInfraestrutura + 1,
+      };
+      descricao = `Melhoria de infraestrutura (nível ${estadio.nivelInfraestrutura + 1})`;
+    }
+
+    if (clube.financas.saldo < custo) {
+      return {ok: false, mensagem: 'Saldo insuficiente para a obra.'};
+    }
+
+    set({
+      clubes: state.clubes.map(c =>
+        c.id === clubeUsuarioId
+          ? {
+              ...registrarTransacao(c, {
+                data: state.dataAtual,
+                tipo: 'despesa',
+                categoria: 'obras',
+                valor: custo,
+                descricao,
+              }),
+              estadio: novoEstadio,
+            }
+          : c,
+      ),
+      mensagens: adicionarMensagem(state.mensagens, `${descricao} concluída.`),
+    });
+    return {ok: true, mensagem: `${descricao} concluída.`};
+  },
+
   atualizarConfig: parcial => {
     set(state => ({config: {...state.config, ...parcial}}));
   },
@@ -1668,6 +1937,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       jovensDisponiveis: [],
       propostasRecebidas: [],
       formacaoPreLive: null,
+      copa: null,
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();
@@ -1730,6 +2000,64 @@ export function selecionarProximoJogo(state: GameState): Partida | null {
     state.partidas.find(ehDoUsuario) ??
     null
   );
+}
+
+/** O confronto da Copa do usuário em aberto na fase atual (ou null). */
+export function selecionarConfrontoCopaUsuario(
+  state: GameState,
+): ConfrontoCopa | null {
+  const copa = state.copa;
+  if (!copa || copa.campeao) {
+    return null;
+  }
+  const confronto = confrontoDoClube(copa, state.clubeUsuarioId);
+  return confronto && !confronto.vencedor ? confronto : null;
+}
+
+export type Compromisso =
+  | {tipo: 'liga'; partida: Partida; data: string}
+  | {tipo: 'copa'; confronto: ConfrontoCopa; faseNome: string; data: string};
+
+/**
+ * Próximo compromisso do usuário: o de DATA mais cedo entre o próximo jogo da
+ * liga e o confronto da Copa em aberto (jogos de meio de semana se intercalam).
+ */
+export function selecionarProximoCompromisso(
+  state: GameState,
+): Compromisso | null {
+  const partidaLiga = selecionarProximoJogo(state);
+  const liga: Compromisso | null = partidaLiga
+    ? {tipo: 'liga', partida: partidaLiga, data: partidaLiga.data}
+    : null;
+
+  const confrontoCopa = selecionarConfrontoCopaUsuario(state);
+  const faseCopa = state.copa?.fases[state.copa.faseAtual];
+  const copa: Compromisso | null =
+    confrontoCopa && faseCopa?.data
+      ? {
+          tipo: 'copa',
+          confronto: confrontoCopa,
+          faseNome: faseCopa.nome,
+          data: faseCopa.data,
+        }
+      : null;
+
+  if (!liga) {
+    return copa;
+  }
+  if (!copa) {
+    return liga;
+  }
+  // Datas ISO comparam lexicograficamente; a Copa entra quando sua data chega.
+  return copa.data <= liga.data ? copa : liga;
+}
+
+/**
+ * A Copa é o compromisso "da vez"? (seu confronto chegou a hora de ser jogado).
+ * Boolean estável — seguro como seletor direto do zustand.
+ */
+export function selecionarCopaNaVez(state: GameState): boolean {
+  return selecionarProximoCompromisso(state)?.tipo === 'copa';
 }
 
 /**

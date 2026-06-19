@@ -4,6 +4,27 @@ function limitar(valor: number, minimo: number, maximo: number): number {
   return Math.min(maximo, Math.max(minimo, valor));
 }
 
+/**
+ * Fator de (des)valorização anual por idade, independente do overall. Jovens
+ * têm leve prêmio (margem de evolução) e veteranos desvalorizam mesmo mantendo
+ * o overall — aplicado por temporada (compõe ao longo da carreira).
+ */
+export function fatorValorPorIdade(idade: number): number {
+  if (idade <= 23) {
+    return 1.04;
+  }
+  if (idade <= 29) {
+    return 1.0;
+  }
+  if (idade <= 32) {
+    return 0.95;
+  }
+  if (idade <= 34) {
+    return 0.88;
+  }
+  return 0.78;
+}
+
 export function evoluirJogador(jogador: Player, clube: Clube): Player {
   const jovem = jogador.idade < 21;
   const veterano = jogador.idade >= 33;
@@ -37,13 +58,18 @@ export function evoluirJogador(jogador: Player, clube: Clube): Player {
     limitar(jogador.overall + delta, 1, jogador.potencial),
   );
 
+  const novaIdade = jogador.idade + 1;
   return {
     ...jogador,
-    idade: jogador.idade + 1,
+    idade: novaIdade,
     overall: novoOverall,
     valorMercado: Math.max(
       50000,
-      Math.round(jogador.valorMercado * (novoOverall / jogador.overall)),
+      Math.round(
+        jogador.valorMercado *
+          (novoOverall / Math.max(1, jogador.overall)) *
+          fatorValorPorIdade(novaIdade),
+      ),
     ),
     historicoTemporadas: [
       jogador.estatisticasTemporada,
