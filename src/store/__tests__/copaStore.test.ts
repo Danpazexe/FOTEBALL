@@ -32,9 +32,9 @@ describe('Copa do Brasil no store', () => {
     const copa = estado().copa!;
     expect(copa.faseAtual).toBe(1);
     expect(copa.fases[1].nome).toBe('Quartas de final');
-    // Usuário venceu → segue na chave e recebeu premiação das Oitavas (2M).
+    // Usuário venceu → segue na chave e recebeu premiação das Oitavas (§11.2).
     expect(confrontoDoClube(copa, usuario.id)).not.toBeNull();
-    expect(saldoDe(usuario.id)).toBe(saldoAntes + 2_000_000);
+    expect(saldoDe(usuario.id)).toBe(saldoAntes + 1_575_000);
   });
 
   it('simular a copa inteira produz um campeão', () => {

@@ -26,6 +26,8 @@ import {
 } from '../engine/progression/treinoAtributos';
 import {
   buscarTreino,
+  CONDICAO_MAX,
+  CONDICAO_MIN,
   INTENSIDADES,
   type IntensidadeTreino,
 } from '../engine/progression/treinoTipos';
@@ -293,12 +295,16 @@ function gerarLiga(
   };
 }
 
-/** Premiação da Copa creditada ao usuário por fase VENCIDA (avançou). */
+/**
+ * Premiação da Copa creditada ao usuário por fase VENCIDA (avançou).
+ * Valores conforme BRASFOOT_MASTER §11.2 (escala da Copa do Brasil): vencer a
+ * fase paga o prêmio da fase, e o campeão (vence a Final) leva a cota máxima.
+ */
 const PREMIACAO_COPA: Record<string, number> = {
-  'Oitavas de final': 2_000_000,
-  'Quartas de final': 4_000_000,
-  Semifinal: 8_000_000,
-  Final: 20_000_000,
+  'Oitavas de final': 1_575_000,
+  'Quartas de final': 3_150_000,
+  Semifinal: 5_250_000,
+  Final: 73_500_000,
 };
 
 /** Rodadas da liga em torno das quais cada fase da Copa é disputada (meio de semana). */
@@ -436,6 +442,9 @@ function aplicarResultadoNosJogadores(
   // "Jogou na partida" = titular (mesmo que substituído depois) OU reserva que
   // entrou via substituição. Garante que zagueiro sem lance também é avaliado.
   const jogou = new Set<string>();
+  // Titulares que de fato começaram a partida (90' de desgaste, salvo
+  // substituição). Distinto de quem entrou do banco (desgaste parcial).
+  const titularesNoApito = new Set<string>();
   // Estado PRÉ-rodada dos jogadores (suspensão/lesão ainda não decrementadas):
   // é o retrato de quem estava disponível no apito inicial.
   const porIdNoApito = new Map(jogadores.map(j => [j.id, j] as const));
@@ -452,6 +461,7 @@ function aplicarResultadoNosJogadores(
         !jogadorTitular.suspenso
       ) {
         jogou.add(titular.jogadorId);
+        titularesNoApito.add(titular.jogadorId);
       }
     }
   }
@@ -544,6 +554,18 @@ function aplicarResultadoNosJogadores(
       diasLesao = Math.max(diasLesao, sortearDuracaoLesao(rngPartida));
     }
 
+    // Preparo físico (BRASFOOT_MASTER §4): titular gasta ~90' (-20), reserva que
+    // entrou gasta parcial (-10), e quem ficou de fora DESCANSA e recupera (+25).
+    // É o que obriga a rodar o elenco ao longo das 38 rodadas.
+    const ehTitular = titularesNoApito.has(jogador.id);
+    const participou =
+      ehTitular || jogou.has(jogador.id) || jogadorIdsEmCampo.has(jogador.id);
+    const deltaCondicao = ehTitular ? -20 : participou ? -10 : 25;
+    const condicaoFisica = Math.min(
+      CONDICAO_MAX,
+      Math.max(CONDICAO_MIN, jogador.condicaoFisica + deltaCondicao),
+    );
+
     const base: Player = {
       ...jogador,
       suspenso,
@@ -551,10 +573,10 @@ function aplicarResultadoNosJogadores(
       lesionado,
       diasLesao,
       amarelosParaSuspensao,
+      condicaoFisica,
       moral: aplicarMoral(jogador.moral, mapaMoral.get(jogador.id) ?? 0),
     };
 
-    const participou = jogou.has(jogador.id) || jogadorIdsEmCampo.has(jogador.id);
     if (!participou) {
       return base;
     }
@@ -579,7 +601,6 @@ function aplicarResultadoNosJogadores(
 
     return {
       ...base,
-      condicaoFisica: Math.max(55, jogador.condicaoFisica - 6),
       estatisticasTemporada: {
         ...stats,
         jogos: stats.jogos + 1,
@@ -1034,6 +1055,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         return aplicarEfeitoTreino(jogador, efeito);
       });
 
+      const custoTreino = INTENSIDADES[intensidade].custo;
+
       const partes = [
         `Treino de ${treino.nome} (${INTENSIDADES[intensidade].rotulo}) realizado.`,
       ];
@@ -1043,9 +1066,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       if (lesoes > 0) {
         partes.push(`${lesoes} lesão(ões) no treino.`);
       }
+      partes.push(`Custo: R$ ${custoTreino.toLocaleString('pt-BR')}.`);
 
       return {
         jogadores,
+        // Custo da sessão debitado do clube (BRASFOOT_MASTER §10).
+        clubes: state.clubes.map(clubeItem =>
+          clubeItem.id === clubeUsuarioId
+            ? registrarTransacao(clubeItem, {
+                data: state.dataAtual,
+                tipo: 'despesa',
+                categoria: 'treino',
+                valor: custoTreino,
+                descricao: `Treino de ${treino.nome} (${INTENSIDADES[intensidade].rotulo})`,
+              })
+            : clubeItem,
+        ),
         // Treino concluído libera o jogo (porta o "treino obrigatório").
         treinouProximoJogo: true,
         mensagens: adicionarMensagem(state.mensagens, partes.join(' ')),

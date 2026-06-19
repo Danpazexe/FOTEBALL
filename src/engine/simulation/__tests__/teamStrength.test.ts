@@ -67,7 +67,7 @@ describe('calcularForcaTime', () => {
     const jogadores = elenco();
     const forca = calcularForcaTime(formacao(jogadores), jogadores, TATICA);
     // jogadores overall 75, moral 60, forma 0, condição 100:
-    // fator = (75) * (1.0) * (0.85 + 0.6*0.3=0.18 => 1.03) * 1.0 ≈ 77.25
+    // fator = 75 * fatorPreparo(100)=1.0 * (0.90 + 0.6*0.2 => 1.02) * forma 1.0 ≈ 76.5
     expect(forca.ataque).toBeGreaterThan(70);
     expect(forca.ataque).toBeLessThan(85);
     expect(forca.meio).toBeCloseTo(forca.defesa, 5);

@@ -27,6 +27,8 @@ export interface ConfigIntensidade {
   deltaMoral: number;
   /** Probabilidade-base de lesão por sessão (modulada por condição/idade). */
   riscoLesaoBase: number;
+  /** Custo da sessão em BRL, debitado do clube (BRASFOOT_MASTER §10). */
+  custo: number;
 }
 
 /** Ordem de exibição das intensidades (leve → muito forte). */
@@ -45,6 +47,7 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
     deltaForma: -0.4,
     deltaMoral: 0.5,
     riscoLesaoBase: 0.004,
+    custo: 5_000,
   },
   normal: {
     rotulo: 'Normal',
@@ -53,6 +56,7 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
     deltaForma: 0.4,
     deltaMoral: 0,
     riscoLesaoBase: 0.012,
+    custo: 15_000,
   },
   forte: {
     rotulo: 'Forte',
@@ -61,6 +65,7 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
     deltaForma: 1,
     deltaMoral: -0.4,
     riscoLesaoBase: 0.032,
+    custo: 35_000,
   },
   muito_forte: {
     rotulo: 'Muito forte',
@@ -69,11 +74,17 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
     deltaForma: 1.6,
     deltaMoral: -0.9,
     riscoLesaoBase: 0.06,
+    custo: 50_000,
   },
 };
 
-/** Limites de clamp (compartilhados com o motor de treino). */
-export const CONDICAO_MIN = 55;
+/**
+ * Limites de clamp (compartilhados com o motor de treino e o desgaste pós-jogo).
+ * Piso baixo (10) para que a tabela de preparo escalonada (ver `fatorPreparo`)
+ * realmente puna o jogador esgotado e force a rotação de elenco — antes o piso
+ * de 55 mascarava o desgaste.
+ */
+export const CONDICAO_MIN = 10;
 export const CONDICAO_MAX = 100;
 export const FORMA_MIN = -3;
 export const FORMA_MAX = 5;
