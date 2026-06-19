@@ -24,6 +24,7 @@ import OverallBadge from '../../components/OverallBadge';
 import {useConfirm, useToast} from '../../components/feedback';
 import {cores, corOverall, espaco, raio} from '../../theme';
 import {moeda} from '../../utils/formatters';
+import {HABILIDADES} from '../../engine/progression/habilidades';
 import {precoVenda, useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
 import type {Player, PlayerAttributes} from '../../types';
@@ -181,6 +182,23 @@ function PlayerDetail(): React.JSX.Element {
             : 'Já atingiu o teto de evolução.'}
         </Text>
       </Section>
+
+      {(jogador.habilidades ?? []).length > 0 ? (
+        <Section titulo="Habilidades">
+          <View style={styles.habilidadesWrap}>
+            {(jogador.habilidades ?? []).map(hab => (
+              <View key={hab} style={styles.habilidadeItem}>
+                <Text style={styles.habilidadeRotulo}>
+                  {HABILIDADES[hab].rotulo}
+                </Text>
+                <Text style={styles.habilidadeDescricao}>
+                  {HABILIDADES[hab].descricao}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Section>
+      ) : null}
 
       <MetricsRow>
         <Metric label="Valor" valor={moeda(jogador.valorMercado)} />
@@ -342,6 +360,27 @@ const styles = StyleSheet.create({
   tendenciaTexto: {
     fontSize: 12,
     fontWeight: '800',
+  },
+  habilidadesWrap: {
+    gap: espaco.sm,
+  },
+  habilidadeItem: {
+    borderLeftWidth: 3,
+    borderLeftColor: cores.primaria,
+    borderRadius: raio.sm,
+    backgroundColor: cores.superficieAlt,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.sm,
+  },
+  habilidadeRotulo: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  habilidadeDescricao: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    marginTop: 2,
   },
   barraFundo: {
     backgroundColor: cores.superficieAlt,

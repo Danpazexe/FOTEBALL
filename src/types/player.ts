@@ -31,6 +31,23 @@ export interface PlayerAttributes {
 export type AtributoChave = keyof PlayerAttributes;
 
 /**
+ * Habilidades especiais (perks) — no máximo 2 por jogador, ao estilo Brasfoot
+ * (BRASFOOT_MASTER §3.2). Definem a identidade do jogador e modulam eventos
+ * específicos da simulação. Os efeitos vivem em `engine/progression/habilidades`.
+ */
+export type Habilidade =
+  | 'ARTILHEIRO'
+  | 'ASSISTENCIAS'
+  | 'LIDERANCA'
+  | 'DEFENSOR'
+  | 'VELOCISTA'
+  | 'FINALIZADOR'
+  | 'CHUTE_LONGO'
+  | 'FALTA'
+  | 'CABECEADOR'
+  | 'GOLEIRO_PENALTI';
+
+/**
  * Progresso acumulado rumo ao PRÓXIMO ponto de cada atributo (0–100%). Quando um
  * atributo chega a 100%, ele sobe +1 e o progresso volta a 0 (ver
  * `engine/progression/treinoAtributos`). Opcional: saves antigos e jogadores
@@ -58,6 +75,12 @@ export interface Player {
   posicoesSecundarias: Position[];
   pernaDominante: PernaDominante;
   atributos: PlayerAttributes;
+  /**
+   * Habilidades especiais (máx. 2). Opcional: derivada dos atributos no load do
+   * seed (`derivarHabilidades`) quando ausente, mas pode vir explícita no JSON
+   * para craques feitos à mão.
+   */
+  habilidades?: Habilidade[];
   /**
    * Progresso (0–100%) rumo ao próximo ponto de cada atributo, acumulado pelos
    * treinos. Opcional para manter compatibilidade com saves antigos.
