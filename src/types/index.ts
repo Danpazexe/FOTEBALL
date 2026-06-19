@@ -35,3 +35,8 @@ export type {
   PremiacaoCompeticao,
   TabelaClassificacao,
 } from './competition';
+export type {
+  EstadoFinanceiro,
+  MotivoDemissao,
+  ResultadoCarreira,
+} from './carreira';

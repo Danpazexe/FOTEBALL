@@ -12,7 +12,15 @@ import type {JovemTalento} from '../engine/progression/academiaEngine';
 import type {EstadoCopa} from '../engine/season/copaEngine';
 import type {PropostaTransferencia} from '../engine/transfers/negociacaoEngine';
 import type {ConquistaSalva} from '../data/conquistas';
-import type {Clube, Partida, Player, TabelaClassificacao} from '../types';
+import type {
+  Clube,
+  EstadoFinanceiro,
+  MotivoDemissao,
+  Partida,
+  Player,
+  TabelaClassificacao,
+} from '../types';
+import {REPUTACAO_INICIAL} from '../engine/carreira/carreiraEngine';
 import {CONFIG_PADRAO, type ConfigJogo, type GameState} from './useGameStore';
 import {migrarSnapshot, VERSAO_SAVE} from './saveMigrations';
 
@@ -38,6 +46,12 @@ export interface SnapshotJogo {
   propostasRecebidas?: PropostaTransferencia[];
   conquistas?: ConquistaSalva[];
   copa?: EstadoCopa | null;
+  // Eixo Meta/Carreira (opcionais para ler saves anteriores):
+  reputacaoTecnico?: number;
+  derrotasConsecutivas?: number;
+  rodadasNoVermelho?: number;
+  estadoFinanceiro?: EstadoFinanceiro;
+  demissao?: MotivoDemissao | null;
 }
 
 /**
@@ -67,6 +81,11 @@ export function montarSnapshot(
     propostasRecebidas: state.propostasRecebidas,
     conquistas,
     copa: state.copa,
+    reputacaoTecnico: state.reputacaoTecnico,
+    derrotasConsecutivas: state.derrotasConsecutivas,
+    rodadasNoVermelho: state.rodadasNoVermelho,
+    estadoFinanceiro: state.estadoFinanceiro,
+    demissao: state.demissao,
   };
 }
 
@@ -88,6 +107,11 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     config: {...CONFIG_PADRAO, ...snapshot.config},
     propostasRecebidas: snapshot.propostasRecebidas ?? [],
     copa: snapshot.copa ?? null,
+    reputacaoTecnico: snapshot.reputacaoTecnico ?? REPUTACAO_INICIAL,
+    derrotasConsecutivas: snapshot.derrotasConsecutivas ?? 0,
+    rodadasNoVermelho: snapshot.rodadasNoVermelho ?? 0,
+    estadoFinanceiro: snapshot.estadoFinanceiro ?? 'SAUDAVEL',
+    demissao: snapshot.demissao ?? null,
   };
 }
 

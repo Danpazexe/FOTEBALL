@@ -31,6 +31,18 @@ import {
   INTENSIDADES,
   type IntensidadeTreino,
 } from '../engine/progression/treinoTipos';
+import {
+  atualizarDerrotasConsecutivas,
+  atualizarReputacao,
+  atualizarRodadasNoVermelho,
+  calcularEstadoFinanceiro,
+  LIMITE_DERROTAS_DEMISSAO,
+  MORAL_SALARIO_ATRASADO,
+  REPUTACAO_INICIAL,
+  reputacaoFimTemporada,
+  salariosAtrasados,
+  verificarDemissao,
+} from '../engine/carreira/carreiraEngine';
 import {calcularTabela} from '../engine/season/classification';
 import {gerarCalendarioLiga} from '../engine/season/calendarGenerator';
 import {
@@ -66,10 +78,13 @@ import {adicionarDias} from '../utils/datas';
 import {useAchievementsStore} from './useAchievementsStore';
 import type {
   Clube,
+  EstadoFinanceiro,
   EventoPartida,
   Formacao,
+  MotivoDemissao,
   Partida,
   Player,
+  ResultadoCarreira,
   TabelaClassificacao,
   Tatica,
 } from '../types';
@@ -186,6 +201,16 @@ export interface GameState {
   coletivaConcedida: boolean;
   /** Copa do Brasil da temporada (mata-mata em paralelo à liga). */
   copa: EstadoCopa | null;
+  /** Reputação do técnico (0-100), cresce com resultados (§12). */
+  reputacaoTecnico: number;
+  /** Derrotas seguidas do clube do usuário (zera em vitória/empate). */
+  derrotasConsecutivas: number;
+  /** Rodadas seguidas com saldo negativo (gatilho de crise/falência, §8.4). */
+  rodadasNoVermelho: number;
+  /** Estado financeiro derivado das rodadas no vermelho (§8.4). */
+  estadoFinanceiro: EstadoFinanceiro;
+  /** Motivo da demissão, se o técnico foi demitido (§12); null = empregado. */
+  demissao: MotivoDemissao | null;
   iniciarNovaCarreira: (clubeId: string) => void;
   avancarRodada: () => void;
   /** Move a data atual para um dia (usado ao avançar para treino/jogo). */
@@ -662,6 +687,145 @@ function checarConquistas(args: {
   novas.forEach(id => ach.desbloquearConquista(id));
 }
 
+function limiteDerrotasPorDivisao(divisao: string): number {
+  if (divisao === 'Série B') {
+    return LIMITE_DERROTAS_DEMISSAO.B;
+  }
+  if (divisao === 'Série C') {
+    return LIMITE_DERROTAS_DEMISSAO.C;
+  }
+  return LIMITE_DERROTAS_DEMISSAO.A;
+}
+
+function mensagemDemissao(motivo: MotivoDemissao): string {
+  if (motivo === 'FALENCIA') {
+    return 'A diretoria te demitiu: o clube quebrou financeiramente.';
+  }
+  if (motivo === 'REBAIXAMENTO') {
+    return 'A diretoria te demitiu após o rebaixamento.';
+  }
+  return 'A diretoria te demitiu após a sequência de derrotas.';
+}
+
+/** Resultado da rodada para o clube do usuário (null se não jogou). */
+function resultadoDoUsuario(
+  partidaUsuario: Partida | null,
+  clubeUsuarioId: string,
+): ResultadoCarreira | null {
+  if (!partidaUsuario || !partidaUsuario.jogada) {
+    return null;
+  }
+  const ehCasa = partidaUsuario.timeCasa === clubeUsuarioId;
+  const golsCasa = partidaUsuario.placarCasa ?? 0;
+  const golsFora = partidaUsuario.placarFora ?? 0;
+  if (golsCasa === golsFora) {
+    return 'empate';
+  }
+  return (golsCasa > golsFora) === ehCasa ? 'vitoria' : 'derrota';
+}
+
+interface AtualizacaoCarreira {
+  jogadores: Player[];
+  reputacaoTecnico: number;
+  derrotasConsecutivas: number;
+  rodadasNoVermelho: number;
+  estadoFinanceiro: EstadoFinanceiro;
+  demissao: MotivoDemissao | null;
+  mensagens: MensagemJogo[];
+}
+
+/**
+ * Atualiza o eixo de carreira após uma rodada da liga (§12/§8.4): reputação,
+ * sequência de derrotas, rodadas no vermelho/estado financeiro, salário atrasado
+ * (→ moral do elenco) e gatilho de demissão. A lógica pura vive em
+ * `carreiraEngine`; aqui só aplicamos aos jogadores/mensagens.
+ */
+function atualizarCarreiraPosRodada(
+  estado: Pick<
+    GameState,
+    | 'clubeUsuarioId'
+    | 'reputacaoTecnico'
+    | 'derrotasConsecutivas'
+    | 'rodadasNoVermelho'
+    | 'demissao'
+  >,
+  clubes: Clube[],
+  jogadores: Player[],
+  partidaUsuario: Partida | null,
+  mensagens: MensagemJogo[],
+): AtualizacaoCarreira {
+  const uid = estado.clubeUsuarioId;
+  const clubeUsuario = uid ? clubes.find(clube => clube.id === uid) : undefined;
+  if (!uid || !clubeUsuario) {
+    return {
+      jogadores,
+      reputacaoTecnico: estado.reputacaoTecnico,
+      derrotasConsecutivas: estado.derrotasConsecutivas,
+      rodadasNoVermelho: estado.rodadasNoVermelho,
+      estadoFinanceiro: calcularEstadoFinanceiro(estado.rodadasNoVermelho),
+      demissao: estado.demissao,
+      mensagens,
+    };
+  }
+
+  const resultado = resultadoDoUsuario(partidaUsuario, uid);
+  const rodadasNoVermelho = atualizarRodadasNoVermelho(
+    estado.rodadasNoVermelho,
+    clubeUsuario.financas.saldo,
+  );
+  const estadoFinanceiro = calcularEstadoFinanceiro(rodadasNoVermelho);
+  const derrotasConsecutivas = resultado
+    ? atualizarDerrotasConsecutivas(estado.derrotasConsecutivas, resultado)
+    : estado.derrotasConsecutivas;
+  const reputacaoTecnico = resultado
+    ? atualizarReputacao(estado.reputacaoTecnico, resultado)
+    : estado.reputacaoTecnico;
+
+  let jogadoresFinais = jogadores;
+  let msgs = mensagens;
+
+  // Salário atrasado: derruba a moral de todo o elenco do usuário (§5/§8.4).
+  if (salariosAtrasados(rodadasNoVermelho)) {
+    jogadoresFinais = jogadores.map(jogador =>
+      jogador.clubeId === uid
+        ? {
+            ...jogador,
+            moral: aplicarMoral(jogador.moral, MORAL_SALARIO_ATRASADO),
+          }
+        : jogador,
+    );
+    msgs = adicionarMensagem(
+      msgs,
+      `Salários atrasados (${rodadasNoVermelho} rodadas no vermelho): a moral do elenco despencou.`,
+    );
+  }
+
+  let demissao = estado.demissao;
+  if (!demissao) {
+    const motivo = verificarDemissao({
+      derrotasConsecutivas,
+      limiteDerrotas: limiteDerrotasPorDivisao(
+        clubeUsuario.divisao ?? DIVISAO_PADRAO,
+      ),
+      rodadasNoVermelho,
+    });
+    if (motivo) {
+      demissao = motivo;
+      msgs = adicionarMensagem(msgs, mensagemDemissao(motivo));
+    }
+  }
+
+  return {
+    jogadores: jogadoresFinais,
+    reputacaoTecnico,
+    derrotasConsecutivas,
+    rodadasNoVermelho,
+    estadoFinanceiro,
+    demissao,
+    mensagens: msgs,
+  };
+}
+
 const inicial = criarEstadoInicial();
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -685,6 +849,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   conversouComGrupo: false,
   coletivaConcedida: false,
   copa: null,
+  reputacaoTecnico: REPUTACAO_INICIAL,
+  derrotasConsecutivas: 0,
+  rodadasNoVermelho: 0,
+  estadoFinanceiro: 'SAUDAVEL',
+  demissao: null,
 
   iniciarNovaCarreira: clubeId => {
     // SEMPRE parte do seed limpo (e da temporada inicial): uma "nova carreira"
@@ -710,6 +879,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       treinouProximoJogo: false,
       conversouComGrupo: false,
       coletivaConcedida: false,
+      reputacaoTecnico: REPUTACAO_INICIAL,
+      derrotasConsecutivas: 0,
+      rodadasNoVermelho: 0,
+      estadoFinanceiro: 'SAUDAVEL',
+      demissao: null,
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -810,8 +984,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       return aplicarBilheteria(clube, posicaoClube(tabela, clube.id), `${state.temporadaAtual}-rodada-${state.rodadaAtual}`);
     });
 
+    const carreira = atualizarCarreiraPosRodada(
+      state,
+      clubesComBilheteria,
+      jogadoresAtualizados,
+      partidaUsuarioCompleta,
+      adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} simulada.`),
+    );
+
     set({
-      jogadores: jogadoresAtualizados,
+      jogadores: carreira.jogadores,
       partidas: partidasAtualizadas,
       tabela,
       clubes: clubesComBilheteria,
@@ -823,15 +1005,17 @@ export const useGameStore = create<GameState>((set, get) => ({
       treinouProximoJogo: false,
       conversouComGrupo: false,
       coletivaConcedida: false,
-      mensagens: adicionarMensagem(
-        state.mensagens,
-        `Rodada ${state.rodadaAtual} simulada.`,
-      ),
+      reputacaoTecnico: carreira.reputacaoTecnico,
+      derrotasConsecutivas: carreira.derrotasConsecutivas,
+      rodadasNoVermelho: carreira.rodadasNoVermelho,
+      estadoFinanceiro: carreira.estadoFinanceiro,
+      demissao: carreira.demissao,
+      mensagens: carreira.mensagens,
     });
 
     checarConquistas({
       clubeUsuarioId: state.clubeUsuarioId,
-      jogadores: jogadoresAtualizados,
+      jogadores: carreira.jogadores,
       partidas: partidasAtualizadas,
       tabela,
       clubes: clubesComBilheteria,
@@ -919,8 +1103,16 @@ export const useGameStore = create<GameState>((set, get) => ({
         )
       : clubesComBilheteria;
 
+    const carreira = atualizarCarreiraPosRodada(
+      state,
+      clubesFinais,
+      jogadoresAtualizados,
+      partidaUsuario,
+      adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} disputada.`),
+    );
+
     set({
-      jogadores: jogadoresAtualizados,
+      jogadores: carreira.jogadores,
       partidas: partidasAtualizadas,
       tabela,
       clubes: clubesFinais,
@@ -931,15 +1123,17 @@ export const useGameStore = create<GameState>((set, get) => ({
       treinouProximoJogo: false,
       conversouComGrupo: false,
       coletivaConcedida: false,
-      mensagens: adicionarMensagem(
-        state.mensagens,
-        `Rodada ${state.rodadaAtual} disputada.`,
-      ),
+      reputacaoTecnico: carreira.reputacaoTecnico,
+      derrotasConsecutivas: carreira.derrotasConsecutivas,
+      rodadasNoVermelho: carreira.rodadasNoVermelho,
+      estadoFinanceiro: carreira.estadoFinanceiro,
+      demissao: carreira.demissao,
+      mensagens: carreira.mensagens,
     });
 
     checarConquistas({
       clubeUsuarioId: state.clubeUsuarioId,
-      jogadores: jogadoresAtualizados,
+      jogadores: carreira.jogadores,
       partidas: partidasAtualizadas,
       tabela,
       clubes: clubesFinais,
@@ -1815,6 +2009,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       `Temporada ${proximaTemporada} (${divisaoUsuario}) iniciada. ${jovensDisponiveis.length} jovens nas peneiras.`,
     );
 
+    // Eixo carreira: reputação de fim de temporada + demissão por rebaixamento.
+    const campeao = ordemDivisao(divisaoAtiva)[0] === state.clubeUsuarioId;
+    const eventoTemporada: 'titulo' | 'acesso' | 'rebaixamento' | 'meio' =
+      campeao
+        ? 'titulo'
+        : idxNova > idxAntiga
+          ? 'rebaixamento'
+          : idxNova >= 0 && idxNova < idxAntiga
+            ? 'acesso'
+            : 'meio';
+    const reputacaoTecnico = reputacaoFimTemporada(
+      state.reputacaoTecnico,
+      eventoTemporada,
+    );
+    let demissao = state.demissao;
+    if (!demissao && eventoTemporada === 'rebaixamento' && state.clubeUsuarioId) {
+      demissao = 'REBAIXAMENTO';
+      mensagens = adicionarMensagem(mensagens, mensagemDemissao('REBAIXAMENTO'));
+    }
+
     set({
       temporadaAtual: proximaTemporada,
       rodadaAtual: 1,
@@ -1832,6 +2046,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       treinouProximoJogo: false,
       conversouComGrupo: false,
       coletivaConcedida: false,
+      reputacaoTecnico,
+      derrotasConsecutivas: 0,
+      demissao,
       jovensDisponiveis,
       propostasRecebidas: [],
       copa: gerarCopaParaTemporada(
@@ -1974,6 +2191,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       propostasRecebidas: [],
       formacaoPreLive: null,
       copa: null,
+      reputacaoTecnico: REPUTACAO_INICIAL,
+      derrotasConsecutivas: 0,
+      rodadasNoVermelho: 0,
+      estadoFinanceiro: 'SAUDAVEL',
+      demissao: null,
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();
