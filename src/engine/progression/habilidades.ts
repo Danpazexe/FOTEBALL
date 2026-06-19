@@ -1,4 +1,4 @@
-import type {Habilidade, Player, Position} from '../../types';
+import type {Habilidade, Player, Position, Tatica} from '../../types';
 
 /**
  * Sistema de habilidades especiais (perks), ao estilo Brasfoot
@@ -185,4 +185,67 @@ export function comHabilidades(jogador: Player): Player {
     };
   }
   return {...jogador, habilidades: derivarHabilidades(jogador)};
+}
+
+// ─── EFEITOS NA SIMULAÇÃO (BRASFOOT_MASTER §3.2 / §7.1) ────────────────────
+
+/** True se o jogador tem a habilidade (trata o campo opcional). */
+export function temHabilidade(jogador: Player, habilidade: Habilidade): boolean {
+  return (jogador.habilidades ?? []).includes(habilidade);
+}
+
+/**
+ * Multiplicador no peso de AUTOR DE GOL: finalizadores natos marcam mais. Só
+ * redistribui QUEM faz o gol — não altera o total de gols da partida (logo, não
+ * mexe nos testes estatísticos de placar). Fatores compõem.
+ */
+export function fatorPesoGol(jogador: Player): number {
+  const habs = jogador.habilidades ?? [];
+  let fator = 1;
+  if (habs.includes('ARTILHEIRO')) {
+    fator *= 1.5;
+  }
+  if (habs.includes('FINALIZADOR')) {
+    fator *= 1.25;
+  }
+  if (habs.includes('CABECEADOR')) {
+    fator *= 1.12;
+  }
+  if (habs.includes('CHUTE_LONGO')) {
+    fator *= 1.1;
+  }
+  return fator;
+}
+
+/** Multiplicador no peso de ASSISTÊNCIA (o garçom distribui mais passes para gol). */
+export function fatorPesoAssistencia(jogador: Player): number {
+  return temHabilidade(jogador, 'ASSISTENCIAS') ? 1.4 : 1;
+}
+
+/**
+ * Bônus de força efetiva das habilidades dos titulares (BRASFOOT_MASTER §7.1).
+ * Pequeno e com teto, para dar identidade sem desbalancear. Jogadores sem
+ * habilidades (fixtures de teste, elenco cru da IA) somam 0.
+ */
+export function calcularBonusHabilidades(
+  titulares: Player[],
+  tatica: Tatica,
+): number {
+  const contraAtaque = tatica.estiloOfensivo === 'Contra-ataque';
+  let bonus = 0;
+  for (const jogador of titulares) {
+    for (const habilidade of jogador.habilidades ?? []) {
+      if (habilidade === 'LIDERANCA') {
+        bonus += 1.2;
+      } else if (habilidade === 'DEFENSOR') {
+        bonus += 0.8;
+      } else if (habilidade === 'ARTILHEIRO') {
+        bonus += 0.8;
+      } else if (habilidade === 'VELOCISTA') {
+        // Velocista rende muito mais quando o time joga de contra-ataque.
+        bonus += contraAtaque ? 1.2 : 0.3;
+      }
+    }
+  }
+  return Math.min(bonus, 6);
 }

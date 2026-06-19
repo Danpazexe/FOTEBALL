@@ -32,6 +32,7 @@ export function aplicarMoral(moralAtual: number, delta: number): number {
  * - Goleada (diferença >= 3 gols), além do resultado base (BRASFOOT_MASTER §5):
  *     vitória por goleada → +3 titular / +1 reserva
  *     derrota por goleada → -5 titular / -2 reserva (vexame pesa mais)
+ * - Líder no elenco (habilidade LIDERANCA) e o time venceu: +2 a todos (§3.2)
  * - Marcou gol na partida: +8 adicional
  * - Sofreu lesão na partida: -5 adicional
  * - Expulso (vermelho): -6 adicional
@@ -54,6 +55,10 @@ export function calcularDeltasMoralPartida(
   const golsCasa = partida.placarCasa ?? 0;
   const golsFora = partida.placarFora ?? 0;
   const goleada = Math.abs(golsCasa - golsFora) >= 3;
+  // Um líder no elenco levanta a moral do grupo na vitória (BRASFOOT_MASTER §3.2).
+  const temLider = jogadoresDoClube.some(
+    outro => (outro.habilidades ?? []).includes('LIDERANCA'),
+  );
 
   return jogadoresDoClube.map(jogador => {
     const titular = emCampo.has(jogador.id);
@@ -66,6 +71,10 @@ export function calcularDeltasMoralPartida(
       if (goleada) {
         delta += titular ? 3 : 1;
         motivos.push('goleada');
+      }
+      if (temLider) {
+        delta += 2;
+        motivos.push('liderança');
       }
     } else if (perdeu) {
       delta += titular ? -4 : -1;

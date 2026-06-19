@@ -1,4 +1,5 @@
 import type {Formacao, Player, Position, Tatica} from '../../types';
+import {calcularBonusHabilidades} from '../progression/habilidades';
 import {fatorAdaptacao} from '../tactics/adaptacao';
 
 export interface ForcaTime {
@@ -128,6 +129,7 @@ export function calcularForcaTime(
   let forcaGoleiro = 55;
   let titularesDeLinha = 0; // jogadores de linha previstos na escalação (não-GOL)
   let presentesDeLinha = 0; // quantos desses estão realmente disponíveis
+  const titularesPresentes: Player[] = []; // para o bônus de habilidades
 
   for (const titular of formacao.titulares) {
     if (titular.posicao !== 'GOL') {
@@ -144,6 +146,8 @@ export function calcularForcaTime(
     ) {
       continue;
     }
+
+    titularesPresentes.push(jogador);
 
     // Goleiro é avaliado à parte (não entra na média da defesa).
     if (titular.posicao === 'GOL') {
@@ -206,7 +210,11 @@ export function calcularForcaTime(
     defesa *= 1.05;
   }
 
-  const overall = ataque * 0.35 + meio * 0.35 + defesa * 0.3;
+  // Bônus das habilidades especiais dos titulares (líder, muralha, velocista no
+  // contra-ataque...). Pequeno e com teto — ver `calcularBonusHabilidades`.
+  const bonusHabilidades = calcularBonusHabilidades(titularesPresentes, tatica);
+  const overall =
+    ataque * 0.35 + meio * 0.35 + defesa * 0.3 + bonusHabilidades;
 
   return {ataque, meio, defesa, forcaGoleiro, overall};
 }

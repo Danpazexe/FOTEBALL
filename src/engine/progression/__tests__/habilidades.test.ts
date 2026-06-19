@@ -1,10 +1,21 @@
+import type {Tatica} from '../../../types';
 import {criarPlayer} from '../../../testing/fixtures';
 
 import {
+  calcularBonusHabilidades,
   comHabilidades,
   derivarHabilidades,
+  fatorPesoAssistencia,
+  fatorPesoGol,
   MAX_HABILIDADES,
 } from '../habilidades';
+
+const TATICA_BASE: Tatica = {
+  estiloOfensivo: 'Equilibrado',
+  marcacao: 'Zona',
+  linhaDefensiva: 'Normal',
+  ritmo: 'Normal',
+};
 
 describe('derivarHabilidades', () => {
   it('jogador mediano (atributos 70) não ganha nenhuma habilidade', () => {
@@ -161,5 +172,60 @@ describe('comHabilidades', () => {
     const habs = comHabilidades(atacante).habilidades ?? [];
     expect(habs.length).toBeGreaterThan(0);
     expect(habs).toContain('ARTILHEIRO');
+  });
+});
+
+describe('fatorPesoGol', () => {
+  it('jogador sem habilidades não altera o peso (1.0)', () => {
+    expect(fatorPesoGol(criarPlayer({id: 'x'}))).toBe(1);
+  });
+
+  it('ARTILHEIRO aumenta o peso de ser o autor do gol', () => {
+    const art = criarPlayer({id: 'a', habilidades: ['ARTILHEIRO']});
+    expect(fatorPesoGol(art)).toBeGreaterThan(1);
+  });
+
+  it('habilidades de finalização compõem', () => {
+    const duplo = criarPlayer({
+      id: 'd',
+      habilidades: ['ARTILHEIRO', 'CABECEADOR'],
+    });
+    const simples = criarPlayer({id: 'a2', habilidades: ['ARTILHEIRO']});
+    expect(fatorPesoGol(duplo)).toBeGreaterThan(fatorPesoGol(simples));
+  });
+});
+
+describe('fatorPesoAssistencia', () => {
+  it('ASSISTENCIAS aumenta o peso de assistir; sem ela é 1.0', () => {
+    const garcom = criarPlayer({id: 'g', habilidades: ['ASSISTENCIAS']});
+    expect(fatorPesoAssistencia(garcom)).toBeGreaterThan(1);
+    expect(fatorPesoAssistencia(criarPlayer({id: 'n'}))).toBe(1);
+  });
+});
+
+describe('calcularBonusHabilidades', () => {
+  it('time sem habilidades soma 0 (não afeta a simulação base)', () => {
+    const time = [criarPlayer({id: '1'}), criarPlayer({id: '2'})];
+    expect(calcularBonusHabilidades(time, TATICA_BASE)).toBe(0);
+  });
+
+  it('um líder soma bônus positivo', () => {
+    const time = [criarPlayer({id: 'l', habilidades: ['LIDERANCA']})];
+    expect(calcularBonusHabilidades(time, TATICA_BASE)).toBeGreaterThan(0);
+  });
+
+  it('velocista rende mais no contra-ataque', () => {
+    const time = [criarPlayer({id: 'v', habilidades: ['VELOCISTA']})];
+    const contra: Tatica = {...TATICA_BASE, estiloOfensivo: 'Contra-ataque'};
+    expect(calcularBonusHabilidades(time, contra)).toBeGreaterThan(
+      calcularBonusHabilidades(time, TATICA_BASE),
+    );
+  });
+
+  it('tem teto (não passa de 6)', () => {
+    const muitos = Array.from({length: 10}, (_, i) =>
+      criarPlayer({id: `p${i}`, habilidades: ['LIDERANCA', 'DEFENSOR']}),
+    );
+    expect(calcularBonusHabilidades(muitos, TATICA_BASE)).toBeLessThanOrEqual(6);
   });
 });

@@ -1,6 +1,11 @@
 import type {Clube, EventoPartida, Partida, Player, Position} from '../../types';
 
 import {
+  fatorPesoAssistencia,
+  fatorPesoGol,
+  temHabilidade,
+} from '../progression/habilidades';
+import {
   calcularMando,
   calcularProbabilidades,
   type ProbabilidadesPartida,
@@ -167,7 +172,9 @@ function simularEventoGol(
     jogadores,
     rng,
     jogador =>
-      pesoGol(jogador.posicaoPrincipal) * (jogador.atributos.finalizacao / 70),
+      pesoGol(jogador.posicaoPrincipal) *
+      (jogador.atributos.finalizacao / 70) *
+      fatorPesoGol(jogador),
   );
 
   const evento = criarEvento(
@@ -187,7 +194,7 @@ function simularEventoGol(
     const assistente = escolherJogadorPonderado(
       candidatosAssist,
       rng,
-      pesoAssistencia,
+      jogador => pesoAssistencia(jogador) * fatorPesoAssistencia(jogador),
     );
     evento.jogadorAssistenciaId = assistente.id;
     evento.descricao = `${autor.nome} marcou, com assistência de ${assistente.nome}.`;
@@ -262,9 +269,16 @@ function simularPenalti(
     rng,
     atleta => atleta.atributos.finalizacao,
   );
+  // Goleiro "pega-pênalti" defende mais: soma à sua qualidade efetiva,
+  // derrubando a conversão e subindo a chance de defesa (BRASFOOT_MASTER §3.2).
+  const bonusPegaPenalti =
+    goleiroAdversario && temHabilidade(goleiroAdversario, 'GOLEIRO_PENALTI')
+      ? 30
+      : 0;
   const qualidadeGoleiro = goleiroAdversario
     ? goleiroAdversario.atributos.reflexos * 0.7 +
-      goleiroAdversario.atributos.posicionamento * 0.3
+      goleiroAdversario.atributos.posicionamento * 0.3 +
+      bonusPegaPenalti
     : 60;
   const probConversao = limitar(
     0.78 + (batedor.atributos.finalizacao - qualidadeGoleiro) / 320,
