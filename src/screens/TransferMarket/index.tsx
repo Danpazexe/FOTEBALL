@@ -11,8 +11,16 @@ import {Modal, Pressable, StyleSheet, Text, TextInput, View} from 'react-native'
 import PlayerCard from '../../components/PlayerCard';
 import {AppHeader, Botao, ScreenContainer, TextoVazio} from '../../components/ui';
 import {useToast} from '../../components/feedback';
+import {
+  custoEmprestimo,
+  ehEmprestado,
+} from '../../engine/transfers/emprestimoEngine';
 import {useAppNavigation} from '../../navigation/types';
-import {precoCompra, useGameStore} from '../../store/useGameStore';
+import {
+  precoCompra,
+  selecionarClubeUsuario,
+  useGameStore,
+} from '../../store/useGameStore';
 import {cores, espaco, raio} from '../../theme';
 import {moeda, nomeClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
@@ -22,7 +30,7 @@ const POSICOES: Array<Position | 'Todos'> = [
   'Todos', 'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
 ];
 
-type Aba = 'contratar' | 'propostas';
+type Aba = 'contratar' | 'propostas' | 'emprestar';
 
 function TransferMarket(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -36,6 +44,8 @@ function TransferMarket(): React.JSX.Element {
   const responderPropostaVenda = useGameStore(
     state => state.responderPropostaVenda,
   );
+  const pegarEmprestado = useGameStore(state => state.pegarEmprestado);
+  const clubeUsuario = useGameStore(selecionarClubeUsuario);
 
   const [aba, setAba] = useState<Aba>('contratar');
   const [filtro, setFiltro] = useState<Position | 'Todos'>('Todos');
@@ -52,6 +62,31 @@ function TransferMarket(): React.JSX.Element {
         .slice(0, LIMITE),
     [jogadores, clubeUsuarioId, filtro],
   );
+
+  // Empréstimos disponíveis: jogadores de outros clubes, ainda não cedidos,
+  // priorizando os mais jovens (perfil de empréstimo para desenvolver/encorpar).
+  const emprestaveis = useMemo(
+    () =>
+      jogadores
+        .filter(
+          j =>
+            j.clubeId !== clubeUsuarioId && j.clubeId !== null && !ehEmprestado(j),
+        )
+        .filter(j => filtro === 'Todos' || j.posicaoPrincipal === filtro)
+        .sort((a, b) => a.idade - b.idade || b.overall - a.overall)
+        .slice(0, LIMITE),
+    [jogadores, clubeUsuarioId, filtro],
+  );
+
+  const aoEmprestar = (jogador: Player) => {
+    const custo = custoEmprestimo(jogador);
+    if ((clubeUsuario?.financas.saldo ?? 0) < custo) {
+      toast('Saldo insuficiente para a taxa do empréstimo.', 'erro');
+      return;
+    }
+    pegarEmprestado(jogador.id);
+    toast(`${jogador.nome} contratado por empréstimo.`, 'sucesso');
+  };
 
   const abrirProposta = (jogador: Player) => {
     setAlvo(jogador);
@@ -107,46 +142,75 @@ function TransferMarket(): React.JSX.Element {
             Propostas{propostas.length > 0 ? ` (${propostas.length})` : ''}
           </Text>
         </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setAba('emprestar')}
+          style={[styles.tab, aba === 'emprestar' ? styles.tabAtiva : null]}>
+          <Text style={[styles.tabTexto, aba === 'emprestar' ? styles.tabTextoAtivo : null]}>
+            Empréstimos
+          </Text>
+        </Pressable>
       </View>
 
+      {aba === 'contratar' || aba === 'emprestar' ? (
+        <View style={styles.filtros}>
+          {POSICOES.map(pos => (
+            <Pressable
+              accessibilityRole="button"
+              key={pos}
+              onPress={() => setFiltro(pos)}
+              style={[styles.chip, filtro === pos ? styles.chipAtivo : null]}>
+              <Text
+                style={[
+                  styles.chipTexto,
+                  filtro === pos ? styles.chipTextoAtivo : null,
+                ]}>
+                {pos}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
+
       {aba === 'contratar' ? (
-        <>
-          <View style={styles.filtros}>
-            {POSICOES.map(pos => (
-              <Pressable
-                accessibilityRole="button"
-                key={pos}
-                onPress={() => setFiltro(pos)}
-                style={[styles.chip, filtro === pos ? styles.chipAtivo : null]}>
-                <Text
-                  style={[
-                    styles.chipTexto,
-                    filtro === pos ? styles.chipTextoAtivo : null,
-                  ]}>
-                  {pos}
-                </Text>
-              </Pressable>
+        disponiveis.length === 0 ? (
+          <TextoVazio>Nenhum jogador para esse filtro.</TextoVazio>
+        ) : (
+          <View style={styles.lista}>
+            {disponiveis.map(jogador => (
+              <PlayerCard
+                key={jogador.id}
+                jogador={jogador}
+                legendaExtra={nomeClube(clubes, jogador.clubeId ?? '')}
+                onPress={() => nav.navigate('PlayerDetail', {jogadorId: jogador.id})}
+                acaoLabel="Propor"
+                onAcao={() => abrirProposta(jogador)}
+              />
             ))}
           </View>
+        )
+      ) : null}
 
-          {disponiveis.length === 0 ? (
-            <TextoVazio>Nenhum jogador para esse filtro.</TextoVazio>
-          ) : (
-            <View style={styles.lista}>
-              {disponiveis.map(jogador => (
-                <PlayerCard
-                  key={jogador.id}
-                  jogador={jogador}
-                  legendaExtra={nomeClube(clubes, jogador.clubeId ?? '')}
-                  onPress={() => nav.navigate('PlayerDetail', {jogadorId: jogador.id})}
-                  acaoLabel="Propor"
-                  onAcao={() => abrirProposta(jogador)}
-                />
-              ))}
-            </View>
-          )}
-        </>
-      ) : (
+      {aba === 'emprestar' ? (
+        emprestaveis.length === 0 ? (
+          <TextoVazio>Nenhum jogador para empréstimo nesse filtro.</TextoVazio>
+        ) : (
+          <View style={styles.lista}>
+            {emprestaveis.map(jogador => (
+              <PlayerCard
+                key={jogador.id}
+                jogador={jogador}
+                legendaExtra={`${nomeClube(clubes, jogador.clubeId ?? '')} · taxa ${moeda(custoEmprestimo(jogador))}`}
+                onPress={() => nav.navigate('PlayerDetail', {jogadorId: jogador.id})}
+                acaoLabel="Pegar"
+                onAcao={() => aoEmprestar(jogador)}
+              />
+            ))}
+          </View>
+        )
+      ) : null}
+
+      {aba === 'propostas' ? (
         <>
           {propostas.length === 0 ? (
             <TextoVazio>Nenhuma proposta recebida.</TextoVazio>
@@ -187,7 +251,7 @@ function TransferMarket(): React.JSX.Element {
             </View>
           )}
         </>
-      )}
+      ) : null}
 
       <Modal
         visible={alvo !== null}

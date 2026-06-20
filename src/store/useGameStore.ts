@@ -1678,7 +1678,11 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const jogador = state.jogadores.find(item => item.id === jogadorId);
 
-    if (!jogador || jogador.clubeId !== clubeUsuarioId) {
+    if (
+      !jogador ||
+      jogador.clubeId !== clubeUsuarioId ||
+      ehEmprestado(jogador)
+    ) {
       return {ok: false, mensagem: 'Jogador indisponível.'};
     }
 
@@ -1983,12 +1987,14 @@ export const useGameStore = create<GameState>((set, get) => ({
     const jaTemProposta = new Set(pendentesValidas.map(p => p.jogadorId));
 
     const iaClubes = state.clubes.filter(c => c.id !== usuarioId);
-    // Só jogadores cobiçados (overall alto) e ainda sem oferta aberta entram.
+    // Só jogadores cobiçados (overall alto), do usuário, sem oferta aberta e que
+    // NÃO estejam emprestados (esses pertencem a outro clube) entram.
     const candidatos = state.jogadores.filter(
       j =>
         j.clubeId === usuarioId &&
         j.overall >= 70 &&
-        !jaTemProposta.has(j.id),
+        !jaTemProposta.has(j.id) &&
+        !ehEmprestado(j),
     );
     if (candidatos.length === 0 || iaClubes.length === 0) {
       set({propostasRecebidas: pendentesValidas});
