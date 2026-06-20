@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
-import PlayerCard from '../../components/PlayerCard';
+import MiniPlayerCard from '../../components/MiniPlayerCard';
 import {
   AppHeader,
   Metric,
@@ -10,16 +10,11 @@ import {
   Section,
   TextoVazio,
 } from '../../components/ui';
-import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
-import {
-  precoVenda,
-  useGameStore,
-  useJogadoresUsuario,
-} from '../../store/useGameStore';
+import {useJogadoresUsuario} from '../../store/useGameStore';
 import {cores, espaco, raio} from '../../theme';
-import {moeda, moedaCompacta} from '../../utils/formatters';
-import type {Player, Position} from '../../types';
+import {moedaCompacta} from '../../utils/formatters';
+import type {Position} from '../../types';
 
 type FiltroPosicao = 'Todos' | Position;
 
@@ -39,16 +34,13 @@ const FILTROS: FiltroPosicao[] = [
 ];
 
 /**
- * Aba Elenco: lista os jogadores do clube do usuário com filtro por posição
- * principal e ação de vender. Cada jogador abre o detalhe ao ser tocado.
+ * Aba Elenco — "Galeria de Ativos": grade de mini-cartas (tier + glow) com
+ * filtro por posição. Tocar uma carta abre o detalhe do jogador (onde ficam as
+ * ações de vender/emprestar).
  */
 function Squad() {
   const nav = useAppNavigation();
   const jogadores = useJogadoresUsuario();
-  const venderJogador = useGameStore(state => state.venderJogador);
-  const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
-  const confirm = useConfirm();
-  const toast = useToast();
   const [filtro, setFiltro] = useState<FiltroPosicao>('Todos');
 
   const jogadoresFiltrados = useMemo(() => {
@@ -71,26 +63,9 @@ function Squad() {
     return {total, media, valor, indisponiveis};
   }, [jogadores]);
 
-  const handleVender = async (jogador: Player) => {
-    const ok = !confirmarAcoes
-      ? true
-      : await confirm({
-          titulo: `Vender ${jogador.nome}?`,
-          mensagem: `${jogador.posicaoPrincipal} · ${jogador.idade} anos · Overall ${jogador.overall}`,
-          detalhes: [{rotulo: 'Clube recebe', valor: moeda(precoVenda(jogador))}],
-          confirmarLabel: 'Vender',
-          perigo: true,
-        });
-    if (!ok) {
-      return;
-    }
-    const resultado = venderJogador(jogador.id);
-    toast(resultado.mensagem, resultado.ok ? 'sucesso' : 'erro');
-  };
-
   return (
     <ScreenContainer scroll>
-      <AppHeader titulo="Elenco" />
+      <AppHeader titulo="Elenco" subtitulo={`${resumo.total} jogadores`} />
 
       <MetricsRow>
         <Metric label="Jogadores" valor={`${resumo.total}`} />
@@ -126,26 +101,21 @@ function Squad() {
         </View>
       </Section>
 
-      <Section>
-        {jogadoresFiltrados.length === 0 ? (
-          <TextoVazio>Nenhum jogador nesta posição.</TextoVazio>
-        ) : (
-          <View style={styles.lista}>
-            {jogadoresFiltrados.map(jogador => (
-              <PlayerCard
-                key={jogador.id}
-                jogador={jogador}
-                onPress={() =>
-                  nav.navigate('PlayerDetail', {jogadorId: jogador.id})
-                }
-                acaoLabel="Vender"
-                onAcao={() => handleVender(jogador)}
-                legendaExtra={`Condição ${jogador.condicaoFisica}% · Pot. ${jogador.potencial}`}
-              />
-            ))}
-          </View>
-        )}
-      </Section>
+      {jogadoresFiltrados.length === 0 ? (
+        <TextoVazio>Nenhum jogador nesta posição.</TextoVazio>
+      ) : (
+        <View style={styles.grade}>
+          {jogadoresFiltrados.map(jogador => (
+            <MiniPlayerCard
+              key={jogador.id}
+              jogador={jogador}
+              onPress={() =>
+                nav.navigate('PlayerDetail', {jogadorId: jogador.id})
+              }
+            />
+          ))}
+        </View>
+      )}
     </ScreenContainer>
   );
 }
@@ -159,8 +129,8 @@ const styles = StyleSheet.create({
     gap: espaco.sm,
   },
   chip: {
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
+    borderColor: cores.bordaClara,
+    borderRadius: raio.pill,
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: 34,
@@ -178,7 +148,9 @@ const styles = StyleSheet.create({
   chipTextoAtivo: {
     color: cores.contrastePrimaria,
   },
-  lista: {
+  grade: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: espaco.sm,
   },
   aviso: {

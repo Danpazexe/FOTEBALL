@@ -26,7 +26,7 @@ import {
   calcularNotaPartida,
   type ResultadoJogador,
 } from '../../engine/simulation/matchRating';
-import {cores, corDoTime, espaco, raio} from '../../theme';
+import {cores, corDoTime, espaco, raio, sombra} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
@@ -295,14 +295,15 @@ const styles = StyleSheet.create({
   },
   golLinha: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.sm,
     paddingHorizontal: espaco.md,
     paddingVertical: espaco.sm,
+    ...sombra.suave,
   },
   golDot: {
     borderRadius: 3,
@@ -350,13 +351,14 @@ const styles = StyleSheet.create({
     gap: espaco.sm,
   },
   timeCol: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flex: 1,
     gap: 2,
     padding: espaco.sm,
+    ...sombra.suave,
   },
   timeTitulo: {
     color: cores.textoSecundario,

@@ -15,7 +15,7 @@ import {useConfirm} from '../../components/feedback';
 import {clubeElegivelParaTecnico} from '../../engine/carreira/carreiraEngine';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra} from '../../theme';
 import type {Clube, MotivoDemissao, Player} from '../../types';
 import {moeda} from '../../utils/formatters';
 
@@ -135,6 +135,7 @@ function Demissao(): React.JSX.Element {
           <Botao
             icone="jogar"
             titulo="Começar uma nova carreira"
+            variante="ouro"
             onPress={recomecar}
           />
         </View>
@@ -179,13 +180,16 @@ const styles = StyleSheet.create({
     paddingTop: espaco.lg,
   },
   motivoCard: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.perigo,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderLeftColor: cores.perigo,
     borderLeftWidth: 3,
-    borderRadius: raio.md,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     marginHorizontal: espaco.lg,
     marginTop: espaco.md,
     padding: espaco.md,
+    ...sombra.card,
   },
   motivoTexto: {
     color: cores.texto,
@@ -223,13 +227,14 @@ const styles = StyleSheet.create({
   },
   item: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.md,
     padding: espaco.md,
+    ...sombra.card,
   },
   itemInfoWrap: {
     flex: 1,

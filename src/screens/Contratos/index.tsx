@@ -13,7 +13,7 @@ import OverallBadge from '../../components/OverallBadge';
 import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, useJogadoresUsuario} from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra} from '../../theme';
 import {moeda} from '../../utils/formatters';
 import type {Player} from '../../types';
 
@@ -152,7 +152,7 @@ function Contratos(): React.JSX.Element {
                 />
               </View>
               <View style={styles.modalAcaoFlex}>
-                <Botao titulo="Propor" onPress={confirmar} />
+                <Botao variante="ouro" titulo="Propor" onPress={confirmar} />
               </View>
             </View>
           </View>
@@ -170,13 +170,14 @@ const styles = StyleSheet.create({
   },
   card: {
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.md,
     padding: espaco.md,
+    ...sombra.card,
   },
   main: {
     flex: 1,
@@ -214,11 +215,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: cores.superficie,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
     borderTopLeftRadius: raio.lg,
     borderTopRightRadius: raio.lg,
+    borderWidth: 1,
     gap: espaco.sm,
     padding: espaco.lg,
+    ...sombra.card,
   },
   modalTitulo: {
     color: cores.texto,
@@ -249,7 +253,7 @@ const styles = StyleSheet.create({
   anoChip: {
     alignItems: 'center',
     borderColor: cores.borda,
-    borderRadius: raio.sm,
+    borderRadius: raio.pill,
     borderWidth: 1,
     flex: 1,
     paddingVertical: espaco.sm,

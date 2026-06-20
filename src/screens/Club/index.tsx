@@ -8,6 +8,7 @@ import React, {useMemo} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
 import {
+  AppHeader,
   Botao,
   Metric,
   MetricsRow,
@@ -17,6 +18,7 @@ import {
 } from '../../components/ui';
 import DonutChart, {type FatiaDonut} from '../../components/DonutChart';
 import Icone from '../../components/Icone';
+import Painel from '../../components/Painel';
 import {useToast} from '../../components/feedback';
 import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
 import {useAppNavigation} from '../../navigation/types';
@@ -29,7 +31,7 @@ import {
   selecionarClubeUsuario,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, tipografia} from '../../theme';
 import {moeda, moedaCompacta} from '../../utils/formatters';
 import type {Transacao} from '../../types';
 
@@ -136,22 +138,33 @@ function Club(): React.JSX.Element {
 
   return (
     <ScreenContainer scroll>
-      <Text style={styles.titulo}>{clubeUsuario.nome}</Text>
+      <AppHeader titulo={clubeUsuario.nome} subtitulo="Finanças do clube" />
 
       {/* Saldo em destaque */}
-      <View style={styles.saldoHero}>
-        <Icone nome="dinheiro" tamanho={26} cor={financas.saldo < 0 ? cores.perigo : cores.primaria} />
-        <View style={styles.flex1}>
-          <Text style={styles.saldoLabel}>Saldo do clube</Text>
-          <Text
-            style={[
-              styles.saldoValor,
-              {color: financas.saldo < 0 ? cores.perigo : cores.primaria},
-            ]}>
-            {moeda(financas.saldo)}
-          </Text>
+      <Painel
+        glow={financas.saldo < 0 ? undefined : 'primaria'}
+        acento={financas.saldo < 0 ? cores.perigo : cores.primaria}
+        style={styles.saldoPainel}>
+        <View style={styles.saldoHero}>
+          <Icone
+            nome="dinheiro"
+            tamanho={30}
+            cor={financas.saldo < 0 ? cores.perigo : cores.primaria}
+          />
+          <View style={styles.flex1}>
+            <Text style={styles.saldoLabel}>Saldo do clube</Text>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              style={[
+                styles.saldoValor,
+                {color: financas.saldo < 0 ? cores.perigo : cores.primaria},
+              ]}>
+              {moeda(financas.saldo)}
+            </Text>
+          </View>
         </View>
-      </View>
+      </Painel>
 
       <MetricsRow>
         <Metric label="Estádio" valor={estadio.capacidade.toLocaleString('pt-BR')} />
@@ -160,13 +173,15 @@ function Club(): React.JSX.Element {
       </MetricsRow>
 
       {folhaAlta ? (
-        <View style={styles.alerta}>
-          <Icone nome="apito" tamanho={16} cor={cores.secundaria} />
-          <Text style={styles.alertaTexto}>
-            Atenção: salários consomem {pctFolha.toFixed(0)}% da receita. Considere
-            vender jogadores de alto salário.
-          </Text>
-        </View>
+        <Painel acento={cores.secundaria} style={styles.alertaPainel}>
+          <View style={styles.alerta}>
+            <Icone nome="apito" tamanho={16} cor={cores.secundaria} />
+            <Text style={styles.alertaTexto}>
+              Atenção: salários consomem {pctFolha.toFixed(0)}% da receita.
+              Considere vender jogadores de alto salário.
+            </Text>
+          </View>
+        </Painel>
       ) : null}
 
       {semDados ? (
@@ -176,43 +191,50 @@ function Club(): React.JSX.Element {
       ) : (
         <>
           <Section titulo="Receitas">
-            <View style={styles.donutLinha}>
-              <DonutChart
-                fatias={receitas.fatias}
-                valorCentro={moedaCompacta(receitas.total)}
-                labelCentro="Receitas"
-              />
-              <Legenda fatias={receitas.fatias} />
-            </View>
+            <Painel>
+              <View style={styles.donutLinha}>
+                <DonutChart
+                  fatias={receitas.fatias}
+                  valorCentro={moedaCompacta(receitas.total)}
+                  labelCentro="Receitas"
+                />
+                <Legenda fatias={receitas.fatias} />
+              </View>
+            </Painel>
           </Section>
 
           <Section titulo="Despesas">
-            <View style={styles.donutLinha}>
-              <DonutChart
-                fatias={despesas.fatias}
-                valorCentro={moedaCompacta(despesas.total)}
-                labelCentro="Despesas"
-              />
-              <Legenda fatias={despesas.fatias} />
-            </View>
+            <Painel>
+              <View style={styles.donutLinha}>
+                <DonutChart
+                  fatias={despesas.fatias}
+                  valorCentro={moedaCompacta(despesas.total)}
+                  labelCentro="Despesas"
+                />
+                <Legenda fatias={despesas.fatias} />
+              </View>
+            </Painel>
           </Section>
         </>
       )}
 
-      <View style={styles.projecao}>
-        <Text style={styles.projecaoLabel}>Após a próxima folha</Text>
-        <Text
-          style={[
-            styles.projecaoValor,
-            {color: financas.saldo - folha < 0 ? cores.perigo : cores.texto},
-          ]}>
-          {moeda(financas.saldo - folha)}
-        </Text>
-      </View>
+      <Painel style={styles.projecaoPainel}>
+        <View style={styles.projecao}>
+          <Text style={styles.projecaoLabel}>Após a próxima folha</Text>
+          <Text
+            style={[
+              styles.projecaoValor,
+              {color: financas.saldo - folha < 0 ? cores.perigo : cores.texto},
+            ]}>
+            {moeda(financas.saldo - folha)}
+          </Text>
+        </View>
+      </Painel>
 
       <Section titulo="Estádio">
-        <View style={styles.card}>
-          <Text style={styles.estadioNome}>{estadio.nome}</Text>
+        <Painel>
+          <View style={styles.card}>
+            <Text style={styles.estadioNome}>{estadio.nome}</Text>
           <View style={styles.linha}>
             <Text style={styles.linhaLabel}>Capacidade</Text>
             <Text style={styles.linhaValor}>
@@ -223,11 +245,12 @@ function Club(): React.JSX.Element {
             <Text style={styles.linhaLabel}>Infraestrutura</Text>
             <Text style={styles.linhaValor}>Nível {estadio.nivelInfraestrutura}</Text>
           </View>
-          <Text style={styles.obraNota}>
-            Capacidade aumenta a bilheteria e o mando; infraestrutura acelera a
-            base e o treino.
-          </Text>
-        </View>
+            <Text style={styles.obraNota}>
+              Capacidade aumenta a bilheteria e o mando; infraestrutura acelera
+              a base e o treino.
+            </Text>
+          </View>
+        </Painel>
         <View style={styles.obras}>
           <Botao
             variante="secundaria"
@@ -255,11 +278,12 @@ function Club(): React.JSX.Element {
       </Section>
 
       <Section titulo="Preço do ingresso">
-        <View style={styles.card}>
-          <View style={styles.linha}>
-            <Text style={styles.linhaLabel}>Preço médio</Text>
-            <Text style={styles.linhaValor}>{moeda(precoEfetivo)}</Text>
-          </View>
+        <Painel>
+          <View style={styles.card}>
+            <View style={styles.linha}>
+              <Text style={styles.linhaLabel}>Preço médio</Text>
+              <Text style={styles.linhaValor}>{moeda(precoEfetivo)}</Text>
+            </View>
           <View style={styles.precoBotoes}>
             {PRESETS_PRECO.map(preset => {
               const ativo = Math.abs(fatorPreco - preset.fator) < 0.01;
@@ -283,16 +307,18 @@ function Club(): React.JSX.Element {
               );
             })}
           </View>
-          <Text style={styles.obraNota}>
-            Cobrar mais rende por ingresso, mas esvazia o estádio. Há um ponto
-            ideal entre lotar barato e cobrar caro.
-          </Text>
-        </View>
+            <Text style={styles.obraNota}>
+              Cobrar mais rende por ingresso, mas esvazia o estádio. Há um ponto
+              ideal entre lotar barato e cobrar caro.
+            </Text>
+          </View>
+        </Painel>
       </Section>
 
       <Section titulo="Histórico Financeiro">
         {historico.length > 0 ? (
-          <View style={styles.historico}>
+          <Painel>
+            <View style={styles.historico}>
             {historico.slice(0, 6).map((transacao, index) => {
               const receita = transacao.tipo === 'receita';
               return (
@@ -314,7 +340,8 @@ function Club(): React.JSX.Element {
                 </View>
               );
             })}
-          </View>
+            </View>
+          </Painel>
         ) : (
           <TextoVazio>Nenhuma transação registrada.</TextoVazio>
         )}
@@ -355,35 +382,31 @@ const styles = StyleSheet.create({
   flex1: {
     flex: 1,
   },
+  saldoPainel: {
+    marginBottom: espaco.md,
+  },
   saldoHero: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
-    borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.md,
-    marginBottom: espaco.md,
-    padding: espaco.md,
   },
   saldoLabel: {
     color: cores.textoSecundario,
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   saldoValor: {
-    fontSize: 24,
-    fontWeight: '900',
+    ...tipografia.titulo,
+  },
+  alertaPainel: {
+    marginBottom: espaco.md,
   },
   alerta: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.secundaria,
-    borderRadius: raio.md,
-    borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.sm,
-    marginVertical: espaco.md,
-    padding: espaco.md,
   },
   alertaTexto: {
     color: cores.texto,
@@ -419,28 +442,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  projecaoPainel: {
+    marginBottom: espaco.md,
+  },
   projecao: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: espaco.md,
-    paddingHorizontal: espaco.xs,
   },
   projecaoLabel: {
     color: cores.textoSecundario,
     fontSize: 13,
   },
   projecaoValor: {
-    fontSize: 16,
-    fontWeight: '800',
+    ...tipografia.numero,
   },
   card: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
-    borderWidth: 1,
     gap: espaco.sm,
-    padding: espaco.md,
   },
   estadioNome: {
     color: cores.texto,
@@ -502,13 +520,9 @@ const styles = StyleSheet.create({
   },
   transacao: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.sm,
-    padding: espaco.md,
+    paddingVertical: espaco.sm,
   },
   transacaoDescricao: {
     color: cores.texto,

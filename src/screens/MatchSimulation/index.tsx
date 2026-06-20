@@ -891,8 +891,8 @@ const styles = StyleSheet.create({
   },
   chipVel: {
     alignItems: 'center',
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.pill,
     borderWidth: 1,
     flex: 1,
     justifyContent: 'center',

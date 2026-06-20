@@ -11,7 +11,7 @@ import {Botao, ScreenContainer, Section} from '../../components/ui';
 import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, type VelocidadeNarracao} from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra} from '../../theme';
 
 function Settings(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -94,7 +94,7 @@ function Settings(): React.JSX.Element {
       <Section titulo="Carreira">
         <Botao
           titulo="Reiniciar carreira"
-          variante="secundaria"
+          variante="perigo"
           onPress={handleReiniciar}
         />
         {clubeUsuarioId === null ? (
@@ -161,14 +161,15 @@ const styles = StyleSheet.create({
   },
   linhaSwitch: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.md,
     justifyContent: 'space-between',
     padding: espaco.md,
+    ...sombra.card,
   },
   linhaSwitchTexto: {
     flex: 1,

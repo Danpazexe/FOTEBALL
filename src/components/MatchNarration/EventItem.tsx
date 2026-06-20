@@ -3,7 +3,7 @@ import {StyleSheet, Text, View} from 'react-native';
 
 import Escudo from '../Escudo';
 import Icone, {type IconeNome} from '../Icone';
-import {contrasteTexto, cores, espaco, raio} from '../../theme';
+import {contrasteTexto, cores, espaco, raio, sombra} from '../../theme';
 
 export type LadoEvento = 'casa' | 'fora' | 'neutro';
 
@@ -77,7 +77,7 @@ export function EventItem({
           ehVisitante
             ? {borderRightColor: corTime, borderRightWidth: 3}
             : {borderLeftColor: corTime, borderLeftWidth: 3},
-          ehGol ? {backgroundColor: `${corTime}22`} : null,
+          ehGol ? styles.bolhaGol : null,
         ]}>
         <View
           style={[
@@ -183,9 +183,9 @@ const styles = StyleSheet.create({
   },
   intervalo: {
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
+    backgroundColor: cores.superficieElevada,
     borderColor: cores.secundaria,
-    borderRadius: raio.md,
+    borderRadius: raio.pill,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.sm,
@@ -201,13 +201,17 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   bolha: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
     borderWidth: 1,
     gap: espaco.xs,
     maxWidth: '86%',
     paddingHorizontal: espaco.md,
     paddingVertical: espaco.sm,
+    ...sombra.suave,
+  },
+  bolhaGol: {
+    backgroundColor: `${cores.secundaria}1F`,
   },
   bolhaCasa: {
     borderBottomRightRadius: raio.md,
@@ -251,7 +255,8 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   descricaoGol: {
+    color: cores.secundariaClara,
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '900',
   },
 });

@@ -33,7 +33,7 @@ const COR_ESTADO: Record<EstadoJogo, string> = {
   empate: '#374151',
   derrota: '#7F1D1D',
   proxima: cores.primaria,
-  futura: cores.superficieAlt,
+  futura: cores.superficieElevada,
 };
 
 const CABECALHO_SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -269,15 +269,16 @@ const styles = StyleSheet.create({
   celula: {
     alignItems: 'center',
     aspectRatio: 1,
-    borderColor: cores.borda,
+    borderColor: cores.bordaTransl,
     borderWidth: StyleSheet.hairlineWidth,
     gap: 1,
     justifyContent: 'center',
     width: LARGURA_CELULA,
   },
   celulaJogo: {
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
   },
   celulaCopa: {
     borderColor: cores.secundaria,
