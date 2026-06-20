@@ -1,4 +1,5 @@
 import type {Formacao, Player, Position, Tatica} from '../../types';
+import {calcularBonusHabilidades} from '../progression/habilidades';
 import {fatorAdaptacao} from '../tactics/adaptacao';
 
 export interface ForcaTime {
@@ -33,10 +34,34 @@ function linhaDaPosicao(posicao: Position): 'ataque' | 'meio' | 'defesa' {
   return 'defesa';
 }
 
+/**
+ * Fator de preparo físico (condição → rendimento), escalonado conforme a spec
+ * (BRASFOOT_MASTER §4): preparo alto rende cheio, preparo baixo derruba a força
+ * em degraus — abaixo de 20 o jogador rende só 35% (e corre risco de lesão). É o
+ * que torna a rotação de elenco obrigatória.
+ */
+export function fatorPreparo(condicao: number): number {
+  if (condicao >= 80) {
+    return 1.0;
+  }
+  if (condicao >= 60) {
+    return 0.9;
+  }
+  if (condicao >= 40) {
+    return 0.75;
+  }
+  if (condicao >= 20) {
+    return 0.55;
+  }
+  return 0.35;
+}
+
 /** Fatores comuns (condição/moral/forma) que escalam a contribuição de um jogador. */
 function fatoresEstado(jogador: Player, condicaoEfetiva: number): number {
-  const fatorCondicao = condicaoEfetiva / 100;
-  const fatorMoral = 0.85 + (jogador.moral / 100) * 0.3;
+  const fatorCondicao = fatorPreparo(condicaoEfetiva);
+  // Moral impacta a força efetiva em ±10% (BRASFOOT_MASTER §15): moral 0 → 0.90,
+  // moral 100 → 1.10, moral 50 (neutra) → 1.00.
+  const fatorMoral = 0.9 + (jogador.moral / 100) * 0.2;
   const fatorForma = 1 + jogador.forma * 0.02;
   return fatorCondicao * fatorMoral * fatorForma;
 }
@@ -104,6 +129,7 @@ export function calcularForcaTime(
   let forcaGoleiro = 55;
   let titularesDeLinha = 0; // jogadores de linha previstos na escalação (não-GOL)
   let presentesDeLinha = 0; // quantos desses estão realmente disponíveis
+  const titularesPresentes: Player[] = []; // para o bônus de habilidades
 
   for (const titular of formacao.titulares) {
     if (titular.posicao !== 'GOL') {
@@ -120,6 +146,8 @@ export function calcularForcaTime(
     ) {
       continue;
     }
+
+    titularesPresentes.push(jogador);
 
     // Goleiro é avaliado à parte (não entra na média da defesa).
     if (titular.posicao === 'GOL') {
@@ -182,7 +210,11 @@ export function calcularForcaTime(
     defesa *= 1.05;
   }
 
-  const overall = ataque * 0.35 + meio * 0.35 + defesa * 0.3;
+  // Bônus das habilidades especiais dos titulares (líder, muralha, velocista no
+  // contra-ataque...). Pequeno e com teto — ver `calcularBonusHabilidades`.
+  const bonusHabilidades = calcularBonusHabilidades(titularesPresentes, tatica);
+  const overall =
+    ataque * 0.35 + meio * 0.35 + defesa * 0.3 + bonusHabilidades;
 
   return {ataque, meio, defesa, forcaGoleiro, overall};
 }

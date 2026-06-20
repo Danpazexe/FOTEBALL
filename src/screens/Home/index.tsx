@@ -6,7 +6,7 @@
  */
 
 import React, {useMemo} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 
 import {
   Botao,
@@ -17,15 +17,14 @@ import {
   TextoVazio,
 } from '../../components/ui';
 import AlertasCard, {type Alerta} from '../../components/AlertasCard';
+import {LOGO_COPA} from '../../assets/escudos';
 import Escudo from '../../components/Escudo';
 import FormaRecente from '../../components/FormaRecente';
 import Icone, {type IconeNome} from '../../components/Icone';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
 import {useConfirm, useToast} from '../../components/feedback';
-import {
-  calcularForcaTime,
-  type ForcaTime,
-} from '../../engine/simulation/teamStrength';
+import {forcaDoClube} from '../../utils/forca';
+import {confrontoDoClube, type EstadoCopa} from '../../engine/season/copaEngine';
 import {useAppNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
@@ -37,7 +36,7 @@ import {
 import {cores, espaco, raio, sombra} from '../../theme';
 import {formatarDataCurta, formatarDataLonga} from '../../utils/datas';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
-import type {Clube, Partida, Player} from '../../types';
+import type {Clube, Partida} from '../../types';
 
 const MAX_EVENTOS = 8;
 const MAX_FORMA = 5;
@@ -45,29 +44,22 @@ const MAX_ALERTAS = 5;
 
 type ResultadoForma = 'V' | 'E' | 'D';
 
-function mediaOverallClube(jogadores: Player[], clubeId: string): number {
-  const doClube = jogadores
-    .filter(jogador => jogador.clubeId === clubeId)
-    .sort((a, b) => b.overall - a.overall)
-    .slice(0, 11);
-  if (doClube.length === 0) {
-    return 0;
+/** Linha-resumo da Copa para o card do Home (próximo adversário / status). */
+function resumoCopa(
+  copa: EstadoCopa,
+  clubeUsuarioId: string | null,
+  clubes: Clube[],
+): string {
+  if (copa.campeao) {
+    return `Campeão: ${nomeClube(clubes, copa.campeao)}`;
   }
-  const soma = doClube.reduce((total, jogador) => total + jogador.overall, 0);
-  return Math.round(soma / doClube.length);
-}
-
-/** Força do clube pela escalação atual; cai para a média de overall se faltar. */
-function forcaDoClube(clube: Clube, jogadores: Player[]): ForcaTime {
-  if (clube.formacaoAtual && clube.taticaAtual) {
-    return calcularForcaTime(
-      clube.formacaoAtual,
-      jogadores.filter(jogador => jogador.clubeId === clube.id),
-      clube.taticaAtual,
-    );
+  const confronto = confrontoDoClube(copa, clubeUsuarioId);
+  if (!confronto) {
+    return 'Seu clube foi eliminado';
   }
-  const media = mediaOverallClube(jogadores, clube.id);
-  return {ataque: media, meio: media, defesa: media, forcaGoleiro: media, overall: media};
+  const adversarioId =
+    confronto.timeA === clubeUsuarioId ? confronto.timeB : confronto.timeA;
+  return `Próximo adversário: ${nomeClube(clubes, adversarioId)}`;
 }
 
 function resultadoDoUsuario(
@@ -133,12 +125,22 @@ function Home(): React.JSX.Element {
   const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
   const proximoJogo = useGameStore(selecionarProximoJogo);
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
+  const copa = useGameStore(state => state.copa);
+  const todosClubes = useGameStore(state => state.todosClubes);
   const eventosUltimaPartida = useEventosUltimaPartida();
 
   const finalizarTemporada = useGameStore(state => state.finalizarTemporada);
   const avancarParaData = useGameStore(state => state.avancarParaData);
   const dataAtual = useGameStore(state => state.dataAtual);
   const treinouProximoJogo = useGameStore(state => state.treinouProximoJogo);
+  const demissao = useGameStore(state => state.demissao);
+
+  // Demissão: assim que a diretoria demite, leva o técnico à tela de recontratação.
+  React.useEffect(() => {
+    if (demissao) {
+      nav.navigate('Demissao');
+    }
+  }, [demissao, nav]);
 
   const indiceTabela = tabela.findIndex(linha => linha.clubeId === clubeUsuarioId);
   const posicao = indiceTabela === -1 ? '-' : `${indiceTabela + 1}º`;
@@ -218,6 +220,31 @@ function Home(): React.JSX.Element {
     () => calcularProximoEvento(proximoJogo, treinouProximoJogo),
     [proximoJogo, treinouProximoJogo],
   );
+
+  // Confronto da Copa "na vez": entra no lugar do jogo da liga quando sua data
+  // (meio de semana) chega antes ou junto da próxima rodada.
+  const copaNaVez = useMemo(() => {
+    if (!copa || copa.campeao) {
+      return null;
+    }
+    const confrontoCopa = confrontoDoClube(copa, clubeUsuarioId);
+    if (!confrontoCopa || confrontoCopa.vencedor) {
+      return null;
+    }
+    const fase = copa.fases[copa.faseAtual];
+    if (!fase.data || (proximoJogo && proximoJogo.data < fase.data)) {
+      return null;
+    }
+    const adversarioId =
+      confrontoCopa.timeA === clubeUsuarioId
+        ? confrontoCopa.timeB
+        : confrontoCopa.timeA;
+    return {
+      faseNome: fase.nome,
+      adversario: nomeClube(todosClubes, adversarioId),
+      data: fase.data,
+    };
+  }, [copa, clubeUsuarioId, proximoJogo, todosClubes]);
 
   const confirmarSe = async (
     opcoes: Parameters<typeof confirm>[0],
@@ -335,8 +362,27 @@ function Home(): React.JSX.Element {
         </View>
       ) : null}
 
-      <Section titulo="Próximo Jogo">
-        {proximoEvento.tipo === 'fim' ? (
+      <Section titulo={copaNaVez ? 'Compromisso da Copa' : 'Próximo Jogo'}>
+        {copaNaVez ? (
+          <View style={styles.copaJogo}>
+            <Image source={LOGO_COPA} style={styles.copaJogoLogo} resizeMode="contain" />
+            <Text style={styles.copaJogoFase}>
+              Copa do Brasil · {copaNaVez.faseNome}
+            </Text>
+            <Text style={styles.copaJogoConfronto} numberOfLines={1}>
+              {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
+            </Text>
+            <Botao
+              variante="grande"
+              icone="jogar"
+              titulo="Jogar confronto da Copa"
+              onPress={() => {
+                avancarParaData(copaNaVez.data);
+                nav.navigate('MatchSimulation', {copa: true});
+              }}
+            />
+          </View>
+        ) : proximoEvento.tipo === 'fim' ? (
           <View style={styles.acoes}>
             <Botao
               variante="grande"
@@ -379,6 +425,32 @@ function Home(): React.JSX.Element {
           <TextoVazio>Nenhum jogo agendado.</TextoVazio>
         )}
       </Section>
+
+      {copa ? (
+        <Section titulo="Copa do Brasil">
+          <View style={styles.copaCard}>
+            <Image
+              source={LOGO_COPA}
+              style={styles.copaLogo}
+              resizeMode="contain"
+            />
+            <View style={styles.copaInfo}>
+              <Text style={styles.copaFase}>
+                {copa.campeao ? '🏆 Campeão!' : copa.fases[copa.faseAtual].nome}
+              </Text>
+              <Text style={styles.copaDetalhe} numberOfLines={1}>
+                {resumoCopa(copa, clubeUsuarioId, todosClubes)}
+              </Text>
+            </View>
+            <Botao
+              variante="secundaria"
+              icone="trofeu"
+              titulo="Ver chave"
+              onPress={() => nav.navigate('Copa')}
+            />
+          </View>
+        </Section>
+      ) : null}
 
       <AlertasCard
         alertas={alertas}
@@ -628,6 +700,47 @@ const styles = StyleSheet.create({
   acoes: {
     gap: espaco.sm,
     marginTop: espaco.sm,
+  },
+  copaCard: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.md,
+  },
+  copaLogo: {
+    height: 40,
+    width: 40,
+  },
+  copaInfo: {
+    flex: 1,
+  },
+  copaJogo: {
+    alignItems: 'center',
+    gap: espaco.sm,
+  },
+  copaJogoLogo: {
+    height: 70,
+    width: '60%',
+  },
+  copaJogoFase: {
+    color: cores.secundaria,
+    fontSize: 13,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  copaJogoConfronto: {
+    color: cores.texto,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  copaFase: {
+    color: cores.texto,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  copaDetalhe: {
+    color: cores.textoSecundario,
+    fontSize: 13,
+    marginTop: 2,
   },
   atalhos: {
     flexDirection: 'row',

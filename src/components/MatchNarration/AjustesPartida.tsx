@@ -204,6 +204,10 @@ function AjustesPartida({
   const [selecao, setSelecao] = useState<Descritor | null>(null);
   const [slotHover, setSlotHover] = useState<number | null>(null);
   const [arrastando, setArrastando] = useState<Descritor | null>(null);
+  // Disclosure progressivo: trocar esquema e ajustes táticos finos ficam ocultos
+  // por padrão (a substituição é a ação principal da tela).
+  const [mostrarFormacoes, setMostrarFormacoes] = useState(false);
+  const [mostrarAvancado, setMostrarAvancado] = useState(false);
 
   const semSubs = subsRestantes <= 0;
 
@@ -454,12 +458,6 @@ function AjustesPartida({
               <Text style={styles.contadorLegenda}>subs</Text>
             </View>
           ) : null}
-          <Pressable
-            accessibilityRole="button"
-            onPress={onFechar}
-            style={styles.fechar}>
-            <Icone nome="fechar" tamanho={18} cor={cores.texto} />
-          </Pressable>
         </View>
 
         <View style={styles.tabBar}>
@@ -504,26 +502,41 @@ function AjustesPartida({
 
         {aba === 'escalacao' ? (
           <>
-            <View style={styles.formacaoRow}>
-              {FORMACOES.map(tipo => {
-                const ativo = formacao.tipo === tipo;
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    key={tipo}
-                    onPress={() => trocarTipoFormacao(tipo)}
-                    style={[styles.formChip, ativo ? styles.formChipAtivo : null]}>
-                    <Text
-                      style={[
-                        styles.formChipTexto,
-                        ativo ? styles.formChipTextoAtivo : null,
-                      ]}>
-                      {tipo}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setMostrarFormacoes(v => !v)}
+              style={styles.disclosure}>
+              <Text style={styles.disclosureLabel}>
+                Esquema · <Text style={styles.disclosureValor}>{formacao.tipo}</Text>
+              </Text>
+              <Icone
+                nome={mostrarFormacoes ? 'seta-cima' : 'seta-baixo'}
+                tamanho={16}
+                cor={cores.textoSecundario}
+              />
+            </Pressable>
+            {mostrarFormacoes ? (
+              <View style={styles.formacaoRow}>
+                {FORMACOES.map(tipo => {
+                  const ativo = formacao.tipo === tipo;
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      key={tipo}
+                      onPress={() => trocarTipoFormacao(tipo)}
+                      style={[styles.formChip, ativo ? styles.formChipAtivo : null]}>
+                      <Text
+                        style={[
+                          styles.formChipTexto,
+                          ativo ? styles.formChipTextoAtivo : null,
+                        ]}>
+                        {tipo}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
 
             <View
               ref={pitchRef}
@@ -614,23 +627,6 @@ function AjustesPartida({
               }
             />
             <GrupoInstrucao
-              titulo="Marcação"
-              dica="Pesada gera mais cartões e pênaltis."
-              valor={tatica.marcacao}
-              opcoes={OPCOES_MARCACAO}
-              onSelect={v =>
-                onAtualizarTatica({...tatica, marcacao: v as Tatica['marcacao']})
-              }
-            />
-            <GrupoInstrucao
-              titulo="Linha defensiva"
-              valor={tatica.linhaDefensiva}
-              opcoes={OPCOES_LINHA}
-              onSelect={v =>
-                onAtualizarTatica({...tatica, linhaDefensiva: v as Tatica['linhaDefensiva']})
-              }
-            />
-            <GrupoInstrucao
               titulo="Ritmo"
               dica="Intenso cansa mais e aumenta lesões."
               valor={tatica.ritmo}
@@ -639,6 +635,39 @@ function AjustesPartida({
                 onAtualizarTatica({...tatica, ritmo: v as Tatica['ritmo']})
               }
             />
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setMostrarAvancado(v => !v)}
+              style={styles.disclosure}>
+              <Text style={styles.disclosureLabel}>Ajustes avançados</Text>
+              <Icone
+                nome={mostrarAvancado ? 'seta-cima' : 'seta-baixo'}
+                tamanho={16}
+                cor={cores.textoSecundario}
+              />
+            </Pressable>
+            {mostrarAvancado ? (
+              <>
+                <GrupoInstrucao
+                  titulo="Marcação"
+                  dica="Pesada gera mais cartões e pênaltis."
+                  valor={tatica.marcacao}
+                  opcoes={OPCOES_MARCACAO}
+                  onSelect={v =>
+                    onAtualizarTatica({...tatica, marcacao: v as Tatica['marcacao']})
+                  }
+                />
+                <GrupoInstrucao
+                  titulo="Linha defensiva"
+                  valor={tatica.linhaDefensiva}
+                  opcoes={OPCOES_LINHA}
+                  onSelect={v =>
+                    onAtualizarTatica({...tatica, linhaDefensiva: v as Tatica['linhaDefensiva']})
+                  }
+                />
+              </>
+            ) : null}
           </View>
         )}
 
@@ -1008,6 +1037,24 @@ const styles = StyleSheet.create({
   },
   formChipTextoAtivo: {
     color: cores.texto,
+  },
+  disclosure: {
+    alignItems: 'center',
+    backgroundColor: cores.superficieAlt,
+    borderRadius: raio.sm,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.sm,
+  },
+  disclosureLabel: {
+    color: cores.textoSecundario,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  disclosureValor: {
+    color: cores.texto,
+    fontWeight: '900',
   },
   pitch: {
     backgroundColor: '#123524',

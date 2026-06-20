@@ -5,26 +5,42 @@ import {
   existeSave,
   montarSnapshot,
   salvarJogo,
+  VERSAO_SAVE,
   type ArmazenamentoSave,
 } from '../persistence';
 import {useGameStore} from '../useGameStore';
 
-function armazenamentoMemoria(): ArmazenamentoSave & {bruto(): string | null} {
-  let dado: string | null = null;
+/** Armazenamento em memória que imita o backup-before-overwrite do SQLite. */
+function armazenamentoMemoria(): ArmazenamentoSave & {
+  bruto(): string | null;
+  corromper(): void;
+} {
+  let atual: string | null = null;
+  let backup: string | null = null;
   return {
     escrever(json) {
-      dado = json;
+      if (atual !== null) {
+        backup = atual;
+      }
+      atual = json;
       return Promise.resolve();
     },
     ler() {
-      return Promise.resolve(dado);
+      return Promise.resolve(atual);
+    },
+    lerBackup() {
+      return Promise.resolve(backup);
     },
     limpar() {
-      dado = null;
+      atual = null;
+      backup = null;
       return Promise.resolve();
     },
     bruto() {
-      return dado;
+      return atual;
+    },
+    corromper() {
+      atual = '{lixo corrompido';
     },
   };
 }
@@ -40,23 +56,104 @@ describe('persistence', () => {
     expect(aplicado.rodadaAtual).toBe(estado.rodadaAtual);
   });
 
+  it('snapshot inclui config e propostas recebidas (não eram salvos antes)', () => {
+    const estado = useGameStore.getState();
+    const snap = montarSnapshot(estado, [{id: 'primeira_vitoria'}]);
+    expect(snap.versao).toBe(VERSAO_SAVE);
+    expect(snap.config).toEqual(estado.config);
+    expect(snap.propostasRecebidas).toEqual(estado.propostasRecebidas);
+    expect(snap.conquistas).toEqual([{id: 'primeira_vitoria'}]);
+
+    const aplicado = aplicarSnapshot(snap);
+    expect(aplicado.config).toEqual(estado.config);
+    expect(aplicado.propostasRecebidas).toEqual(estado.propostasRecebidas);
+  });
+
   it('existeSave retorna false em armazenamento vazio', async () => {
     definirArmazenamentoSave(armazenamentoMemoria());
     expect(await existeSave()).toBe(false);
   });
 
-  it('salvarJogo + carregarJogo reidrata o estado corretamente', async () => {
+  it('carregarJogo devolve {tipo:"vazio"} quando não há save', async () => {
+    definirArmazenamentoSave(armazenamentoMemoria());
+    expect(await carregarJogo()).toEqual({tipo: 'vazio'});
+  });
+
+  it('salvarJogo + carregarJogo reidrata o estado e as conquistas', async () => {
     definirArmazenamentoSave(armazenamentoMemoria());
     const estado = useGameStore.getState();
 
-    await salvarJogo(estado);
+    await salvarJogo(estado, [{id: 'goleada', dataDesbloqueio: '2026-05-01'}]);
     expect(await existeSave()).toBe(true);
 
-    const carregado = await carregarJogo();
-    expect(carregado).not.toBeNull();
-    expect(carregado?.clubes).toHaveLength(estado.clubes.length);
-    expect(carregado?.jogadores).toHaveLength(estado.jogadores.length);
-    expect(carregado?.rodadaAtual).toBe(estado.rodadaAtual);
+    const resultado = await carregarJogo();
+    expect(resultado.tipo).toBe('ok');
+    if (resultado.tipo !== 'ok') {
+      throw new Error('esperava tipo ok');
+    }
+    expect(resultado.origem).toBe('principal');
+    expect(resultado.estado.clubes).toHaveLength(estado.clubes.length);
+    expect(resultado.estado.jogadores).toHaveLength(estado.jogadores.length);
+    expect(resultado.estado.rodadaAtual).toBe(estado.rodadaAtual);
+    expect(resultado.conquistas).toEqual([
+      {id: 'goleada', dataDesbloqueio: '2026-05-01'},
+    ]);
+  });
+
+  it('cai para o backup quando o save principal está corrompido', async () => {
+    const arm = armazenamentoMemoria();
+    definirArmazenamentoSave(arm);
+    const estado = useGameStore.getState();
+
+    // 1º save vira backup ao 2º; depois corrompe o principal.
+    await salvarJogo(estado);
+    await salvarJogo(estado);
+    arm.corromper();
+
+    const resultado = await carregarJogo();
+    expect(resultado.tipo).toBe('ok');
+    if (resultado.tipo !== 'ok') {
+      throw new Error('esperava recuperar do backup');
+    }
+    expect(resultado.origem).toBe('backup');
+    expect(resultado.estado.clubes).toHaveLength(estado.clubes.length);
+  });
+
+  it('retorna erro (sem apagar) quando principal e backup são ilegíveis', async () => {
+    const arm = armazenamentoMemoria();
+    definirArmazenamentoSave(arm);
+    arm.corromper(); // só há principal corrompido, sem backup
+    expect(await carregarJogo()).toEqual({
+      tipo: 'erro',
+      mensagem: 'Save corrompido e sem backup recuperável.',
+    });
+  });
+
+  it('lê save legado v1 (sem config/propostas/conquistas) preenchendo padrões', async () => {
+    const arm = armazenamentoMemoria();
+    definirArmazenamentoSave(arm);
+    const estado = useGameStore.getState();
+    const legado = {
+      versao: 1,
+      clubeUsuarioId: estado.clubeUsuarioId,
+      temporadaAtual: estado.temporadaAtual,
+      rodadaAtual: estado.rodadaAtual,
+      clubes: estado.clubes,
+      jogadores: estado.jogadores,
+      partidas: estado.partidas,
+      tabela: estado.tabela,
+      jovensDisponiveis: [],
+    };
+    await arm.escrever(JSON.stringify(legado));
+
+    const resultado = await carregarJogo();
+    expect(resultado.tipo).toBe('ok');
+    if (resultado.tipo !== 'ok') {
+      throw new Error('esperava migrar o save v1');
+    }
+    expect(resultado.estado.config).toEqual(estado.config);
+    expect(resultado.estado.propostasRecebidas).toEqual([]);
+    expect(resultado.conquistas).toEqual([]);
   });
 
   it('save é idempotente — múltiplos saves mantêm um único snapshot válido', async () => {

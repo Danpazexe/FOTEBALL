@@ -1,24 +1,26 @@
 /**
  * Treino da Semana. O técnico escolhe O QUE treinar (rotina por posição ou foco
- * num atributo) e COM QUE intensidade (leve → muito forte). A tela mostra os
- * atributos que cada treino desenvolve, a prévia de impacto (condição/forma,
- * risco de lesão) e quais jogadores têm afinidade com a rotina escolhida.
+ * num atributo) e COM QUE intensidade (leve → muito forte), vê um resumo do
+ * impacto e confirma.
  *
- * O efeito real (evolução de atributos por acúmulo de progresso, cansaço, moral
- * e lesões) vive em `treinoAtributos`; aqui só montamos a UI e disparamos a ação.
+ * UI por disclosure progressivo: em "Por posição" o usuário primeiro escolhe a
+ * posição (seletor compacto) e só então vê os treinos daquela função — em vez de
+ * exibir o catálogo inteiro de uma vez. O efeito real (evolução por acúmulo de
+ * progresso, cansaço, moral e lesões) vive em `treinoAtributos`.
  */
 
 import React, {useMemo, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
 import {AppHeader, Botao, ScreenContainer, Section} from '../../components/ui';
-import Icone, {type IconeNome} from '../../components/Icone';
+import Icone from '../../components/Icone';
 import {useToast} from '../../components/feedback';
 import {calcularEfeitoTreino} from '../../engine/progression/treinoAtributos';
 import {
   CATALOGO_TREINOS,
   INTENSIDADES,
   INTENSIDADES_ORDEM,
+  TREINO_PADRAO_ID,
   buscarTreino,
   type CategoriaTreino,
   type IntensidadeTreino,
@@ -42,11 +44,13 @@ const SECOES_POSICAO: SecaoPosicao[] = [
   'Atacantes',
 ];
 
-const ICONE_INTENSIDADE: Record<IntensidadeTreino, IconeNome> = {
-  leve: 'casa',
-  normal: 'jogar',
-  forte: 'simular',
-  muito_forte: 'lesao',
+/** Rótulo curto de cada seção para o seletor de posição. */
+const SECAO_CURTA: Record<SecaoPosicao, string> = {
+  Goleiros: 'GOL',
+  Zagueiros: 'ZAG',
+  Laterais: 'LAT',
+  'Meio-campistas': 'MEI',
+  Atacantes: 'ATA',
 };
 
 /** Rótulo de risco de lesão a partir do risco-base da intensidade. */
@@ -70,19 +74,34 @@ function media(valores: number[]): number {
   return valores.reduce((s, v) => s + v, 0) / valores.length;
 }
 
+/** Cor da moral: alta (verde), média (amarelo), baixa (vermelho). */
+function corMoral(moral: number): string {
+  if (moral >= 75) {
+    return cores.primaria;
+  }
+  if (moral >= 50) {
+    return cores.secundaria;
+  }
+  return cores.perigo;
+}
+
 function Semana(): React.JSX.Element {
   const nav = useAppNavigation();
   const toast = useToast();
   const elenco = useJogadoresUsuario();
   const clube = useGameStore(selecionarClubeUsuario);
   const aplicarTreino = useGameStore(state => state.aplicarTreino);
+  const conversarComGrupo = useGameStore(state => state.conversarComGrupo);
+  const jaConversou = useGameStore(state => state.conversouComGrupo);
 
   const [categoria, setCategoria] = useState<CategoriaTreino>('posicao');
+  const [secao, setSecao] = useState<SecaoPosicao>('Zagueiros');
   const [treinoId, setTreinoId] = useState<string>('zag_marcacao');
   const [intensidade, setIntensidade] = useState<IntensidadeTreino>('normal');
 
   const treino = buscarTreino(treinoId);
   const nivelInfra = clube?.estadio.nivelInfraestrutura ?? 3;
+  const moralMedia = useMemo(() => media(elenco.map(j => j.moral)), [elenco]);
 
   const porPosicao = useMemo(
     () => CATALOGO_TREINOS.filter(t => t.categoria === 'posicao'),
@@ -91,6 +110,15 @@ function Semana(): React.JSX.Element {
   const porHabilidade = useMemo(
     () => CATALOGO_TREINOS.filter(t => t.categoria === 'habilidade'),
     [],
+  );
+
+  // Apenas os treinos relevantes para a escolha atual ficam visíveis.
+  const treinosVisiveis = useMemo(
+    () =>
+      categoria === 'posicao'
+        ? porPosicao.filter(t => t.secao === secao)
+        : porHabilidade,
+    [categoria, secao, porPosicao, porHabilidade],
   );
 
   // Prévia determinística (rng "sem lesão" => sempre 1) do impacto médio.
@@ -124,6 +152,32 @@ function Semana(): React.JSX.Element {
 
   const risco = rotuloRisco(INTENSIDADES[intensidade].riscoLesaoBase);
 
+  const aoConversar = () => {
+    const ok = conversarComGrupo();
+    toast(
+      ok ? 'Discurso motivacional feito. Moral em alta!' : 'Grupo já reunido esta semana.',
+      ok ? 'sucesso' : 'erro',
+    );
+  };
+
+  // Trocar de categoria/posição re-seleciona um treino válido p/ o novo contexto.
+  const trocarCategoria = (cat: CategoriaTreino) => {
+    setCategoria(cat);
+    if (cat === 'habilidade') {
+      setTreinoId(porHabilidade[0]?.id ?? TREINO_PADRAO_ID);
+    } else {
+      setTreinoId(porPosicao.find(t => t.secao === secao)?.id ?? treinoId);
+    }
+  };
+
+  const selecionarSecao = (nova: SecaoPosicao) => {
+    setSecao(nova);
+    const primeiro = porPosicao.find(t => t.secao === nova);
+    if (primeiro) {
+      setTreinoId(primeiro.id);
+    }
+  };
+
   const confirmar = () => {
     if (!treino) {
       return;
@@ -141,59 +195,82 @@ function Semana(): React.JSX.Element {
         onBack={() => nav.goBack()}
       />
 
-      {/* Categoria: por posição x por habilidade */}
-      <View style={styles.segment}>
-        {(['posicao', 'habilidade'] as CategoriaTreino[]).map(cat => {
-          const ativo = categoria === cat;
-          return (
-            <Pressable
-              accessibilityRole="button"
-              key={cat}
-              onPress={() => setCategoria(cat)}
-              style={[styles.segmentBtn, ativo ? styles.segmentBtnAtivo : null]}>
-              <Text
-                style={[
-                  styles.segmentTexto,
-                  ativo ? styles.segmentTextoAtivo : null,
-                ]}>
-                {cat === 'posicao' ? 'Por posição' : 'Por habilidade'}
-              </Text>
-            </Pressable>
-          );
-        })}
+      {/* Moral do elenco (card compacto) */}
+      <View style={styles.moralCard}>
+        <View style={styles.moralTopo}>
+          <View style={styles.moralLabelWrap}>
+            <Icone nome="conversa" tamanho={18} cor={cores.textoSecundario} />
+            <Text style={styles.moralLabel}>Moral do elenco</Text>
+          </View>
+          <Text style={[styles.moralValor, {color: corMoral(moralMedia)}]}>
+            {moralMedia.toFixed(0)}
+          </Text>
+        </View>
+        <Botao
+          titulo={jaConversou ? 'Grupo já reunido' : 'Conversar com o grupo'}
+          variante="secundaria"
+          disabled={jaConversou}
+          onPress={aoConversar}
+        />
       </View>
 
-      {categoria === 'posicao' ? (
-        SECOES_POSICAO.map(secao => (
-          <Section key={secao} titulo={secao}>
-            <View style={styles.chipRow}>
-              {porPosicao
-                .filter(t => t.secao === secao)
-                .map(t => (
-                  <ChipTreino
-                    key={t.id}
-                    treino={t}
-                    ativo={t.id === treinoId}
-                    onPress={() => setTreinoId(t.id)}
-                  />
-                ))}
-            </View>
-          </Section>
-        ))
-      ) : (
-        <Section titulo="Foco em atributo">
-          <View style={styles.chipRow}>
-            {porHabilidade.map(t => (
-              <ChipTreino
-                key={t.id}
-                treino={t}
-                ativo={t.id === treinoId}
-                onPress={() => setTreinoId(t.id)}
-              />
-            ))}
+      {/* O QUE treinar: categoria → (posição) → treino */}
+      <Section titulo="O que treinar">
+        <View style={styles.segment}>
+          {(['posicao', 'habilidade'] as CategoriaTreino[]).map(cat => {
+            const ativo = categoria === cat;
+            return (
+              <Pressable
+                accessibilityRole="button"
+                key={cat}
+                onPress={() => trocarCategoria(cat)}
+                style={[styles.segmentBtn, ativo ? styles.segmentBtnAtivo : null]}>
+                <Text
+                  style={[
+                    styles.segmentTexto,
+                    ativo ? styles.segmentTextoAtivo : null,
+                  ]}>
+                  {cat === 'posicao' ? 'Por posição' : 'Por habilidade'}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {categoria === 'posicao' ? (
+          <View style={styles.posPicker}>
+            {SECOES_POSICAO.map(s => {
+              const ativo = s === secao;
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={s}
+                  onPress={() => selecionarSecao(s)}
+                  style={[styles.posPill, ativo ? styles.posPillAtivo : null]}>
+                  <Text
+                    style={[
+                      styles.posPillTexto,
+                      ativo ? styles.posPillTextoAtivo : null,
+                    ]}>
+                    {SECAO_CURTA[s]}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-        </Section>
-      )}
+        ) : null}
+
+        <View style={styles.chipRow}>
+          {treinosVisiveis.map(t => (
+            <ChipTreino
+              key={t.id}
+              treino={t}
+              ativo={t.id === treinoId}
+              onPress={() => setTreinoId(t.id)}
+            />
+          ))}
+        </View>
+      </Section>
 
       {/* Intensidade */}
       <Section titulo="Intensidade">
@@ -206,11 +283,6 @@ function Semana(): React.JSX.Element {
                 key={valor}
                 onPress={() => setIntensidade(valor)}
                 style={[styles.intensChip, ativo ? styles.intensChipAtivo : null]}>
-                <Icone
-                  nome={ICONE_INTENSIDADE[valor]}
-                  tamanho={18}
-                  cor={ativo ? cores.contrastePrimaria : cores.texto}
-                />
                 <Text
                   style={[
                     styles.intensTexto,
@@ -224,9 +296,18 @@ function Semana(): React.JSX.Element {
         </View>
       </Section>
 
-      {/* Detalhe do treino selecionado */}
-      {treino ? (
-        <Section titulo={`Treino de ${treino.nome}`}>
+      {/* Resumo do treino selecionado (detalhe + impacto num só card) */}
+      {treino && preview ? (
+        <View style={styles.resumoCard}>
+          <View style={styles.resumoHeader}>
+            <Text style={styles.resumoTitulo}>Treino de {treino.nome}</Text>
+            <View style={styles.afinidadeBadge}>
+              <Text style={styles.afinidadeTexto}>
+                {preview.comAfinidade}/{elenco.length} ideais
+              </Text>
+            </View>
+          </View>
+
           <View style={styles.efeitos}>
             {treino.efeitos.map(efeito => (
               <View key={efeito} style={styles.efeitoLinha}>
@@ -235,47 +316,34 @@ function Semana(): React.JSX.Element {
               </View>
             ))}
           </View>
-        </Section>
-      ) : null}
 
-      {/* Impacto estimado */}
-      {preview ? (
-        <Section titulo="Impacto estimado">
-          <View style={styles.impactoLinha}>
-            <Text style={styles.impactoLabel}>Condição média</Text>
-            <Text style={styles.impactoValor}>
+          <View style={styles.divisor} />
+
+          <View style={styles.metricaLinha}>
+            <Text style={styles.metricaLabel}>Condição média</Text>
+            <Text style={styles.metricaValor}>
               {preview.condAtual.toFixed(0)}%{' '}
               <Text style={{color: corCondicao(preview.condNova)}}>
                 → {preview.condNova.toFixed(0)}%
               </Text>
             </Text>
           </View>
-          <View style={styles.impactoLinha}>
-            <Text style={styles.impactoLabel}>Forma média</Text>
-            <Text style={styles.impactoValor}>
+          <View style={styles.metricaLinha}>
+            <Text style={styles.metricaLabel}>Forma média</Text>
+            <Text style={styles.metricaValor}>
               {preview.formaAtual.toFixed(1)}{' '}
-              <Text style={styles.impactoDestaque}>
+              <Text style={{color: cores.primaria}}>
                 → {preview.formaNova.toFixed(1)}
               </Text>
             </Text>
           </View>
-          <View style={styles.impactoLinha}>
-            <Text style={styles.impactoLabel}>Risco de lesão</Text>
-            <Text style={[styles.impactoValor, {color: risco.cor}]}>
+          <View style={styles.metricaLinha}>
+            <Text style={styles.metricaLabel}>Risco de lesão</Text>
+            <Text style={[styles.metricaValor, {color: risco.cor}]}>
               {risco.texto}
             </Text>
           </View>
-          <View style={styles.impactoLinha}>
-            <Text style={styles.impactoLabel}>Com afinidade</Text>
-            <Text style={styles.impactoValor}>
-              {preview.comAfinidade} de {elenco.length}
-            </Text>
-          </View>
-          <Text style={styles.dica}>
-            Jovens, com moral alta e bem descansados evoluem mais rápido.
-            Lesionados fazem apenas recuperação leve.
-          </Text>
-        </Section>
+        </View>
       ) : null}
 
       <Botao titulo="Confirmar treino" onPress={confirmar} />
@@ -307,11 +375,36 @@ function ChipTreino({
 export default Semana;
 
 const styles = StyleSheet.create({
+  moralCard: {
+    backgroundColor: cores.superficieAlt,
+    borderRadius: raio.md,
+    gap: espaco.sm,
+    marginBottom: espaco.lg,
+    padding: espaco.md,
+  },
+  moralTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  moralLabelWrap: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  moralLabel: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  moralValor: {
+    fontSize: 22,
+    fontWeight: '900',
+  },
   segment: {
     backgroundColor: cores.superficieAlt,
     borderRadius: raio.md,
     flexDirection: 'row',
-    marginBottom: espaco.md,
     padding: 3,
   },
   segmentBtn: {
@@ -329,6 +422,28 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   segmentTextoAtivo: {
+    color: cores.contrastePrimaria,
+  },
+  posPicker: {
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  posPill: {
+    alignItems: 'center',
+    backgroundColor: cores.superficieAlt,
+    borderRadius: raio.sm,
+    flex: 1,
+    paddingVertical: espaco.sm,
+  },
+  posPillAtivo: {
+    backgroundColor: cores.secundaria,
+  },
+  posPillTexto: {
+    color: cores.textoSecundario,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  posPillTextoAtivo: {
     color: cores.contrastePrimaria,
   },
   chipRow: {
@@ -361,8 +476,7 @@ const styles = StyleSheet.create({
     borderColor: cores.borda,
     borderRadius: raio.md,
     borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.xs,
+    flexGrow: 1,
     paddingHorizontal: espaco.md,
     paddingVertical: espaco.sm,
   },
@@ -378,6 +492,35 @@ const styles = StyleSheet.create({
   intensTextoAtivo: {
     color: cores.contrastePrimaria,
   },
+  resumoCard: {
+    backgroundColor: cores.superficieAlt,
+    borderRadius: raio.md,
+    gap: espaco.sm,
+    marginBottom: espaco.lg,
+    padding: espaco.md,
+  },
+  resumoHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  resumoTitulo: {
+    color: cores.texto,
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  afinidadeBadge: {
+    backgroundColor: cores.superficie,
+    borderRadius: raio.sm,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 3,
+  },
+  afinidadeTexto: {
+    color: cores.secundaria,
+    fontSize: 12,
+    fontWeight: '800',
+  },
   efeitos: {
     gap: espaco.xs,
   },
@@ -390,25 +533,22 @@ const styles = StyleSheet.create({
     color: cores.texto,
     fontSize: 14,
   },
-  impactoLinha: {
+  divisor: {
+    backgroundColor: cores.borda,
+    height: StyleSheet.hairlineWidth,
+    marginVertical: espaco.xs,
+  },
+  metricaLinha: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  impactoLabel: {
+  metricaLabel: {
     color: cores.textoSecundario,
     fontSize: 13,
   },
-  impactoValor: {
+  metricaValor: {
     color: cores.texto,
     fontSize: 14,
     fontWeight: '800',
-  },
-  impactoDestaque: {
-    color: cores.primaria,
-  },
-  dica: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    marginTop: espaco.xs,
   },
 });

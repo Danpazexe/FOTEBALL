@@ -25,6 +25,49 @@ describe('moralEngine', () => {
     expect(deltas[0].delta).toBe(3);
   });
 
+  it('líder no elenco dá +2 de moral a todos na vitória', () => {
+    const lider = criarPlayer({
+      id: 'lid',
+      clubeId: 'casa',
+      habilidades: ['LIDERANCA'],
+    });
+    const comum = criarPlayer({id: 'com', clubeId: 'casa'});
+    const partida = criarPartida({
+      id: 'p',
+      timeCasa: 'casa',
+      timeFora: 'fora',
+      placarCasa: 1,
+      placarFora: 0,
+    });
+    const deltas = calcularDeltasMoralPartida(
+      partida,
+      'casa',
+      [lider, comum],
+      ['lid', 'com'],
+      'casa',
+    );
+    // 3 (vitória titular) + 2 (liderança) = 5 para cada
+    expect(deltas[0].delta).toBe(5);
+    expect(deltas[1].delta).toBe(5);
+  });
+
+  it('sem líder, a vitória não ganha o bônus de liderança', () => {
+    const comum = criarPlayer({id: 'c', clubeId: 'casa'});
+    const partida = criarPartida({
+      id: 'p',
+      placarCasa: 1,
+      placarFora: 0,
+    });
+    const deltas = calcularDeltasMoralPartida(
+      partida,
+      'casa',
+      [comum],
+      ['c'],
+      'casa',
+    );
+    expect(deltas[0].delta).toBe(3);
+  });
+
   it('artilheiro recebe +8 adicional', () => {
     const artilheiro = criarPlayer({id: 'g', clubeId: 'casa'});
     const partida = criarPartida({

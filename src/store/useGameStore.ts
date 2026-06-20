@@ -2,10 +2,17 @@ import {useMemo} from 'react';
 import {create} from 'zustand';
 
 import {verificarConquistas} from '../engine/conquistas/verificadorConquistas';
-import {aplicarBilheteria, aplicarFolhaMensal, registrarTransacao} from '../engine/finance/financeEngine';
+import {
+  aplicarAcertoFinanceiroAnual,
+  aplicarBilheteria,
+  aplicarCotaTV,
+  cotaTV,
+  registrarTransacao,
+} from '../engine/finance/financeEngine';
 import {
   aplicarMoral,
   calcularDeltasMoralPartida,
+  converteComGrupo,
   type ResultadoPartida,
 } from '../engine/progression/moralEngine';
 import {
@@ -21,11 +28,34 @@ import {
 } from '../engine/progression/treinoAtributos';
 import {
   buscarTreino,
+  CONDICAO_MAX,
+  CONDICAO_MIN,
   INTENSIDADES,
   type IntensidadeTreino,
 } from '../engine/progression/treinoTipos';
+import {
+  atualizarDerrotasConsecutivas,
+  atualizarReputacao,
+  atualizarRodadasNoVermelho,
+  calcularEstadoFinanceiro,
+  LIMITE_DERROTAS_DEMISSAO,
+  MORAL_SALARIO_ATRASADO,
+  REPUTACAO_INICIAL,
+  reputacaoFimTemporada,
+  salariosAtrasados,
+  verificarDemissao,
+} from '../engine/carreira/carreiraEngine';
 import {calcularTabela} from '../engine/season/classification';
 import {gerarCalendarioLiga} from '../engine/season/calendarGenerator';
+import {
+  avancarCopa,
+  confrontoDoClube,
+  definirResultadoConfronto,
+  faseAtualCopa,
+  gerarCopaDoBrasil,
+  type ConfrontoCopa,
+  type EstadoCopa,
+} from '../engine/season/copaEngine';
 import {simularPartida} from '../engine/simulation/matchSimulator';
 import {
   calcularNotaPartida,
@@ -50,10 +80,13 @@ import {adicionarDias} from '../utils/datas';
 import {useAchievementsStore} from './useAchievementsStore';
 import type {
   Clube,
+  EstadoFinanceiro,
   EventoPartida,
   Formacao,
+  MotivoDemissao,
   Partida,
   Player,
+  ResultadoCarreira,
   TabelaClassificacao,
   Tatica,
 } from '../types';
@@ -74,6 +107,14 @@ export interface ResultadoProposta {
   mensagem: string;
 }
 
+/** Resultado de um confronto de copa jogado pelo usuário (ao vivo ou simulado). */
+export interface ResultadoConfrontoUsuario {
+  golsUsuario: number;
+  golsAdversario: number;
+  /** Id do clube vencedor nos pênaltis (quando o jogo terminou empatado). */
+  vencedorPenaltis?: string;
+}
+
 
 /** Multiplicadores de mercado — fonte única usada pela ação e pela UI. */
 export const MULTIPLICADOR_COMPRA = 1.22;
@@ -87,6 +128,22 @@ export function precoVenda(jogador: Player): number {
   return Math.round(jogador.valorMercado * MULTIPLICADOR_VENDA);
 }
 
+// --- Melhorias de estádio ---
+export type TipoMelhoriaEstadio = 'capacidade' | 'infraestrutura';
+export const LUGARES_POR_AMPLIACAO = 5000;
+export const CAPACIDADE_MAX_ESTADIO = 90000;
+export const INFRA_MAX_ESTADIO = 5;
+
+/** Custo de ampliar o estádio (+5.000 lugares) — sobe com o porte atual. */
+export function custoAmpliacaoEstadio(capacidade: number): number {
+  return Math.round(capacidade * 220);
+}
+
+/** Custo de subir um nível de infraestrutura (mais caro a cada nível). */
+export function custoMelhoriaInfra(nivelAtual: number): number {
+  return nivelAtual * 2_500_000;
+}
+
 export type VelocidadeNarracao = 'normal' | 'rapido';
 
 export interface ConfigJogo {
@@ -96,7 +153,19 @@ export interface ConfigJogo {
   som: boolean;
 }
 
-const CONFIG_PADRAO: ConfigJogo = {
+/**
+ * Escalação/tática do clube do usuário ANTES de uma partida ao vivo. As trocas e
+ * ajustes feitos durante o jogo mexem na formação do clube (para a força ao vivo
+ * refletir as decisões), mas isso é só para aquela partida — ao concluir (ou
+ * abandonar), restauramos este retrato para não "vazar" subs na escalação oficial.
+ */
+interface FormacaoPreLive {
+  clubeId: string;
+  formacao: Formacao;
+  tatica: Tatica;
+}
+
+export const CONFIG_PADRAO: ConfigJogo = {
   velocidadeNarracao: 'normal',
   confirmarAcoes: true,
   pausarNoIntervalo: true,
@@ -122,11 +191,31 @@ export interface GameState {
   config: ConfigJogo;
   jovensDisponiveis: JovemTalento[];
   propostasRecebidas: PropostaTransferencia[];
+  /** Retrato da escalação do usuário antes da partida ao vivo (transitório). */
+  formacaoPreLive: FormacaoPreLive | null;
   /** Data atual do calendário (ISO YYYY-MM-DD). Avança até o próximo evento. */
   dataAtual: string;
   /** O usuário já treinou para o próximo jogo? Porta o "treino obrigatório". */
   treinouProximoJogo: boolean;
+  /** O usuário já conversou com o grupo nesta semana? (libera 1x por ciclo). */
+  conversouComGrupo: boolean;
+  /** O usuário já concedeu a coletiva desta rodada? (libera 1x por jogo). */
+  coletivaConcedida: boolean;
+  /** Copa do Brasil da temporada (mata-mata em paralelo à liga). */
+  copa: EstadoCopa | null;
+  /** Reputação do técnico (0-100), cresce com resultados (§12). */
+  reputacaoTecnico: number;
+  /** Derrotas seguidas do clube do usuário (zera em vitória/empate). */
+  derrotasConsecutivas: number;
+  /** Rodadas seguidas com saldo negativo (gatilho de crise/falência, §8.4). */
+  rodadasNoVermelho: number;
+  /** Estado financeiro derivado das rodadas no vermelho (§8.4). */
+  estadoFinanceiro: EstadoFinanceiro;
+  /** Motivo da demissão, se o técnico foi demitido (§12); null = empregado. */
+  demissao: MotivoDemissao | null;
   iniciarNovaCarreira: (clubeId: string) => void;
+  /** Assume um novo clube após demissão: mantém a reputação, recomeça a temporada. */
+  assumirClube: (clubeId: string) => void;
   avancarRodada: () => void;
   /** Move a data atual para um dia (usado ao avançar para treino/jogo). */
   avancarParaData: (data: string) => void;
@@ -138,6 +227,19 @@ export interface GameState {
   ) => void;
   atualizarTaticaUsuario: (tatica: Tatica) => void;
   atualizarFormacaoUsuario: (formacao: Formacao) => void;
+  /** Conversa com o grupo: +5 de moral a todo o elenco (1x por semana). */
+  conversarComGrupo: () => boolean;
+  /** Concede a coletiva: aplica o efeito de moral acumulado (1x por rodada). */
+  concederColetiva: (deltaTotal: number) => boolean;
+  /**
+   * Joga a fase atual da Copa: resolve o confronto do usuário (pelo resultado
+   * informado ou simulando) e simula os demais, avança a chave e paga premiação.
+   */
+  avancarFaseCopa: (resultadoUsuario?: ResultadoConfrontoUsuario) => void;
+  /** Tira um retrato da escalação do usuário ao entrar numa partida ao vivo. */
+  prepararPartidaAoVivo: () => void;
+  /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
+  restaurarFormacaoPreLive: () => void;
   aplicarTreino: (treinoId: string, intensidade: IntensidadeTreino) => void;
   aplicarMoralElenco: (delta: number) => void;
   renovarContrato: (jogadorId: string, anos: number, salario: number) => boolean;
@@ -150,6 +252,8 @@ export interface GameState {
   atualizarConfig: (parcial: Partial<ConfigJogo>) => void;
   promoverJovem: (jovemId: string) => void;
   liberarJovem: (jovemId: string) => void;
+  /** Investe no estádio: amplia a capacidade ou sobe a infraestrutura. */
+  melhorarEstadio: (tipo: TipoMelhoriaEstadio) => ResultadoTransacao;
   reiniciarCarreira: () => void;
 }
 
@@ -184,6 +288,8 @@ function dataInicialDeTemporada(partidas: Partida[], temporada: string): string 
 }
 
 const DIVISAO_PADRAO = 'Série A';
+/** Ano em que toda carreira começa (fonte única — usada em criar/reiniciar). */
+const TEMPORADA_INICIAL = '2026';
 
 /**
  * Monta a liga ATIVA de UMA divisão: filtra clubes/jogadores da divisão, gera o
@@ -218,12 +324,53 @@ function gerarLiga(
   };
 }
 
+/**
+ * Premiação da Copa creditada ao usuário por fase VENCIDA (avançou).
+ * Valores conforme BRASFOOT_MASTER §11.2 (escala da Copa do Brasil): vencer a
+ * fase paga o prêmio da fase, e o campeão (vence a Final) leva a cota máxima.
+ */
+const PREMIACAO_COPA: Record<string, number> = {
+  'Oitavas de final': 1_575_000,
+  'Quartas de final': 3_150_000,
+  Semifinal: 5_250_000,
+  Final: 73_500_000,
+};
+
+/** Rodadas da liga em torno das quais cada fase da Copa é disputada (meio de semana). */
+const RODADAS_GATILHO_COPA = [8, 16, 24, 32];
+
+/** Datas das fases da Copa: ~3 dias após a rodada-gatilho da liga (meio de semana). */
+function calcularDatasFasesCopa(partidas: Partida[]): string[] {
+  return RODADAS_GATILHO_COPA.map(rodada => {
+    const jogo = partidas.find(partida => partida.rodada === rodada);
+    return jogo ? adicionarDias(jogo.data, 3) : '';
+  });
+}
+
+/** Gera a Copa do Brasil da temporada a partir do conjunto-mestre (todas as divisões). */
+function gerarCopaParaTemporada(
+  todosClubes: Clube[],
+  todosJogadores: Player[],
+  temporada: string,
+  clubeUsuarioId: string | null,
+  datasFases: string[],
+): EstadoCopa {
+  return gerarCopaDoBrasil(
+    todosClubes,
+    todosJogadores,
+    temporada,
+    clubeUsuarioId,
+    criarRNGComSeed(hashString(`${temporada}_copa`)),
+    datasFases,
+  );
+}
+
 function criarEstadoInicial() {
   const seed = loadSeedData();
   return {
     todosClubes: seed.clubes,
     todosJogadores: seed.jogadores,
-    ...gerarLiga(seed.clubes, seed.jogadores, DIVISAO_PADRAO, '2026'),
+    ...gerarLiga(seed.clubes, seed.jogadores, DIVISAO_PADRAO, TEMPORADA_INICIAL),
   };
 }
 
@@ -324,6 +471,9 @@ function aplicarResultadoNosJogadores(
   // "Jogou na partida" = titular (mesmo que substituído depois) OU reserva que
   // entrou via substituição. Garante que zagueiro sem lance também é avaliado.
   const jogou = new Set<string>();
+  // Titulares que de fato começaram a partida (90' de desgaste, salvo
+  // substituição). Distinto de quem entrou do banco (desgaste parcial).
+  const titularesNoApito = new Set<string>();
   // Estado PRÉ-rodada dos jogadores (suspensão/lesão ainda não decrementadas):
   // é o retrato de quem estava disponível no apito inicial.
   const porIdNoApito = new Map(jogadores.map(j => [j.id, j] as const));
@@ -340,6 +490,7 @@ function aplicarResultadoNosJogadores(
         !jogadorTitular.suspenso
       ) {
         jogou.add(titular.jogadorId);
+        titularesNoApito.add(titular.jogadorId);
       }
     }
   }
@@ -432,6 +583,18 @@ function aplicarResultadoNosJogadores(
       diasLesao = Math.max(diasLesao, sortearDuracaoLesao(rngPartida));
     }
 
+    // Preparo físico (BRASFOOT_MASTER §4): titular gasta ~90' (-20), reserva que
+    // entrou gasta parcial (-10), e quem ficou de fora DESCANSA e recupera (+25).
+    // É o que obriga a rodar o elenco ao longo das 38 rodadas.
+    const ehTitular = titularesNoApito.has(jogador.id);
+    const participou =
+      ehTitular || jogou.has(jogador.id) || jogadorIdsEmCampo.has(jogador.id);
+    const deltaCondicao = ehTitular ? -20 : participou ? -10 : 25;
+    const condicaoFisica = Math.min(
+      CONDICAO_MAX,
+      Math.max(CONDICAO_MIN, jogador.condicaoFisica + deltaCondicao),
+    );
+
     const base: Player = {
       ...jogador,
       suspenso,
@@ -439,10 +602,10 @@ function aplicarResultadoNosJogadores(
       lesionado,
       diasLesao,
       amarelosParaSuspensao,
+      condicaoFisica,
       moral: aplicarMoral(jogador.moral, mapaMoral.get(jogador.id) ?? 0),
     };
 
-    const participou = jogou.has(jogador.id) || jogadorIdsEmCampo.has(jogador.id);
     if (!participou) {
       return base;
     }
@@ -467,7 +630,6 @@ function aplicarResultadoNosJogadores(
 
     return {
       ...base,
-      condicaoFisica: Math.max(55, jogador.condicaoFisica - 6),
       estatisticasTemporada: {
         ...stats,
         jogos: stats.jogos + 1,
@@ -529,6 +691,145 @@ function checarConquistas(args: {
   novas.forEach(id => ach.desbloquearConquista(id));
 }
 
+function limiteDerrotasPorDivisao(divisao: string): number {
+  if (divisao === 'Série B') {
+    return LIMITE_DERROTAS_DEMISSAO.B;
+  }
+  if (divisao === 'Série C') {
+    return LIMITE_DERROTAS_DEMISSAO.C;
+  }
+  return LIMITE_DERROTAS_DEMISSAO.A;
+}
+
+function mensagemDemissao(motivo: MotivoDemissao): string {
+  if (motivo === 'FALENCIA') {
+    return 'A diretoria te demitiu: o clube quebrou financeiramente.';
+  }
+  if (motivo === 'REBAIXAMENTO') {
+    return 'A diretoria te demitiu após o rebaixamento.';
+  }
+  return 'A diretoria te demitiu após a sequência de derrotas.';
+}
+
+/** Resultado da rodada para o clube do usuário (null se não jogou). */
+function resultadoDoUsuario(
+  partidaUsuario: Partida | null,
+  clubeUsuarioId: string,
+): ResultadoCarreira | null {
+  if (!partidaUsuario || !partidaUsuario.jogada) {
+    return null;
+  }
+  const ehCasa = partidaUsuario.timeCasa === clubeUsuarioId;
+  const golsCasa = partidaUsuario.placarCasa ?? 0;
+  const golsFora = partidaUsuario.placarFora ?? 0;
+  if (golsCasa === golsFora) {
+    return 'empate';
+  }
+  return (golsCasa > golsFora) === ehCasa ? 'vitoria' : 'derrota';
+}
+
+interface AtualizacaoCarreira {
+  jogadores: Player[];
+  reputacaoTecnico: number;
+  derrotasConsecutivas: number;
+  rodadasNoVermelho: number;
+  estadoFinanceiro: EstadoFinanceiro;
+  demissao: MotivoDemissao | null;
+  mensagens: MensagemJogo[];
+}
+
+/**
+ * Atualiza o eixo de carreira após uma rodada da liga (§12/§8.4): reputação,
+ * sequência de derrotas, rodadas no vermelho/estado financeiro, salário atrasado
+ * (→ moral do elenco) e gatilho de demissão. A lógica pura vive em
+ * `carreiraEngine`; aqui só aplicamos aos jogadores/mensagens.
+ */
+function atualizarCarreiraPosRodada(
+  estado: Pick<
+    GameState,
+    | 'clubeUsuarioId'
+    | 'reputacaoTecnico'
+    | 'derrotasConsecutivas'
+    | 'rodadasNoVermelho'
+    | 'demissao'
+  >,
+  clubes: Clube[],
+  jogadores: Player[],
+  partidaUsuario: Partida | null,
+  mensagens: MensagemJogo[],
+): AtualizacaoCarreira {
+  const uid = estado.clubeUsuarioId;
+  const clubeUsuario = uid ? clubes.find(clube => clube.id === uid) : undefined;
+  if (!uid || !clubeUsuario) {
+    return {
+      jogadores,
+      reputacaoTecnico: estado.reputacaoTecnico,
+      derrotasConsecutivas: estado.derrotasConsecutivas,
+      rodadasNoVermelho: estado.rodadasNoVermelho,
+      estadoFinanceiro: calcularEstadoFinanceiro(estado.rodadasNoVermelho),
+      demissao: estado.demissao,
+      mensagens,
+    };
+  }
+
+  const resultado = resultadoDoUsuario(partidaUsuario, uid);
+  const rodadasNoVermelho = atualizarRodadasNoVermelho(
+    estado.rodadasNoVermelho,
+    clubeUsuario.financas.saldo,
+  );
+  const estadoFinanceiro = calcularEstadoFinanceiro(rodadasNoVermelho);
+  const derrotasConsecutivas = resultado
+    ? atualizarDerrotasConsecutivas(estado.derrotasConsecutivas, resultado)
+    : estado.derrotasConsecutivas;
+  const reputacaoTecnico = resultado
+    ? atualizarReputacao(estado.reputacaoTecnico, resultado)
+    : estado.reputacaoTecnico;
+
+  let jogadoresFinais = jogadores;
+  let msgs = mensagens;
+
+  // Salário atrasado: derruba a moral de todo o elenco do usuário (§5/§8.4).
+  if (salariosAtrasados(rodadasNoVermelho)) {
+    jogadoresFinais = jogadores.map(jogador =>
+      jogador.clubeId === uid
+        ? {
+            ...jogador,
+            moral: aplicarMoral(jogador.moral, MORAL_SALARIO_ATRASADO),
+          }
+        : jogador,
+    );
+    msgs = adicionarMensagem(
+      msgs,
+      `Salários atrasados (${rodadasNoVermelho} rodadas no vermelho): a moral do elenco despencou.`,
+    );
+  }
+
+  let demissao = estado.demissao;
+  if (!demissao) {
+    const motivo = verificarDemissao({
+      derrotasConsecutivas,
+      limiteDerrotas: limiteDerrotasPorDivisao(
+        clubeUsuario.divisao ?? DIVISAO_PADRAO,
+      ),
+      rodadasNoVermelho,
+    });
+    if (motivo) {
+      demissao = motivo;
+      msgs = adicionarMensagem(msgs, mensagemDemissao(motivo));
+    }
+  }
+
+  return {
+    jogadores: jogadoresFinais,
+    reputacaoTecnico,
+    derrotasConsecutivas,
+    rodadasNoVermelho,
+    estadoFinanceiro,
+    demissao,
+    mensagens: msgs,
+  };
+}
+
 const inicial = criarEstadoInicial();
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -539,46 +840,131 @@ export const useGameStore = create<GameState>((set, get) => ({
   partidas: inicial.partidas,
   tabela: inicial.tabela,
   clubeUsuarioId: null,
-  temporadaAtual: '2026',
+  temporadaAtual: TEMPORADA_INICIAL,
   rodadaAtual: 1,
   ultimaPartidaUsuario: null,
   mensagens: [],
   config: CONFIG_PADRAO,
   jovensDisponiveis: [],
   propostasRecebidas: [],
+  formacaoPreLive: null,
   dataAtual: inicial.dataAtual,
   treinouProximoJogo: false,
+  conversouComGrupo: false,
+  coletivaConcedida: false,
+  copa: null,
+  reputacaoTecnico: REPUTACAO_INICIAL,
+  derrotasConsecutivas: 0,
+  rodadasNoVermelho: 0,
+  estadoFinanceiro: 'SAUDAVEL',
+  demissao: null,
 
   iniciarNovaCarreira: clubeId => {
-    set(state => {
-      // Monta a liga da DIVISÃO do clube escolhido (Série A ou B). Assim o
-      // calendário e a tabela ficam restritos à divisão correta.
-      const escolhido = state.todosClubes.find(clube => clube.id === clubeId);
-      const divisao = escolhido?.divisao ?? DIVISAO_PADRAO;
-      const liga = gerarLiga(
+    // SEMPRE parte do seed limpo (e da temporada inicial): uma "nova carreira"
+    // não pode herdar elencos/finanças evoluídos nem a temporada de uma carreira
+    // anterior ainda em memória (todosClubes/todosJogadores mudam ao virar a
+    // temporada). Espelha reiniciarCarreira, mas já escolhendo o clube/divisão.
+    const base = criarEstadoInicial();
+    const escolhido = base.todosClubes.find(clube => clube.id === clubeId);
+    const divisao = escolhido?.divisao ?? DIVISAO_PADRAO;
+    const liga = gerarLiga(
+      base.todosClubes,
+      base.todosJogadores,
+      divisao,
+      TEMPORADA_INICIAL,
+    );
+    set({
+      todosClubes: base.todosClubes,
+      todosJogadores: base.todosJogadores,
+      clubeUsuarioId: clubeId,
+      temporadaAtual: TEMPORADA_INICIAL,
+      rodadaAtual: 1,
+      ultimaPartidaUsuario: null,
+      treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
+      reputacaoTecnico: REPUTACAO_INICIAL,
+      derrotasConsecutivas: 0,
+      rodadasNoVermelho: 0,
+      estadoFinanceiro: 'SAUDAVEL',
+      demissao: null,
+      jogadores: liga.jogadores,
+      partidas: liga.partidas,
+      tabela: liga.tabela,
+      dataAtual: liga.dataAtual,
+      jovensDisponiveis: [],
+      propostasRecebidas: [],
+      formacaoPreLive: null,
+      copa: gerarCopaParaTemporada(
+        base.todosClubes,
+        base.todosJogadores,
+        TEMPORADA_INICIAL,
+        clubeId,
+        calcularDatasFasesCopa(liga.partidas),
+      ),
+      clubes: liga.clubes.map(clube => ({
+        ...clube,
+        controladoPorIA: clube.id !== clubeId,
+      })),
+      mensagens: adicionarMensagem(
+        [],
+        `Carreira iniciada no ${escolhido?.nome ?? 'clube escolhido'} (${divisao}).`,
+      ),
+    });
+    // Nova carreira = conquistas zeradas (são vinculadas à carreira).
+    useAchievementsStore.getState().reiniciarConquistas();
+  },
+
+  assumirClube: clubeId => {
+    // Recontratação após demissão: a carreira CONTINUA. Usa o mundo evoluído
+    // (todosClubes/todosJogadores) e a temporada atual, recomeçando a liga do
+    // novo clube na rodada 1. Mantém reputação e conquistas; limpa a demissão.
+    const state = get();
+    const escolhido = state.todosClubes.find(clube => clube.id === clubeId);
+    if (!escolhido) {
+      return;
+    }
+    const divisao = escolhido.divisao ?? DIVISAO_PADRAO;
+    const liga = gerarLiga(
+      state.todosClubes,
+      state.todosJogadores,
+      divisao,
+      state.temporadaAtual,
+    );
+    set({
+      clubeUsuarioId: clubeId,
+      rodadaAtual: 1,
+      ultimaPartidaUsuario: null,
+      treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
+      // reputacaoTecnico PERSISTE (carreira continua); zera o resto do eixo.
+      derrotasConsecutivas: 0,
+      rodadasNoVermelho: 0,
+      estadoFinanceiro: 'SAUDAVEL',
+      demissao: null,
+      jogadores: liga.jogadores,
+      partidas: liga.partidas,
+      tabela: liga.tabela,
+      dataAtual: liga.dataAtual,
+      jovensDisponiveis: [],
+      propostasRecebidas: [],
+      formacaoPreLive: null,
+      copa: gerarCopaParaTemporada(
         state.todosClubes,
         state.todosJogadores,
-        divisao,
         state.temporadaAtual,
-      );
-      return {
-        clubeUsuarioId: clubeId,
-        rodadaAtual: 1,
-        ultimaPartidaUsuario: null,
-        treinouProximoJogo: false,
-        jogadores: liga.jogadores,
-        partidas: liga.partidas,
-        tabela: liga.tabela,
-        dataAtual: liga.dataAtual,
-        clubes: liga.clubes.map(clube => ({
-          ...clube,
-          controladoPorIA: clube.id !== clubeId,
-        })),
-        mensagens: adicionarMensagem(
-          state.mensagens,
-          `Carreira iniciada no ${escolhido?.nome ?? 'clube escolhido'} (${divisao}).`,
-        ),
-      };
+        clubeId,
+        calcularDatasFasesCopa(liga.partidas),
+      ),
+      clubes: liga.clubes.map(clube => ({
+        ...clube,
+        controladoPorIA: clube.id !== clubeId,
+      })),
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        `Contratado pelo ${escolhido.nome} (${divisao}). Hora de provar seu valor.`,
+      ),
     });
   },
 
@@ -655,8 +1041,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       return aplicarBilheteria(clube, posicaoClube(tabela, clube.id), `${state.temporadaAtual}-rodada-${state.rodadaAtual}`);
     });
 
+    const carreira = atualizarCarreiraPosRodada(
+      state,
+      clubesComBilheteria,
+      jogadoresAtualizados,
+      partidaUsuarioCompleta,
+      adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} simulada.`),
+    );
+
     set({
-      jogadores: jogadoresAtualizados,
+      jogadores: carreira.jogadores,
       partidas: partidasAtualizadas,
       tabela,
       clubes: clubesComBilheteria,
@@ -666,15 +1060,19 @@ export const useGameStore = create<GameState>((set, get) => ({
       // o próximo ciclo (volta a exigir treino antes do próximo jogo).
       dataAtual: partidaUsuarioCompleta?.data ?? state.dataAtual,
       treinouProximoJogo: false,
-      mensagens: adicionarMensagem(
-        state.mensagens,
-        `Rodada ${state.rodadaAtual} simulada.`,
-      ),
+      conversouComGrupo: false,
+      coletivaConcedida: false,
+      reputacaoTecnico: carreira.reputacaoTecnico,
+      derrotasConsecutivas: carreira.derrotasConsecutivas,
+      rodadasNoVermelho: carreira.rodadasNoVermelho,
+      estadoFinanceiro: carreira.estadoFinanceiro,
+      demissao: carreira.demissao,
+      mensagens: carreira.mensagens,
     });
 
     checarConquistas({
       clubeUsuarioId: state.clubeUsuarioId,
-      jogadores: jogadoresAtualizados,
+      jogadores: carreira.jogadores,
       partidas: partidasAtualizadas,
       tabela,
       clubes: clubesComBilheteria,
@@ -751,27 +1149,51 @@ export const useGameStore = create<GameState>((set, get) => ({
       );
     });
 
+    // Restaura a escalação/tática oficial do usuário: as trocas feitas durante a
+    // partida ao vivo valeram só para este jogo, não viram a escalação padrão.
+    const preLive = state.formacaoPreLive;
+    const clubesFinais = preLive
+      ? clubesComBilheteria.map(clube =>
+          clube.id === preLive.clubeId
+            ? {...clube, formacaoAtual: preLive.formacao, taticaAtual: preLive.tatica}
+            : clube,
+        )
+      : clubesComBilheteria;
+
+    const carreira = atualizarCarreiraPosRodada(
+      state,
+      clubesFinais,
+      jogadoresAtualizados,
+      partidaUsuario,
+      adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} disputada.`),
+    );
+
     set({
-      jogadores: jogadoresAtualizados,
+      jogadores: carreira.jogadores,
       partidas: partidasAtualizadas,
       tabela,
-      clubes: clubesComBilheteria,
+      clubes: clubesFinais,
+      formacaoPreLive: null,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
       ultimaPartidaUsuario: partidaUsuario,
       dataAtual: partidaUsuario?.data ?? state.dataAtual,
       treinouProximoJogo: false,
-      mensagens: adicionarMensagem(
-        state.mensagens,
-        `Rodada ${state.rodadaAtual} disputada.`,
-      ),
+      conversouComGrupo: false,
+      coletivaConcedida: false,
+      reputacaoTecnico: carreira.reputacaoTecnico,
+      derrotasConsecutivas: carreira.derrotasConsecutivas,
+      rodadasNoVermelho: carreira.rodadasNoVermelho,
+      estadoFinanceiro: carreira.estadoFinanceiro,
+      demissao: carreira.demissao,
+      mensagens: carreira.mensagens,
     });
 
     checarConquistas({
       clubeUsuarioId: state.clubeUsuarioId,
-      jogadores: jogadoresAtualizados,
+      jogadores: carreira.jogadores,
       partidas: partidasAtualizadas,
       tabela,
-      clubes: clubesComBilheteria,
+      clubes: clubesFinais,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
     });
     get().processarPropostasIA();
@@ -805,6 +1227,37 @@ export const useGameStore = create<GameState>((set, get) => ({
       ),
       mensagens: adicionarMensagem(state.mensagens, 'Escalação atualizada.'),
     }));
+  },
+
+  prepararPartidaAoVivo: () => {
+    const state = get();
+    const clube = state.clubes.find(c => c.id === state.clubeUsuarioId);
+    if (!clube?.formacaoAtual || !clube.taticaAtual) {
+      return;
+    }
+    set({
+      formacaoPreLive: {
+        clubeId: clube.id,
+        formacao: clube.formacaoAtual,
+        tatica: clube.taticaAtual,
+      },
+    });
+  },
+
+  restaurarFormacaoPreLive: () => {
+    const state = get();
+    const snap = state.formacaoPreLive;
+    if (!snap) {
+      return; // já restaurado (ex.: partida concluída) — idempotente.
+    }
+    set({
+      clubes: state.clubes.map(clube =>
+        clube.id === snap.clubeId
+          ? {...clube, formacaoAtual: snap.formacao, taticaAtual: snap.tatica}
+          : clube,
+      ),
+      formacaoPreLive: null,
+    });
   },
 
   aplicarTreino: (treinoId, intensidade) => {
@@ -853,6 +1306,8 @@ export const useGameStore = create<GameState>((set, get) => ({
         return aplicarEfeitoTreino(jogador, efeito);
       });
 
+      const custoTreino = INTENSIDADES[intensidade].custo;
+
       const partes = [
         `Treino de ${treino.nome} (${INTENSIDADES[intensidade].rotulo}) realizado.`,
       ];
@@ -862,9 +1317,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       if (lesoes > 0) {
         partes.push(`${lesoes} lesão(ões) no treino.`);
       }
+      partes.push(`Custo: R$ ${custoTreino.toLocaleString('pt-BR')}.`);
 
       return {
         jogadores,
+        // Custo da sessão debitado do clube (BRASFOOT_MASTER §10).
+        clubes: state.clubes.map(clubeItem =>
+          clubeItem.id === clubeUsuarioId
+            ? registrarTransacao(clubeItem, {
+                data: state.dataAtual,
+                tipo: 'despesa',
+                categoria: 'treino',
+                valor: custoTreino,
+                descricao: `Treino de ${treino.nome} (${INTENSIDADES[intensidade].rotulo})`,
+              })
+            : clubeItem,
+        ),
         // Treino concluído libera o jogo (porta o "treino obrigatório").
         treinouProximoJogo: true,
         mensagens: adicionarMensagem(state.mensagens, partes.join(' ')),
@@ -884,6 +1352,172 @@ export const useGameStore = create<GameState>((set, get) => ({
           : jogador,
       ),
     }));
+  },
+
+  conversarComGrupo: () => {
+    const state = get();
+    const {clubeUsuarioId} = state;
+    if (!clubeUsuarioId || state.conversouComGrupo) {
+      return false; // sem carreira ou já usado nesta semana.
+    }
+    const elenco = jogadoresDoClube(state.jogadores, clubeUsuarioId);
+    const deltaPorJogador = new Map(
+      converteComGrupo(elenco).map(delta => [delta.jogadorId, delta.delta]),
+    );
+    set({
+      jogadores: state.jogadores.map(jogador =>
+        deltaPorJogador.has(jogador.id)
+          ? {
+              ...jogador,
+              moral: aplicarMoral(jogador.moral, deltaPorJogador.get(jogador.id) ?? 0),
+            }
+          : jogador,
+      ),
+      conversouComGrupo: true,
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        'Você conversou com o grupo. A moral do elenco subiu.',
+      ),
+    });
+    return true;
+  },
+
+  concederColetiva: deltaTotal => {
+    const state = get();
+    const {clubeUsuarioId} = state;
+    if (!clubeUsuarioId || state.coletivaConcedida) {
+      return false; // sem carreira ou coletiva já concedida nesta rodada.
+    }
+    set({
+      jogadores:
+        deltaTotal === 0
+          ? state.jogadores
+          : state.jogadores.map(jogador =>
+              jogador.clubeId === clubeUsuarioId
+                ? {...jogador, moral: aplicarMoral(jogador.moral, deltaTotal)}
+                : jogador,
+            ),
+      coletivaConcedida: true,
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        'Você concedeu a coletiva de imprensa.',
+      ),
+    });
+    return true;
+  },
+
+  avancarFaseCopa: resultadoUsuario => {
+    const state = get();
+    const copa = state.copa;
+    if (!copa || copa.campeao) {
+      return;
+    }
+    const userId = state.clubeUsuarioId;
+    const fase = faseAtualCopa(copa);
+
+    // Lookup de clube/jogadores: prefere o estado ATIVO (escalação/fadiga atuais)
+    // e cai para o conjunto-mestre (clubes de outras divisões).
+    const clubeAtivo = new Map(state.clubes.map(c => [c.id, c]));
+    const clubeMaster = new Map(state.todosClubes.map(c => [c.id, c]));
+    const clubeDe = (id: string): Clube | undefined =>
+      clubeAtivo.get(id) ?? clubeMaster.get(id);
+    const jogadoresDe = (id: string): Player[] => {
+      const ativos = jogadoresDoClube(state.jogadores, id);
+      return ativos.length > 0
+        ? ativos
+        : jogadoresDoClube(state.todosJogadores, id);
+    };
+
+    const confrontosResolvidos = fase.confrontos.map(confronto => {
+      if (confronto.vencedor) {
+        return confronto;
+      }
+      const ehDoUsuario =
+        !!userId && (confronto.timeA === userId || confronto.timeB === userId);
+      if (ehDoUsuario && resultadoUsuario) {
+        const usuarioEhA = confronto.timeA === userId;
+        const golsA = usuarioEhA
+          ? resultadoUsuario.golsUsuario
+          : resultadoUsuario.golsAdversario;
+        const golsB = usuarioEhA
+          ? resultadoUsuario.golsAdversario
+          : resultadoUsuario.golsUsuario;
+        return definirResultadoConfronto(
+          confronto,
+          golsA,
+          golsB,
+          resultadoUsuario.vencedorPenaltis,
+        );
+      }
+      const clubeA = clubeDe(confronto.timeA);
+      const clubeB = clubeDe(confronto.timeB);
+      if (!clubeA || !clubeB) {
+        return confronto;
+      }
+      const partida = simularPartida({
+        timeCasa: clubeA,
+        timeFora: clubeB,
+        jogadoresCasa: jogadoresDe(confronto.timeA),
+        jogadoresFora: jogadoresDe(confronto.timeB),
+        seed: hashString(confronto.id),
+        competicaoId: 'copa_brasil',
+        desempate: true,
+      });
+      return definirResultadoConfronto(
+        confronto,
+        partida.placarCasa ?? 0,
+        partida.placarFora ?? 0,
+        partida.vencedorPenaltis,
+      );
+    });
+
+    const copaResolvida: EstadoCopa = {
+      ...copa,
+      fases: copa.fases.map((f, i) =>
+        i === copa.faseAtual ? {...f, confrontos: confrontosResolvidos} : f,
+      ),
+    };
+    const copaAvancada = avancarCopa(copaResolvida);
+
+    // Premiação + mensagem conforme o destino do clube do usuário nesta fase.
+    let clubes = state.clubes;
+    let mensagens = state.mensagens;
+    const meu = userId
+      ? confrontosResolvidos.find(
+          c => c.timeA === userId || c.timeB === userId,
+        )
+      : undefined;
+    if (userId && meu) {
+      if (meu.vencedor === userId) {
+        const premio = PREMIACAO_COPA[fase.nome] ?? 0;
+        if (premio > 0) {
+          clubes = clubes.map(clube =>
+            clube.id === userId
+              ? registrarTransacao(clube, {
+                  data: `${copa.temporada}-copa`,
+                  tipo: 'receita',
+                  categoria: 'premiacao',
+                  valor: premio,
+                  descricao: `Premiação Copa do Brasil — ${fase.nome}`,
+                })
+              : clube,
+          );
+        }
+        mensagens = adicionarMensagem(
+          mensagens,
+          copaAvancada.campeao === userId
+            ? 'CAMPEÃO DA COPA DO BRASIL! 🏆'
+            : `Classificado na Copa (${fase.nome}).`,
+        );
+      } else {
+        mensagens = adicionarMensagem(
+          mensagens,
+          `Eliminado da Copa do Brasil na ${fase.nome}.`,
+        );
+      }
+    }
+
+    set({copa: copaAvancada, clubes, mensagens});
   },
 
   renovarContrato: (jogadorId, anos, salario) => {
@@ -1328,9 +1962,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       };
     });
 
-    // Folha mensal de fim de temporada em todos os clubes.
+    // Acerto financeiro de fim de temporada (patrocínio, salários, manutenção
+    // e juros sobre dívida) em todos os clubes.
     const clubesComFolha = clubesMaster.map(clube =>
-      aplicarFolhaMensal(
+      aplicarAcertoFinanceiroAnual(
         clube,
         jogadoresDoClube(jogadoresEvoluidos, clube.id),
         `${state.temporadaAtual}-fim`,
@@ -1357,6 +1992,28 @@ export const useGameStore = create<GameState>((set, get) => ({
         state.temporadaAtual,
       );
     };
+
+    // Cota de TV (§8.3): premia a posição FINAL na liga. Distribuída a todos os
+    // clubes conforme divisão e colocação, no acerto de fim de temporada.
+    const posicaoFinalPorClube = new Map<string, number>();
+    for (const div of PIRAMIDE_DIVISOES) {
+      ordemDivisao(div).forEach((id, indice) => {
+        posicaoFinalPorClube.set(id, indice + 1);
+      });
+    }
+    const clubesComCotaTV = clubesComFolha.map(clube => {
+      const posicao = posicaoFinalPorClube.get(clube.id);
+      if (!posicao) {
+        return clube;
+      }
+      return aplicarCotaTV(
+        clube,
+        clube.divisao ?? DIVISAO_PADRAO,
+        posicao,
+        `${state.temporadaAtual}-fim`,
+      );
+    });
+
     // Troca entre divisões ADJACENTES da pirâmide que existam (A↔B, B↔C…): os
     // N últimos de cima descem e os N primeiros de baixo sobem.
     const novaDivisaoPorClube = new Map<string, string>();
@@ -1373,7 +2030,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       ordemAbaixo.slice(0, n).forEach(id => novaDivisaoPorClube.set(id, acima));
     }
 
-    const todosClubesNovos = clubesComFolha.map(clube => {
+    const todosClubesNovos = clubesComCotaTV.map(clube => {
       const nova = novaDivisaoPorClube.get(clube.id);
       return nova ? {...clube, divisao: nova} : clube;
     });
@@ -1426,10 +2083,42 @@ export const useGameStore = create<GameState>((set, get) => ({
         `Rebaixados da ${divisaoAtiva}: ${rebaixadosMinha.map(nomeClube).join(', ')}.`,
       );
     }
+    if (state.clubeUsuarioId) {
+      const posicaoUsuario = posicaoFinalPorClube.get(state.clubeUsuarioId);
+      if (posicaoUsuario) {
+        const valorCota = cotaTV(divisaoAtiva, posicaoUsuario);
+        mensagens = adicionarMensagem(
+          mensagens,
+          `Cota de TV (${divisaoAtiva}, ${posicaoUsuario}º): R$ ${(
+            valorCota / 1_000_000
+          ).toLocaleString('pt-BR')} mi creditada.`,
+        );
+      }
+    }
     mensagens = adicionarMensagem(
       mensagens,
       `Temporada ${proximaTemporada} (${divisaoUsuario}) iniciada. ${jovensDisponiveis.length} jovens nas peneiras.`,
     );
+
+    // Eixo carreira: reputação de fim de temporada + demissão por rebaixamento.
+    const campeao = ordemDivisao(divisaoAtiva)[0] === state.clubeUsuarioId;
+    const eventoTemporada: 'titulo' | 'acesso' | 'rebaixamento' | 'meio' =
+      campeao
+        ? 'titulo'
+        : idxNova > idxAntiga
+          ? 'rebaixamento'
+          : idxNova >= 0 && idxNova < idxAntiga
+            ? 'acesso'
+            : 'meio';
+    const reputacaoTecnico = reputacaoFimTemporada(
+      state.reputacaoTecnico,
+      eventoTemporada,
+    );
+    let demissao = state.demissao;
+    if (!demissao && eventoTemporada === 'rebaixamento' && state.clubeUsuarioId) {
+      demissao = 'REBAIXAMENTO';
+      mensagens = adicionarMensagem(mensagens, mensagemDemissao('REBAIXAMENTO'));
+    }
 
     set({
       temporadaAtual: proximaTemporada,
@@ -1446,8 +2135,20 @@ export const useGameStore = create<GameState>((set, get) => ({
       ultimaPartidaUsuario: null,
       dataAtual: liga.dataAtual,
       treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
+      reputacaoTecnico,
+      derrotasConsecutivas: 0,
+      demissao,
       jovensDisponiveis,
       propostasRecebidas: [],
+      copa: gerarCopaParaTemporada(
+        todosClubesNovos,
+        jogadoresEvoluidos,
+        proximaTemporada,
+        state.clubeUsuarioId,
+        calcularDatasFasesCopa(liga.partidas),
+      ),
       mensagens,
     });
   },
@@ -1495,6 +2196,67 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
 
+  melhorarEstadio: tipo => {
+    const state = get();
+    const {clubeUsuarioId} = state;
+    const clube = state.clubes.find(c => c.id === clubeUsuarioId);
+    if (!clubeUsuarioId || !clube) {
+      return {ok: false, mensagem: 'Sem clube ativo.'};
+    }
+    const estadio = clube.estadio;
+
+    let custo: number;
+    let novoEstadio: typeof estadio;
+    let descricao: string;
+    if (tipo === 'capacidade') {
+      if (estadio.capacidade >= CAPACIDADE_MAX_ESTADIO) {
+        return {ok: false, mensagem: 'O estádio já está na capacidade máxima.'};
+      }
+      custo = custoAmpliacaoEstadio(estadio.capacidade);
+      novoEstadio = {
+        ...estadio,
+        capacidade: Math.min(
+          CAPACIDADE_MAX_ESTADIO,
+          estadio.capacidade + LUGARES_POR_AMPLIACAO,
+        ),
+      };
+      descricao = `Ampliação do estádio (+${LUGARES_POR_AMPLIACAO} lugares)`;
+    } else {
+      if (estadio.nivelInfraestrutura >= INFRA_MAX_ESTADIO) {
+        return {ok: false, mensagem: 'A infraestrutura já está no nível máximo.'};
+      }
+      custo = custoMelhoriaInfra(estadio.nivelInfraestrutura);
+      novoEstadio = {
+        ...estadio,
+        nivelInfraestrutura: estadio.nivelInfraestrutura + 1,
+      };
+      descricao = `Melhoria de infraestrutura (nível ${estadio.nivelInfraestrutura + 1})`;
+    }
+
+    if (clube.financas.saldo < custo) {
+      return {ok: false, mensagem: 'Saldo insuficiente para a obra.'};
+    }
+
+    set({
+      clubes: state.clubes.map(c =>
+        c.id === clubeUsuarioId
+          ? {
+              ...registrarTransacao(c, {
+                data: state.dataAtual,
+                tipo: 'despesa',
+                categoria: 'obras',
+                valor: custo,
+                descricao,
+              }),
+              estadio: novoEstadio,
+            }
+          : c,
+      ),
+      mensagens: adicionarMensagem(state.mensagens, `${descricao} concluída.`),
+    });
+    return {ok: true, mensagem: `${descricao} concluída.`};
+  },
+
   atualizarConfig: parcial => {
     set(state => ({config: {...state.config, ...parcial}}));
   },
@@ -1509,13 +2271,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       partidas: novo.partidas,
       tabela: novo.tabela,
       clubeUsuarioId: null,
-      temporadaAtual: '2026',
+      temporadaAtual: TEMPORADA_INICIAL,
       rodadaAtual: 1,
       ultimaPartidaUsuario: null,
       dataAtual: novo.dataAtual,
       treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
       jovensDisponiveis: [],
       propostasRecebidas: [],
+      formacaoPreLive: null,
+      copa: null,
+      reputacaoTecnico: REPUTACAO_INICIAL,
+      derrotasConsecutivas: 0,
+      rodadasNoVermelho: 0,
+      estadoFinanceiro: 'SAUDAVEL',
+      demissao: null,
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();
@@ -1578,6 +2349,64 @@ export function selecionarProximoJogo(state: GameState): Partida | null {
     state.partidas.find(ehDoUsuario) ??
     null
   );
+}
+
+/** O confronto da Copa do usuário em aberto na fase atual (ou null). */
+export function selecionarConfrontoCopaUsuario(
+  state: GameState,
+): ConfrontoCopa | null {
+  const copa = state.copa;
+  if (!copa || copa.campeao) {
+    return null;
+  }
+  const confronto = confrontoDoClube(copa, state.clubeUsuarioId);
+  return confronto && !confronto.vencedor ? confronto : null;
+}
+
+export type Compromisso =
+  | {tipo: 'liga'; partida: Partida; data: string}
+  | {tipo: 'copa'; confronto: ConfrontoCopa; faseNome: string; data: string};
+
+/**
+ * Próximo compromisso do usuário: o de DATA mais cedo entre o próximo jogo da
+ * liga e o confronto da Copa em aberto (jogos de meio de semana se intercalam).
+ */
+export function selecionarProximoCompromisso(
+  state: GameState,
+): Compromisso | null {
+  const partidaLiga = selecionarProximoJogo(state);
+  const liga: Compromisso | null = partidaLiga
+    ? {tipo: 'liga', partida: partidaLiga, data: partidaLiga.data}
+    : null;
+
+  const confrontoCopa = selecionarConfrontoCopaUsuario(state);
+  const faseCopa = state.copa?.fases[state.copa.faseAtual];
+  const copa: Compromisso | null =
+    confrontoCopa && faseCopa?.data
+      ? {
+          tipo: 'copa',
+          confronto: confrontoCopa,
+          faseNome: faseCopa.nome,
+          data: faseCopa.data,
+        }
+      : null;
+
+  if (!liga) {
+    return copa;
+  }
+  if (!copa) {
+    return liga;
+  }
+  // Datas ISO comparam lexicograficamente; a Copa entra quando sua data chega.
+  return copa.data <= liga.data ? copa : liga;
+}
+
+/**
+ * A Copa é o compromisso "da vez"? (seu confronto chegou a hora de ser jogado).
+ * Boolean estável — seguro como seletor direto do zustand.
+ */
+export function selecionarCopaNaVez(state: GameState): boolean {
+  return selecionarProximoCompromisso(state)?.tipo === 'copa';
 }
 
 /**

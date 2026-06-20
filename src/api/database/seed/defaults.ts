@@ -7,6 +7,7 @@ import type {
   TitularFormacao,
   Player,
 } from '../../../types';
+import {estadioDoClube} from '../../../data/estadios';
 import {
   posicaoPorCoordenada,
   preencherCoordenadas,
@@ -232,5 +233,7 @@ export function aplicarDefaultsClube(clube: Clube, jogadores: Player[]): Clube {
     ...clube,
     formacaoAtual: clube.formacaoAtual ?? criarFormacaoDefault(elenco),
     taticaAtual: clube.taticaAtual ?? taticaDefault,
+    // Substitui o estádio genérico do seed por um real/variado por clube.
+    estadio: estadioDoClube(clube.id, clube.nome),
   };
 }

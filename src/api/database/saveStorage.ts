@@ -10,6 +10,10 @@ import {getDatabase} from './db';
 const CRIAR_TABELA =
   'CREATE TABLE IF NOT EXISTS save_state (id INTEGER PRIMARY KEY, snapshot TEXT NOT NULL)';
 
+// Linha 1 = save atual; linha 2 = backup (último save íntegro anterior).
+const ID_ATUAL = 1;
+const ID_BACKUP = 2;
+
 export function criarArmazenamentoSqlite(): ArmazenamentoSave {
   let preparado = false;
 
@@ -22,22 +26,39 @@ export function criarArmazenamentoSqlite(): ArmazenamentoSave {
     return base;
   }
 
+  async function lerLinha(base: Awaited<ReturnType<typeof db>>, id: number) {
+    const resultado = await base.execute(
+      'SELECT snapshot FROM save_state WHERE id = ?',
+      [id],
+    );
+    const valor = resultado.rows[0]?.snapshot;
+    return typeof valor === 'string' ? valor : null;
+  }
+
   return {
     async escrever(json: string): Promise<void> {
       const base = await db();
+      // Backup-before-overwrite: preserva o save anterior antes de sobrescrever,
+      // para recuperação caso a próxima gravação corrompa (ou interrompa) o atual.
+      const anterior = await lerLinha(base, ID_ATUAL);
+      if (anterior !== null) {
+        await base.execute(
+          'INSERT OR REPLACE INTO save_state (id, snapshot) VALUES (?, ?)',
+          [ID_BACKUP, anterior],
+        );
+      }
       await base.execute(
-        'INSERT OR REPLACE INTO save_state (id, snapshot) VALUES (1, ?)',
-        [json],
+        'INSERT OR REPLACE INTO save_state (id, snapshot) VALUES (?, ?)',
+        [ID_ATUAL, json],
       );
     },
 
     async ler(): Promise<string | null> {
-      const base = await db();
-      const resultado = await base.execute(
-        'SELECT snapshot FROM save_state WHERE id = 1',
-      );
-      const valor = resultado.rows[0]?.snapshot;
-      return typeof valor === 'string' ? valor : null;
+      return lerLinha(await db(), ID_ATUAL);
+    },
+
+    async lerBackup(): Promise<string | null> {
+      return lerLinha(await db(), ID_BACKUP);
     },
 
     async limpar(): Promise<void> {

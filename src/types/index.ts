@@ -1,5 +1,6 @@
 export type {
   AtributoChave,
+  Habilidade,
   PernaDominante,
   Player,
   PlayerAttributes,
@@ -34,4 +35,8 @@ export type {
   PremiacaoCompeticao,
   TabelaClassificacao,
 } from './competition';
-export type {ConfiguracoesJogo, SaveGame} from './save';
+export type {
+  EstadoFinanceiro,
+  MotivoDemissao,
+  ResultadoCarreira,
+} from './carreira';

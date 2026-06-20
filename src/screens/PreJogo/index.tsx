@@ -1,11 +1,11 @@
 /**
  * Tela pré-jogo (Módulo 5). Mostra o confronto (força como "favoritismo"),
- * forma e posição, histórico de confrontos diretos e uma coletiva de imprensa
- * que aplica moral ao elenco. Daqui o usuário simula ou joga ao vivo.
+ * forma e posição, histórico de confrontos diretos e o acesso à coletiva de
+ * imprensa. Daqui o usuário simula ou joga ao vivo.
  */
 
-import React, {useMemo, useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import React, {useMemo} from 'react';
+import {StyleSheet, Text, View} from 'react-native';
 
 import {
   AppHeader,
@@ -17,7 +17,6 @@ import {
 import BarrasForca from '../../components/BarrasForca';
 import Escudo from '../../components/Escudo';
 import {useToast} from '../../components/feedback';
-import {PERGUNTAS_IMPRENSA} from '../../data/imprensa';
 import {useAppNavigation} from '../../navigation/types';
 import {selecionarProximoJogo, useGameStore} from '../../store/useGameStore';
 import {cores, corDoTime, espaco, raio} from '../../theme';
@@ -31,12 +30,9 @@ function PreJogo(): React.JSX.Element {
   const clubes = useGameStore(state => state.clubes);
   const jogadores = useGameStore(state => state.jogadores);
   const partidas = useGameStore(state => state.partidas);
-  const rodadaAtual = useGameStore(state => state.rodadaAtual);
   const proximo = useGameStore(selecionarProximoJogo);
   const avancarRodada = useGameStore(state => state.avancarRodada);
-  const aplicarMoralElenco = useGameStore(state => state.aplicarMoralElenco);
-
-  const [respondido, setRespondido] = useState<string | null>(null);
+  const coletivaConcedida = useGameStore(state => state.coletivaConcedida);
 
   const confronto = useMemo(() => {
     if (!proximo) {
@@ -71,8 +67,6 @@ function PreJogo(): React.JSX.Element {
       .slice(0, 3);
   }, [partidas, proximo]);
 
-  const pergunta = PERGUNTAS_IMPRENSA[rodadaAtual % PERGUNTAS_IMPRENSA.length];
-
   if (!proximo || !confronto) {
     return (
       <ScreenContainer>
@@ -82,20 +76,11 @@ function PreJogo(): React.JSX.Element {
     );
   }
 
-  const responder = (texto: string, deltaMoral: number) => {
-    aplicarMoralElenco(deltaMoral);
-    setRespondido(texto);
-    toast(
-      deltaMoral >= 0 ? 'Elenco gostou da fala.' : 'Fala arriscada.',
-      deltaMoral >= 0 ? 'sucesso' : 'info',
-    );
-  };
-
   return (
     <ScreenContainer scroll>
       <AppHeader
         titulo={`Rodada ${proximo.rodada}`}
-        subtitulo="Brasileirão Série A"
+        subtitulo={`Brasileirão ${confronto.casa.divisao ?? 'Série A'}`}
         onBack={() => nav.goBack()}
       />
 
@@ -142,31 +127,18 @@ function PreJogo(): React.JSX.Element {
         )}
       </Section>
 
-      <Section titulo="Imprensa">
-        <Text style={styles.pergunta}>{pergunta.pergunta}</Text>
-        {respondido ? (
-          <Text style={styles.respondido}>Você respondeu: “{respondido}”</Text>
-        ) : (
-          <View style={styles.opcoesImprensa}>
-            {pergunta.opcoes.map(opcao => (
-              <Pressable
-                accessibilityRole="button"
-                key={opcao.texto}
-                onPress={() => responder(opcao.texto, opcao.deltaMoralElenco)}
-                style={styles.opcaoImprensa}>
-                <Text style={styles.opcaoImprensaTexto}>{opcao.texto}</Text>
-                <Text
-                  style={[
-                    styles.opcaoImprensaDelta,
-                    opcao.deltaMoralElenco < 0 ? styles.deltaNegativo : null,
-                  ]}>
-                  {opcao.deltaMoralElenco >= 0 ? '+' : ''}
-                  {opcao.deltaMoralElenco} moral
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        )}
+      <Section titulo="Coletiva de imprensa">
+        <Text style={styles.coletivaTexto}>
+          {coletivaConcedida
+            ? 'Você já falou com a imprensa antes deste jogo.'
+            : 'Enfrente os jornalistas: 3 perguntas sobre escalação, um jogador e o adversário. Suas respostas mexem com a moral do elenco.'}
+        </Text>
+        <Botao
+          variante="secundaria"
+          icone="conversa"
+          titulo={coletivaConcedida ? 'Ver coletiva' : 'Ir à coletiva'}
+          onPress={() => nav.navigate('Coletiva')}
+        />
       </Section>
 
       <View style={styles.acoes}>
@@ -248,40 +220,11 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
   },
-  pergunta: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: espaco.sm,
-  },
-  respondido: {
-    color: cores.primaria,
+  coletivaTexto: {
+    color: cores.textoSecundario,
     fontSize: 13,
-    fontStyle: 'italic',
-  },
-  opcoesImprensa: {
-    gap: espaco.sm,
-  },
-  opcaoImprensa: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    gap: 2,
-    padding: espaco.md,
-  },
-  opcaoImprensaTexto: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  opcaoImprensaDelta: {
-    color: cores.primaria,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  deltaNegativo: {
-    color: cores.perigo,
+    lineHeight: 19,
+    marginBottom: espaco.md,
   },
   acoes: {
     flexDirection: 'row',

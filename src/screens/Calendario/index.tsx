@@ -1,134 +1,238 @@
 /**
- * Calendário da temporada (Módulo 12). Grade das 38 rodadas do clube do usuário:
- * verde (vitória), cinza (empate), vermelho (derrota), destaque na próxima
- * rodada e cinza-claro nas futuras. Tocar abre a súmula (jogada) ou o pré-jogo.
+ * Calendário da temporada (Módulo 12) — grade MENSAL de verdade: cada mês com
+ * seus dias (alinhados ao dia da semana), e os jogos do clube do usuário
+ * (Liga + Copa do Brasil) posicionados na data certa, coloridos por resultado.
+ * Tocar abre a súmula (liga jogada), o pré-jogo (próxima da liga) ou a chave
+ * (Copa). A Copa é marcada com borda dourada no topo da célula.
  */
 
 import React, {useMemo} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
-import {AppHeader, ScreenContainer} from '../../components/ui';
+import {AppHeader, ScreenContainer, Section} from '../../components/ui';
+import Icone from '../../components/Icone';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
 import {cores, espaco, raio} from '../../theme';
 import {siglaClube} from '../../utils/formatters';
+import {diasNoMes, indiceDiaSemana, nomeMes} from '../../utils/datas';
 import type {Partida} from '../../types';
 
-const TOTAL_RODADAS = 38;
+type EstadoJogo = 'vitoria' | 'empate' | 'derrota' | 'proxima' | 'futura';
 
-/** "2026-04-08" → "08/04" (compacto para a célula estreita). */
-function diaMes(iso: string): string {
-  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+interface JogoCalendario {
+  data: string;
+  sigla: string;
+  tipo: 'liga' | 'copa';
+  estado: EstadoJogo;
+  partidaId?: string;
 }
 
-type ResultadoCelula = 'V' | 'E' | 'D';
+const COR_ESTADO: Record<EstadoJogo, string> = {
+  vitoria: '#166534',
+  empate: '#374151',
+  derrota: '#7F1D1D',
+  proxima: cores.primaria,
+  futura: cores.superficieAlt,
+};
 
-function resultado(partida: Partida, usuarioId: string): ResultadoCelula {
+const CABECALHO_SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+function estadoDoResultado(partida: Partida, usuarioId: string): EstadoJogo {
   const ehCasa = partida.timeCasa === usuarioId;
   const pro = (ehCasa ? partida.placarCasa : partida.placarFora) ?? 0;
   const con = (ehCasa ? partida.placarFora : partida.placarCasa) ?? 0;
   if (pro > con) {
-    return 'V';
+    return 'vitoria';
   }
   if (pro < con) {
-    return 'D';
+    return 'derrota';
   }
-  return 'E';
-}
-
-function corResultado(r: ResultadoCelula): string {
-  if (r === 'V') {
-    return '#166534';
-  }
-  if (r === 'D') {
-    return '#7F1D1D';
-  }
-  return '#374151';
+  return 'empate';
 }
 
 function Calendario(): React.JSX.Element {
   const nav = useAppNavigation();
   const partidas = useGameStore(state => state.partidas);
   const clubes = useGameStore(state => state.clubes);
+  const todosClubes = useGameStore(state => state.todosClubes);
+  const copa = useGameStore(state => state.copa);
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
   const rodadaAtual = useGameStore(state => state.rodadaAtual);
+  const temporadaAtual = useGameStore(state => state.temporadaAtual);
 
-  const porRodada = useMemo(() => {
-    const mapa = new Map<number, Partida>();
+  // Todos os jogos do usuário (liga + copa), com seu estado e data.
+  const jogos = useMemo<JogoCalendario[]>(() => {
     if (!clubeUsuarioId) {
-      return mapa;
+      return [];
     }
+    const lista: JogoCalendario[] = [];
+
     for (const partida of partidas) {
       if (
-        partida.timeCasa === clubeUsuarioId ||
-        partida.timeFora === clubeUsuarioId
+        partida.timeCasa !== clubeUsuarioId &&
+        partida.timeFora !== clubeUsuarioId
       ) {
-        mapa.set(partida.rodada, partida);
+        continue;
       }
+      const adversarioId =
+        partida.timeCasa === clubeUsuarioId ? partida.timeFora : partida.timeCasa;
+      const estado: EstadoJogo = partida.jogada
+        ? estadoDoResultado(partida, clubeUsuarioId)
+        : partida.rodada === rodadaAtual
+          ? 'proxima'
+          : 'futura';
+      lista.push({
+        data: partida.data,
+        sigla: siglaClube(clubes, adversarioId),
+        tipo: 'liga',
+        estado,
+        partidaId: partida.id,
+      });
     }
-    return mapa;
-  }, [partidas, clubeUsuarioId]);
+
+    if (copa) {
+      copa.fases.forEach((fase, indice) => {
+        const confronto = fase.confrontos.find(
+          c => c.timeA === clubeUsuarioId || c.timeB === clubeUsuarioId,
+        );
+        if (!confronto || !fase.data) {
+          return;
+        }
+        const adversarioId =
+          confronto.timeA === clubeUsuarioId
+            ? confronto.timeB
+            : confronto.timeA;
+        const estado: EstadoJogo = confronto.vencedor
+          ? confronto.vencedor === clubeUsuarioId
+            ? 'vitoria'
+            : 'derrota'
+          : indice === copa.faseAtual
+            ? 'proxima'
+            : 'futura';
+        lista.push({
+          data: fase.data,
+          sigla: siglaClube(todosClubes, adversarioId),
+          tipo: 'copa',
+          estado,
+        });
+      });
+    }
+
+    return lista;
+  }, [partidas, clubes, todosClubes, copa, clubeUsuarioId, rodadaAtual]);
+
+  // Agrupa por mês ("2026-04" → mapa dia→jogo), ordenado cronologicamente.
+  const meses = useMemo(() => {
+    const mapa = new Map<string, Map<number, JogoCalendario>>();
+    for (const jogo of jogos) {
+      const chave = jogo.data.slice(0, 7);
+      const dia = Number(jogo.data.slice(8, 10));
+      const doMes = mapa.get(chave) ?? new Map<number, JogoCalendario>();
+      doMes.set(dia, jogo);
+      mapa.set(chave, doMes);
+    }
+    return [...mapa.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [jogos]);
+
+  const aoTocar = (jogo: JogoCalendario) => {
+    if (jogo.tipo === 'copa') {
+      nav.navigate('Copa');
+      return;
+    }
+    if (jogo.partidaId && jogo.estado !== 'proxima' && jogo.estado !== 'futura') {
+      nav.navigate('MatchResult', {partidaId: jogo.partidaId});
+    } else if (jogo.estado === 'proxima') {
+      nav.navigate('PreJogo');
+    }
+  };
 
   return (
     <ScreenContainer scroll>
       <AppHeader
         titulo="Calendário"
-        subtitulo="Temporada · 38 rodadas"
+        subtitulo={`Liga + Copa · ${temporadaAtual}`}
         onBack={() => nav.goBack()}
       />
 
-      <View style={styles.grade}>
-        {Array.from({length: TOTAL_RODADAS}, (_, i) => i + 1).map(rodada => {
-          const partida = porRodada.get(rodada);
-          const adversarioId =
-            partida && clubeUsuarioId
-              ? partida.timeCasa === clubeUsuarioId
-                ? partida.timeFora
-                : partida.timeCasa
-              : undefined;
-          const ehProxima = rodada === rodadaAtual;
-          const jogada = partida?.jogada ?? false;
-          const r = partida && jogada ? resultado(partida, clubeUsuarioId ?? '') : null;
+      {meses.map(([chave, jogosPorDia]) => {
+        const [ano, mes] = chave.split('-').map(Number);
+        const total = diasNoMes(ano, mes);
+        const offset = indiceDiaSemana(`${chave}-01`);
+        const celulas: Array<number | null> = [
+          ...Array.from({length: offset}, () => null),
+          ...Array.from({length: total}, (_, i) => i + 1),
+        ];
 
-          const aoTocar = () => {
-            if (!partida) {
-              return;
-            }
-            if (jogada) {
-              nav.navigate('MatchResult', {partidaId: partida.id});
-            } else if (ehProxima) {
-              nav.navigate('PreJogo');
-            }
-          };
-
-          return (
-            <Pressable
-              accessibilityRole="button"
-              key={rodada}
-              onPress={aoTocar}
-              style={[
-                styles.celula,
-                r ? {backgroundColor: corResultado(r)} : null,
-                ehProxima ? styles.celulaProxima : null,
-              ]}>
-              <Text style={styles.rodadaNum}>{rodada}</Text>
-              {partida ? (
-                <Text style={styles.data}>{diaMes(partida.data)}</Text>
-              ) : null}
-              <Text style={styles.adversario} numberOfLines={1}>
-                {adversarioId ? siglaClube(clubes, adversarioId) : '—'}
-              </Text>
-              {r ? <Text style={styles.resultado}>{r}</Text> : null}
-            </Pressable>
-          );
-        })}
-      </View>
+        return (
+          <Section key={chave} titulo={`${nomeMes(mes)} ${ano}`}>
+            <View style={styles.semanaHeader}>
+              {CABECALHO_SEMANA.map((dia, i) => (
+                <Text key={`h${i}`} style={styles.diaSemana}>
+                  {dia}
+                </Text>
+              ))}
+            </View>
+            <View style={styles.grade}>
+              {celulas.map((dia, i) => {
+                if (dia === null) {
+                  return <View key={`v${i}`} style={styles.celula} />;
+                }
+                const jogo = jogosPorDia.get(dia);
+                if (!jogo) {
+                  return (
+                    <View key={dia} style={styles.celula}>
+                      <Text style={styles.diaNum}>{dia}</Text>
+                    </View>
+                  );
+                }
+                const corTexto =
+                  jogo.estado === 'proxima'
+                    ? cores.contrastePrimaria
+                    : jogo.estado === 'futura'
+                      ? cores.texto
+                      : '#FFFFFF';
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    key={dia}
+                    onPress={() => aoTocar(jogo)}
+                    style={[
+                      styles.celula,
+                      styles.celulaJogo,
+                      {backgroundColor: COR_ESTADO[jogo.estado]},
+                      jogo.tipo === 'copa' ? styles.celulaCopa : null,
+                    ]}>
+                    {jogo.tipo === 'copa' ? (
+                      <View style={styles.copaMarca}>
+                        <Icone nome="trofeu" tamanho={9} cor={cores.secundaria} />
+                      </View>
+                    ) : null}
+                    <Text style={[styles.diaNumJogo, {color: corTexto}]}>
+                      {dia}
+                    </Text>
+                    <Text
+                      style={[styles.celulaSigla, {color: corTexto}]}
+                      numberOfLines={1}>
+                      {jogo.sigla}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Section>
+        );
+      })}
 
       <View style={styles.legenda}>
         <Legenda cor="#166534" texto="Vitória" />
         <Legenda cor="#374151" texto="Empate" />
         <Legenda cor="#7F1D1D" texto="Derrota" />
         <Legenda cor={cores.primaria} texto="Próxima" />
+        <View style={styles.legendaItem}>
+          <Icone nome="trofeu" tamanho={13} cor={cores.secundaria} />
+          <Text style={styles.legendaTexto}>Copa do Brasil</Text>
+        </View>
       </View>
     </ScreenContainer>
   );
@@ -145,46 +249,57 @@ function Legenda({cor, texto}: {cor: string; texto: string}): React.JSX.Element 
 
 export default Calendario;
 
+const LARGURA_CELULA = '14.2857%';
+
 const styles = StyleSheet.create({
+  semanaHeader: {
+    flexDirection: 'row',
+  },
+  diaSemana: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
+    width: LARGURA_CELULA,
+  },
   grade: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: espaco.sm,
   },
   celula: {
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
+    aspectRatio: 1,
     borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     gap: 1,
     justifyContent: 'center',
-    paddingVertical: espaco.sm,
-    width: '17.5%',
+    width: LARGURA_CELULA,
   },
-  celulaProxima: {
-    borderColor: cores.primaria,
-    borderWidth: 2,
+  celulaJogo: {
+    borderColor: cores.borda,
+    borderRadius: raio.sm,
   },
-  rodadaNum: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '900',
+  celulaCopa: {
+    borderColor: cores.secundaria,
+    borderTopColor: cores.secundaria,
+    borderTopWidth: 3,
   },
-  data: {
+  copaMarca: {
+    position: 'absolute',
+    right: 2,
+    top: 1,
+  },
+  diaNum: {
     color: cores.textoSecundario,
+    fontSize: 12,
+  },
+  diaNumJogo: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  celulaSigla: {
     fontSize: 9,
-    fontWeight: '700',
-  },
-  adversario: {
-    color: cores.textoSecundario,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  resultado: {
-    color: cores.texto,
-    fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '800',
   },
   legenda: {
     flexDirection: 'row',

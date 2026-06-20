@@ -13,6 +13,12 @@ export interface Conquista {
   dataDesbloqueio?: string;
 }
 
+/** Forma mínima persistida no save: só o que foi desbloqueado (e quando). */
+export interface ConquistaSalva {
+  id: string;
+  dataDesbloqueio?: string;
+}
+
 export const CONQUISTAS: Conquista[] = [
   {
     id: 'primeiro_titulo',
