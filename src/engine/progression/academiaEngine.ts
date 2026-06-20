@@ -1,7 +1,9 @@
 import {PRIMEIROS_NOMES, SOBRENOMES} from '../../data/nomesBase';
 import type {Player, Position} from '../../types';
 import {inteiroEntre, type RandomGenerator} from '../simulation/rng';
+import {comHabilidades} from './habilidades';
 import {calcularValor} from './playerProgression';
+import {comTipo} from './tipoJogador';
 
 /**
  * Academia de base (Módulo 14). Gera jovens talentos por temporada de forma
@@ -146,7 +148,10 @@ export function jovemParaPlayer(
     historicoTemporadas: [],
   };
 
-  // Valor de mercado calculado pela fórmula §9.2 (academia não tem valor curado).
-  return {...base, valorMercado: calcularValor(base)};
+  // Deriva habilidades + tipo (como no load do seed) e calcula o valor pela
+  // fórmula §9.2 — academia não tem valor curado. Assim o jovem já entra no
+  // elenco com a identidade completa, sem esperar a primeira evolução.
+  const enriquecido = comTipo(comHabilidades(base));
+  return {...enriquecido, valorMercado: calcularValor(enriquecido)};
 }
 

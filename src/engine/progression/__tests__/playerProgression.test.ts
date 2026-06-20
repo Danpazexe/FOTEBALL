@@ -129,23 +129,25 @@ describe('calcularValor (§9.2)', () => {
     expect(jovem).toBeGreaterThan(velho);
   });
 
-  it('habilidades agregam valor; NOVATO é desconto (aposta)', () => {
-    const semHab = calcularValor(
-      criarPlayer({id: 's', overall: 80, idade: 26, tipo: 'NORMAL'}),
-    );
+  it('habilidades agregam valor; o tipo NÃO afeta o valor-base', () => {
+    const semHab = calcularValor(criarPlayer({id: 's', overall: 80, idade: 26}));
     const comHab = calcularValor(
       criarPlayer({
         id: 'h',
         overall: 80,
         idade: 26,
-        tipo: 'NORMAL',
         habilidades: ['ARTILHEIRO', 'VELOCISTA'],
       }),
     );
+    expect(comHab).toBeGreaterThan(semHab);
+    // Decisão de design: o desconto de NOVATO/VETERANO não entra no valor-base
+    // (evita ficar preso no valor herdado ao longo da carreira).
     const novato = calcularValor(
       criarPlayer({id: 'n', overall: 80, idade: 26, tipo: 'NOVATO'}),
     );
-    expect(comHab).toBeGreaterThan(semHab);
-    expect(novato).toBeLessThan(semHab);
+    const normal = calcularValor(
+      criarPlayer({id: 'm', overall: 80, idade: 26, tipo: 'NORMAL'}),
+    );
+    expect(novato).toBe(normal);
   });
 });

@@ -1,6 +1,6 @@
 import type {Clube, Player, Position} from '../../types';
 
-import {derivarTipoJogador, MULTIPLICADOR_VALOR_TIPO} from './tipoJogador';
+import {derivarTipoJogador} from './tipoJogador';
 
 /**
  * Multiplicador de valor por posição (BRASFOOT_MASTER §9.2): atacantes valem
@@ -46,20 +46,22 @@ function fatorIdadeValor(idade: number): number {
 /**
  * Valor de mercado calculado (BRASFOOT_MASTER §9.2), calibrado à curva
  * EXPONENCIAL do seed (overall 70 ≈ R$ 2M, +16%/ponto): base × posição × idade
- * × (1 + 0.10 × nº habilidades) × multiplicador de tipo (NOVATO 0.6 / VETERANO
- * 0.8). Usado para jogadores SEM valor curado (academia/novos); os valores
- * autorais do seed são preservados de propósito (craques mantêm seu preço).
+ * × (1 + 0.10 × nº habilidades). Usado para jogadores SEM valor curado
+ * (academia/novos); os valores autorais do seed são preservados de propósito.
+ *
+ * Obs.: o desconto por TIPO (novato aposta / veterano em fim) NÃO entra no valor
+ * de mercado base — senão ficaria "preso" no valor herdado ao longo da carreira
+ * (um novato graduado carregaria o desconto para sempre). Esse efeito é melhor
+ * aplicado na NEGOCIAÇÃO (ver `MULTIPLICADOR_VALOR_TIPO`).
  */
 export function calcularValor(jogador: Player): number {
   const base = 2_000_000 * Math.pow(1.16, jogador.overall - 70);
   const nHabilidades = jogador.habilidades?.length ?? 0;
-  const tipo = jogador.tipo ?? derivarTipoJogador(jogador);
   const valor =
     base *
     MULT_VALOR_POSICAO[jogador.posicaoPrincipal] *
     fatorIdadeValor(jogador.idade) *
-    (1 + 0.1 * nHabilidades) *
-    MULTIPLICADOR_VALOR_TIPO[tipo];
+    (1 + 0.1 * nHabilidades);
   return Math.max(50_000, Math.round(valor));
 }
 
