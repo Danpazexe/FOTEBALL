@@ -5,6 +5,8 @@ import {verificarConquistas} from '../engine/conquistas/verificadorConquistas';
 import {
   aplicarAcertoFinanceiroAnual,
   aplicarBilheteria,
+  aplicarCotaTV,
+  cotaTV,
   registrarTransacao,
 } from '../engine/finance/financeEngine';
 import {
@@ -1990,6 +1992,28 @@ export const useGameStore = create<GameState>((set, get) => ({
         state.temporadaAtual,
       );
     };
+
+    // Cota de TV (§8.3): premia a posição FINAL na liga. Distribuída a todos os
+    // clubes conforme divisão e colocação, no acerto de fim de temporada.
+    const posicaoFinalPorClube = new Map<string, number>();
+    for (const div of PIRAMIDE_DIVISOES) {
+      ordemDivisao(div).forEach((id, indice) => {
+        posicaoFinalPorClube.set(id, indice + 1);
+      });
+    }
+    const clubesComCotaTV = clubesComFolha.map(clube => {
+      const posicao = posicaoFinalPorClube.get(clube.id);
+      if (!posicao) {
+        return clube;
+      }
+      return aplicarCotaTV(
+        clube,
+        clube.divisao ?? DIVISAO_PADRAO,
+        posicao,
+        `${state.temporadaAtual}-fim`,
+      );
+    });
+
     // Troca entre divisões ADJACENTES da pirâmide que existam (A↔B, B↔C…): os
     // N últimos de cima descem e os N primeiros de baixo sobem.
     const novaDivisaoPorClube = new Map<string, string>();
@@ -2006,7 +2030,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       ordemAbaixo.slice(0, n).forEach(id => novaDivisaoPorClube.set(id, acima));
     }
 
-    const todosClubesNovos = clubesComFolha.map(clube => {
+    const todosClubesNovos = clubesComCotaTV.map(clube => {
       const nova = novaDivisaoPorClube.get(clube.id);
       return nova ? {...clube, divisao: nova} : clube;
     });
@@ -2058,6 +2082,18 @@ export const useGameStore = create<GameState>((set, get) => ({
         mensagens,
         `Rebaixados da ${divisaoAtiva}: ${rebaixadosMinha.map(nomeClube).join(', ')}.`,
       );
+    }
+    if (state.clubeUsuarioId) {
+      const posicaoUsuario = posicaoFinalPorClube.get(state.clubeUsuarioId);
+      if (posicaoUsuario) {
+        const valorCota = cotaTV(divisaoAtiva, posicaoUsuario);
+        mensagens = adicionarMensagem(
+          mensagens,
+          `Cota de TV (${divisaoAtiva}, ${posicaoUsuario}º): R$ ${(
+            valorCota / 1_000_000
+          ).toLocaleString('pt-BR')} mi creditada.`,
+        );
+      }
     }
     mensagens = adicionarMensagem(
       mensagens,

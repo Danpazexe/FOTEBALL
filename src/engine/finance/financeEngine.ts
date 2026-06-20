@@ -53,6 +53,68 @@ export function aplicarBilheteria(
   });
 }
 
+/**
+ * Cota de TV por divisão e posição FINAL na tabela (BRASFOOT_MASTER §8.3).
+ * Posição 1-indexada (1 = campeão). Distribuída no fim de temporada — é a
+ * receita que premia terminar melhor na liga.
+ */
+export function cotaTV(divisao: string, posicaoFinal: number): number {
+  if (divisao === 'Série B') {
+    if (posicaoFinal === 1) {
+      return 18_000_000;
+    }
+    if (posicaoFinal <= 4) {
+      return 14_000_000;
+    }
+    if (posicaoFinal <= 12) {
+      return 8_000_000;
+    }
+    return 4_000_000;
+  }
+  if (divisao === 'Série C') {
+    if (posicaoFinal === 1) {
+      return 5_000_000;
+    }
+    if (posicaoFinal <= 4) {
+      return 3_500_000;
+    }
+    return 1_500_000;
+  }
+  // Série A (padrão).
+  if (posicaoFinal === 1) {
+    return 120_000_000;
+  }
+  if (posicaoFinal <= 4) {
+    return 80_000_000;
+  }
+  if (posicaoFinal <= 8) {
+    return 55_000_000;
+  }
+  if (posicaoFinal <= 12) {
+    return 38_000_000;
+  }
+  if (posicaoFinal <= 16) {
+    return 25_000_000;
+  }
+  return 18_000_000;
+}
+
+/** Credita a cota de TV (§8.3) ao clube conforme divisão e posição final. */
+export function aplicarCotaTV(
+  clube: Clube,
+  divisao: string,
+  posicaoFinal: number,
+  data: string,
+): Clube {
+  return registrarTransacao(clube, {
+    data,
+    tipo: 'receita',
+    categoria: 'cota_tv',
+    valor: cotaTV(divisao, posicaoFinal),
+    descricao: `Cota de TV (${divisao}, ${posicaoFinal}º)`,
+  });
+}
+
 export function aplicarFolhaMensal(
   clube: Clube,
   jogadores: Player[],

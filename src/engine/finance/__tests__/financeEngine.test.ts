@@ -1,8 +1,10 @@
 import {
   aplicarAcertoFinanceiroAnual,
+  aplicarCotaTV,
   aplicarJurosSaldoNegativo,
   aplicarManutencaoEstadio,
   aplicarPatrocinioAnual,
+  cotaTV,
   MANUTENCAO_POR_LUGAR,
   PATROCINIO_POR_REPUTACAO,
   TAXA_JUROS_ANUAL,
@@ -72,5 +74,31 @@ describe('financeEngine — acerto anual', () => {
     expect(
       depois.financas.historicoTransacoes.some(t => t.categoria === 'juros'),
     ).toBe(true);
+  });
+});
+
+describe('cotaTV (§8.3)', () => {
+  it('Série A premia muito melhor que B e C, e cai com a posição', () => {
+    expect(cotaTV('Série A', 1)).toBe(120_000_000);
+    expect(cotaTV('Série A', 4)).toBe(80_000_000);
+    expect(cotaTV('Série A', 8)).toBe(55_000_000);
+    expect(cotaTV('Série A', 20)).toBe(18_000_000);
+    // Campeão da A > campeão da B > campeão da C.
+    expect(cotaTV('Série A', 1)).toBeGreaterThan(cotaTV('Série B', 1));
+    expect(cotaTV('Série B', 1)).toBeGreaterThan(cotaTV('Série C', 1));
+  });
+
+  it('é monotônica decrescente por faixa dentro da divisão', () => {
+    expect(cotaTV('Série A', 1)).toBeGreaterThanOrEqual(cotaTV('Série A', 5));
+    expect(cotaTV('Série A', 5)).toBeGreaterThanOrEqual(cotaTV('Série A', 13));
+    expect(cotaTV('Série B', 4)).toBeGreaterThanOrEqual(cotaTV('Série B', 13));
+    expect(cotaTV('Série C', 4)).toBeGreaterThanOrEqual(cotaTV('Série C', 10));
+  });
+
+  it('aplicarCotaTV credita o valor como receita categoria cota_tv', () => {
+    const clube = criarClube({id: 'a'});
+    const depois = aplicarCotaTV(clube, 'Série A', 1, DATA);
+    expect(depois.financas.saldo).toBe(clube.financas.saldo + 120_000_000);
+    expect(depois.financas.historicoTransacoes[0].categoria).toBe('cota_tv');
   });
 });
