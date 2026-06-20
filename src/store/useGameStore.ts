@@ -7,6 +7,8 @@ import {
   aplicarBilheteria,
   aplicarCotaTV,
   cotaTV,
+  PRECO_INGRESSO_FATOR_MAX,
+  PRECO_INGRESSO_FATOR_MIN,
   registrarTransacao,
 } from '../engine/finance/financeEngine';
 import {
@@ -254,6 +256,8 @@ export interface GameState {
   liberarJovem: (jovemId: string) => void;
   /** Investe no estádio: amplia a capacidade ou sobe a infraestrutura. */
   melhorarEstadio: (tipo: TipoMelhoriaEstadio) => ResultadoTransacao;
+  /** Ajusta o fator de preço do ingresso do clube do usuário (§8.2). */
+  ajustarPrecoIngresso: (fator: number) => void;
   reiniciarCarreira: () => void;
 }
 
@@ -2255,6 +2259,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       mensagens: adicionarMensagem(state.mensagens, `${descricao} concluída.`),
     });
     return {ok: true, mensagem: `${descricao} concluída.`};
+  },
+
+  ajustarPrecoIngresso: fator => {
+    const {clubeUsuarioId} = get();
+    if (!clubeUsuarioId) {
+      return;
+    }
+    const limitado = Math.min(
+      PRECO_INGRESSO_FATOR_MAX,
+      Math.max(PRECO_INGRESSO_FATOR_MIN, fator),
+    );
+    set(state => ({
+      clubes: state.clubes.map(clube =>
+        clube.id === clubeUsuarioId
+          ? {...clube, estadio: {...clube.estadio, precoIngressoFator: limitado}}
+          : clube,
+      ),
+    }));
   },
 
   atualizarConfig: parcial => {

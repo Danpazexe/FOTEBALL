@@ -5,7 +5,7 @@
  */
 
 import React, {useMemo} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
 
 import {
   Botao,
@@ -47,6 +47,12 @@ const ROTULO_CATEGORIA: Record<string, string> = {
 const CORES_RECEITA = [cores.primaria, cores.secundaria, '#3B82F6', '#8B5CF6'];
 const CORES_DESPESA = [cores.perigo, '#F59E0B', '#FB923C', '#64748B'];
 
+const PRESETS_PRECO: {rotulo: string; fator: number}[] = [
+  {rotulo: 'Barato', fator: 0.75},
+  {rotulo: 'Normal', fator: 1.0},
+  {rotulo: 'Caro', fator: 1.4},
+];
+
 function agregar(
   historico: Transacao[],
   tipo: 'receita' | 'despesa',
@@ -78,6 +84,9 @@ function Club(): React.JSX.Element {
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const jogadores = useGameStore(state => state.jogadores);
   const melhorarEstadio = useGameStore(state => state.melhorarEstadio);
+  const ajustarPrecoIngresso = useGameStore(
+    state => state.ajustarPrecoIngresso,
+  );
 
   const elenco = useMemo(
     () => jogadores.filter(j => j.clubeId === clubeUsuario?.id),
@@ -118,6 +127,8 @@ function Club(): React.JSX.Element {
     const resultado = melhorarEstadio(tipo);
     toast(resultado.mensagem, resultado.ok ? 'sucesso' : 'erro');
   };
+  const fatorPreco = estadio.precoIngressoFator ?? 1;
+  const precoEfetivo = Math.round(estadio.precoMedioIngresso * fatorPreco);
   const folha = calcularFolhaSalarial(elenco);
   const pctFolha = receitas.total > 0 ? (folha / receitas.total) * 100 : 0;
   const folhaAlta = pctFolha > 80;
@@ -240,6 +251,42 @@ function Club(): React.JSX.Element {
             }
             onPress={() => aoMelhorar('infraestrutura')}
           />
+        </View>
+      </Section>
+
+      <Section titulo="Preço do ingresso">
+        <View style={styles.card}>
+          <View style={styles.linha}>
+            <Text style={styles.linhaLabel}>Preço médio</Text>
+            <Text style={styles.linhaValor}>{moeda(precoEfetivo)}</Text>
+          </View>
+          <View style={styles.precoBotoes}>
+            {PRESETS_PRECO.map(preset => {
+              const ativo = Math.abs(fatorPreco - preset.fator) < 0.01;
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={preset.rotulo}
+                  onPress={() => ajustarPrecoIngresso(preset.fator)}
+                  style={[
+                    styles.precoBotao,
+                    ativo ? styles.precoBotaoAtivo : null,
+                  ]}>
+                  <Text
+                    style={[
+                      styles.precoBotaoTexto,
+                      ativo ? styles.precoBotaoTextoAtivo : null,
+                    ]}>
+                    {preset.rotulo}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.obraNota}>
+            Cobrar mais rende por ingresso, mas esvazia o estádio. Há um ponto
+            ideal entre lotar barato e cobrar caro.
+          </Text>
         </View>
       </Section>
 
@@ -409,6 +456,33 @@ const styles = StyleSheet.create({
     gap: espaco.sm,
     marginTop: espaco.sm,
   },
+  precoBotoes: {
+    flexDirection: 'row',
+    gap: espaco.sm,
+    marginTop: espaco.xs,
+  },
+  precoBotao: {
+    alignItems: 'center',
+    backgroundColor: cores.superficieAlt,
+    borderColor: cores.borda,
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    flex: 1,
+    paddingVertical: espaco.sm,
+  },
+  precoBotaoAtivo: {
+    backgroundColor: `${cores.primaria}22`,
+    borderColor: cores.primaria,
+  },
+  precoBotaoTexto: {
+    color: cores.textoSecundario,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  precoBotaoTextoAtivo: {
+    color: cores.primaria,
+  },
+
   linha: {
     alignItems: 'center',
     flexDirection: 'row',

@@ -33,16 +33,33 @@ export function registrarTransacao(
   };
 }
 
+/** Limites do fator de preço do ingresso ajustável pelo técnico (§8.2). */
+export const PRECO_INGRESSO_FATOR_MIN = 0.5;
+export const PRECO_INGRESSO_FATOR_MAX = 2.0;
+
+/**
+ * Elasticidade preço→ocupação (§8.2): cobrar acima do normal afasta a torcida;
+ * baratear lota (com teto). Preço normal (fator 1.0) não altera a ocupação.
+ */
+export function fatorOcupacaoPorPreco(fatorPreco: number): number {
+  return Math.min(1.2, Math.max(0.4, 1 - (fatorPreco - 1) * 0.6));
+}
+
 export function aplicarBilheteria(
   clube: Clube,
   posicaoTabela: number,
   data: string,
 ): Clube {
   const fatorPosicao = Math.max(0.45, 1.15 - posicaoTabela * 0.025);
-  const ocupacao = Math.min(0.96, 0.48 + fatorPosicao * 0.32);
-  const valor = Math.round(
-    clube.estadio.capacidade * ocupacao * clube.estadio.precoMedioIngresso,
-  );
+  const ocupacaoBase = Math.min(0.96, 0.48 + fatorPosicao * 0.32);
+
+  // Preço ajustável pelo técnico: o fator escala o preço e (inversamente) a
+  // ocupação — há um ponto ideal entre lotar barato e cobrar caro com estádio vazio.
+  const fatorPreco = clube.estadio.precoIngressoFator ?? 1;
+  const precoEfetivo = clube.estadio.precoMedioIngresso * fatorPreco;
+  const ocupacao = Math.min(0.98, ocupacaoBase * fatorOcupacaoPorPreco(fatorPreco));
+
+  const valor = Math.round(clube.estadio.capacidade * ocupacao * precoEfetivo);
 
   return registrarTransacao(clube, {
     data,
