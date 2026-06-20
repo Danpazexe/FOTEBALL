@@ -1,6 +1,10 @@
 import {criarClube, criarPlayer} from '../../../testing/fixtures';
 
-import {evoluirJogador, fatorValorPorIdade} from '../playerProgression';
+import {
+  calcularValor,
+  evoluirJogador,
+  fatorValorPorIdade,
+} from '../playerProgression';
 
 const CLUBE = criarClube({id: 'time'});
 
@@ -94,5 +98,56 @@ describe('evoluirJogador', () => {
     expect(evoluirJogador(jovem, CLUBE).valorMercado).toBeGreaterThan(
       jovem.valorMercado,
     );
+  });
+});
+
+describe('calcularValor (§9.2)', () => {
+  it('cresce com o overall (curva exponencial calibrada ao seed)', () => {
+    const v70 = calcularValor(criarPlayer({id: 'a', overall: 70, idade: 27}));
+    const v80 = calcularValor(criarPlayer({id: 'b', overall: 80, idade: 27}));
+    const v88 = calcularValor(criarPlayer({id: 'c', overall: 88, idade: 27}));
+    expect(v80).toBeGreaterThan(v70);
+    expect(v88).toBeGreaterThan(v80);
+    // Escala: overall 70 na casa de poucos milhões; 88 nas dezenas de milhões.
+    expect(v70).toBeGreaterThan(1_000_000);
+    expect(v88).toBeGreaterThan(15_000_000);
+  });
+
+  it('atacante vale mais que goleiro de mesmo overall', () => {
+    const ata = calcularValor(
+      criarPlayer({id: 'ca', overall: 80, idade: 25, posicaoPrincipal: 'CA'}),
+    );
+    const gol = calcularValor(
+      criarPlayer({id: 'gk', overall: 80, idade: 25, posicaoPrincipal: 'GOL'}),
+    );
+    expect(ata).toBeGreaterThan(gol);
+  });
+
+  it('prêmio de juventude: jovem vale mais que veterano de mesmo overall', () => {
+    const jovem = calcularValor(criarPlayer({id: 'j', overall: 80, idade: 21}));
+    const velho = calcularValor(criarPlayer({id: 'v', overall: 80, idade: 34}));
+    expect(jovem).toBeGreaterThan(velho);
+  });
+
+  it('habilidades agregam valor; o tipo NÃO afeta o valor-base', () => {
+    const semHab = calcularValor(criarPlayer({id: 's', overall: 80, idade: 26}));
+    const comHab = calcularValor(
+      criarPlayer({
+        id: 'h',
+        overall: 80,
+        idade: 26,
+        habilidades: ['ARTILHEIRO', 'VELOCISTA'],
+      }),
+    );
+    expect(comHab).toBeGreaterThan(semHab);
+    // Decisão de design: o desconto de NOVATO/VETERANO não entra no valor-base
+    // (evita ficar preso no valor herdado ao longo da carreira).
+    const novato = calcularValor(
+      criarPlayer({id: 'n', overall: 80, idade: 26, tipo: 'NOVATO'}),
+    );
+    const normal = calcularValor(
+      criarPlayer({id: 'm', overall: 80, idade: 26, tipo: 'NORMAL'}),
+    );
+    expect(novato).toBe(normal);
   });
 });

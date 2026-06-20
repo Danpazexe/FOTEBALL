@@ -23,11 +23,16 @@ import Icone, {type IconeNome} from '../../components/Icone';
 import OverallBadge from '../../components/OverallBadge';
 import {useConfirm, useToast} from '../../components/feedback';
 import {cores, corOverall, espaco, raio} from '../../theme';
-import {moeda} from '../../utils/formatters';
+import {moeda, nomeClube} from '../../utils/formatters';
 import {HABILIDADES} from '../../engine/progression/habilidades';
 import {precoVenda, useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
-import type {Player, PlayerAttributes} from '../../types';
+import type {Player, PlayerAttributes, TipoJogador} from '../../types';
+
+const TIPO_LABEL: Partial<Record<TipoJogador, {rotulo: string; cor: string}>> = {
+  NOVATO: {rotulo: 'Novato', cor: cores.secundaria},
+  VETERANO: {rotulo: 'Veterano', cor: cores.textoSecundario},
+};
 
 const ATRIBUTOS: {chave: keyof PlayerAttributes; label: string}[] = [
   {chave: 'velocidade', label: 'Velocidade'},
@@ -90,7 +95,9 @@ function PlayerDetail(): React.JSX.Element {
     state.jogadores.find(item => item.id === jogadorId),
   );
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
+  const clubes = useGameStore(state => state.clubes);
   const venderJogador = useGameStore(state => state.venderJogador);
+  const emprestarJogador = useGameStore(state => state.emprestarJogador);
   const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
   const confirm = useConfirm();
   const toast = useToast();
@@ -111,6 +118,7 @@ function PlayerDetail(): React.JSX.Element {
   );
   const status = statusJogador(jogador);
   const tendencia = tendenciaJogador(jogador);
+  const tipoInfo = jogador.tipo ? TIPO_LABEL[jogador.tipo] : undefined;
   const doClubeUsuario =
     clubeUsuarioId !== null && jogador.clubeId === clubeUsuarioId;
 
@@ -134,6 +142,30 @@ function PlayerDetail(): React.JSX.Element {
     }
   };
 
+  // Destino do empréstimo: clube de menor reputação da liga (dá minutos ao jovem).
+  const destinoEmprestimo = clubes
+    .filter(clube => clube.id !== clubeUsuarioId)
+    .sort((a, b) => a.reputacao - b.reputacao)[0];
+
+  const handleEmprestar = async () => {
+    if (!destinoEmprestimo) {
+      return;
+    }
+    const ok = !confirmarAcoes
+      ? true
+      : await confirm({
+          titulo: `Emprestar ${jogador.nome}?`,
+          mensagem: `Cedido ao ${destinoEmprestimo.nome} até a próxima temporada. Eles pagam o salário e ele volta no fim do empréstimo.`,
+          confirmarLabel: 'Emprestar',
+        });
+    if (!ok) {
+      return;
+    }
+    emprestarJogador(jogador.id, destinoEmprestimo.id);
+    toast(`${jogador.nome} emprestado ao ${destinoEmprestimo.nome}.`, 'sucesso');
+    nav.goBack();
+  };
+
   return (
     <ScreenContainer scroll>
       <AppHeader
@@ -155,6 +187,17 @@ function PlayerDetail(): React.JSX.Element {
         </Text>
       </View>
 
+      {jogador.emprestimo ? (
+        <View style={[styles.statusChip, {borderColor: cores.secundaria}]}>
+          <Icone nome="troca" tamanho={16} cor={cores.secundaria} />
+          <Text style={[styles.statusTexto, {color: cores.secundaria}]}>
+            {jogador.emprestimo.clubeDonoId === clubeUsuarioId
+              ? `Emprestado a ${nomeClube(clubes, jogador.clubeId ?? '')} · volta ${jogador.emprestimo.retornaEmTemporada}`
+              : `Emprestado de ${nomeClube(clubes, jogador.emprestimo.clubeDonoId)} · volta ${jogador.emprestimo.retornaEmTemporada}`}
+          </Text>
+        </View>
+      ) : null}
+
       {/* Evolução: overall -> potencial + tendência */}
       <Section titulo="Evolução">
         <View style={styles.evoLinha}>
@@ -162,10 +205,20 @@ function PlayerDetail(): React.JSX.Element {
             Overall <Text style={styles.evoForte}>{jogador.overall}</Text> ·
             Potencial <Text style={styles.evoForte}>{jogador.potencial}</Text>
           </Text>
-          <View style={[styles.tendenciaChip, {backgroundColor: `${tendencia.cor}22`}]}>
-            <Text style={[styles.tendenciaTexto, {color: tendencia.cor}]}>
-              {tendencia.rotulo}
-            </Text>
+          <View style={styles.chipsRow}>
+            {tipoInfo ? (
+              <View
+                style={[styles.tendenciaChip, {backgroundColor: `${tipoInfo.cor}22`}]}>
+                <Text style={[styles.tendenciaTexto, {color: tipoInfo.cor}]}>
+                  {tipoInfo.rotulo}
+                </Text>
+              </View>
+            ) : null}
+            <View style={[styles.tendenciaChip, {backgroundColor: `${tendencia.cor}22`}]}>
+              <Text style={[styles.tendenciaTexto, {color: tendencia.cor}]}>
+                {tendencia.rotulo}
+              </Text>
+            </View>
           </View>
         </View>
         <View style={styles.barraFundo}>
@@ -259,8 +312,16 @@ function PlayerDetail(): React.JSX.Element {
         </Text>
       </Section>
 
-      {doClubeUsuario ? (
-        <Botao icone="dinheiro" titulo="Vender jogador" onPress={handleVender} />
+      {doClubeUsuario && !jogador.emprestimo ? (
+        <View style={styles.acoes}>
+          <Botao icone="dinheiro" titulo="Vender jogador" onPress={handleVender} />
+          <Botao
+            variante="secundaria"
+            icone="troca"
+            titulo="Emprestar a outro clube"
+            onPress={handleEmprestar}
+          />
+        </View>
       ) : null}
     </ScreenContainer>
   );
@@ -360,6 +421,13 @@ const styles = StyleSheet.create({
   tendenciaTexto: {
     fontSize: 12,
     fontWeight: '800',
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  acoes: {
+    gap: espaco.sm,
   },
   habilidadesWrap: {
     gap: espaco.sm,

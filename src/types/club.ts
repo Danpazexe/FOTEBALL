@@ -60,6 +60,12 @@ export interface Estadio {
   capacidade: number;
   precoMedioIngresso: number;
   nivelInfraestrutura: number;
+  /**
+   * Fator de ajuste do preço do ingresso definido pelo técnico (§8.2). 1.0 =
+   * preço normal; >1 cobra mais (afasta torcida); <1 barateia (lota). Opcional
+   * para compatibilidade com saves antigos (tratado como 1.0).
+   */
+  precoIngressoFator?: number;
 }
 
 export interface ReceitaDetalhada {

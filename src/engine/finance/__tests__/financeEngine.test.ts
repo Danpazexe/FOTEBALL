@@ -1,10 +1,12 @@
 import {
   aplicarAcertoFinanceiroAnual,
+  aplicarBilheteria,
   aplicarCotaTV,
   aplicarJurosSaldoNegativo,
   aplicarManutencaoEstadio,
   aplicarPatrocinioAnual,
   cotaTV,
+  fatorOcupacaoPorPreco,
   MANUTENCAO_POR_LUGAR,
   PATROCINIO_POR_REPUTACAO,
   TAXA_JUROS_ANUAL,
@@ -100,5 +102,27 @@ describe('cotaTV (§8.3)', () => {
     const depois = aplicarCotaTV(clube, 'Série A', 1, DATA);
     expect(depois.financas.saldo).toBe(clube.financas.saldo + 120_000_000);
     expect(depois.financas.historicoTransacoes[0].categoria).toBe('cota_tv');
+  });
+});
+
+describe('preço de ingresso (§8.2)', () => {
+  it('fatorOcupacaoPorPreco: caro esvazia, barato lota (com teto), normal é neutro', () => {
+    expect(fatorOcupacaoPorPreco(1)).toBe(1);
+    expect(fatorOcupacaoPorPreco(1.5)).toBeLessThan(1);
+    expect(fatorOcupacaoPorPreco(0.5)).toBeGreaterThan(1);
+    expect(fatorOcupacaoPorPreco(0.5)).toBeLessThanOrEqual(1.2);
+  });
+
+  it('há um ponto ideal: caro moderado > normal > barato demais na bilheteria', () => {
+    const clube = criarClube({id: 'a'});
+    const receita = (fator: number): number => {
+      const c = {
+        ...clube,
+        estadio: {...clube.estadio, precoIngressoFator: fator},
+      };
+      return aplicarBilheteria(c, 1, DATA).financas.saldo - c.financas.saldo;
+    };
+    expect(receita(1.4)).toBeGreaterThan(receita(1.0));
+    expect(receita(1.0)).toBeGreaterThan(receita(0.5));
   });
 });

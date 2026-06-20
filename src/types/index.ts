@@ -1,5 +1,6 @@
 export type {
   AtributoChave,
+  Emprestimo,
   Habilidade,
   PernaDominante,
   Player,
@@ -7,6 +8,7 @@ export type {
   PlayerSeasonStats,
   Position,
   ProgressoAtributos,
+  TipoJogador,
 } from './player';
 export type {
   Clube,
