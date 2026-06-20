@@ -1,5 +1,7 @@
 import type {Clube, Player} from '../../types';
 
+import {derivarTipoJogador} from './tipoJogador';
+
 function limitar(valor: number, minimo: number, maximo: number): number {
   return Math.min(maximo, Math.max(minimo, valor));
 }
@@ -70,6 +72,9 @@ export function evoluirJogador(jogador: Player, clube: Clube): Player {
     ...jogador,
     idade: novaIdade,
     overall: novoOverall,
+    // Reclassifica o tipo: NOVATO gradua ao crescer/envelhecer, e o jogador
+    // entra em VETERANO ao atingir a idade-limite (§3.4).
+    tipo: derivarTipoJogador({...jogador, idade: novaIdade, overall: novoOverall}),
     valorMercado: Math.max(
       50000,
       Math.round(

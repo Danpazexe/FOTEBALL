@@ -27,7 +27,12 @@ import {moeda} from '../../utils/formatters';
 import {HABILIDADES} from '../../engine/progression/habilidades';
 import {precoVenda, useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
-import type {Player, PlayerAttributes} from '../../types';
+import type {Player, PlayerAttributes, TipoJogador} from '../../types';
+
+const TIPO_LABEL: Partial<Record<TipoJogador, {rotulo: string; cor: string}>> = {
+  NOVATO: {rotulo: 'Novato', cor: cores.secundaria},
+  VETERANO: {rotulo: 'Veterano', cor: cores.textoSecundario},
+};
 
 const ATRIBUTOS: {chave: keyof PlayerAttributes; label: string}[] = [
   {chave: 'velocidade', label: 'Velocidade'},
@@ -111,6 +116,7 @@ function PlayerDetail(): React.JSX.Element {
   );
   const status = statusJogador(jogador);
   const tendencia = tendenciaJogador(jogador);
+  const tipoInfo = jogador.tipo ? TIPO_LABEL[jogador.tipo] : undefined;
   const doClubeUsuario =
     clubeUsuarioId !== null && jogador.clubeId === clubeUsuarioId;
 
@@ -162,10 +168,20 @@ function PlayerDetail(): React.JSX.Element {
             Overall <Text style={styles.evoForte}>{jogador.overall}</Text> ·
             Potencial <Text style={styles.evoForte}>{jogador.potencial}</Text>
           </Text>
-          <View style={[styles.tendenciaChip, {backgroundColor: `${tendencia.cor}22`}]}>
-            <Text style={[styles.tendenciaTexto, {color: tendencia.cor}]}>
-              {tendencia.rotulo}
-            </Text>
+          <View style={styles.chipsRow}>
+            {tipoInfo ? (
+              <View
+                style={[styles.tendenciaChip, {backgroundColor: `${tipoInfo.cor}22`}]}>
+                <Text style={[styles.tendenciaTexto, {color: tipoInfo.cor}]}>
+                  {tipoInfo.rotulo}
+                </Text>
+              </View>
+            ) : null}
+            <View style={[styles.tendenciaChip, {backgroundColor: `${tendencia.cor}22`}]}>
+              <Text style={[styles.tendenciaTexto, {color: tendencia.cor}]}>
+                {tendencia.rotulo}
+              </Text>
+            </View>
           </View>
         </View>
         <View style={styles.barraFundo}>
@@ -360,6 +376,10 @@ const styles = StyleSheet.create({
   tendenciaTexto: {
     fontSize: 12,
     fontWeight: '800',
+  },
+  chipsRow: {
+    flexDirection: 'row',
+    gap: espaco.xs,
   },
   habilidadesWrap: {
     gap: espaco.sm,

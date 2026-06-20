@@ -7,6 +7,7 @@ export type {
   PlayerSeasonStats,
   Position,
   ProgressoAtributos,
+  TipoJogador,
 } from './player';
 export type {
   Clube,
