@@ -21,6 +21,7 @@ import {LOGO_COPA} from '../../assets/escudos';
 import Escudo from '../../components/Escudo';
 import FormaRecente from '../../components/FormaRecente';
 import Icone, {type IconeNome} from '../../components/Icone';
+import Painel from '../../components/Painel';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
@@ -33,7 +34,7 @@ import {
   useEventosUltimaPartida,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, espaco, raio, sombra} from '../../theme';
+import {cores, espaco, gradientes, raio, sombra} from '../../theme';
 import {formatarDataCurta, formatarDataLonga} from '../../utils/datas';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Clube, Partida} from '../../types';
@@ -288,25 +289,37 @@ function Home(): React.JSX.Element {
 
   return (
     <ScreenContainer scroll>
-      {/* Cabeçalho-resumo */}
-      <View style={styles.header}>
-        {clubeUsuarioId ? (
-          <Escudo
-            clubeId={clubeUsuarioId}
-            sigla={clubeUsuario?.sigla ?? ''}
-            tamanho={48}
-          />
-        ) : null}
-        <View style={styles.headerInfo}>
-          <Text style={styles.titulo} numberOfLines={1}>
-            {clubeUsuario?.nome ?? 'Início'}
-          </Text>
-          <Text style={styles.subtitulo}>
-            Temporada {temporadaAtual} · Rodada {Math.min(rodadaAtual, 38)}/38
-          </Text>
+      {/* Cabeçalho-resumo (hero "Mesa do Técnico") */}
+      <Painel
+        gradiente={gradientes.hero}
+        glow="primaria"
+        acento={cores.primaria}
+        style={styles.heroPainel}>
+        <View style={styles.header}>
+          {clubeUsuarioId ? (
+            <Escudo
+              clubeId={clubeUsuarioId}
+              sigla={clubeUsuario?.sigla ?? ''}
+              tamanho={48}
+            />
+          ) : null}
+          <View style={styles.headerInfo}>
+            <Text style={styles.titulo} numberOfLines={1}>
+              {clubeUsuario?.nome ?? 'Início'}
+            </Text>
+            <Text style={styles.subtitulo}>
+              Temporada {temporadaAtual} · Rodada {Math.min(rodadaAtual, 38)}/38
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => nav.navigate('MainTabs', {screen: 'Settings'})}
+            style={styles.gear}>
+            <Icone nome="ajustes" tamanho={22} cor={cores.textoSecundario} />
+          </Pressable>
         </View>
-        <View style={styles.headerDireita}>
-          <Text style={styles.headerSaldoLabel}>Saldo</Text>
+        <View style={styles.saldoBloco}>
+          <Text style={styles.headerSaldoLabel}>Saldo em caixa</Text>
           <Text
             style={[
               styles.headerSaldoValor,
@@ -317,13 +330,7 @@ function Home(): React.JSX.Element {
             {moedaCompacta(clubeUsuario?.financas.saldo ?? 0)}
           </Text>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => nav.navigate('MainTabs', {screen: 'Settings'})}
-          style={styles.gear}>
-          <Icone nome="ajustes" tamanho={22} cor={cores.textoSecundario} />
-        </Pressable>
-      </View>
+      </Painel>
 
       {/* Barra de data + próximo evento do calendário (estilo FIFA) */}
       <View style={styles.dataBar}>
@@ -373,7 +380,7 @@ function Home(): React.JSX.Element {
               {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
             </Text>
             <Botao
-              variante="grande"
+              variante="ouro"
               icone="jogar"
               titulo="Jogar confronto da Copa"
               onPress={() => {
@@ -385,7 +392,7 @@ function Home(): React.JSX.Element {
         ) : proximoEvento.tipo === 'fim' ? (
           <View style={styles.acoes}>
             <Botao
-              variante="grande"
+              variante="ouro"
               icone="trofeu"
               titulo="Iniciar próxima temporada"
               onPress={handleFinalizarTemporada}
@@ -428,27 +435,31 @@ function Home(): React.JSX.Element {
 
       {copa ? (
         <Section titulo="Copa do Brasil">
-          <View style={styles.copaCard}>
-            <Image
-              source={LOGO_COPA}
-              style={styles.copaLogo}
-              resizeMode="contain"
-            />
-            <View style={styles.copaInfo}>
-              <Text style={styles.copaFase}>
-                {copa.campeao ? '🏆 Campeão!' : copa.fases[copa.faseAtual].nome}
-              </Text>
-              <Text style={styles.copaDetalhe} numberOfLines={1}>
-                {resumoCopa(copa, clubeUsuarioId, todosClubes)}
-              </Text>
+          <Painel>
+            <View style={styles.copaCard}>
+              <Image
+                source={LOGO_COPA}
+                style={styles.copaLogo}
+                resizeMode="contain"
+              />
+              <View style={styles.copaInfo}>
+                <Text style={styles.copaFase}>
+                  {copa.campeao
+                    ? '🏆 Campeão!'
+                    : copa.fases[copa.faseAtual].nome}
+                </Text>
+                <Text style={styles.copaDetalhe} numberOfLines={1}>
+                  {resumoCopa(copa, clubeUsuarioId, todosClubes)}
+                </Text>
+              </View>
+              <Botao
+                variante="secundaria"
+                icone="trofeu"
+                titulo="Ver chave"
+                onPress={() => nav.navigate('Copa')}
+              />
             </View>
-            <Botao
-              variante="secundaria"
-              icone="trofeu"
-              titulo="Ver chave"
-              onPress={() => nav.navigate('Copa')}
-            />
-          </View>
+          </Painel>
         </Section>
       ) : null}
 
@@ -513,7 +524,8 @@ function Home(): React.JSX.Element {
 
       <Section titulo="Última Partida">
         {ultimaPartidaUsuario ? (
-          <View style={styles.card}>
+          <Painel>
+            <View style={styles.ultimaConteudo}>
             <Text style={styles.placar}>
               {nomeClube(clubes, ultimaPartidaUsuario.timeCasa)}{' '}
               <Text style={styles.placarNumero}>
@@ -537,7 +549,8 @@ function Home(): React.JSX.Element {
             ) : (
               <TextoVazio>Sem eventos registrados.</TextoVazio>
             )}
-          </View>
+            </View>
+          </Painel>
         ) : (
           <TextoVazio>Nenhuma partida disputada ainda.</TextoVazio>
         )}
@@ -605,11 +618,13 @@ function Atalho({
 export default Home;
 
 const styles = StyleSheet.create({
+  heroPainel: {
+    marginBottom: espaco.md,
+  },
   header: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: espaco.md,
-    marginBottom: espaco.md,
   },
   headerInfo: {
     flex: 1,
@@ -624,17 +639,25 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
-  headerDireita: {
-    alignItems: 'flex-end',
+  saldoBloco: {
+    alignItems: 'baseline',
+    flexDirection: 'row',
+    gap: espaco.sm,
+    marginTop: espaco.md,
   },
   headerSaldoLabel: {
     color: cores.textoSecundario,
+    flex: 1,
     fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   headerSaldoValor: {
     color: cores.primaria,
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
   saldoNegativo: {
     color: cores.perigo,
@@ -763,14 +786,8 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  card: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.md,
-    borderWidth: 1,
+  ultimaConteudo: {
     gap: espaco.sm,
-    padding: espaco.md,
-    ...sombra.suave,
   },
   versus: {
     color: cores.textoSecundario,

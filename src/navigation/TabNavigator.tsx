@@ -41,13 +41,16 @@ export function TabNavigator() {
         tabBarActiveTintColor: cores.primaria,
         tabBarInactiveTintColor: cores.textoSecundario,
         tabBarStyle: {
-          backgroundColor: cores.superficie,
-          borderTopColor: cores.borda,
-          paddingTop: 6,
+          backgroundColor: 'rgba(8, 11, 20, 0.94)',
+          borderTopColor: cores.bordaTransl,
+          borderTopWidth: 1,
+          elevation: 0,
+          paddingTop: 8,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '700',
+          fontSize: 10,
+          fontWeight: '800',
+          letterSpacing: 0.5,
         },
         tabBarLabel: ROTULOS[route.name],
         tabBarIcon: ({color}) => (

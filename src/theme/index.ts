@@ -7,22 +7,31 @@ export const cores = {
   fundo: '#0A0E1A',
   fundoTopo: '#101A38',
   fundoBase: '#06090F',
+  // Pitch / gramado (telas de jogo e tática).
+  gramado: '#071B12',
   superficie: '#131929',
   superficieAlt: '#182231',
   superficieElevada: '#1B2740',
   borda: '#23304A',
   bordaClara: '#2E3D5C',
+  // Vidro (glass) — superfícies translúcidas premium (nav, chips, overlays).
+  glass: 'rgba(255, 255, 255, 0.045)',
+  glassForte: 'rgba(255, 255, 255, 0.075)',
+  bordaTransl: 'rgba(255, 255, 255, 0.08)',
+  bordaTranslForte: 'rgba(255, 255, 255, 0.14)',
   primaria: '#00E5A0',
   primariaClara: '#46F2BE',
   primariaEscura: '#00A878',
   primariaGlow: 'rgba(0, 229, 160, 0.35)',
   secundaria: '#FFD600',
-  secundariaEscura: '#E0B400',
+  secundariaClara: '#FFE36B',
+  secundariaEscura: '#E0A400',
   perigo: '#FF3B5C',
   sucesso: '#22C55E',
   aviso: '#FF8A3D',
   texto: '#F0F4FF',
   textoSecundario: '#8892A4',
+  textoMuted: '#5F6B82',
   contrastePrimaria: '#04130C',
 } as const;
 
@@ -36,11 +45,32 @@ export const espaco = {
 } as const;
 
 export const raio = {
-  sm: 8,
-  md: 12,
-  lg: 16,
+  sm: 10,
+  md: 14,
+  lg: 18,
   xl: 22,
+  xxl: 28,
   pill: 999,
+} as const;
+
+/**
+ * Escala tipográfica condensada/forte (Premium UI v0.0.3). Números e títulos
+ * grandes e apertados (peso 900, tracking negativo); rótulos de seção minúsculos
+ * em CAIXA-ALTA espaçada. Espalhada pelos primitivos para dar "cara de jogo".
+ */
+export const tipografia = {
+  display: {fontSize: 44, fontWeight: '900', letterSpacing: -1.2},
+  placar: {fontSize: 38, fontWeight: '900', letterSpacing: -1},
+  titulo: {fontSize: 28, fontWeight: '900', letterSpacing: -0.6},
+  numero: {fontSize: 23, fontWeight: '900', letterSpacing: -0.4},
+  secao: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  corpo: {fontSize: 13, fontWeight: '600'},
+  chip: {fontSize: 11, fontWeight: '800', letterSpacing: 0.4},
 } as const;
 
 /**
@@ -50,10 +80,12 @@ export const raio = {
 export const gradientes = {
   fundo: ['#101A38', '#0A0E1A', '#06090F'],
   primaria: ['#46F2BE', '#00E5A0', '#00A878'],
-  hero: ['#13315F', '#0C1428'],
-  ouro: ['#FFE36B', '#FFD600', '#E0A400'],
-  // v0.0.2 (premium): superfície elevada e acento de craque (azul-marinho fundo).
-  card: ['#1B2740', '#131929'],
+  // Premium UI v0.0.3 — superfícies profundas (3 stops) e acentos.
+  card: ['#1B2740', '#131929', '#06090F'], // surfacePremium
+  hero: ['#13315F', '#0C1428', '#06090F'], // matchHero
+  ouro: ['#FFE36B', '#FFD600', '#E0A400'], // goldPrestige
+  ouroEscuro: ['#111111', '#1B2740', '#0A0E1A'], // darkGold
+  gramado: ['#0E3323', '#082116', '#05120C'], // pitch
   craque: ['#1A2B5C', '#0A1230'],
 };
 
@@ -107,76 +139,83 @@ export type NivelCarta = {
   mutedText: string;
   player: string;
   playerShadow: string;
+  /** Cor do glow (sombra colorida) do tier — usada em cartas/badges/mini-cartas. */
+  glow: string;
 };
 
 export function nivelCarta(overall: number): NivelCarta {
   if (overall >= 90) {
-    // Especial — estilo TOTS (azul-marinho + ouro), topo de raridade.
+    // Especial — azul-real profundo + ouro (topo de raridade, estilo TOTS).
     return {
       tipo: 'Especial',
-      background: '#06122B',
-      background2: '#0E2C63',
-      primary: '#F2D06B',
-      border: '#F6DC85',
-      text: '#FBE9A6',
-      mutedText: '#D8C77F',
+      background: '#0B1E3F',
+      background2: '#143D7A',
+      primary: '#FFD600',
+      border: '#9FC2F2',
+      text: '#EAF2FF',
+      mutedText: '#C7D6EE',
       player: '#AEB4BE',
       playerShadow: '#6F7680',
+      glow: 'rgba(255, 214, 0, 0.38)',
     };
   }
   if (overall >= 85) {
-    // Lendário — estilo carta preta (TOTW/In-Form): preto + ouro.
+    // Lendário — preto + ouro vivo (carta In-Form/TOTW).
     return {
       tipo: 'Lendário',
-      background: '#0C0C0E',
-      background2: '#242012',
-      primary: '#D4AF37',
-      border: '#F4D470',
-      text: '#F7DE8A',
+      background: '#111111',
+      background2: '#2A2616',
+      primary: '#FFD600',
+      border: '#F6D873',
+      text: '#FCE9A6',
       mutedText: '#E0C462',
-      player: '#B8B8B8',
-      playerShadow: '#747474',
+      player: '#BDBDBD',
+      playerShadow: '#757575',
+      glow: 'rgba(255, 214, 0, 0.34)',
     };
   }
   if (overall >= 75) {
-    // Ouro — dourado clássico do FIFA.
+    // Ouro — dourado vivo do FIFA.
     return {
       tipo: 'Ouro',
-      background: '#7A5E15',
-      background2: '#C79A2E',
-      primary: '#E7C45A',
-      border: '#F2D275',
-      text: '#FCE9A6',
-      mutedText: '#E9CE78',
-      player: '#B7B7B7',
+      background: '#725600',
+      background2: '#B8901E',
+      primary: '#FFD600',
+      border: '#FFE36B',
+      text: '#FFF6D6',
+      mutedText: '#F0D98A',
+      player: '#BBBBBB',
       playerShadow: '#777777',
+      glow: 'rgba(255, 214, 0, 0.30)',
     };
   }
   if (overall >= 65) {
-    // Prata — cinza metálico.
+    // Prata — metálico claro e limpo.
     return {
       tipo: 'Prata',
-      background: '#4C5157',
-      background2: '#9CA2A9',
-      primary: '#C7CCD2',
-      border: '#E2E6EA',
-      text: '#F4F6F8',
-      mutedText: '#CFD4DA',
-      player: '#AFAFAF',
-      playerShadow: '#6E6E6E',
+      background: '#5D6675',
+      background2: '#8A93A2',
+      primary: '#E5ECF7',
+      border: '#F2F5FA',
+      text: '#FBFCFE',
+      mutedText: '#D6DCE6',
+      player: '#B6B6B6',
+      playerShadow: '#727272',
+      glow: 'rgba(199, 209, 224, 0.30)',
     };
   }
-  // Bronze — marrom/cobre.
+  // Bronze — cobre quente.
   return {
     tipo: 'Bronze',
-    background: '#4A2E18',
-    background2: '#7A4A24',
-    primary: '#B87333',
-    border: '#C58A4E',
-    text: '#F3D8B6',
-    mutedText: '#D9AE85',
-    player: '#A9A9A9',
-    playerShadow: '#686868',
+    background: '#70451F',
+    background2: '#9C6432',
+    primary: '#D1863F',
+    border: '#E0A35C',
+    text: '#F8E4CC',
+    mutedText: '#E0BD97',
+    player: '#AFAFAF',
+    playerShadow: '#6E6E6E',
+    glow: 'rgba(209, 134, 63, 0.28)',
   };
 }
 

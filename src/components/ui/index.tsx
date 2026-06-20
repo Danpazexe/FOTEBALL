@@ -14,9 +14,10 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import {cores, espaco, raio, sombra} from '../../theme';
+import {cores, espaco, raio, sombra, tipografia} from '../../theme';
 import GradienteFundo from '../GradienteFundo';
 import Icone, {type IconeNome} from '../Icone';
+import Painel from '../Painel';
 
 type ScreenContainerProps = {
   children?: React.ReactNode;
@@ -93,12 +94,10 @@ type CardProps = {
   destaque?: boolean;
 };
 
-/** Superfície elevada padrão (sombra + borda) reutilizável pelas telas. */
+/** Superfície premium reutilizável (gradiente + borda translúcida + sombra). */
 export function Card({children, destaque}: CardProps) {
   return (
-    <View style={[styles.cardBase, destaque ? styles.cardDestaque : null]}>
-      {children}
-    </View>
+    <Painel destaque={destaque ? 'primaria' : undefined}>{children}</Painel>
   );
 }
 
@@ -158,7 +157,13 @@ export function OptionGroup({titulo, valor, opcoes, onSelect}: OptionGroupProps)
   );
 }
 
-type BotaoVariante = 'primaria' | 'secundaria' | 'pequena' | 'grande' | 'ouro';
+type BotaoVariante =
+  | 'primaria'
+  | 'secundaria'
+  | 'pequena'
+  | 'grande'
+  | 'ouro'
+  | 'perigo';
 
 type BotaoProps = {
   titulo: string;
@@ -186,6 +191,8 @@ export function Botao({
       ? styles.botaoGrande
       : variante === 'ouro'
       ? styles.botaoOuro
+      : variante === 'perigo'
+      ? styles.botaoPerigo
       : styles.botaoPequena;
 
   const estiloTexto =
@@ -195,6 +202,8 @@ export function Botao({
       ? styles.botaoTextoSecundaria
       : variante === 'grande' || variante === 'ouro'
       ? styles.botaoTextoGrande
+      : variante === 'perigo'
+      ? styles.botaoTextoPerigo
       : styles.botaoTextoPequena;
 
   const corConteudo = disabled
@@ -203,6 +212,8 @@ export function Botao({
     ? cores.texto
     : variante === 'pequena'
     ? cores.primaria
+    : variante === 'perigo'
+    ? '#FFFFFF'
     : cores.contrastePrimaria;
 
   return (
@@ -276,33 +287,23 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     color: cores.texto,
-    fontSize: 26,
-    fontWeight: '800',
+    ...tipografia.titulo,
   },
   headerSubtitle: {
     color: cores.textoSecundario,
-    fontSize: 14,
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
     marginTop: espaco.xs,
+    textTransform: 'uppercase',
   },
   section: {
     gap: espaco.md,
     marginBottom: espaco.lg,
   },
   sectionTitle: {
-    color: cores.texto,
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  cardBase: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    padding: espaco.lg,
-    ...sombra.card,
-  },
-  cardDestaque: {
-    borderColor: cores.primaria,
+    color: cores.textoSecundario,
+    ...tipografia.secao,
   },
   metricsRow: {
     flexDirection: 'row',
@@ -310,25 +311,26 @@ const styles = StyleSheet.create({
     marginBottom: espaco.lg,
   },
   metric: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.md,
+    backgroundColor: cores.glass,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flex: 1,
     justifyContent: 'center',
-    minHeight: 72,
+    minHeight: 74,
     padding: espaco.md,
-    ...sombra.suave,
   },
   metricValue: {
     color: cores.texto,
-    fontSize: 19,
-    fontWeight: '800',
+    ...tipografia.numero,
   },
   metricLabel: {
     color: cores.textoSecundario,
-    fontSize: 12,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
     marginTop: espaco.xs,
+    textTransform: 'uppercase',
   },
   optionRow: {
     flexDirection: 'row',
@@ -385,6 +387,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: espaco.xl,
     ...sombra.ouro,
   },
+  botaoPerigo: {
+    backgroundColor: cores.perigo,
+    minHeight: 46,
+    paddingHorizontal: espaco.lg,
+  },
   botaoSecundaria: {
     backgroundColor: cores.superficie,
     borderColor: cores.bordaClara,
@@ -399,8 +406,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: espaco.md,
   },
   botaoPressed: {
-    opacity: 0.9,
-    transform: [{scale: 0.985}],
+    opacity: 0.92,
+    transform: [{scale: 0.975}],
   },
   botaoDisabled: {
     opacity: 0.45,
@@ -419,6 +426,11 @@ const styles = StyleSheet.create({
   botaoTextoSecundaria: {
     color: cores.texto,
     fontSize: 14,
+    fontWeight: '800',
+  },
+  botaoTextoPerigo: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '800',
   },
   botaoTextoPequena: {

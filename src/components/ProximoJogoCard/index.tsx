@@ -2,12 +2,13 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
-import {cores, corDoTime, espaco, raio, sombra} from '../../theme';
+import {cores, corDoTime, espaco} from '../../theme';
 import type {Clube, Partida} from '../../types';
 import BarrasForca from '../BarrasForca';
 import Escudo from '../Escudo';
 import Icone from '../Icone';
 import OverallBadge from '../OverallBadge';
+import Painel from '../Painel';
 import {Botao} from '../ui';
 
 type ProximoJogoCardProps = {
@@ -35,7 +36,8 @@ function ProximoJogoCard({
   jogarDesabilitado,
 }: ProximoJogoCardProps): React.JSX.Element {
   return (
-    <View style={styles.card}>
+    <Painel destaque="primaria" acento={cores.primaria}>
+      <View style={styles.conteudo}>
       <View style={styles.topoLinha}>
         <Text style={styles.rodada}>Rodada {partida.rodada}</Text>
         <View style={styles.mando}>
@@ -88,6 +90,7 @@ function ProximoJogoCard({
         </View>
         <View style={styles.acaoFlex}>
           <Botao
+            variante="ouro"
             icone="jogar"
             titulo="Jogar"
             onPress={onJogar}
@@ -95,21 +98,16 @@ function ProximoJogoCard({
           />
         </View>
       </View>
-    </View>
+      </View>
+    </Painel>
   );
 }
 
 export default ProximoJogoCard;
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.lg,
-    borderWidth: 1,
+  conteudo: {
     gap: espaco.md,
-    padding: espaco.md,
-    ...sombra.card,
   },
   topoLinha: {
     alignItems: 'center',

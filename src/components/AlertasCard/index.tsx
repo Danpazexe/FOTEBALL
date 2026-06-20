@@ -1,8 +1,9 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco} from '../../theme';
 import Icone, {type IconeNome} from '../Icone';
+import Painel from '../Painel';
 
 export type TipoAlerta = 'lesao' | 'suspensao' | 'saldo';
 
@@ -33,9 +34,10 @@ function AlertasCard({
     return null;
   }
   return (
-    <View style={styles.card}>
+    <Painel acento={cores.perigo}>
+      <View style={styles.conteudo}>
       <View style={styles.header}>
-        <Icone nome="apito" tamanho={16} cor={cores.secundaria} />
+        <Icone nome="apito" tamanho={16} cor={cores.perigo} />
         <Text style={styles.titulo}>Avisos</Text>
       </View>
       {alertas.map(alerta => {
@@ -58,20 +60,16 @@ function AlertasCard({
         }
         return <View key={alerta.id}>{conteudo}</View>;
       })}
-    </View>
+      </View>
+    </Painel>
   );
 }
 
 export default AlertasCard;
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.perigo,
-    borderRadius: raio.md,
-    borderWidth: 1,
+  conteudo: {
     gap: espaco.sm,
-    padding: espaco.md,
   },
   header: {
     alignItems: 'center',
@@ -79,9 +77,10 @@ const styles = StyleSheet.create({
     gap: espaco.xs,
   },
   titulo: {
-    color: cores.secundaria,
-    fontSize: 12,
+    color: cores.perigo,
+    fontSize: 11,
     fontWeight: '800',
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
   linha: {
