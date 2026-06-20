@@ -26,6 +26,20 @@ export const RODADAS_VERMELHO_FALENCIA = 8;
 export const MORAL_SALARIO_ATRASADO = -20;
 /** Reputação inicial do técnico (0-100). */
 export const REPUTACAO_INICIAL = 50;
+/** Margem de reputação acima da do técnico que um clube ainda aceita contratar. */
+export const MARGEM_CONTRATACAO = 10;
+
+/**
+ * Um clube se dispõe a contratar o técnico quando a reputação dele alcança a do
+ * clube (com uma margem) — clubes grandes exigem reputação alta (§12). Se a
+ * reputação afundar a ponto de nenhum clube ser elegível, é o fim da carreira.
+ */
+export function clubeElegivelParaTecnico(
+  reputacaoTecnico: number,
+  reputacaoClube: number,
+): boolean {
+  return reputacaoClube <= reputacaoTecnico + MARGEM_CONTRATACAO;
+}
 
 function limitar(valor: number, minimo: number, maximo: number): number {
   return Math.min(maximo, Math.max(minimo, valor));

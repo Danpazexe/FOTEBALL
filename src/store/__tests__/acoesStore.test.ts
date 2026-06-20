@@ -52,6 +52,29 @@ describe('ações do store (regressões da auditoria)', () => {
     expect(estado().propostasRecebidas).toHaveLength(0);
   });
 
+  it('assumirClube após demissão mantém a reputação e limpa a demissão', () => {
+    const usuario = estado().clubes[3];
+    estado().iniciarNovaCarreira(usuario.id);
+
+    // Simula um técnico demitido com reputação acumulada.
+    useGameStore.setState({
+      reputacaoTecnico: 64,
+      demissao: 'DERROTAS_CONSECUTIVAS',
+      derrotasConsecutivas: 5,
+      rodadasNoVermelho: 4,
+    });
+
+    const novoClube = estado().todosClubes.find(c => c.id !== usuario.id)!;
+    estado().assumirClube(novoClube.id);
+
+    expect(estado().clubeUsuarioId).toBe(novoClube.id);
+    expect(estado().demissao).toBeNull();
+    expect(estado().reputacaoTecnico).toBe(64); // reputação carrega na carreira
+    expect(estado().derrotasConsecutivas).toBe(0);
+    expect(estado().rodadasNoVermelho).toBe(0);
+    expect(estado().rodadaAtual).toBe(1);
+  });
+
   it('titular suspenso não ganha presença fantasma ao avançar a rodada', () => {
     const usuario = estado().clubes[3];
     estado().iniciarNovaCarreira(usuario.id);

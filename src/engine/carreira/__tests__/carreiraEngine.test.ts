@@ -3,7 +3,9 @@ import {
   atualizarReputacao,
   atualizarRodadasNoVermelho,
   calcularEstadoFinanceiro,
+  clubeElegivelParaTecnico,
   LIMITE_DERROTAS_DEMISSAO,
+  MARGEM_CONTRATACAO,
   reputacaoFimTemporada,
   salariosAtrasados,
   verificarDemissao,
@@ -88,5 +90,18 @@ describe('verificarDemissao', () => {
         rodadasNoVermelho: 7,
       }),
     ).toBeNull();
+  });
+});
+
+describe('clubeElegivelParaTecnico', () => {
+  it('aceita clubes até a reputação do técnico + a margem', () => {
+    expect(clubeElegivelParaTecnico(50, 50)).toBe(true);
+    expect(clubeElegivelParaTecnico(50, 50 + MARGEM_CONTRATACAO)).toBe(true);
+    expect(clubeElegivelParaTecnico(50, 50 + MARGEM_CONTRATACAO + 1)).toBe(false);
+  });
+
+  it('reputação no fundo só alcança clubes fracos', () => {
+    expect(clubeElegivelParaTecnico(10, 70)).toBe(false);
+    expect(clubeElegivelParaTecnico(10, 18)).toBe(true);
   });
 });

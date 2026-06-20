@@ -10,14 +10,30 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import {AppHeader, ScreenContainer} from '../../components/ui';
 import {useAppNavigation} from '../../navigation/types';
 import {useAchievementsStore} from '../../store/useAchievementsStore';
+import {useGameStore} from '../../store/useGameStore';
 import {cores, espaco, raio} from '../../theme';
+import type {EstadoFinanceiro} from '../../types';
+
+const ESTADO_FINANCEIRO: Record<
+  EstadoFinanceiro,
+  {rotulo: string; cor: string}
+> = {
+  SAUDAVEL: {rotulo: 'Saudável', cor: cores.primaria},
+  ATENCAO: {rotulo: 'Atenção', cor: cores.secundaria},
+  CRITICO: {rotulo: 'Crítico', cor: cores.perigo},
+  FALENCIA: {rotulo: 'Falência', cor: cores.perigo},
+};
 
 function Gabinete(): React.JSX.Element {
   const nav = useAppNavigation();
   const conquistas = useAchievementsStore(state => state.conquistas);
+  const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
+  const estadoFinanceiro = useGameStore(state => state.estadoFinanceiro);
+  const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
 
   const desbloqueadas = conquistas.filter(c => c.desbloqueada).length;
   const total = conquistas.length;
+  const financeiro = ESTADO_FINANCEIRO[estadoFinanceiro];
 
   return (
     <ScreenContainer scroll>
@@ -26,6 +42,32 @@ function Gabinete(): React.JSX.Element {
         subtitulo={`${desbloqueadas}/${total} conquistas`}
         onBack={() => nav.goBack()}
       />
+
+      {clubeUsuarioId ? (
+        <View style={styles.carreiraCard}>
+          <View style={styles.carreiraItem}>
+            <Text style={styles.carreiraRotulo}>Reputação do técnico</Text>
+            <Text style={styles.carreiraValor}>{reputacaoTecnico}/100</Text>
+            <View style={styles.barraFundo}>
+              <View
+                style={[
+                  styles.barraPreenchida,
+                  {width: `${reputacaoTecnico}%`},
+                ]}
+              />
+            </View>
+          </View>
+          <View style={styles.carreiraItem}>
+            <Text style={styles.carreiraRotulo}>Finanças</Text>
+            <View
+              style={[styles.estadoChip, {backgroundColor: `${financeiro.cor}22`}]}>
+              <Text style={[styles.estadoTexto, {color: financeiro.cor}]}>
+                {financeiro.rotulo}
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
 
       <View style={styles.grade}>
         {conquistas.map(conquista => (
@@ -64,6 +106,50 @@ function Gabinete(): React.JSX.Element {
 export default Gabinete;
 
 const styles = StyleSheet.create({
+  carreiraCard: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: espaco.lg,
+    marginBottom: espaco.md,
+    padding: espaco.md,
+  },
+  carreiraItem: {
+    flex: 1,
+    gap: espaco.xs,
+  },
+  carreiraRotulo: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  carreiraValor: {
+    color: cores.texto,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  barraFundo: {
+    backgroundColor: cores.fundo,
+    borderRadius: raio.sm,
+    height: 6,
+    overflow: 'hidden',
+  },
+  barraPreenchida: {
+    backgroundColor: cores.primaria,
+    height: 6,
+  },
+  estadoChip: {
+    alignSelf: 'flex-start',
+    borderRadius: raio.sm,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: espaco.xs,
+  },
+  estadoTexto: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
   grade: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -133,6 +133,14 @@ function Home(): React.JSX.Element {
   const avancarParaData = useGameStore(state => state.avancarParaData);
   const dataAtual = useGameStore(state => state.dataAtual);
   const treinouProximoJogo = useGameStore(state => state.treinouProximoJogo);
+  const demissao = useGameStore(state => state.demissao);
+
+  // Demissão: assim que a diretoria demite, leva o técnico à tela de recontratação.
+  React.useEffect(() => {
+    if (demissao) {
+      nav.navigate('Demissao');
+    }
+  }, [demissao, nav]);
 
   const indiceTabela = tabela.findIndex(linha => linha.clubeId === clubeUsuarioId);
   const posicao = indiceTabela === -1 ? '-' : `${indiceTabela + 1}º`;

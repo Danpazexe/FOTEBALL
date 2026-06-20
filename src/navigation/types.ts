@@ -32,6 +32,7 @@ export type RootStackParamList = {
   Gabinete: undefined;
   Calendario: undefined;
   Contratos: undefined;
+  Demissao: undefined;
 };
 
 export type RootNavigation = NativeStackNavigationProp<RootStackParamList>;

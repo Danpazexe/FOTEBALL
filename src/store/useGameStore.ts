@@ -212,6 +212,8 @@ export interface GameState {
   /** Motivo da demissão, se o técnico foi demitido (§12); null = empregado. */
   demissao: MotivoDemissao | null;
   iniciarNovaCarreira: (clubeId: string) => void;
+  /** Assume um novo clube após demissão: mantém a reputação, recomeça a temporada. */
+  assumirClube: (clubeId: string) => void;
   avancarRodada: () => void;
   /** Move a data atual para um dia (usado ao avançar para treino/jogo). */
   avancarParaData: (data: string) => void;
@@ -909,6 +911,59 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
     // Nova carreira = conquistas zeradas (são vinculadas à carreira).
     useAchievementsStore.getState().reiniciarConquistas();
+  },
+
+  assumirClube: clubeId => {
+    // Recontratação após demissão: a carreira CONTINUA. Usa o mundo evoluído
+    // (todosClubes/todosJogadores) e a temporada atual, recomeçando a liga do
+    // novo clube na rodada 1. Mantém reputação e conquistas; limpa a demissão.
+    const state = get();
+    const escolhido = state.todosClubes.find(clube => clube.id === clubeId);
+    if (!escolhido) {
+      return;
+    }
+    const divisao = escolhido.divisao ?? DIVISAO_PADRAO;
+    const liga = gerarLiga(
+      state.todosClubes,
+      state.todosJogadores,
+      divisao,
+      state.temporadaAtual,
+    );
+    set({
+      clubeUsuarioId: clubeId,
+      rodadaAtual: 1,
+      ultimaPartidaUsuario: null,
+      treinouProximoJogo: false,
+      conversouComGrupo: false,
+      coletivaConcedida: false,
+      // reputacaoTecnico PERSISTE (carreira continua); zera o resto do eixo.
+      derrotasConsecutivas: 0,
+      rodadasNoVermelho: 0,
+      estadoFinanceiro: 'SAUDAVEL',
+      demissao: null,
+      jogadores: liga.jogadores,
+      partidas: liga.partidas,
+      tabela: liga.tabela,
+      dataAtual: liga.dataAtual,
+      jovensDisponiveis: [],
+      propostasRecebidas: [],
+      formacaoPreLive: null,
+      copa: gerarCopaParaTemporada(
+        state.todosClubes,
+        state.todosJogadores,
+        state.temporadaAtual,
+        clubeId,
+        calcularDatasFasesCopa(liga.partidas),
+      ),
+      clubes: liga.clubes.map(clube => ({
+        ...clube,
+        controladoPorIA: clube.id !== clubeId,
+      })),
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        `Contratado pelo ${escolhido.nome} (${divisao}). Hora de provar seu valor.`,
+      ),
+    });
   },
 
   avancarParaData: data => {
