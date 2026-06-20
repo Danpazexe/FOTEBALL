@@ -21,6 +21,8 @@ import type {
   TabelaClassificacao,
 } from '../types';
 import {REPUTACAO_INICIAL} from '../engine/carreira/carreiraEngine';
+import {comHabilidades} from '../engine/progression/habilidades';
+import {comTipo} from '../engine/progression/tipoJogador';
 import {CONFIG_PADRAO, type ConfigJogo, type GameState} from './useGameStore';
 import {migrarSnapshot, VERSAO_SAVE} from './saveMigrations';
 
@@ -100,7 +102,9 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     conversouComGrupo: snapshot.conversouComGrupo ?? false,
     coletivaConcedida: snapshot.coletivaConcedida ?? false,
     clubes: snapshot.clubes,
-    jogadores: snapshot.jogadores,
+    // Migração: saves anteriores ao sistema de habilidades/tipo não têm esses
+    // campos — deriva no load (no-op para quem já tem).
+    jogadores: snapshot.jogadores.map(comHabilidades).map(comTipo),
     partidas: snapshot.partidas,
     tabela: snapshot.tabela,
     jovensDisponiveis: snapshot.jovensDisponiveis ?? [],

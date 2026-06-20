@@ -69,6 +69,19 @@ describe('persistence', () => {
     expect(aplicado.propostasRecebidas).toEqual(estado.propostasRecebidas);
   });
 
+  it('migra saves antigos: deriva habilidades e tipo ausentes no load', () => {
+    const estado = useGameStore.getState();
+    const snap = montarSnapshot(estado);
+    // Simula um save anterior ao sistema: jogador sem habilidades/tipo.
+    const jogadoresAntigos = snap.jogadores.map((jogador, indice) =>
+      indice === 0 ? {...jogador, habilidades: undefined, tipo: undefined} : jogador,
+    );
+    const aplicado = aplicarSnapshot({...snap, jogadores: jogadoresAntigos});
+    const alvo = aplicado.jogadores?.[0];
+    expect(alvo?.habilidades).toBeDefined();
+    expect(alvo?.tipo).toBeDefined();
+  });
+
   it('existeSave retorna false em armazenamento vazio', async () => {
     definirArmazenamentoSave(armazenamentoMemoria());
     expect(await existeSave()).toBe(false);
