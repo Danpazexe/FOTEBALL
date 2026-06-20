@@ -83,6 +83,7 @@ import {
   ehEmprestado,
   processarRetornosEmprestimo,
 } from '../engine/transfers/emprestimoEngine';
+import {gerarTransferenciasIA} from '../engine/transfers/mercadoIA';
 import {loadSeedData} from '../api/database/seed/loadSeed';
 import {adicionarDias} from '../utils/datas';
 import {useAchievementsStore} from './useAchievementsStore';
@@ -260,6 +261,8 @@ export interface GameState {
   fazerPropostaCompra: (jogadorId: string, valor: number) => ResultadoProposta;
   responderPropostaVenda: (propostaId: string, aceitar: boolean) => void;
   processarPropostasIA: () => void;
+  /** Transferências entre clubes da IA (mundo vivo, §9.4). */
+  processarMercadoIA: () => void;
   finalizarTemporada: () => void;
   atualizarConfig: (parcial: Partial<ConfigJogo>) => void;
   promoverJovem: (jovemId: string) => void;
@@ -1107,6 +1110,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
     });
     get().processarPropostasIA();
+    get().processarMercadoIA();
   },
 
   // Fecha a partida do usuário jogada AO VIVO (decidida durante a narração) e
@@ -1225,6 +1229,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
     });
     get().processarPropostasIA();
+    get().processarMercadoIA();
   },
 
   atualizarTaticaUsuario: tatica => {
@@ -2029,6 +2034,86 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
     // Inbox = ofertas ainda válidas + novas desta rodada (teto defensivo).
     set({propostasRecebidas: [...pendentesValidas, ...novas].slice(0, 6)});
+  },
+
+  processarMercadoIA: () => {
+    const state = get();
+    const {clubeUsuarioId} = state;
+    if (!clubeUsuarioId) {
+      return;
+    }
+    // Roda a cada 4 rodadas para não inundar as notícias.
+    if (state.rodadaAtual % 4 !== 0) {
+      return;
+    }
+    const iaClubes = state.clubes.filter(clube => clube.id !== clubeUsuarioId);
+    const seed =
+      Number(state.temporadaAtual) * 10000 + state.rodadaAtual * 100 + 7;
+    const transferencias = gerarTransferenciasIA({
+      clubes: iaClubes,
+      jogadores: state.jogadores,
+      seed,
+      maxTransferencias: 2,
+    });
+    if (transferencias.length === 0) {
+      return;
+    }
+
+    const novoClubePorJogador = new Map(
+      transferencias.map(t => [t.jogadorId, t.paraClubeId]),
+    );
+    const jogadores = state.jogadores.map(jogador => {
+      const para = novoClubePorJogador.get(jogador.id);
+      return para ? {...jogador, clubeId: para} : jogador;
+    });
+
+    const data = `${state.temporadaAtual}-mercado`;
+    const nomeJogador = (id: string): string =>
+      state.jogadores.find(jogador => jogador.id === id)?.nome ?? 'Jogador';
+    const clubes = state.clubes.map(clube => {
+      let atual = clube;
+      for (const t of transferencias) {
+        if (t.paraClubeId === atual.id) {
+          atual = registrarTransacao(
+            {...atual, elenco: [...atual.elenco, t.jogadorId]},
+            {
+              data,
+              tipo: 'despesa',
+              categoria: 'contratacoes',
+              valor: t.valor,
+              descricao: `Contratação de ${nomeJogador(t.jogadorId)}`,
+            },
+          );
+        }
+        if (t.deClubeId === atual.id) {
+          atual = registrarTransacao(
+            {...atual, elenco: atual.elenco.filter(id => id !== t.jogadorId)},
+            {
+              data,
+              tipo: 'receita',
+              categoria: 'vendaJogadores',
+              valor: t.valor,
+              descricao: `Venda de ${nomeJogador(t.jogadorId)}`,
+            },
+          );
+        }
+      }
+      return atual;
+    });
+
+    const nomeClubeDe = (id: string): string =>
+      state.clubes.find(clube => clube.id === id)?.nome ?? id;
+    let mensagens = state.mensagens;
+    for (const t of transferencias) {
+      mensagens = adicionarMensagem(
+        mensagens,
+        `Mercado: ${nomeClubeDe(t.paraClubeId)} contratou ${nomeJogador(
+          t.jogadorId,
+        )} (${nomeClubeDe(t.deClubeId)}).`,
+      );
+    }
+
+    set({jogadores, clubes, mensagens});
   },
 
   finalizarTemporada: () => {
