@@ -1,21 +1,26 @@
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
-import {corOverall} from '../../theme';
+import {corOverall, glowDoTier, nivelCarta} from '../../theme';
 
 type OverallBadgeProps = {
   overall: number;
   size?: number;
+  /** Brilho do tier por trás do disco (v0.0.2). Desligue em listas densas. */
+  glow?: boolean;
 };
 
-function OverallBadge({overall, size = 36}: OverallBadgeProps) {
+function OverallBadge({overall, size = 36, glow = true}: OverallBadgeProps) {
   const cor = corOverall(overall);
+  const tier = nivelCarta(overall);
   return (
     <View
       style={[
         styles.badge,
+        glow ? glowDoTier(overall) : null,
         {
           borderColor: cor,
+          backgroundColor: tier.background,
           width: size,
           height: size,
           borderRadius: size / 2,

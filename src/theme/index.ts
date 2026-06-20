@@ -52,6 +52,9 @@ export const gradientes = {
   primaria: ['#46F2BE', '#00E5A0', '#00A878'],
   hero: ['#13315F', '#0C1428'],
   ouro: ['#FFE36B', '#FFD600', '#E0A400'],
+  // v0.0.2 (premium): superfície elevada e acento de craque (azul-marinho fundo).
+  card: ['#1B2740', '#131929'],
+  craque: ['#1A2B5C', '#0A1230'],
 };
 
 /** Sombras/elevação reutilizáveis (iOS shadow* + Android elevation). */
@@ -76,6 +79,14 @@ export const sombra = {
     shadowOpacity: 0.5,
     shadowRadius: 16,
     elevation: 10,
+  },
+  // Brilho dourado para botões/elementos premium (v0.0.2).
+  ouro: {
+    shadowColor: '#FFD600',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
   },
 };
 
@@ -172,6 +183,20 @@ export function nivelCarta(overall: number): NivelCarta {
 /** Cor do badge/anel de overall — derivada do MESMO tier da carta. */
 export function corOverall(overall: number): string {
   return nivelCarta(overall).border;
+}
+
+/**
+ * Glow (sombra colorida) do tier do jogador — dá profundidade premium a badges,
+ * cartas e mini-cartas, na cor da raridade (v0.0.2).
+ */
+export function glowDoTier(overall: number) {
+  return {
+    shadowColor: nivelCarta(overall).border,
+    shadowOffset: {width: 0, height: 0},
+    shadowOpacity: 0.55,
+    shadowRadius: 12,
+    elevation: 8,
+  };
 }
 
 /** Cor da barra de condição física (verde→amarelo→vermelho). */

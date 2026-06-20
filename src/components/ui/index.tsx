@@ -158,7 +158,7 @@ export function OptionGroup({titulo, valor, opcoes, onSelect}: OptionGroupProps)
   );
 }
 
-type BotaoVariante = 'primaria' | 'secundaria' | 'pequena' | 'grande';
+type BotaoVariante = 'primaria' | 'secundaria' | 'pequena' | 'grande' | 'ouro';
 
 type BotaoProps = {
   titulo: string;
@@ -175,7 +175,7 @@ export function Botao({
   disabled,
   icone,
 }: BotaoProps) {
-  const ehGrande = variante === 'grande';
+  const ehGrande = variante === 'grande' || variante === 'ouro';
 
   const estiloContainer: ViewStyle =
     variante === 'primaria'
@@ -184,6 +184,8 @@ export function Botao({
       ? styles.botaoSecundaria
       : variante === 'grande'
       ? styles.botaoGrande
+      : variante === 'ouro'
+      ? styles.botaoOuro
       : styles.botaoPequena;
 
   const estiloTexto =
@@ -191,7 +193,7 @@ export function Botao({
       ? styles.botaoTextoPrimaria
       : variante === 'secundaria'
       ? styles.botaoTextoSecundaria
-      : variante === 'grande'
+      : variante === 'grande' || variante === 'ouro'
       ? styles.botaoTextoGrande
       : styles.botaoTextoPequena;
 
@@ -376,6 +378,12 @@ const styles = StyleSheet.create({
     minHeight: 54,
     paddingHorizontal: espaco.xl,
     ...sombra.glow,
+  },
+  botaoOuro: {
+    backgroundColor: cores.secundaria,
+    minHeight: 54,
+    paddingHorizontal: espaco.xl,
+    ...sombra.ouro,
   },
   botaoSecundaria: {
     backgroundColor: cores.superficie,
