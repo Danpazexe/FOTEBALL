@@ -1,6 +1,67 @@
-import type {Clube, Player} from '../../types';
+import type {Clube, Player, Position} from '../../types';
 
-import {derivarTipoJogador} from './tipoJogador';
+import {derivarTipoJogador, MULTIPLICADOR_VALOR_TIPO} from './tipoJogador';
+
+/**
+ * Multiplicador de valor por posição (BRASFOOT_MASTER §9.2): atacantes valem
+ * mais, goleiros menos.
+ */
+const MULT_VALOR_POSICAO: Record<Position, number> = {
+  GOL: 0.8,
+  ZAG: 1.0,
+  LD: 0.9,
+  LE: 0.9,
+  VOL: 1.0,
+  MC: 1.0,
+  MEI: 1.1,
+  PD: 1.15,
+  PE: 1.15,
+  SA: 1.2,
+  CA: 1.3,
+};
+
+/** Fator de idade no VALOR (§9.2): prêmio de juventude, pico 25-29, declínio. */
+function fatorIdadeValor(idade: number): number {
+  if (idade <= 18) {
+    return 1.3;
+  }
+  if (idade <= 21) {
+    return 1.25;
+  }
+  if (idade <= 24) {
+    return 1.1;
+  }
+  if (idade <= 29) {
+    return 1.0;
+  }
+  if (idade <= 31) {
+    return 0.8;
+  }
+  if (idade <= 33) {
+    return 0.6;
+  }
+  return 0.4;
+}
+
+/**
+ * Valor de mercado calculado (BRASFOOT_MASTER §9.2), calibrado à curva
+ * EXPONENCIAL do seed (overall 70 ≈ R$ 2M, +16%/ponto): base × posição × idade
+ * × (1 + 0.10 × nº habilidades) × multiplicador de tipo (NOVATO 0.6 / VETERANO
+ * 0.8). Usado para jogadores SEM valor curado (academia/novos); os valores
+ * autorais do seed são preservados de propósito (craques mantêm seu preço).
+ */
+export function calcularValor(jogador: Player): number {
+  const base = 2_000_000 * Math.pow(1.16, jogador.overall - 70);
+  const nHabilidades = jogador.habilidades?.length ?? 0;
+  const tipo = jogador.tipo ?? derivarTipoJogador(jogador);
+  const valor =
+    base *
+    MULT_VALOR_POSICAO[jogador.posicaoPrincipal] *
+    fatorIdadeValor(jogador.idade) *
+    (1 + 0.1 * nHabilidades) *
+    MULTIPLICADOR_VALOR_TIPO[tipo];
+  return Math.max(50_000, Math.round(valor));
+}
 
 function limitar(valor: number, minimo: number, maximo: number): number {
   return Math.min(maximo, Math.max(minimo, valor));
