@@ -77,6 +77,12 @@ import {
   type PropostaTransferencia,
 } from '../engine/transfers/negociacaoEngine';
 import {avaliarPropostaTransferencia} from '../engine/transfers/transferAI';
+import {
+  criarEmprestimo,
+  custoEmprestimo,
+  ehEmprestado,
+  processarRetornosEmprestimo,
+} from '../engine/transfers/emprestimoEngine';
 import {loadSeedData} from '../api/database/seed/loadSeed';
 import {adicionarDias} from '../utils/datas';
 import {useAchievementsStore} from './useAchievementsStore';
@@ -247,6 +253,10 @@ export interface GameState {
   renovarContrato: (jogadorId: string, anos: number, salario: number) => boolean;
   comprarJogador: (jogadorId: string) => ResultadoTransacao;
   venderJogador: (jogadorId: string) => ResultadoTransacao;
+  /** Empresta um jogador do usuário a outro clube até a próxima temporada (§9.3). */
+  emprestarJogador: (jogadorId: string, clubeDestinoId: string) => void;
+  /** Pega emprestado um jogador de outro clube (paga a taxa) até a próxima temporada. */
+  pegarEmprestado: (jogadorId: string) => void;
   fazerPropostaCompra: (jogadorId: string, valor: number) => ResultadoProposta;
   responderPropostaVenda: (propostaId: string, aceitar: boolean) => void;
   processarPropostasIA: () => void;
@@ -307,14 +317,28 @@ function gerarLiga(
   divisao: string,
   temporada: string,
 ) {
-  const clubes = todosClubes.filter(
+  const clubesDivisao = todosClubes.filter(
     clube => (clube.divisao ?? DIVISAO_PADRAO) === divisao,
   );
-  const idsLiga = new Set(clubes.map(clube => clube.id));
+  const idsLiga = new Set(clubesDivisao.map(clube => clube.id));
   const jogadores = todosJogadores.filter(
     // Inclui agentes livres (clubeId null) — pertencem ao jogo, não à divisão.
     jogador => jogador.clubeId == null || idsLiga.has(jogador.clubeId),
   );
+  // Reconstrói o elenco de cada clube a partir do clubeId (fonte da verdade da
+  // posse) — mantém o array consistente após transferências/empréstimos.
+  const elencoPorClube = new Map<string, string[]>();
+  for (const jogador of jogadores) {
+    if (jogador.clubeId && idsLiga.has(jogador.clubeId)) {
+      const lista = elencoPorClube.get(jogador.clubeId) ?? [];
+      lista.push(jogador.id);
+      elencoPorClube.set(jogador.clubeId, lista);
+    }
+  }
+  const clubes = clubesDivisao.map(clube => ({
+    ...clube,
+    elenco: elencoPorClube.get(clube.id) ?? [],
+  }));
   const partidas = gerarCalendarioLiga(
     clubes.map(clube => clube.id),
     temporada,
@@ -1693,6 +1717,108 @@ export const useGameStore = create<GameState>((set, get) => ({
     };
   },
 
+  emprestarJogador: (jogadorId, clubeDestinoId) => {
+    const state = get();
+    const {clubeUsuarioId, temporadaAtual} = state;
+    if (!clubeUsuarioId) {
+      return;
+    }
+    const jogador = state.jogadores.find(item => item.id === jogadorId);
+    const destino = state.clubes.find(clube => clube.id === clubeDestinoId);
+    if (
+      !jogador ||
+      jogador.clubeId !== clubeUsuarioId ||
+      ehEmprestado(jogador) ||
+      !destino ||
+      clubeDestinoId === clubeUsuarioId
+    ) {
+      return;
+    }
+    const retorna = String(Number(temporadaAtual) + 1);
+    set({
+      jogadores: state.jogadores.map(item =>
+        item.id === jogadorId
+          ? criarEmprestimo(item, clubeDestinoId, retorna)
+          : item,
+      ),
+      clubes: state.clubes.map(clube => {
+        if (clube.id === clubeUsuarioId) {
+          return {...clube, elenco: clube.elenco.filter(id => id !== jogadorId)};
+        }
+        if (clube.id === clubeDestinoId) {
+          return {...clube, elenco: [...clube.elenco, jogadorId]};
+        }
+        return clube;
+      }),
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        `${jogador.nome} emprestado ao ${destino.nome} até ${retorna}.`,
+      ),
+    });
+  },
+
+  pegarEmprestado: jogadorId => {
+    const state = get();
+    const {clubeUsuarioId, temporadaAtual} = state;
+    if (!clubeUsuarioId) {
+      return;
+    }
+    const jogador = state.jogadores.find(item => item.id === jogadorId);
+    if (
+      !jogador ||
+      !jogador.clubeId ||
+      jogador.clubeId === clubeUsuarioId ||
+      ehEmprestado(jogador)
+    ) {
+      return;
+    }
+    const donoId = jogador.clubeId;
+    const custo = custoEmprestimo(jogador);
+    const usuario = state.clubes.find(clube => clube.id === clubeUsuarioId);
+    if (!usuario || usuario.financas.saldo < custo) {
+      return;
+    }
+    const retorna = String(Number(temporadaAtual) + 1);
+    set({
+      jogadores: state.jogadores.map(item =>
+        item.id === jogadorId
+          ? criarEmprestimo(item, clubeUsuarioId, retorna)
+          : item,
+      ),
+      clubes: state.clubes.map(clube => {
+        if (clube.id === clubeUsuarioId) {
+          return registrarTransacao(
+            {...clube, elenco: [...clube.elenco, jogadorId]},
+            {
+              data: `${temporadaAtual}-mercado`,
+              tipo: 'despesa',
+              categoria: 'emprestimo',
+              valor: custo,
+              descricao: `Empréstimo de ${jogador.nome}`,
+            },
+          );
+        }
+        if (clube.id === donoId) {
+          return registrarTransacao(
+            {...clube, elenco: clube.elenco.filter(id => id !== jogadorId)},
+            {
+              data: `${temporadaAtual}-mercado`,
+              tipo: 'receita',
+              categoria: 'emprestimo',
+              valor: custo,
+              descricao: `Cessão de ${jogador.nome}`,
+            },
+          );
+        }
+        return clube;
+      }),
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        `${jogador.nome} contratado por empréstimo até ${retorna} (taxa R$ ${custo.toLocaleString('pt-BR')}).`,
+      ),
+    });
+  },
+
   // Proposta do usuário para comprar um jogador da IA: resposta imediata
   // (aceita/recusa/contraproposta) via negociacaoEngine, com RNG semeado.
   fazerPropostaCompra: (jogadorId, valor) => {
@@ -1931,7 +2057,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     // Evolui TODOS os jogadores (cada um pelo seu clube), +1 ano, zera
     // cartões/lesões da pré-temporada. Agentes livres só envelhecem/arquivam.
     const clubePorId = new Map(clubesMaster.map(clube => [clube.id, clube]));
-    const jogadoresEvoluidos = jogadoresMaster.map(jogador => {
+    const evoluidos = jogadoresMaster.map(jogador => {
       const clube = jogador.clubeId
         ? clubePorId.get(jogador.clubeId)
         : undefined;
@@ -1965,6 +2091,13 @@ export const useGameStore = create<GameState>((set, get) => ({
         diasLesao: 0,
       };
     });
+
+    // Empréstimos (§9.3): jogadores cedidos voltam aos donos na virada (com
+    // leve desenvolvimento se jovens).
+    const jogadoresEvoluidos = processarRetornosEmprestimo(
+      evoluidos,
+      proximaTemporada,
+    );
 
     // Acerto financeiro de fim de temporada (patrocínio, salários, manutenção
     // e juros sobre dívida) em todos os clubes.

@@ -75,6 +75,37 @@ describe('ações do store (regressões da auditoria)', () => {
     expect(estado().rodadaAtual).toBe(1);
   });
 
+  it('emprestar/pegar emprestado move o jogador e conserva o caixa', () => {
+    const usuario = estado().clubes[3];
+    estado().iniciarNovaCarreira(usuario.id);
+    const uid = estado().clubeUsuarioId!;
+
+    // OUT: um jogador do usuário é cedido a outro clube.
+    const meu = estado().jogadores.find(j => j.clubeId === uid)!;
+    const destino = estado().clubes.find(c => c.id !== uid)!;
+    estado().emprestarJogador(meu.id, destino.id);
+    const apos = estado().jogadores.find(j => j.id === meu.id)!;
+    expect(apos.clubeId).toBe(destino.id);
+    expect(apos.emprestimo?.clubeDonoId).toBe(uid);
+    expect(estado().clubes.find(c => c.id === uid)!.elenco).not.toContain(meu.id);
+    expect(estado().clubes.find(c => c.id === destino.id)!.elenco).toContain(
+      meu.id,
+    );
+
+    // IN: um jogador de outro clube vem emprestado, conservando o caixa total.
+    const alvo = estado().jogadores.find(
+      j => j.clubeId && j.clubeId !== uid && !j.emprestimo,
+    )!;
+    const donoId = alvo.clubeId!;
+    const totalAntes = somaSaldos();
+    estado().pegarEmprestado(alvo.id);
+    const aposIn = estado().jogadores.find(j => j.id === alvo.id)!;
+    expect(aposIn.clubeId).toBe(uid);
+    expect(aposIn.emprestimo?.clubeDonoId).toBe(donoId);
+    expect(estado().clubes.find(c => c.id === uid)!.elenco).toContain(alvo.id);
+    expect(somaSaldos()).toBe(totalAntes);
+  });
+
   it('titular suspenso não ganha presença fantasma ao avançar a rodada', () => {
     const usuario = estado().clubes[3];
     estado().iniciarNovaCarreira(usuario.id);

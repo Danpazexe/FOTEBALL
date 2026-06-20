@@ -1,5 +1,6 @@
 export type {
   AtributoChave,
+  Emprestimo,
   Habilidade,
   PernaDominante,
   Player,

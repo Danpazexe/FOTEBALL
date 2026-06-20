@@ -40,6 +40,17 @@ export type AtributoChave = keyof PlayerAttributes;
 export type TipoJogador = 'NORMAL' | 'NOVATO' | 'VETERANO';
 
 /**
+ * Empréstimo ativo (BRASFOOT_MASTER §9.3): o jogador joga por outro clube
+ * temporariamente. `clubeId` aponta para onde ele atua agora; ao chegar a
+ * `retornaEmTemporada`, volta ao `clubeDonoId`. Enquanto emprestado, o salário
+ * segue o `clubeId` (quem usa, paga).
+ */
+export interface Emprestimo {
+  clubeDonoId: string;
+  retornaEmTemporada: string;
+}
+
+/**
  * Habilidades especiais (perks) — no máximo 2 por jogador, ao estilo Brasfoot
  * (BRASFOOT_MASTER §3.2). Definem a identidade do jogador e modulam eventos
  * específicos da simulação. Os efeitos vivem em `engine/progression/habilidades`.
@@ -92,6 +103,8 @@ export interface Player {
   habilidades?: Habilidade[];
   /** Tipo no mercado (NORMAL/NOVATO/VETERANO). Derivado no load se ausente. */
   tipo?: TipoJogador;
+  /** Empréstimo ativo (§9.3): presente quando o jogador está cedido a outro clube. */
+  emprestimo?: Emprestimo;
   /**
    * Progresso (0–100%) rumo ao próximo ponto de cada atributo, acumulado pelos
    * treinos. Opcional para manter compatibilidade com saves antigos.
