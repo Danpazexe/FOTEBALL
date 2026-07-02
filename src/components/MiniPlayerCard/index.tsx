@@ -1,15 +1,14 @@
 /**
  * Mini-carta de jogador (Premium UI v0.0.3 — "Galeria de Ativos").
- * Carta vertical compacta que herda o visual do tier: fundo + borda + glow da
- * raridade, overall grande, posição, nome em caixa-alta e uma StatBar do overall.
- * Toque abre o PlayerDetail. Lesão/suspensão recebem tag de alerta.
+ * Carta vertical que herda o visual do tier: fundo + borda + glow da raridade,
+ * overall grande, posição, silhueta do jogador, nome em caixa-alta, selo do tier
+ * e uma StatBar (verde) do overall. Toque abre o PlayerDetail.
  */
 import React from 'react';
 import {Dimensions, Pressable, StyleSheet, Text, View} from 'react-native';
 
 import {cores, espaco, glowDoTier, nivelCarta, raio} from '../../theme';
 import type {Player} from '../../types';
-import {moedaCompacta} from '../../utils/formatters';
 import Icone from '../Icone';
 import StatBar from '../StatBar';
 
@@ -55,7 +54,7 @@ function MiniPlayerCard({
           {indisponivel ? (
             <Icone
               nome={jogador.lesionado ? 'lesao' : 'cartao'}
-              tamanho={12}
+              tamanho={11}
               cor={cores.perigo}
             />
           ) : null}
@@ -65,22 +64,20 @@ function MiniPlayerCard({
         </View>
       </View>
 
+      {/* Silhueta/placeholder do jogador */}
+      <View style={styles.silhueta} />
+
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
         style={[styles.nome, {color: tier.text}]}>
         {(jogador.apelido ?? jogador.nome).toUpperCase()}
       </Text>
-
-      <StatBar
-        valor={jogador.overall}
-        cor={tier.primary}
-        mostrarValor={false}
-      />
-
-      <Text style={[styles.valor, {color: tier.mutedText}]} numberOfLines={1}>
-        {moedaCompacta(jogador.valorMercado)}
+      <Text style={[styles.tipo, {color: tier.primary}]}>
+        {tier.tipo.toUpperCase()}
       </Text>
+
+      <StatBar valor={jogador.overall} cor={cores.primaria} mostrarValor={false} />
     </Pressable>
   );
 }
@@ -122,13 +119,26 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
+  silhueta: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    borderRadius: 24,
+    borderWidth: 1,
+    height: 46,
+    marginVertical: 2,
+    width: 46,
+  },
   nome: {
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0.3,
+    textAlign: 'center',
   },
-  valor: {
-    fontSize: 10,
-    fontWeight: '700',
+  tipo: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textAlign: 'center',
   },
 });

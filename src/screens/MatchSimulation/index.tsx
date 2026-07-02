@@ -25,15 +25,18 @@ import {trocarTitular} from '../../api/database/seed/defaults';
 import {
   definirSomHabilitado,
   inicializarSons,
+  tocarContusao,
+  tocarExpulsao,
   tocarFimDeJogo,
   tocarGol,
+  tocarIntervalo,
+  tocarPenaltiPerdido,
 } from '../../audio/sons';
 import {Botao, ScreenContainer} from '../../components/ui';
 import Icone from '../../components/Icone';
 import {EventItem, type LadoEvento} from '../../components/MatchNarration/EventItem';
-import Placar from '../../components/MatchNarration/Placar';
+import Painel from '../../components/Painel';
 import AjustesPartida from '../../components/MatchNarration/AjustesPartida';
-import BarrasForca from '../../components/BarrasForca';
 import {
   narrarEvento,
   narrarFim,
@@ -43,6 +46,8 @@ import {
 } from '../../engine/simulation/narrativeTemplates';
 import {
   calcularContextoMinuto,
+  calcularEstatisticasFinais,
+  calcularPossePartida,
   disputarPenaltis,
   iniciarPartidaAoVivo,
   simularMinuto,
@@ -50,8 +55,6 @@ import {
 } from '../../engine/simulation/matchSimulator';
 import {confrontoDoClube} from '../../engine/season/copaEngine';
 import {criarRNGComSeed, hashString} from '../../engine/simulation/rng';
-import type {ForcaTime} from '../../engine/simulation/teamStrength';
-import {forcaDoClube} from '../../utils/forca';
 import {
   selecionarClubeUsuario,
   selecionarCopaNaVez,
@@ -84,13 +87,6 @@ const DURACAO_SEG = DURACAO * 60;
 const MULTIPLICADORES = [1, 2, 5, 10] as const;
 const TICK_MS = 90;
 const PASSO_BASE_SEG = 6;
-
-/** Formata segundos de jogo como MM:SS. */
-function formatarTempo(segundos: number): string {
-  const m = Math.floor(segundos / 60);
-  const s = Math.floor(segundos % 60);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
 
 function mediaOverall(jogadores: Player[]): number {
   if (jogadores.length === 0) {
@@ -143,7 +139,7 @@ function MatchSimulation(): React.JSX.Element | null {
 
   const pulsePlacar = useRef(new Animated.Value(1)).current;
   const golsPulseRef = useRef(0);
-  const golsSomRef = useRef(0);
+  const golsSomRef = useRef({usuario: 0, adversario: 0});
 
   const [relogioSeg, setRelogioSeg] = useState(0);
   const [multiplicador, setMultiplicador] = useState<number>(() =>
@@ -155,6 +151,9 @@ function MatchSimulation(): React.JSX.Element | null {
 
   const [eventos, setEventos] = useState<ItemTimeline[]>([]);
   const [placar, setPlacar] = useState({casa: 0, fora: 0});
+  // Posse REAL vinda da engine (acumulada minuto a minuto) — espelho de UI,
+  // como o placar; a fonte da verdade é o EstadoPartidaAoVivo.
+  const [posse, setPosse] = useState({casa: 50, fora: 50});
   const [subsFeitas, setSubsFeitas] = useState(0);
   const [ajustesVisivel, setAjustesVisivel] = useState(false);
   // Jogadores que já saíram não podem voltar (regra oficial).
@@ -357,6 +356,21 @@ function MatchSimulation(): React.JSX.Element | null {
     const jogadoresCasa = usuarioEhCasa ? jogadoresUsuario : jogadoresAdversario;
     const jogadoresFora = usuarioEhCasa ? jogadoresAdversario : jogadoresUsuario;
 
+    // Sons de lance: só no avanço normal (lotes de 1–2 minutos). Ao pular
+    // tempo, um lote de 45' viraria uma rajada de efeitos sobrepostos.
+    const comSomDeLance = alvo - minutoSimuladoRef.current <= 2;
+    const golsAntesDoLote = estado.placarCasa + estado.placarFora;
+    const lote: {som: (() => void) | null; prioridade: number} = {
+      som: null,
+      prioridade: 0,
+    };
+    const registrarSom = (prioridade: number, efeito: () => void) => {
+      if (comSomDeLance && prioridade > lote.prioridade) {
+        lote.prioridade = prioridade;
+        lote.som = efeito;
+      }
+    };
+
     const novosItens: ItemTimeline[] = [];
     const criarItem = (ev: EventoPartida): ItemTimeline => {
       const ehCasa = ev.timeId === fixture.timeCasa;
@@ -407,9 +421,20 @@ function MatchSimulation(): React.JSX.Element | null {
       minutoSimuladoRef.current = proximoMinuto;
       for (const ev of novos) {
         novosItens.push(criarItem(ev));
+        const doUsuario =
+          (ev.timeId === fixture.timeCasa) ===
+          (ladoUsuarioRef.current === 'casa');
+        if (ev.tipo === 'cartao_vermelho') {
+          registrarSom(3, () => tocarExpulsao(doUsuario));
+        } else if (ev.tipo === 'penalti') {
+          registrarSom(2, () => tocarPenaltiPerdido(doUsuario));
+        } else if (ev.tipo === 'lesao') {
+          registrarSom(1, () => tocarContusao());
+        }
       }
       if (proximoMinuto === MINUTO_INTERVALO && !marcosRef.current.intervalo) {
         marcosRef.current.intervalo = true;
+        registrarSom(4, tocarIntervalo);
         novosItens.push({
           minuto: MINUTO_INTERVALO,
           tipo: 'intervalo',
@@ -438,10 +463,17 @@ function MatchSimulation(): React.JSX.Element | null {
       }
     }
 
+    // O gol tem som próprio (efeito do placar) e vence os demais do lote.
+    const somDoLote = lote.som;
+    if (somDoLote && estado.placarCasa + estado.placarFora === golsAntesDoLote) {
+      somDoLote();
+    }
+
     if (novosItens.length > 0) {
       setEventos(prev => [...prev, ...novosItens]);
     }
     setPlacar({casa: estado.placarCasa, fora: estado.placarFora});
+    setPosse(calcularPossePartida(estado));
   }, [minuto, fixture, siglaCasa, siglaFora, corCasa, corFora]);
 
   // Rola a lista a cada novo lance.
@@ -463,12 +495,18 @@ function MatchSimulation(): React.JSX.Element | null {
     golsPulseRef.current = totalGols;
   }, [totalGols, pulsePlacar]);
 
+  // Som de gol por lado: a festa é do usuário, o lamento é do adversário.
   useEffect(() => {
-    if (totalGols > golsSomRef.current) {
-      tocarGol();
+    const usuarioEhCasa = ladoUsuarioRef.current === 'casa';
+    const golsUsuario = usuarioEhCasa ? placar.casa : placar.fora;
+    const golsAdversario = usuarioEhCasa ? placar.fora : placar.casa;
+    if (golsUsuario > golsSomRef.current.usuario) {
+      tocarGol(true);
+    } else if (golsAdversario > golsSomRef.current.adversario) {
+      tocarGol(false);
     }
-    golsSomRef.current = totalGols;
-  }, [totalGols]);
+    golsSomRef.current = {usuario: golsUsuario, adversario: golsAdversario};
+  }, [placar]);
 
   // Fecha a partida e simula o resto da rodada ao terminar.
   useEffect(() => {
@@ -502,7 +540,14 @@ function MatchSimulation(): React.JSX.Element | null {
     } else {
       useGameStore
         .getState()
-        .concluirPartidaAoVivo(fixture.id, e.eventos, e.placarCasa, e.placarFora);
+        .concluirPartidaAoVivo(
+          fixture.id,
+          e.eventos,
+          e.placarCasa,
+          e.placarFora,
+          calcularPossePartida(e),
+          calcularEstatisticasFinais(e),
+        );
     }
   }, [terminou, fixture, nav]);
 
@@ -554,6 +599,19 @@ function MatchSimulation(): React.JSX.Element | null {
       return proximo;
     });
 
+    // Registra a troca nos eventos PERSISTIDOS da partida: é o que permite à
+    // súmula calcular minutos jogados e mostrar a linha do tempo completa.
+    if (clubeUsuario) {
+      estadoRef.current?.eventos.push({
+        minuto,
+        tipo: 'substituicao',
+        timeId: clubeUsuario.id,
+        jogadorId: saiId,
+        jogadorEntraId: entranteId,
+        descricao: `Substituição: sai ${nomeSai}, entra ${nomeEntra}.`,
+      });
+    }
+
     setEventos(atuais => [
       ...atuais,
       {
@@ -574,22 +632,6 @@ function MatchSimulation(): React.JSX.Element | null {
     [eventos],
   );
 
-  // Força em campo AO VIVO — recalculada quando a escalação muda (subs/tática),
-  // mostrando o efeito das decisões durante a partida.
-  const forcasAoVivo = useMemo<{casa: ForcaTime; fora: ForcaTime} | null>(() => {
-    const adversario = adversarioRef.current;
-    if (!clubeUsuario || !adversario) {
-      return null;
-    }
-    const forcaUsuario = forcaDoClube(clubeUsuario, jogadores);
-    const forcaAdversario = forcaDoClube(adversario, jogadores);
-    const usuarioEhCasa = ladoUsuarioRef.current === 'casa';
-    return {
-      casa: usuarioEhCasa ? forcaUsuario : forcaAdversario,
-      fora: usuarioEhCasa ? forcaAdversario : forcaUsuario,
-    };
-  }, [clubeUsuario, jogadores]);
-
   if (!fixture) {
     return null;
   }
@@ -599,42 +641,60 @@ function MatchSimulation(): React.JSX.Element | null {
     ? jogadores.filter(jogador => jogador.clubeId === clubeUsuario.id)
     : [];
 
+  // Posse de bola REAL: acumulada pela engine a cada minuto simulado (domínio
+  // de meio-campo atual + tática + placar + lances do minuto). Substituições,
+  // expulsões e fadiga movem este número de verdade — nada é inventado na UI.
+  const posseCasa = posse.casa;
+
   return (
     <ScreenContainer>
       <View style={styles.conteudo}>
         <View style={styles.topo}>
-          <Animated.View
-            style={[styles.placarWrap, {transform: [{scale: pulsePlacar}]}]}>
-            <Placar
-              siglaCasa={siglaCasa}
-              siglaFora={siglaFora}
-              divisao={clubeUsuario?.divisao}
-              placarCasa={placar.casa}
-              placarFora={placar.fora}
-              tempo={
-                terminou
-                  ? 'FINAL'
-                  : intervalo
-                  ? 'INTERVALO'
-                  : formatarTempo(relogioSeg)
-              }
-            />
+          <Text style={styles.campLabel}>
+            {modoCopa
+              ? 'Copa do Brasil'
+              : `${clubeUsuario?.divisao ?? 'Brasileirão'} · Rodada ${fixture.rodada}`}
+          </Text>
+          <Animated.View style={{transform: [{scale: pulsePlacar}]}}>
+            <Painel acento={cores.secundaria}>
+              <View style={styles.placarConteudo}>
+                <Text
+                  style={styles.placarLinha}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit>
+                  {siglaCasa} <Text style={styles.placarNum}>{placar.casa}</Text>
+                  <Text style={styles.placarTraco}> — </Text>
+                  <Text style={styles.placarNum}>{placar.fora}</Text> {siglaFora}
+                </Text>
+                <Text style={styles.placarStatus}>
+                  {terminou
+                    ? 'FINAL'
+                    : intervalo
+                    ? 'INTERVALO'
+                    : `${minuto}' · AO VIVO`}
+                </Text>
+                <View style={styles.posseRow}>
+                  <View style={styles.posseTrack}>
+                    <View
+                      style={[
+                        styles.posseFill,
+                        {flex: posseCasa, backgroundColor: corCasa},
+                      ]}
+                    />
+                    <View
+                      style={[
+                        styles.posseFill,
+                        {flex: 100 - posseCasa, backgroundColor: corFora},
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.posseTexto}>
+                    Posse {posseCasa}% / {100 - posseCasa}%
+                  </Text>
+                </View>
+              </View>
+            </Painel>
           </Animated.View>
-          <View style={styles.arbitroLinha}>
-            <Icone nome="apito" tamanho={13} cor={cores.textoSecundario} />
-            <Text style={styles.arbitroTexto}>Árbitro no comando</Text>
-          </View>
-          {forcasAoVivo ? (
-            <View style={styles.forcasWrap}>
-              <Text style={styles.forcasLabel}>Força em campo</Text>
-              <BarrasForca
-                casa={forcasAoVivo.casa}
-                fora={forcasAoVivo.fora}
-                corCasa={corCasa}
-                corFora={corFora}
-              />
-            </View>
-          ) : null}
         </View>
 
         <FlatList
@@ -662,10 +722,16 @@ function MatchSimulation(): React.JSX.Element | null {
         <View style={styles.controles}>
           {terminou ? (
             <>
-              <Botao
-                titulo="Ver súmula"
-                onPress={() => nav.navigate('MatchResult', {partidaId: fixture.id})}
-              />
+              {/* Na Copa a partida não entra em `partidas` (o confronto guarda só
+                  o placar), então não há súmula persistida para abrir. */}
+              {!modoCopa ? (
+                <Botao
+                  titulo="Ver súmula"
+                  onPress={() =>
+                    nav.navigate('MatchResult', {partidaId: fixture.id})
+                  }
+                />
+              ) : null}
               <Botao
                 variante="secundaria"
                 titulo="Continuar"
@@ -837,18 +903,57 @@ const styles = StyleSheet.create({
   topo: {
     gap: espaco.md,
   },
-  placarWrap: {
-    alignItems: 'center',
-  },
-  forcasWrap: {
-    alignItems: 'center',
-    gap: espaco.xs,
-  },
-  forcasLabel: {
+  campLabel: {
     color: cores.textoSecundario,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
+  },
+  placarConteudo: {
+    gap: espaco.sm,
+  },
+  placarLinha: {
+    color: cores.texto,
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  placarNum: {
+    color: cores.texto,
+  },
+  placarTraco: {
+    color: cores.textoSecundario,
+  },
+  placarStatus: {
+    color: cores.secundaria,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  posseRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.md,
+    marginTop: espaco.xs,
+  },
+  posseTrack: {
+    backgroundColor: cores.fundoBase,
+    borderRadius: raio.pill,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 2,
+    height: 8,
+    overflow: 'hidden',
+  },
+  posseFill: {
+    height: '100%',
+  },
+  posseTexto: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '700',
   },
   lista: {
     flex: 1,
@@ -874,17 +979,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: espaco.sm,
-  },
-  arbitroLinha: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  arbitroTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
   },
   botaoFlex: {
     flex: 1,

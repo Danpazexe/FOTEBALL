@@ -207,7 +207,7 @@ export function Botao({
       : styles.botaoTextoPequena;
 
   const corConteudo = disabled
-    ? cores.textoSecundario
+    ? 'rgba(240, 244, 255, 0.32)'
     : variante === 'secundaria'
     ? cores.texto
     : variante === 'pequena'
@@ -224,7 +224,7 @@ export function Botao({
       style={({pressed}) => [
         styles.botaoBase,
         estiloContainer,
-        disabled ? styles.botaoDisabled : null,
+        disabled ? styles.botaoDisabledGlass : null,
         pressed && !disabled ? styles.botaoPressed : null,
       ]}>
       <View style={styles.botaoConteudo}>
@@ -409,8 +409,14 @@ const styles = StyleSheet.create({
     opacity: 0.92,
     transform: [{scale: 0.975}],
   },
-  botaoDisabled: {
-    opacity: 0.45,
+  // Estado desabilitado "glass": sem cor de ação, sem glow (dourado/verde).
+  botaoDisabledGlass: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    borderWidth: 1,
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
   },
   botaoTextoPrimaria: {
     color: cores.contrastePrimaria,
@@ -439,7 +445,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   botaoTextoDisabled: {
-    color: cores.textoSecundario,
+    color: 'rgba(240, 244, 255, 0.32)',
   },
   textoVazio: {
     color: cores.textoSecundario,

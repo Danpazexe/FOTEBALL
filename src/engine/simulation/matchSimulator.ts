@@ -1,4 +1,12 @@
-import type {Clube, EventoPartida, Partida, Player, Position} from '../../types';
+import type {
+  Clube,
+  EstatisticasPartida,
+  EventoPartida,
+  Partida,
+  Player,
+  Position,
+  Tatica,
+} from '../../types';
 
 import {
   fatorPesoAssistencia,
@@ -11,12 +19,18 @@ import {
   type ProbabilidadesPartida,
 } from './probabilityCalc';
 import {
+  acumularEstatisticasMinuto,
+  criarEstatisticasAoVivo,
+  finalizarEstatisticas,
+  type EstatisticasAoVivo,
+} from './matchStats';
+import {
   criarRNGComSeed,
   inteiroEntre,
   limitar,
   type RandomGenerator,
 } from './rng';
-import {calcularForcaTime} from './teamStrength';
+import {calcularForcaTime, type ForcaTime} from './teamStrength';
 
 export interface SimularPartidaInput {
   timeCasa: Clube;
@@ -363,6 +377,12 @@ function simularChance(
 /** Estado mutável de uma partida simulada minuto a minuto (ao vivo). */
 export interface EstadoPartidaAoVivo {
   rng: RandomGenerator;
+  /**
+   * RNG exclusivo da disputa de posse (1 consumo por minuto). Separado do RNG
+   * de eventos para que a posse não altere o sorteio de gols/cartões — o mesmo
+   * seed continua produzindo exatamente a mesma partida.
+   */
+  rngPosse: RandomGenerator;
   placarCasa: number;
   placarFora: number;
   eventos: EventoPartida[];
@@ -371,6 +391,15 @@ export interface EstadoPartidaAoVivo {
   indisponiveis: Set<string>;
   /** Condição física ATUAL por jogador (fadiga dinâmica). Vazio = usa a pré-jogo. */
   condicaoAtual: Map<string, number>;
+  /** Soma das frações de posse da CASA por minuto simulado (0..1 cada). */
+  posseAcumuladaCasa: number;
+  /**
+   * RNG exclusivo das estatísticas avançadas (volume de chutes, faltas...).
+   * Como o de posse, não toca a sequência de eventos da partida.
+   */
+  rngEstatisticas: RandomGenerator;
+  /** Estatísticas avançadas acumuladas minuto a minuto (ver matchStats). */
+  estatisticas: EstatisticasAoVivo;
   minuto: number;
 }
 
@@ -380,6 +409,9 @@ export interface ContextoMinuto {
   timeFora: Clube;
   jogadoresCasa: Player[];
   jogadoresFora: Player[];
+  /** Força ATUAL das equipes (já com fadiga, expulsões e substituições). */
+  forcaCasa: ForcaTime;
+  forcaFora: ForcaTime;
   probabilidades: ProbabilidadesPartida;
   goleiroCasa: Player | undefined;
   goleiroFora: Player | undefined;
@@ -388,14 +420,21 @@ export interface ContextoMinuto {
 }
 
 export function iniciarPartidaAoVivo(seed: number): EstadoPartidaAoVivo {
+  // Streams independentes: offsets grandes produzem sequências sem relação
+  // com a dos eventos, mantendo o determinismo por seed.
+  const rngEstatisticas = criarRNGComSeed(seed + 202_777);
   return {
     rng: criarRNGComSeed(seed),
+    rngPosse: criarRNGComSeed(seed + 101_159),
     placarCasa: 0,
     placarFora: 0,
     eventos: [],
     amarelosPartida: new Map<string, number>(),
     indisponiveis: new Set<string>(),
     condicaoAtual: new Map<string, number>(),
+    posseAcumuladaCasa: 0,
+    rngEstatisticas,
+    estatisticas: criarEstatisticasAoVivo(rngEstatisticas),
     minuto: 0,
   };
 }
@@ -474,6 +513,8 @@ export function calcularContextoMinuto(
     timeFora,
     jogadoresCasa: emCampoCasa,
     jogadoresFora: emCampoFora,
+    forcaCasa,
+    forcaFora,
     probabilidades: calcularProbabilidades(
       forcaCasa,
       forcaFora,
@@ -506,6 +547,111 @@ function fatorMomentum(diffGols: number, minuto: number): number {
     return 0.93;
   }
   return 1;
+}
+
+/**
+ * Quanto a tática MANDA ter a bola: posse de bola retém, contra-ataque e bola
+ * longa abrem mão dela por escolha; pressão alta a recupera no campo do rival;
+ * ritmo lento cadencia. Devolve um ajuste aditivo à fração de posse do time.
+ */
+function intencaoPosse(tatica: Tatica | null | undefined): number {
+  if (!tatica) {
+    return 0;
+  }
+  let intencao = 0;
+  if (tatica.estiloOfensivo === 'Posse de bola') {
+    intencao += 0.05;
+  } else if (tatica.estiloOfensivo === 'Contra-ataque') {
+    intencao -= 0.05;
+  } else if (tatica.estiloOfensivo === 'Ataque direto') {
+    intencao -= 0.03;
+  }
+  if (tatica.marcacao === 'Pressão alta') {
+    intencao += 0.02;
+  }
+  if (tatica.ritmo === 'Lento') {
+    intencao += 0.02;
+  }
+  return intencao;
+}
+
+/**
+ * Disputa a posse do minuto e acumula a fração da CASA no estado. Nada aqui é
+ * cosmético — tudo deriva do jogo REAL neste minuto:
+ *  - domínio de meio-campo ATUAL (a força é recalculada minuto a minuto, então
+ *    fadiga, expulsões e substituições movem a posse imediatamente);
+ *  - intenção tática das duas comissões (ver `intencaoPosse`);
+ *  - placar × relógio (quem perde vai atrás da bola, quem vence administra);
+ *  - lances do minuto (o time que criou/marcou estava com a bola);
+ *  - disputa lance-a-lance via `rngPosse` (determinística por seed, exatamente
+ *    1 consumo por minuto, sem tocar no RNG de eventos).
+ */
+function disputarPosseMinuto(
+  estado: EstadoPartidaAoVivo,
+  ctx: ContextoMinuto,
+  eventosDoMinuto: EventoPartida[],
+): number {
+  // Diferenças de força de meio são sutis (ex.: 72×66); em posse elas aparecem
+  // grandes. O fator 3.2 traduz: meio 75×60 ≈ 68% de bola, times iguais = 50%.
+  const meioCasa = Math.max(1, ctx.forcaCasa.meio);
+  const meioFora = Math.max(1, ctx.forcaFora.meio);
+  let fracaoCasa = 0.5 + (meioCasa / (meioCasa + meioFora) - 0.5) * 3.2;
+
+  fracaoCasa +=
+    intencaoPosse(ctx.timeCasa.taticaAtual) -
+    intencaoPosse(ctx.timeFora.taticaAtual);
+
+  // Placar × relógio: quem está atrás toma a iniciativa (e mais forte perto do
+  // fim); o efeito espelha no adversário, que cede a bola para administrar.
+  const diff = estado.placarCasa - estado.placarFora;
+  if (diff !== 0) {
+    const pressao =
+      Math.min(3, Math.abs(diff)) * 0.02 * (0.5 + estado.minuto / 90);
+    fracaoCasa += diff < 0 ? pressao : -pressao;
+  }
+
+  // Lances do minuto: gol/pênalti/chance só nascem com a bola no pé.
+  for (const evento of eventosDoMinuto) {
+    const pesoLance =
+      evento.tipo === 'gol'
+        ? 0.12
+        : evento.tipo === 'penalti' || evento.tipo === 'chance_perdida'
+          ? 0.08
+          : 0;
+    if (pesoLance > 0) {
+      fracaoCasa += evento.timeId === ctx.timeCasa.id ? pesoLance : -pesoLance;
+    }
+  }
+
+  // Disputa do minuto (±9%): bola dividida, erro de passe, bola parada.
+  fracaoCasa += (estado.rngPosse() - 0.5) * 0.18;
+
+  const fracaoFinal = limitar(fracaoCasa, 0.15, 0.85);
+  estado.posseAcumuladaCasa += fracaoFinal;
+  return fracaoFinal;
+}
+
+/** Fecha as estatísticas avançadas do estado para persistir na Partida. */
+export function calcularEstatisticasFinais(
+  estado: EstadoPartidaAoVivo,
+): EstatisticasPartida {
+  return finalizarEstatisticas(estado.estatisticas);
+}
+
+/**
+ * Posse acumulada (%) até o minuto atual — o número que uma transmissão
+ * mostraria agora. 50/50 antes de a bola rolar; sempre soma 100.
+ */
+export function calcularPossePartida(estado: EstadoPartidaAoVivo): {
+  casa: number;
+  fora: number;
+} {
+  if (estado.minuto <= 0) {
+    return {casa: 50, fora: 50};
+  }
+  const casa = Math.round((estado.posseAcumuladaCasa / estado.minuto) * 100);
+  const casaLimitada = limitar(casa, 15, 85);
+  return {casa: casaLimitada, fora: 100 - casaLimitada};
 }
 
 /** Desgaste físico por minuto; resistência alta poupa, ritmo intenso cobra. */
@@ -637,6 +783,25 @@ export function simularMinuto(
     );
   }
 
+  // Posse do minuto: usa a força/eventos REAIS deste minuto (nada cosmético).
+  const fracaoPosseCasa = disputarPosseMinuto(estado, ctx, novos);
+
+  // Estatísticas avançadas do minuto (xG, chutes, passes, zonas, momentum).
+  acumularEstatisticasMinuto(estado.estatisticas, {
+    timeCasaId: ctx.timeCasa.id,
+    emCampoCasa,
+    emCampoFora,
+    taticaCasa: ctx.timeCasa.taticaAtual,
+    taticaFora: ctx.timeFora.taticaAtual,
+    probabilidades: p,
+    eventosDoMinuto: novos,
+    fracaoPosseCasa,
+    fatorTempo: fTempo,
+    momentumCasa,
+    momentumFora,
+    rng: estado.rngEstatisticas,
+  });
+
   // Fadiga do minuto (sem RNG): aplica ao fim, para que o próximo ctx a reflita.
   aplicarFadiga(estado, emCampoCasa, ctx.timeCasa.taticaAtual?.ritmo ?? 'Normal');
   aplicarFadiga(estado, emCampoFora, ctx.timeFora.taticaAtual?.ritmo ?? 'Normal');
@@ -684,6 +849,8 @@ export function simularPartida(input: SimularPartidaInput): Partida {
     }
   }
 
+  const posse = calcularPossePartida(estado);
+
   return {
     id: `match_${input.timeCasa.id}_${input.timeFora.id}_${input.seed}_${inteiroEntre(
       estado.rng,
@@ -700,6 +867,9 @@ export function simularPartida(input: SimularPartidaInput): Partida {
     eventos: estado.eventos.sort((a, b) => a.minuto - b.minuto),
     jogada: true,
     modoJogado: 'simulado',
+    posseCasa: posse.casa,
+    posseFora: posse.fora,
+    estatisticas: calcularEstatisticasFinais(estado),
     vencedorPenaltis,
   };
 }

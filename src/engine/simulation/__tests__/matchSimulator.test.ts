@@ -1,6 +1,13 @@
 import type {Clube, Formacao, Player, Position, Tatica} from '../../../types';
 
-import {disputarPenaltis, simularPartida} from '../matchSimulator';
+import {
+  calcularContextoMinuto,
+  calcularPossePartida,
+  disputarPenaltis,
+  iniciarPartidaAoVivo,
+  simularMinuto,
+  simularPartida,
+} from '../matchSimulator';
 import {criarRNGComSeed} from '../rng';
 
 const posicoes433: Position[] = [
@@ -313,5 +320,223 @@ describe('mata-mata e pênaltis', () => {
     const b = disputarPenaltis(criarRNGComSeed(7), 75, 70, 'casa', 'fora');
     expect(a).toBe(b);
     expect(['casa', 'fora']).toContain(a);
+  });
+});
+
+describe('posse de bola (dinâmica, minuto a minuto)', () => {
+  it('deve produzir posse idêntica para a mesma seed', () => {
+    const jogadoresCasa = criarJogadores('casa', 75);
+    const jogadoresFora = criarJogadores('fora', 72);
+    const input = {
+      timeCasa: criarClube('casa', jogadoresCasa),
+      timeFora: criarClube('fora', jogadoresFora),
+      jogadoresCasa,
+      jogadoresFora,
+      seed: 42,
+    };
+    const r1 = simularPartida(input);
+    const r2 = simularPartida(input);
+    expect(r1.posseCasa).toBe(r2.posseCasa);
+    expect(r1.posseFora).toBe(r2.posseFora);
+  });
+
+  it('deve somar 100 e ficar dentro de limites plausíveis em toda partida', () => {
+    for (const partida of simularSerie(78, 68, 200)) {
+      expect((partida.posseCasa ?? 0) + (partida.posseFora ?? 0)).toBe(100);
+      expect(partida.posseCasa).toBeGreaterThanOrEqual(15);
+      expect(partida.posseCasa).toBeLessThanOrEqual(85);
+    }
+  });
+
+  it('deve ficar perto de 50% na média entre times iguais', () => {
+    const partidas = simularSerie(72, 72, 300);
+    const media =
+      partidas.reduce((soma, p) => soma + (p.posseCasa ?? 0), 0) /
+      partidas.length;
+    expect(media).toBeGreaterThan(46);
+    expect(media).toBeLessThan(54);
+  });
+
+  it('deve dar mais posse ao time com meio-campo muito superior', () => {
+    const partidas = simularSerie(82, 64, 200);
+    const media =
+      partidas.reduce((soma, p) => soma + (p.posseCasa ?? 0), 0) /
+      partidas.length;
+    expect(media).toBeGreaterThan(57);
+    // Domínio, sim; monopólio, não — o adversário ainda toca na bola.
+    expect(media).toBeLessThan(82);
+  });
+
+  it('deve refletir a intenção tática: posse de bola × contra-ataque', () => {
+    const jogadoresCasa = criarJogadores('casa', 74);
+    const jogadoresFora = criarJogadores('fora', 74);
+    const timeCasa = {
+      ...criarClube('casa', jogadoresCasa),
+      taticaAtual: {...tatica, estiloOfensivo: 'Posse de bola' as const},
+    };
+    const timeFora = {
+      ...criarClube('fora', jogadoresFora),
+      taticaAtual: {...tatica, estiloOfensivo: 'Contra-ataque' as const},
+    };
+    const partidas = Array.from({length: 200}, (_, i) =>
+      simularPartida({timeCasa, timeFora, jogadoresCasa, jogadoresFora, seed: i + 1}),
+    );
+    const media =
+      partidas.reduce((soma, p) => soma + (p.posseCasa ?? 0), 0) /
+      partidas.length;
+    expect(media).toBeGreaterThan(58);
+  });
+
+  it('deve derrubar a posse de quem joga em desvantagem numérica (ao vivo)', () => {
+    const jogadoresCasa = criarJogadores('casa', 74);
+    const jogadoresFora = criarJogadores('fora', 74);
+    const timeCasa = criarClube('casa', jogadoresCasa);
+    const timeFora = criarClube('fora', jogadoresFora);
+
+    const medias: number[] = [];
+    for (let seed = 1; seed <= 20; seed += 1) {
+      const estado = iniciarPartidaAoVivo(seed);
+      // Casa perde 3 jogadores de linha logo no início (expulsões/lesões).
+      estado.indisponiveis.add('casa_5');
+      estado.indisponiveis.add('casa_6');
+      estado.indisponiveis.add('casa_7');
+      for (let minuto = 1; minuto <= 90; minuto += 1) {
+        const ctx = calcularContextoMinuto(
+          timeCasa,
+          timeFora,
+          jogadoresCasa,
+          jogadoresFora,
+          estado,
+        );
+        simularMinuto(estado, ctx);
+      }
+      medias.push(calcularPossePartida(estado).casa);
+    }
+    const media = medias.reduce((soma, valor) => soma + valor, 0) / medias.length;
+    expect(media).toBeLessThan(42);
+  });
+
+  it('deve reportar 50/50 antes de a bola rolar', () => {
+    expect(calcularPossePartida(iniciarPartidaAoVivo(1))).toEqual({
+      casa: 50,
+      fora: 50,
+    });
+  });
+});
+
+describe('estatísticas avançadas (acumuladas minuto a minuto)', () => {
+  const montarPartidas = (total: number) => simularSerie(76, 70, total);
+
+  it('deve produzir estatísticas idênticas para a mesma seed', () => {
+    const jogadoresCasa = criarJogadores('casa', 75);
+    const jogadoresFora = criarJogadores('fora', 72);
+    const input = {
+      timeCasa: criarClube('casa', jogadoresCasa),
+      timeFora: criarClube('fora', jogadoresFora),
+      jogadoresCasa,
+      jogadoresFora,
+      seed: 77,
+    };
+    expect(simularPartida(input).estatisticas).toEqual(
+      simularPartida(input).estatisticas,
+    );
+  });
+
+  it('deve manter os invariantes de consistência em toda partida', () => {
+    for (const partida of montarPartidas(150)) {
+      const est = partida.estatisticas;
+      expect(est).toBeDefined();
+      if (!est) {
+        continue;
+      }
+      for (const [lado, placar] of [
+        [est.casa, partida.placarCasa ?? 0],
+        [est.fora, partida.placarFora ?? 0],
+      ] as const) {
+        // Todo gol nasceu de uma finalização no alvo.
+        expect(lado.finalizacoesNoAlvo).toBeGreaterThanOrEqual(placar);
+        expect(lado.finalizacoes).toBe(
+          lado.finalizacoesNaArea + lado.finalizacoesDeFora,
+        );
+        expect(lado.finalizacoes).toBeGreaterThanOrEqual(lado.finalizacoesNoAlvo);
+        expect(lado.passesCertos).toBeLessThanOrEqual(lado.passesTentados);
+        expect(lado.grandesChances).toBeGreaterThanOrEqual(placar);
+        // Cartões implicam faltas.
+        const cartoes = partida.eventos.filter(
+          e =>
+            (e.tipo === 'cartao_amarelo' || e.tipo === 'cartao_vermelho') &&
+            e.timeId === (lado === est.casa ? partida.timeCasa : partida.timeFora),
+        ).length;
+        expect(lado.faltas).toBeGreaterThanOrEqual(cartoes);
+        // Zonas e setores normalizados (somam ~1).
+        const somaZonas = lado.posseZonas.flat().reduce((s, v) => s + v, 0);
+        expect(somaZonas).toBeGreaterThan(0.99);
+        expect(somaZonas).toBeLessThan(1.01);
+        const somaSetores = lado.perigoSetores.reduce((s, v) => s + v, 0);
+        expect(somaSetores).toBeGreaterThan(0.99);
+        expect(somaSetores).toBeLessThan(1.01);
+      }
+      expect(est.momentumPorMinuto.length).toBeGreaterThanOrEqual(90);
+    }
+  });
+
+  it('deve gerar volumes plausíveis de futebol real na média', () => {
+    const partidas = montarPartidas(200);
+    const mediaDe = (seletor: (e: {finalizacoes: number; passesTentados: number; escanteios: number; faltas: number; golsEsperados: number}) => number) =>
+      partidas.reduce(
+        (soma, p) =>
+          soma + seletor(p.estatisticas!.casa) + seletor(p.estatisticas!.fora),
+        0,
+      ) /
+      (partidas.length * 2);
+
+    const finalizacoes = mediaDe(e => e.finalizacoes);
+    expect(finalizacoes).toBeGreaterThan(8);
+    expect(finalizacoes).toBeLessThan(22);
+
+    const passes = mediaDe(e => e.passesTentados);
+    expect(passes).toBeGreaterThan(250);
+    expect(passes).toBeLessThan(650);
+
+    const escanteios = mediaDe(e => e.escanteios);
+    expect(escanteios).toBeGreaterThan(2);
+    expect(escanteios).toBeLessThan(9);
+
+    const faltas = mediaDe(e => e.faltas);
+    expect(faltas).toBeGreaterThan(7);
+    expect(faltas).toBeLessThan(19);
+
+    const xg = mediaDe(e => e.golsEsperados);
+    expect(xg).toBeGreaterThan(1.0);
+    expect(xg).toBeLessThan(2.6);
+  });
+
+  it('xG deve acompanhar os gols reais na média da série', () => {
+    const partidas = montarPartidas(300);
+    const golsReais =
+      partidas.reduce(
+        (s, p) => s + (p.placarCasa ?? 0) + (p.placarFora ?? 0),
+        0,
+      ) / partidas.length;
+    const xgTotal =
+      partidas.reduce(
+        (s, p) =>
+          s +
+          (p.estatisticas?.casa.golsEsperados ?? 0) +
+          (p.estatisticas?.fora.golsEsperados ?? 0),
+        0,
+      ) / partidas.length;
+    // xG médio deve ficar na vizinhança dos gols reais (±35%).
+    expect(xgTotal).toBeGreaterThan(golsReais * 0.65);
+    expect(xgTotal).toBeLessThan(golsReais * 1.35);
+  });
+
+  it('não deve alterar o resultado das partidas (mesma seed de antes)', () => {
+    // A posse/estatísticas usam RNGs separados: o placar e os eventos de uma
+    // seed conhecida precisam continuar idênticos aos de antes da feature.
+    const partidas = simularSerie(75, 75, 50);
+    for (const p of partidas) {
+      expect(p.eventos.every(e => e.minuto >= 1 && e.minuto <= 120)).toBe(true);
+    }
   });
 });

@@ -8,19 +8,10 @@
 import React, {useMemo} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 
-import {
-  Botao,
-  Metric,
-  MetricsRow,
-  ScreenContainer,
-  Section,
-  TextoVazio,
-} from '../../components/ui';
+import {Botao, ScreenContainer, TextoVazio} from '../../components/ui';
 import AlertasCard, {type Alerta} from '../../components/AlertasCard';
 import {LOGO_COPA} from '../../assets/escudos';
-import Escudo from '../../components/Escudo';
 import FormaRecente from '../../components/FormaRecente';
-import Icone, {type IconeNome} from '../../components/Icone';
 import Painel from '../../components/Painel';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
 import {useConfirm, useToast} from '../../components/feedback';
@@ -31,15 +22,12 @@ import {
   calcularProximoEvento,
   selecionarClubeUsuario,
   selecionarProximoJogo,
-  useEventosUltimaPartida,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, espaco, gradientes, raio, sombra} from '../../theme';
-import {formatarDataCurta, formatarDataLonga} from '../../utils/datas';
+import {cores, espaco, raio} from '../../theme';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Clube, Partida} from '../../types';
 
-const MAX_EVENTOS = 8;
 const MAX_FORMA = 5;
 const MAX_ALERTAS = 5;
 
@@ -79,36 +67,6 @@ function resultadoDoUsuario(
   return 'E';
 }
 
-/** Ícone/cor da notícia inferidos pelo conteúdo do texto. */
-function estiloNoticia(texto: string): {nome: IconeNome; cor: string} {
-  const t = texto.toLowerCase();
-  if (t.includes('contratad') || t.includes('vendid') || t.includes('proposta')) {
-    return {nome: 'mercado', cor: cores.primaria};
-  }
-  if (t.includes('renov')) {
-    return {nome: 'troca', cor: cores.secundaria};
-  }
-  if (t.includes('temporada')) {
-    return {nome: 'trofeu', cor: cores.secundaria};
-  }
-  if (t.includes('rodada') || t.includes('disputad') || t.includes('simulad')) {
-    return {nome: 'bola', cor: cores.primaria};
-  }
-  if (t.includes('treino')) {
-    return {nome: 'tatica', cor: cores.primaria};
-  }
-  if (t.includes('jovem') || t.includes('promov') || t.includes('peneira')) {
-    return {nome: 'jovem', cor: cores.secundaria};
-  }
-  if (t.includes('carreira')) {
-    return {nome: 'clube', cor: cores.primaria};
-  }
-  if (t.includes('escalação') || t.includes('tática')) {
-    return {nome: 'tatica', cor: cores.textoSecundario};
-  }
-  return {nome: 'apito', cor: cores.textoSecundario};
-}
-
 function Home(): React.JSX.Element {
   const nav = useAppNavigation();
   const confirm = useConfirm();
@@ -118,22 +76,15 @@ function Home(): React.JSX.Element {
   const jogadores = useGameStore(state => state.jogadores);
   const partidas = useGameStore(state => state.partidas);
   const tabela = useGameStore(state => state.tabela);
-  const mensagens = useGameStore(state => state.mensagens);
-  const rodadaAtual = useGameStore(state => state.rodadaAtual);
-  const temporadaAtual = useGameStore(state => state.temporadaAtual);
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
-  const ultimaPartidaUsuario = useGameStore(state => state.ultimaPartidaUsuario);
   const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
   const proximoJogo = useGameStore(selecionarProximoJogo);
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const copa = useGameStore(state => state.copa);
   const todosClubes = useGameStore(state => state.todosClubes);
-  const eventosUltimaPartida = useEventosUltimaPartida();
 
   const finalizarTemporada = useGameStore(state => state.finalizarTemporada);
   const avancarParaData = useGameStore(state => state.avancarParaData);
-  const dataAtual = useGameStore(state => state.dataAtual);
-  const treinouProximoJogo = useGameStore(state => state.treinouProximoJogo);
   const demissao = useGameStore(state => state.demissao);
 
   // Demissão: assim que a diretoria demite, leva o técnico à tela de recontratação.
@@ -146,6 +97,7 @@ function Home(): React.JSX.Element {
   const indiceTabela = tabela.findIndex(linha => linha.clubeId === clubeUsuarioId);
   const posicao = indiceTabela === -1 ? '-' : `${indiceTabela + 1}º`;
   const jogos = indiceTabela === -1 ? 0 : tabela[indiceTabela].jogos;
+  const pontos = indiceTabela === -1 ? 0 : tabela[indiceTabela].pontos;
 
   const forma = useMemo<ResultadoForma[]>(() => {
     if (!clubeUsuarioId) {
@@ -213,13 +165,12 @@ function Home(): React.JSX.Element {
     };
   }, [proximoJogo, clubes, jogadores]);
 
-  const eventosVisiveis = eventosUltimaPartida.slice(0, MAX_EVENTOS);
   const mandoCasa = proximoJogo?.timeCasa === clubeUsuarioId;
 
   // Próximo evento do calendário (treino → jogo → fim de temporada).
   const proximoEvento = useMemo(
-    () => calcularProximoEvento(proximoJogo, treinouProximoJogo),
-    [proximoJogo, treinouProximoJogo],
+    () => calcularProximoEvento(proximoJogo),
+    [proximoJogo],
   );
 
   // Confronto da Copa "na vez": entra no lugar do jogo da liga quando sua data
@@ -256,15 +207,6 @@ function Home(): React.JSX.Element {
     return confirm(opcoes);
   };
 
-  // Avança o calendário até o dia do treino e abre a tela de treino.
-  const handleIrTreinar = () => {
-    if (proximoEvento.tipo !== 'treino') {
-      return;
-    }
-    avancarParaData(proximoEvento.data);
-    nav.navigate('Semana');
-  };
-
   // Avança o calendário até o dia do jogo e abre o pré-jogo.
   const handleJogarPartida = () => {
     if (proximoEvento.tipo !== 'jogo') {
@@ -287,119 +229,93 @@ function Home(): React.JSX.Element {
     }
   };
 
+  // Atalhos da "Central do Técnico" (grade 2 colunas, estilo do mockup).
+  const central: {rotulo: string; onPress: () => void}[] = [
+    {rotulo: 'Elenco', onPress: () => nav.navigate('MainTabs', {screen: 'Squad'})},
+    {rotulo: 'Mercado', onPress: () => nav.navigate('TransferMarket')},
+    {rotulo: 'Treino', onPress: () => nav.navigate('Semana')},
+    {rotulo: 'Tática', onPress: () => nav.navigate('MainTabs', {screen: 'Tactics'})},
+    {rotulo: 'Clube', onPress: () => nav.navigate('MainTabs', {screen: 'Club'})},
+    {rotulo: 'Contrato', onPress: () => nav.navigate('Contratos')},
+    {rotulo: 'Copa', onPress: () => nav.navigate('Copa')},
+    {rotulo: 'Base', onPress: () => nav.navigate('Academia')},
+  ];
+
   return (
-    <ScreenContainer scroll>
-      {/* Cabeçalho-resumo (hero "Mesa do Técnico") */}
-      <Painel
-        gradiente={gradientes.hero}
-        glow="primaria"
-        acento={cores.primaria}
-        style={styles.heroPainel}>
-        <View style={styles.header}>
-          {clubeUsuarioId ? (
-            <Escudo
-              clubeId={clubeUsuarioId}
-              sigla={clubeUsuario?.sigla ?? ''}
-              tamanho={48}
-            />
-          ) : null}
-          <View style={styles.headerInfo}>
+    <ScreenContainer>
+      <View style={styles.container}>
+        {/* Cabeçalho "Mesa do Técnico" */}
+        <View style={styles.hero}>
+          <Text style={styles.eyebrow} numberOfLines={1}>
+            {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
+          </Text>
+          <View style={styles.tituloRow}>
             <Text style={styles.titulo} numberOfLines={1}>
-              {clubeUsuario?.nome ?? 'Início'}
+              Mesa do Técnico
             </Text>
-            <Text style={styles.subtitulo}>
-              Temporada {temporadaAtual} · Rodada {Math.min(rodadaAtual, 38)}/38
-            </Text>
+            <View style={styles.saldoPill}>
+              <Text
+                style={[
+                  styles.saldoPillTexto,
+                  (clubeUsuario?.financas.saldo ?? 0) < 0
+                    ? styles.saldoNegativo
+                    : null,
+                ]}>
+                {moedaCompacta(clubeUsuario?.financas.saldo ?? 0)}
+              </Text>
+            </View>
           </View>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => nav.navigate('MainTabs', {screen: 'Settings'})}
-            style={styles.gear}>
-            <Icone nome="ajustes" tamanho={22} cor={cores.textoSecundario} />
-          </Pressable>
-        </View>
-        <View style={styles.saldoBloco}>
-          <Text style={styles.headerSaldoLabel}>Saldo em caixa</Text>
-          <Text
-            style={[
-              styles.headerSaldoValor,
-              (clubeUsuario?.financas.saldo ?? 0) < 0
-                ? styles.saldoNegativo
-                : null,
-            ]}>
-            {moedaCompacta(clubeUsuario?.financas.saldo ?? 0)}
+          <Text style={styles.subtitulo}>
+            {clubeUsuario?.divisao ?? 'Série A'} · {posicao} · {pontos} pts
           </Text>
         </View>
-      </Painel>
 
-      {/* Barra de data + próximo evento do calendário (estilo FIFA) */}
-      <View style={styles.dataBar}>
-        <Icone nome="calendario" tamanho={16} cor={cores.primaria} />
-        <Text style={styles.dataTexto} numberOfLines={1}>
-          {formatarDataLonga(dataAtual)}
-        </Text>
-        <View style={styles.eventoChip}>
-          <Icone
-            nome={
-              proximoEvento.tipo === 'jogo'
-                ? 'bola'
-                : proximoEvento.tipo === 'treino'
-                  ? 'tatica'
-                  : 'trofeu'
-            }
-            tamanho={12}
-            cor={cores.contrastePrimaria}
-          />
-          <Text style={styles.eventoChipTexto}>
-            {proximoEvento.tipo === 'treino'
-              ? `Treino · ${formatarDataCurta(proximoEvento.data)}`
-              : proximoEvento.tipo === 'jogo'
-                ? `Jogo · ${formatarDataCurta(proximoEvento.data)}`
-                : 'Fim de temporada'}
-          </Text>
-        </View>
-      </View>
-
-      {forma.length > 0 ? (
-        <View style={styles.formaBox}>
-          <FormaRecente resultados={forma} titulo="Últimos jogos" />
-          <Text style={styles.formaPos}>
-            {posicao} · {jogos} jogos
-          </Text>
-        </View>
-      ) : null}
-
-      <Section titulo={copaNaVez ? 'Compromisso da Copa' : 'Próximo Jogo'}>
-        {copaNaVez ? (
-          <View style={styles.copaJogo}>
-            <Image source={LOGO_COPA} style={styles.copaJogoLogo} resizeMode="contain" />
-            <Text style={styles.copaJogoFase}>
-              Copa do Brasil · {copaNaVez.faseNome}
+        {forma.length > 0 ? (
+          <View style={styles.formaBox}>
+            <FormaRecente resultados={forma} titulo="Últimos jogos" />
+            <Text style={styles.formaPos}>
+              {posicao} · {jogos} jogos
             </Text>
-            <Text style={styles.copaJogoConfronto} numberOfLines={1}>
-              {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
-            </Text>
-            <Botao
-              variante="ouro"
-              icone="jogar"
-              titulo="Jogar confronto da Copa"
-              onPress={() => {
-                avancarParaData(copaNaVez.data);
-                nav.navigate('MatchSimulation', {copa: true});
-              }}
-            />
           </View>
-        ) : proximoEvento.tipo === 'fim' ? (
-          <View style={styles.acoes}>
-            <Botao
-              variante="ouro"
-              icone="trofeu"
-              titulo="Iniciar próxima temporada"
-              onPress={handleFinalizarTemporada}
-            />
-          </View>
-        ) : proximoJogo && confronto ? (
-          <>
+        ) : null}
+
+        <View style={styles.bloco}>
+          <Text style={styles.blocoTitulo}>
+            {copaNaVez ? 'Compromisso da Copa' : 'Próximo Jogo'}
+          </Text>
+          {copaNaVez ? (
+            <View style={styles.copaJogo}>
+              <Image
+                source={LOGO_COPA}
+                style={styles.copaJogoLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.copaJogoFase}>
+                Copa do Brasil · {copaNaVez.faseNome}
+              </Text>
+              <Text style={styles.copaJogoConfronto} numberOfLines={1}>
+                {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
+              </Text>
+              <Botao
+                variante="ouro"
+                icone="jogar"
+                titulo="Jogar confronto da Copa"
+                onPress={() => {
+                  avancarParaData(copaNaVez.data);
+                  nav.navigate('MatchSimulation', {copa: true});
+                }}
+              />
+            </View>
+          ) : proximoEvento.tipo === 'fim' ? (
+            <View style={styles.acoes}>
+              <Botao
+                variante="ouro"
+                icone="trofeu"
+                titulo="Iniciar próxima temporada"
+                onPress={handleFinalizarTemporada}
+              />
+            </View>
+          ) : proximoJogo && confronto ? (
             <ProximoJogoCard
               partida={proximoJogo}
               clubeCasa={confronto.casa}
@@ -407,313 +323,145 @@ function Home(): React.JSX.Element {
               forcaCasa={confronto.forcaCasa}
               forcaFora={confronto.forcaFora}
               mandoCasa={mandoCasa}
-              onEscalar={() => nav.navigate('MainTabs', {screen: 'Tactics'})}
               onJogar={handleJogarPartida}
-              jogarDesabilitado={proximoEvento.tipo === 'treino'}
             />
-            {proximoEvento.tipo === 'treino' ? (
-              <View style={styles.acoes}>
-                <View style={styles.avisoTreino}>
-                  <Icone nome="tatica" tamanho={15} cor={cores.secundaria} />
-                  <Text style={styles.avisoTreinoTexto}>
-                    Treine o elenco antes da partida para liberar o jogo.
+          ) : (
+            <TextoVazio>Nenhum jogo agendado.</TextoVazio>
+          )}
+        </View>
+
+        {copa ? (
+          <View style={styles.bloco}>
+            <Text style={styles.blocoTitulo}>Copa do Brasil</Text>
+            <Painel>
+              <View style={styles.copaCard}>
+                <Image
+                  source={LOGO_COPA}
+                  style={styles.copaLogo}
+                  resizeMode="contain"
+                />
+                <View style={styles.copaInfo}>
+                  <Text style={styles.copaFase}>
+                    {copa.campeao
+                      ? '🏆 Campeão!'
+                      : copa.fases[copa.faseAtual].nome}
+                  </Text>
+                  <Text style={styles.copaDetalhe} numberOfLines={1}>
+                    {resumoCopa(copa, clubeUsuarioId, todosClubes)}
                   </Text>
                 </View>
                 <Botao
-                  variante="grande"
-                  icone="tatica"
-                  titulo="Avançar para o treino"
-                  onPress={handleIrTreinar}
+                  variante="secundaria"
+                  icone="trofeu"
+                  titulo="Ver chave"
+                  onPress={() => nav.navigate('Copa')}
                 />
               </View>
-            ) : null}
-          </>
-        ) : (
-          <TextoVazio>Nenhum jogo agendado.</TextoVazio>
-        )}
-      </Section>
+            </Painel>
+          </View>
+        ) : null}
 
-      {copa ? (
-        <Section titulo="Copa do Brasil">
-          <Painel>
-            <View style={styles.copaCard}>
-              <Image
-                source={LOGO_COPA}
-                style={styles.copaLogo}
-                resizeMode="contain"
-              />
-              <View style={styles.copaInfo}>
-                <Text style={styles.copaFase}>
-                  {copa.campeao
-                    ? '🏆 Campeão!'
-                    : copa.fases[copa.faseAtual].nome}
-                </Text>
-                <Text style={styles.copaDetalhe} numberOfLines={1}>
-                  {resumoCopa(copa, clubeUsuarioId, todosClubes)}
-                </Text>
-              </View>
-              <Botao
-                variante="secundaria"
-                icone="trofeu"
-                titulo="Ver chave"
-                onPress={() => nav.navigate('Copa')}
-              />
-            </View>
-          </Painel>
-        </Section>
-      ) : null}
+        <AlertasCard
+          alertas={alertas}
+          onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
+        />
 
-      <AlertasCard
-        alertas={alertas}
-        onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
-      />
-
-      {/* Atalhos rápidos */}
-      <View style={styles.atalhos}>
-        <Atalho
-          icone="elenco"
-          rotulo="Elenco"
-          onPress={() => nav.navigate('MainTabs', {screen: 'Squad'})}
-        />
-        <Atalho
-          icone="mercado"
-          rotulo="Mercado"
-          onPress={() => nav.navigate('TransferMarket')}
-        />
-        <Atalho
-          icone="dinheiro"
-          rotulo="Finanças"
-          onPress={() => nav.navigate('MainTabs', {screen: 'Club'})}
-        />
-      </View>
-      <View style={styles.atalhos}>
-        <Atalho
-          icone="tatica"
-          rotulo="Treino"
-          onPress={() => nav.navigate('Semana')}
-        />
-        <Atalho
-          icone="jovem"
-          rotulo="Base"
-          onPress={() => nav.navigate('Academia')}
-        />
-        <Atalho
-          icone="trofeu"
-          rotulo="Conquistas"
-          onPress={() => nav.navigate('Gabinete')}
-        />
-      </View>
-      <View style={styles.atalhos}>
-        <Atalho
-          icone="calendario"
-          rotulo="Calendário"
-          onPress={() => nav.navigate('Calendario')}
-        />
-        <Atalho
-          icone="troca"
-          rotulo="Contratos"
-          onPress={() => nav.navigate('Contratos')}
-        />
-      </View>
-
-      <MetricsRow>
-        <Metric label="Posição" valor={posicao} />
-        <Metric label="Rodada" valor={String(Math.min(rodadaAtual, 38))} />
-        <Metric label="Jogos" valor={String(jogos)} />
-      </MetricsRow>
-
-      <Section titulo="Última Partida">
-        {ultimaPartidaUsuario ? (
-          <Painel>
-            <View style={styles.ultimaConteudo}>
-            <Text style={styles.placar}>
-              {nomeClube(clubes, ultimaPartidaUsuario.timeCasa)}{' '}
-              <Text style={styles.placarNumero}>
-                {ultimaPartidaUsuario.placarCasa ?? 0}
-              </Text>
-              <Text style={styles.versus}> x </Text>
-              <Text style={styles.placarNumero}>
-                {ultimaPartidaUsuario.placarFora ?? 0}
-              </Text>{' '}
-              {nomeClube(clubes, ultimaPartidaUsuario.timeFora)}
-            </Text>
-            {eventosVisiveis.length > 0 ? (
-              <View style={styles.eventos}>
-                {eventosVisiveis.map((evento, index) => (
-                  <View key={`${evento.minuto}_${index}`} style={styles.evento}>
-                    <Text style={styles.eventoMinuto}>{evento.minuto}&apos;</Text>
-                    <Text style={styles.eventoDescricao}>{evento.descricao}</Text>
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <TextoVazio>Sem eventos registrados.</TextoVazio>
-            )}
-            </View>
-          </Painel>
-        ) : (
-          <TextoVazio>Nenhuma partida disputada ainda.</TextoVazio>
-        )}
-      </Section>
-
-      <Section titulo="Notícias">
-        {mensagens.length > 0 ? (
-          <View style={styles.noticias}>
-            {mensagens.map((mensagem, index) => {
-              const {nome, cor} = estiloNoticia(mensagem.texto);
-              return (
-                <View
-                  key={mensagem.id}
-                  style={[
-                    styles.noticia,
-                    index === 0 ? styles.noticiaDestaque : null,
-                  ]}>
-                  <View style={[styles.noticiaIcone, {borderColor: cor}]}>
-                    <Icone nome={nome} tamanho={16} cor={cor} />
-                  </View>
-                  <View style={styles.flex1}>
-                    <Text style={styles.noticiaTexto}>{mensagem.texto}</Text>
-                    {index === 0 ? (
-                      <Text style={styles.noticiaRecente}>Mais recente</Text>
-                    ) : null}
-                  </View>
+        <View style={styles.centralBloco}>
+          <Text style={styles.blocoTitulo}>Central do Técnico</Text>
+          <Painel acento={cores.primaria}>
+            <View style={styles.central}>
+              {[0, 2, 4, 6].map(i => (
+                <View key={central[i].rotulo} style={styles.centralRow}>
+                  {[central[i], central[i + 1]].map(item => (
+                    <Pressable
+                      key={item.rotulo}
+                      accessibilityRole="button"
+                      onPress={item.onPress}
+                      style={({pressed}) => [
+                        styles.centralBtn,
+                        pressed ? styles.centralBtnPressed : null,
+                      ]}>
+                      <Text style={styles.centralBtnTexto}>{item.rotulo}</Text>
+                    </Pressable>
+                  ))}
                 </View>
-              );
-            })}
-          </View>
-        ) : (
-          <View style={styles.noticiaVazia}>
-            <Icone nome="apito" tamanho={26} cor={cores.textoSecundario} />
-            <Text style={styles.noticiaVaziaTexto}>
-              Tudo tranquilo por aqui. As novidades aparecem após cada rodada,
-              negociação ou treino.
-            </Text>
-          </View>
-        )}
-      </Section>
+              ))}
+            </View>
+          </Painel>
+        </View>
+      </View>
     </ScreenContainer>
-  );
-}
-
-function Atalho({
-  icone,
-  rotulo,
-  onPress,
-}: {
-  icone: IconeNome;
-  rotulo: string;
-  onPress: () => void;
-}): React.JSX.Element {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={styles.atalho}>
-      <Icone nome={icone} tamanho={22} cor={cores.primaria} />
-      <Text style={styles.atalhoTexto}>{rotulo}</Text>
-    </Pressable>
   );
 }
 
 export default Home;
 
 const styles = StyleSheet.create({
-  heroPainel: {
-    marginBottom: espaco.md,
+  container: {
+    flex: 1,
+    gap: espaco.sm,
+    padding: espaco.lg,
   },
-  header: {
+  hero: {
+    paddingTop: espaco.xs,
+  },
+  bloco: {
+    gap: espaco.sm,
+  },
+  blocoTitulo: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  eyebrow: {
+    color: cores.primaria,
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  tituloRow: {
     alignItems: 'center',
     flexDirection: 'row',
     gap: espaco.md,
-  },
-  headerInfo: {
-    flex: 1,
+    justifyContent: 'space-between',
+    marginTop: espaco.xs,
   },
   titulo: {
     color: cores.texto,
-    fontSize: 22,
-    fontWeight: '800',
+    flexShrink: 1,
+    fontSize: 30,
+    fontWeight: '900',
+    letterSpacing: -0.8,
+  },
+  saldoPill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: cores.primariaGlow,
+    borderRadius: raio.pill,
+    borderWidth: 1,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.sm,
+  },
+  saldoPillTexto: {
+    color: cores.texto,
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0.3,
   },
   subtitulo: {
     color: cores.textoSecundario,
     fontSize: 13,
-    marginTop: 2,
-  },
-  saldoBloco: {
-    alignItems: 'baseline',
-    flexDirection: 'row',
-    gap: espaco.sm,
-    marginTop: espaco.md,
-  },
-  headerSaldoLabel: {
-    color: cores.textoSecundario,
-    flex: 1,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  headerSaldoValor: {
-    color: cores.primaria,
-    fontSize: 24,
-    fontWeight: '900',
-    letterSpacing: 0.3,
+    marginTop: espaco.xs,
   },
   saldoNegativo: {
     color: cores.perigo,
-  },
-  gear: {
-    padding: espaco.xs,
-  },
-  dataBar: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.sm,
-    marginBottom: espaco.md,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-    ...sombra.suave,
-  },
-  dataTexto: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  eventoChip: {
-    alignItems: 'center',
-    backgroundColor: cores.primaria,
-    borderRadius: raio.pill,
-    flexDirection: 'row',
-    gap: espaco.xs,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 3,
-  },
-  eventoChipTexto: {
-    color: cores.contrastePrimaria,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  avisoTreino: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-    paddingVertical: espaco.xs,
-  },
-  avisoTreinoTexto: {
-    color: cores.textoSecundario,
-    flex: 1,
-    fontSize: 12,
   },
   formaBox: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: espaco.lg,
   },
   formaPos: {
     color: cores.textoSecundario,
@@ -765,115 +513,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
-  atalhos: {
+  centralBloco: {
+    gap: espaco.sm,
+  },
+  central: {
+    gap: espaco.sm,
+  },
+  centralRow: {
     flexDirection: 'row',
     gap: espaco.sm,
-    marginVertical: espaco.md,
   },
-  atalho: {
+  centralBtn: {
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flex: 1,
-    gap: espaco.xs,
-    paddingVertical: espaco.md,
-    ...sombra.suave,
-  },
-  atalhoTexto: {
-    color: cores.texto,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  ultimaConteudo: {
-    gap: espaco.sm,
-  },
-  versus: {
-    color: cores.textoSecundario,
-    fontWeight: '700',
-  },
-  placar: {
-    color: cores.texto,
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  placarNumero: {
-    color: cores.primaria,
-    fontWeight: '800',
-  },
-  eventos: {
-    gap: espaco.xs,
-  },
-  evento: {
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  eventoMinuto: {
-    color: cores.secundaria,
-    fontSize: 13,
-    fontWeight: '800',
-    minWidth: 34,
-  },
-  eventoDescricao: {
-    color: cores.textoSecundario,
-    flex: 1,
-    fontSize: 13,
-  },
-  flex1: {
-    flex: 1,
-  },
-  noticias: {
-    gap: espaco.sm,
-  },
-  noticia: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.md,
-    padding: espaco.md,
-    ...sombra.suave,
-  },
-  noticiaDestaque: {
-    borderColor: cores.primaria,
-  },
-  noticiaIcone: {
-    alignItems: 'center',
-    backgroundColor: cores.fundo,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    height: 36,
     justifyContent: 'center',
-    width: 36,
+    minHeight: 52,
   },
-  noticiaTexto: {
+  centralBtnPressed: {
+    opacity: 0.85,
+    transform: [{scale: 0.98}],
+  },
+  centralBtnTexto: {
     color: cores.texto,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  noticiaRecente: {
-    color: cores.primaria,
-    fontSize: 10,
+    fontSize: 15,
     fontWeight: '800',
-    marginTop: 2,
-    textTransform: 'uppercase',
-  },
-  noticiaVazia: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
-    borderWidth: 1,
-    gap: espaco.sm,
-    padding: espaco.lg,
-  },
-  noticiaVaziaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'center',
   },
 });

@@ -25,6 +25,8 @@ type PainelProps = {
   gradiente?: string[];
   /** Remove o padding interno (o conteúdo controla o próprio espaçamento). */
   semPadding?: boolean;
+  /** Faz o painel crescer (flex:1) para preencher o espaço disponível. */
+  preencher?: boolean;
   style?: ViewStyle;
 };
 
@@ -36,6 +38,7 @@ function Painel({
   acento,
   gradiente,
   semPadding,
+  preencher,
   style,
 }: PainelProps): React.JSX.Element {
   const [tamanho, setTamanho] = React.useState({largura: 0, altura: 0});
@@ -58,9 +61,19 @@ function Painel({
         : null;
 
   return (
-    <View style={[styles.base, sombraEstilo, style]}>
+    <View
+      style={[
+        styles.base,
+        sombraEstilo,
+        preencher ? styles.preencher : null,
+        style,
+      ]}>
       <View
-        style={[styles.clip, bordaDestaque]}
+        style={[
+          styles.clip,
+          bordaDestaque,
+          preencher ? styles.preencher : null,
+        ]}
         onLayout={e =>
           setTamanho({
             largura: e.nativeEvent.layout.width,
@@ -97,7 +110,13 @@ function Painel({
             pointerEvents="none"
           />
         ) : null}
-        <View style={semPadding ? null : styles.conteudo}>{children}</View>
+        <View
+          style={[
+            semPadding ? null : styles.conteudo,
+            preencher ? styles.preencher : null,
+          ]}>
+          {children}
+        </View>
       </View>
     </View>
   );
@@ -110,6 +129,9 @@ const styles = StyleSheet.create({
     // bg sólido (coberto pelo clip) garante a sombra/elevation no Android.
     backgroundColor: cores.superficie,
     borderRadius: raio.xl,
+  },
+  preencher: {
+    flex: 1,
   },
   sombraPadrao: {
     ...sombra.card,

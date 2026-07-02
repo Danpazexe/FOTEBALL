@@ -1,15 +1,11 @@
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
 
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
-import {cores, corDoTime, espaco} from '../../theme';
+import {cores, espaco, raio, sombra} from '../../theme';
 import type {Clube, Partida} from '../../types';
-import BarrasForca from '../BarrasForca';
-import Escudo from '../Escudo';
-import Icone from '../Icone';
-import OverallBadge from '../OverallBadge';
+import {formatarDataCurta} from '../../utils/datas';
 import Painel from '../Painel';
-import {Botao} from '../ui';
 
 type ProximoJogoCardProps = {
   partida: Partida;
@@ -18,12 +14,22 @@ type ProximoJogoCardProps = {
   forcaCasa: ForcaTime;
   forcaFora: ForcaTime;
   mandoCasa: boolean;
-  onEscalar: () => void;
   onJogar: () => void;
   /** Bloqueia o botão Jogar (ex.: treino obrigatório ainda não feito). */
   jogarDesabilitado?: boolean;
 };
 
+const LINHAS: Array<{rotulo: string; chave: keyof ForcaTime}> = [
+  {rotulo: 'ATA', chave: 'ataque'},
+  {rotulo: 'MEI', chave: 'meio'},
+  {rotulo: 'DEF', chave: 'defesa'},
+];
+
+/**
+ * Card "Próximo Jogo" da Home (Premium UI v0.0.3): rótulo + data dourada,
+ * confronto em siglas grandes, barras de força do TIME DO USUÁRIO (1 número) e
+ * o CTA dourado JOGAR à direita. Quando bloqueado, JOGAR fica glass apagado.
+ */
 function ProximoJogoCard({
   partida,
   clubeCasa,
@@ -31,73 +37,65 @@ function ProximoJogoCard({
   forcaCasa,
   forcaFora,
   mandoCasa,
-  onEscalar,
   onJogar,
   jogarDesabilitado,
 }: ProximoJogoCardProps): React.JSX.Element {
+  const forcaUsuario = mandoCasa ? forcaCasa : forcaFora;
+  const forcaAdversario = mandoCasa ? forcaFora : forcaCasa;
+  const favorito = forcaUsuario.overall >= forcaAdversario.overall;
+  const estadio = clubeCasa.estadio?.nome ?? '';
+
   return (
-    <Painel destaque="primaria" acento={cores.primaria}>
+    <Painel acento={cores.secundaria}>
       <View style={styles.conteudo}>
-      <View style={styles.topoLinha}>
-        <Text style={styles.rodada}>Rodada {partida.rodada}</Text>
-        <View style={styles.mando}>
-          <Icone
-            nome={mandoCasa ? 'casa' : 'aviao'}
-            tamanho={13}
-            cor={cores.textoSecundario}
-          />
-          <Text style={styles.mandoTexto}>
-            {mandoCasa ? 'Em casa' : 'Fora'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.confronto}>
-        <View style={styles.time}>
-          <Escudo clubeId={clubeCasa.id} sigla={clubeCasa.sigla} tamanho={46} />
-          <Text style={styles.nome} numberOfLines={1}>
-            {clubeCasa.nome}
-          </Text>
-          <OverallBadge overall={Math.round(forcaCasa.overall)} size={24} />
+        <View style={styles.topo}>
+          <Text style={styles.label}>Próximo Jogo</Text>
+          <Text style={styles.data}>{formatarDataCurta(partida.data)}</Text>
         </View>
 
-        <Text style={styles.vs}>VS</Text>
+        <Text style={styles.siglas}>
+          {clubeCasa.sigla} <Text style={styles.x}>×</Text> {clubeFora.sigla}
+        </Text>
+        <Text style={styles.sub} numberOfLines={1}>
+          {estadio ? `${estadio} · ` : ''}
+          {mandoCasa ? 'casa' : 'fora'} · {favorito ? 'favorito' : 'azarão'}
+        </Text>
 
-        <View style={styles.time}>
-          <Escudo clubeId={clubeFora.id} sigla={clubeFora.sigla} tamanho={46} />
-          <Text style={styles.nome} numberOfLines={1}>
-            {clubeFora.nome}
-          </Text>
-          <OverallBadge overall={Math.round(forcaFora.overall)} size={24} />
-        </View>
-      </View>
+        <View style={styles.barrasRow}>
+          <View style={styles.barrasCol}>
+            {LINHAS.map(linha => {
+              const valor = Math.round(forcaUsuario[linha.chave]);
+              const pct = Math.max(0, Math.min(100, (valor / 99) * 100));
+              return (
+                <View key={linha.chave} style={styles.forcaLinha}>
+                  <Text style={styles.forcaLabel}>{linha.rotulo}</Text>
+                  <View style={styles.forcaTrack}>
+                    <View style={[styles.forcaFill, {width: `${pct}%`}]} />
+                  </View>
+                  <Text style={styles.forcaNum}>{valor}</Text>
+                </View>
+              );
+            })}
+          </View>
 
-      <BarrasForca
-        casa={forcaCasa}
-        fora={forcaFora}
-        corCasa={corDoTime(clubeCasa.id)}
-        corFora={corDoTime(clubeFora.id)}
-      />
-
-      <View style={styles.acoes}>
-        <View style={styles.acaoFlex}>
-          <Botao
-            variante="secundaria"
-            icone="tatica"
-            titulo="Escalar"
-            onPress={onEscalar}
-          />
-        </View>
-        <View style={styles.acaoFlex}>
-          <Botao
-            variante="ouro"
-            icone="jogar"
-            titulo="Jogar"
-            onPress={onJogar}
+          <Pressable
+            accessibilityRole="button"
             disabled={jogarDesabilitado}
-          />
+            onPress={onJogar}
+            style={({pressed}) => [
+              styles.jogar,
+              jogarDesabilitado ? styles.jogarDisabled : null,
+              pressed && !jogarDesabilitado ? styles.jogarPressed : null,
+            ]}>
+            <Text
+              style={[
+                styles.jogarTexto,
+                jogarDesabilitado ? styles.jogarTextoDisabled : null,
+              ]}>
+              JOGAR
+            </Text>
+          </Pressable>
         </View>
-      </View>
       </View>
     </Painel>
   );
@@ -107,56 +105,109 @@ export default ProximoJogoCard;
 
 const styles = StyleSheet.create({
   conteudo: {
-    gap: espaco.md,
+    gap: espaco.sm,
   },
-  topoLinha: {
+  topo: {
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  rodada: {
+  label: {
     color: cores.textoSecundario,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
+    letterSpacing: 1.2,
     textTransform: 'uppercase',
   },
-  mando: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  mandoTexto: {
-    color: cores.texto,
+  data: {
+    color: cores.secundaria,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
-  confronto: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  time: {
-    alignItems: 'center',
-    flex: 1,
-    gap: espaco.xs,
-  },
-  nome: {
+  siglas: {
     color: cores.texto,
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  vs: {
-    color: cores.textoSecundario,
-    fontSize: 16,
+    fontSize: 32,
     fontWeight: '900',
-    paddingHorizontal: espaco.sm,
+    letterSpacing: -0.5,
   },
-  acoes: {
+  x: {
+    color: cores.textoSecundario,
+  },
+  sub: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+  },
+  barrasRow: {
+    alignItems: 'stretch',
+    flexDirection: 'row',
+    gap: espaco.md,
+    marginTop: espaco.xs,
+  },
+  barrasCol: {
+    flex: 1,
+    gap: espaco.sm,
+    justifyContent: 'center',
+  },
+  forcaLinha: {
+    alignItems: 'center',
     flexDirection: 'row',
     gap: espaco.sm,
   },
-  acaoFlex: {
+  forcaLabel: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    width: 30,
+  },
+  forcaTrack: {
+    backgroundColor: cores.fundoBase,
+    borderRadius: raio.pill,
     flex: 1,
+    height: 9,
+    overflow: 'hidden',
+  },
+  forcaFill: {
+    backgroundColor: cores.primaria,
+    borderRadius: raio.pill,
+    height: '100%',
+  },
+  forcaNum: {
+    color: cores.texto,
+    fontSize: 16,
+    fontWeight: '900',
+    minWidth: 26,
+    textAlign: 'right',
+  },
+  jogar: {
+    alignItems: 'center',
+    backgroundColor: cores.secundaria,
+    borderRadius: raio.lg,
+    justifyContent: 'center',
+    paddingHorizontal: espaco.lg,
+    width: 116,
+    ...sombra.ouro,
+  },
+  jogarDisabled: {
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: 'rgba(255, 255, 255, 0.10)',
+    borderWidth: 1,
+    elevation: 0,
+    shadowOpacity: 0,
+    shadowRadius: 0,
+  },
+  jogarPressed: {
+    opacity: 0.92,
+    transform: [{scale: 0.975}],
+  },
+  jogarTexto: {
+    color: cores.contrastePrimaria,
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  jogarTextoDisabled: {
+    color: 'rgba(240, 244, 255, 0.32)',
   },
 });
