@@ -11,6 +11,17 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		9495AD6A0270D2AC2ABB3E35 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
+		FB6D10000000000000000001 /* gol1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000001 /* gol1.mp3 */; };
+		FB6D10000000000000000002 /* goladv.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000002 /* goladv.mp3 */; };
+		FB6D10000000000000000003 /* expulsao.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000003 /* expulsao.mp3 */; };
+		FB6D10000000000000000004 /* expulsaoadv.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000004 /* expulsaoadv.mp3 */; };
+		FB6D10000000000000000005 /* penalty.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000005 /* penalty.mp3 */; };
+		FB6D10000000000000000006 /* penaltyadv.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000006 /* penaltyadv.mp3 */; };
+		FB6D10000000000000000007 /* contusao.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000007 /* contusao.mp3 */; };
+		FB6D10000000000000000008 /* intervalo.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000008 /* intervalo.mp3 */; };
+		FB6D10000000000000000009 /* fimjogo.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000009 /* fimjogo.mp3 */; };
+		FB6D10000000000000000010 /* fimjogo2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000010 /* fimjogo2.mp3 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +35,16 @@
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = FOTEBALL/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = FOTEBALL/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		FA6D10000000000000000001 /* gol1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = gol1.mp3; path = ../src/audio/gol1.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000002 /* goladv.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = goladv.mp3; path = ../src/audio/goladv.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000003 /* expulsao.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = expulsao.mp3; path = ../src/audio/expulsao.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000004 /* expulsaoadv.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = expulsaoadv.mp3; path = ../src/audio/expulsaoadv.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000005 /* penalty.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = penalty.mp3; path = ../src/audio/penalty.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000006 /* penaltyadv.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = penaltyadv.mp3; path = ../src/audio/penaltyadv.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000007 /* contusao.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = contusao.mp3; path = ../src/audio/contusao.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000008 /* intervalo.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = intervalo.mp3; path = ../src/audio/intervalo.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000009 /* fimjogo.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = fimjogo.mp3; path = ../src/audio/fimjogo.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000010 /* fimjogo2.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = fimjogo2.mp3; path = ../src/audio/fimjogo2.mp3; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,6 +91,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07FAE1A68108700A75B9A /* FOTEBALL */,
+				FC6D1000000000000000000A /* Audio */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
@@ -95,6 +117,23 @@
 				5709B34CF0A7D63546082F79 /* Pods-FOTEBALL.release.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		FC6D1000000000000000000A /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				FA6D10000000000000000001 /* gol1.mp3 */,
+				FA6D10000000000000000002 /* goladv.mp3 */,
+				FA6D10000000000000000003 /* expulsao.mp3 */,
+				FA6D10000000000000000004 /* expulsaoadv.mp3 */,
+				FA6D10000000000000000005 /* penalty.mp3 */,
+				FA6D10000000000000000006 /* penaltyadv.mp3 */,
+				FA6D10000000000000000007 /* contusao.mp3 */,
+				FA6D10000000000000000008 /* intervalo.mp3 */,
+				FA6D10000000000000000009 /* fimjogo.mp3 */,
+				FA6D10000000000000000010 /* fimjogo2.mp3 */,
+			);
+			name = Audio;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -159,6 +198,17 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				9495AD6A0270D2AC2ABB3E35 /* PrivacyInfo.xcprivacy in Resources */,
+				FB6D10000000000000000001 /* gol1.mp3 in Resources */,
+				FB6D10000000000000000002 /* goladv.mp3 in Resources */,
+				FB6D10000000000000000003 /* expulsao.mp3 in Resources */,
+				FB6D10000000000000000004 /* expulsaoadv.mp3 in Resources */,
+				FB6D10000000000000000005 /* penalty.mp3 in Resources */,
+				FB6D10000000000000000006 /* penaltyadv.mp3 in Resources */,
+				FB6D10000000000000000007 /* contusao.mp3 in Resources */,
+				FB6D10000000000000000008 /* intervalo.mp3 in Resources */,
+				FB6D10000000000000000009 /* fimjogo.mp3 in Resources */,
+				FB6D10000000000000000010 /* fimjogo2.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -370,6 +420,10 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
@@ -377,8 +431,14 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
+				PODFILE_DIR = "$(SRCROOT)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				USE_HERMES = true;
 			};
 			name = Debug;
 		};
@@ -435,6 +495,10 @@
 					"\"$(inherited)\"",
 				);
 				MTL_ENABLE_DEBUG_INFO = NO;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
@@ -442,8 +506,13 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
+				PODFILE_DIR = "$(SRCROOT)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				SWIFT_ENABLE_EXPLICIT_MODULES = NO;
+				USE_HERMES = true;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
