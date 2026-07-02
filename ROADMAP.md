@@ -69,3 +69,42 @@
 
 ---
 *ROADMAP.md · gerado em 2026-07-01 · revisar prioridades a cada fase concluída*
+
+---
+
+## Imersão visual — Faces dos jogadores (pesquisa 2026-07)
+
+Duas rotas, que podem coexistir:
+
+| Rota | Fonte | Como | Licença |
+|------|-------|------|---------|
+| **Fotos reais** | sortitoutsi Cut-Out Player Faces Megapack — https://sortitoutsi.net/graphics/style/1/cut-out-player-faces (Brasil: `/graphics/browse/1/191`) | ~550k PNGs 250×250; download em lote via torrent ou repo GitHub `manuelinfosec/faces-download-fm` | ⚠️ Copyright de agências (Getty/IMAGO) + direito de imagem (Lei Pelé art. 87-A). **Não empacotar no app distribuído** — modelo Brasfoot: o app suporta "facepack" que o usuário importa manualmente |
+| **Avatares procedurais** (recomendada como padrão) | Componente próprio `<FaceJogador seed={jogador.id}>` em camadas SVG via `criarRNG(seed)` existente (ou DiceBear, CC0) | Zero assets, mesma cara sempre para o mesmo jogador, cobre novatos gerados pela engine, 100% offline | Risco zero |
+
+**Plano:** implementar `<FaceJogador>` procedural como padrão + pasta de facepack opcional (`Documents/faces/<jogadorId>.png` sobrepõe o avatar).
+
+## Conteúdo — Dados REAIS do seed (pesquisa 2026-07)
+
+Pipeline para regenerar `src/data/clubes.json` e `jogadores.json` com a temporada 2025/26 real:
+
+1. **Elencos A/B/C** (nome, posição, idade, valor de mercado): Transfermarkt via API local `felipeall/transfermarkt-api` (Docker) — única fonte com Série C jogador a jogador.
+2. **Overall estilo FIFA (A/B)**: pesdb.net — eFootball 2026 tem Brasileirão A e B licenciados pela CBF; escala igual FIFA (craques ~85–90).
+3. **Série C e sem match (~20-30%)**: regressão `overall = a + b·ln(valorEUR)` calibrada nos pares TM×PESDB das séries A/B; âncoras: topo da A → 87–89, mediana A → 74, B → 68, C → 61, piso → 52; ajuste ±2 por idade (pico 25–29).
+4. **Estádios** (nome/capacidade): wikitables da Wikipédia pt (CC BY-SA).
+5. **Gerador**: `scripts/gerarSeed.ts` (Node/TS + zod) emite os JSONs nos tipos de `domain.ts`; scrapers nunca entram no app — o jogo segue 100% offline. Lembrar: overall do seed = `calcularOverall − 5`.
+
+Esforço estimado: **2–4 dias**, custo zero. Também corrige de tabela: reputações invertidas, salários do Flamengo ~4× abaixo, estádios genéricos (itens 3.8 e "Inconsistências").
+Jurídico: uso pessoal/portfólio = risco baixo; publicação comercial = nomes fictícios + patches da comunidade.
+
+## Pacote imediato sugerido (maior impacto ÷ esforço)
+
+1. **1.1 + 1.2 + 1.6** — narração ligada ao feed, estatísticas ao vivo na partida e haptics: transforma a sensação de jogo numa sessão.
+2. **1.7 + 1.8** — notícias na Home + seed por temporada: dois quick-wins de coerência de mundo.
+3. **`<FaceJogador>` procedural** — imersão imediata sem risco legal, prepara o terreno para o facepack.
+4. **Piloto de dados reais (Série A)** — validar o pipeline com 20 clubes antes de B/C.
+
+## Feito recentemente (não refazer)
+
+Posse dinâmica real · estatísticas avançadas completas (xG/xA, passes por jogador, zonas, momentum) · súmula SofaScore com abas · substituições da IA (lesão/fadiga/placar) · falta+cartão no pênalti · aba Rodada ao vivo (placares da rodada) · sons por evento (10 áudios) · tema claro no app inteiro · sombras clean · narração clean por lado · escalação do apito persistida · público real da bilheteria · 4 fixes do review adversarial.
+
+> Nota de performance: o stress de 200k partidas subiu de ~4min para ~27min com as estatísticas por minuto — otimizar `matchStats.ts` (caches de médias por escalação) quando conveniente.
