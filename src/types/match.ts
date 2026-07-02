@@ -24,6 +24,8 @@ export interface EventoPartida {
   jogadorEntraId?: string;
   /** Autor da assistência no gol de jogo aberto (quando houver). */
   jogadorAssistenciaId?: string;
+  /** Quem cometeu a falta que originou o pênalti (eventos de pênalti/gol). */
+  jogadorFaltaId?: string;
   descricao: string;
   penaltiData?: PenaltiResultado;
   /** Pênalti do time do usuário aguardando cobrança interativa (não resolvido). */

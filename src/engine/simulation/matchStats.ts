@@ -204,6 +204,15 @@ function processarEventosDoMinuto(
   const porId = new Map(
     [...entrada.emCampoCasa, ...entrada.emCampoFora].map(j => [j.id, j]),
   );
+  // Faltas de pênalti que JÁ viraram cartão neste minuto: o cartão conta a
+  // falta sozinho — sem isto o mesmo lance somaria duas faltas.
+  const punidosComCartao = new Set(
+    entrada.eventosDoMinuto
+      .filter(
+        e => e.tipo === 'cartao_amarelo' || e.tipo === 'cartao_vermelho',
+      )
+      .map(e => e.jogadorId),
+  );
 
   for (const evento of entrada.eventosDoMinuto) {
     const ehCasa = evento.timeId === entrada.timeCasaId;
@@ -223,8 +232,12 @@ function processarEventosDoMinuto(
       time.grandesChances += 1;
       time.perigoSetores[corredor] = (time.perigoSetores[corredor] ?? 0) + 1;
       registrarFinalizacaoJogador(time, evento.jogadorId, true);
-      // Gol de pênalti: o adversário cometeu a falta que originou a cobrança.
-      if (evento.penaltiData) {
+      // Gol de pênalti: o adversário cometeu a falta que originou a cobrança
+      // (a menos que o infrator já tenha sido punido com cartão no lance).
+      if (
+        evento.penaltiData &&
+        !(evento.jogadorFaltaId && punidosComCartao.has(evento.jogadorFaltaId))
+      ) {
         adversario.faltas += 1;
       }
     } else if (evento.tipo === 'penalti') {
@@ -237,7 +250,11 @@ function processarEventosDoMinuto(
       time.finalizacoesNoAlvo += defendido ? 1 : 0;
       time.grandesChances += 1;
       time.perigoSetores[1] = (time.perigoSetores[1] ?? 0) + 0.8;
-      adversario.faltas += 1;
+      if (
+        !(evento.jogadorFaltaId && punidosComCartao.has(evento.jogadorFaltaId))
+      ) {
+        adversario.faltas += 1;
+      }
       registrarFinalizacaoJogador(time, evento.jogadorId, defendido);
     } else if (evento.tipo === 'chance_perdida') {
       const naArea = rng() < 0.7;

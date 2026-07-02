@@ -540,3 +540,136 @@ describe('estatísticas avançadas (acumuladas minuto a minuto)', () => {
     }
   });
 });
+
+describe('substituições da IA e falta do pênalti', () => {
+  const posicoesBanco: Position[] = ['GOL', 'ZAG', 'VOL', 'MEI', 'PE', 'CA'];
+
+  /** Clube com 11 titulares + 6 reservas no elenco (banco de verdade). */
+  function montarComBanco(prefixo: string, overall: number) {
+    const titulares = criarJogadores(prefixo, overall);
+    const reservas = criarJogadores(`${prefixo}res`, Math.max(40, overall - 3))
+      .slice(0, posicoesBanco.length)
+      .map((jogador, i) => ({
+        ...jogador,
+        clubeId: prefixo,
+        posicaoPrincipal: posicoesBanco[i] ?? 'CA',
+        posicoesSecundarias: [],
+      }));
+    const clube = criarClube(prefixo, titulares);
+    return {clube, jogadores: [...titulares, ...reservas]};
+  }
+
+  function simularSerieComBanco(total: number) {
+    const casa = montarComBanco('casa', 74);
+    const fora = montarComBanco('fora', 72);
+    return Array.from({length: total}, (_, i) =>
+      simularPartida({
+        timeCasa: casa.clube,
+        timeFora: fora.clube,
+        jogadoresCasa: casa.jogadores,
+        jogadoresFora: fora.jogadores,
+        seed: i + 1,
+      }),
+    );
+  }
+
+  it('deve repor lesionados da IA na grande maioria dos casos', () => {
+    const partidas = simularSerieComBanco(300);
+    let lesoes = 0;
+    let repostas = 0;
+    for (const partida of partidas) {
+      for (const lesao of partida.eventos.filter(e => e.tipo === 'lesao')) {
+        lesoes += 1;
+        const reposta = partida.eventos.some(
+          e =>
+            e.tipo === 'substituicao' &&
+            e.jogadorId === lesao.jogadorId &&
+            e.minuto >= lesao.minuto,
+        );
+        if (reposta) {
+          repostas += 1;
+        }
+      }
+    }
+    expect(lesoes).toBeGreaterThan(0);
+    expect(repostas / lesoes).toBeGreaterThan(0.85);
+  });
+
+  it('deve respeitar o teto de 5 trocas e nunca recolocar quem saiu', () => {
+    for (const partida of simularSerieComBanco(200)) {
+      for (const timeId of [partida.timeCasa, partida.timeFora]) {
+        const trocas = partida.eventos.filter(
+          e => e.tipo === 'substituicao' && e.timeId === timeId,
+        );
+        expect(trocas.length).toBeLessThanOrEqual(5);
+        const sairam = new Set(trocas.map(t => t.jogadorId));
+        expect(trocas.some(t => t.jogadorEntraId && sairam.has(t.jogadorEntraId))).toBe(
+          false,
+        );
+      }
+    }
+  });
+
+  it('não deve substituir no clube controlado pelo usuário', () => {
+    const casa = montarComBanco('casa', 74);
+    const fora = montarComBanco('fora', 72);
+    const clubeUsuario = {...casa.clube, controladoPorIA: false};
+    const partidas = Array.from({length: 150}, (_, i) =>
+      simularPartida({
+        timeCasa: clubeUsuario,
+        timeFora: fora.clube,
+        jogadoresCasa: casa.jogadores,
+        jogadoresFora: fora.jogadores,
+        seed: i + 1,
+      }),
+    );
+    for (const partida of partidas) {
+      expect(
+        partida.eventos.some(
+          e => e.tipo === 'substituicao' && e.timeId === partida.timeCasa,
+        ),
+      ).toBe(false);
+    }
+  });
+
+  it('não deve repor expulsos (regra do futebol)', () => {
+    for (const partida of simularSerieComBanco(250)) {
+      const lesionados = new Set(
+        partida.eventos.filter(e => e.tipo === 'lesao').map(e => e.jogadorId),
+      );
+      for (const vermelho of partida.eventos.filter(
+        e => e.tipo === 'cartao_vermelho',
+      )) {
+        if (lesionados.has(vermelho.jogadorId)) {
+          continue; // lesão do mesmo jogador pode ter reposição antes do vermelho
+        }
+        expect(
+          partida.eventos.some(
+            e =>
+              e.tipo === 'substituicao' &&
+              e.jogadorId === vermelho.jogadorId &&
+              e.minuto >= vermelho.minuto,
+          ),
+        ).toBe(false);
+      }
+    }
+  });
+
+  it('todo pênalti deve ter autor da falta no time adversário', () => {
+    const partidas = simularSerieComBanco(300);
+    let penaltis = 0;
+    for (const partida of partidas) {
+      const eventosPenalti = partida.eventos.filter(
+        e => e.tipo === 'penalti' || (e.tipo === 'gol' && e.penaltiData),
+      );
+      for (const evento of eventosPenalti) {
+        penaltis += 1;
+        expect(evento.jogadorFaltaId).toBeDefined();
+        // O infrator é do time ADVERSÁRIO de quem cobra.
+        const prefixoCobrador = evento.timeId;
+        expect(evento.jogadorFaltaId?.startsWith(prefixoCobrador)).toBe(false);
+      }
+    }
+    expect(penaltis).toBeGreaterThan(0);
+  });
+});

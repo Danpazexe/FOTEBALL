@@ -117,35 +117,39 @@ export const gradientes = {
 };
 
 /** Sombras/elevação reutilizáveis (iOS shadow* + Android elevation). */
+/**
+ * Sombras CLEAN (pedido do usuário): quase planas — uma pluma de profundidade
+ * em vez de brilho. Nada de glow forte; a hierarquia vem de borda + fundo.
+ */
 export const sombra = {
   suave: {
     shadowColor: '#0F1E3D',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
   card: {
     shadowColor: '#0F1E3D',
-    shadowOffset: {width: 0, height: 5},
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.07,
+    shadowRadius: 6,
+    elevation: 2,
   },
   glow: {
     shadowColor: '#12B76A',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    elevation: 8,
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  // Brilho dourado para botões/elementos premium.
+  // Toque dourado discreto para elementos premium.
   ouro: {
     shadowColor: '#E5A400',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.14,
+    shadowRadius: 7,
+    elevation: 3,
   },
 };
 

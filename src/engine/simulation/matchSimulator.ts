@@ -2,6 +2,7 @@ import type {
   Clube,
   EstatisticasPartida,
   EventoPartida,
+  Formacao,
   Partida,
   Player,
   Position,
@@ -30,6 +31,7 @@ import {
   limitar,
   type RandomGenerator,
 } from './rng';
+import {processarSubstituicoesIA} from './substituicoesIA';
 import {calcularForcaTime, type ForcaTime} from './teamStrength';
 
 export interface SimularPartidaInput {
@@ -334,6 +336,60 @@ function simularPenalti(
   return {evento, gol: convertido};
 }
 
+/**
+ * A falta que origina o pênalti: um defensor do time INFRATOR é apontado
+ * (mesmo perfil de quem leva cartão — zaga/laterais/volante que desarmam
+ * muito) e pode ser punido: amarelo na maioria das punições, vermelho direto
+ * no lance desesperado e segundo amarelo expulsando. ~55% das faltas de
+ * pênalti passam sem cartão (o pênalti já é a punição).
+ */
+function simularFaltaDoPenalti(
+  minuto: number,
+  clubeInfrator: Clube,
+  jogadoresInfratores: Player[],
+  rng: RandomGenerator,
+  amarelosPartida: Map<string, number>,
+): {ofensor: Player; eventoCartao?: EventoPartida} {
+  const ofensor = escolherJogadorPonderado(jogadoresInfratores, rng, atleta => {
+    const base = ['ZAG', 'LD', 'LE', 'VOL'].includes(atleta.posicaoPrincipal)
+      ? 2
+      : 1;
+    return base * (0.6 + atleta.atributos.desarme / 100);
+  });
+
+  const sorteio = rng();
+  if (sorteio >= 0.45) {
+    return {ofensor};
+  }
+  const jaTinhaAmarelo = (amarelosPartida.get(ofensor.id) ?? 0) >= 1;
+  const vermelhoDireto = sorteio < 0.06;
+  if (vermelhoDireto || jaTinhaAmarelo) {
+    return {
+      ofensor,
+      eventoCartao: criarEvento(
+        minuto,
+        'cartao_vermelho',
+        clubeInfrator.id,
+        ofensor,
+        jaTinhaAmarelo && !vermelhoDireto
+          ? `${ofensor.nome} cometeu o pênalti, recebeu o segundo amarelo e foi expulso.`
+          : `${ofensor.nome} cometeu o pênalti e recebeu cartão vermelho.`,
+      ),
+    };
+  }
+  amarelosPartida.set(ofensor.id, (amarelosPartida.get(ofensor.id) ?? 0) + 1);
+  return {
+    ofensor,
+    eventoCartao: criarEvento(
+      minuto,
+      'cartao_amarelo',
+      clubeInfrator.id,
+      ofensor,
+      `${ofensor.nome} cometeu o pênalti e recebeu cartão amarelo.`,
+    ),
+  };
+}
+
 function simularLesao(
   minuto: number,
   clube: Clube,
@@ -400,6 +456,20 @@ export interface EstadoPartidaAoVivo {
   rngEstatisticas: RandomGenerator;
   /** Estatísticas avançadas acumuladas minuto a minuto (ver matchStats). */
   estatisticas: EstatisticasAoVivo;
+  /** RNG das decisões de substituição da IA (ver substituicoesIA). */
+  rngSubs: RandomGenerator;
+  /** Formações AO VIVO dos clubes da IA (trocas aplicadas pela engine). */
+  formacoesAoVivo: Map<string, Formacao>;
+  /** Expulsos na partida — NUNCA têm reposição (regra do futebol). */
+  expulsos: Set<string>;
+  /** Lesões aguardando a reposição da IA. */
+  lesionadosPendentes: Array<{clubeId: string; jogadorId: string}>;
+  /** Substituições já feitas por clube (teto de 5). */
+  subsIA: Map<string, number>;
+  /** Quem já saiu não volta (inclui trocas da IA). */
+  sairamNaPartida: Set<string>;
+  /** Clubes que já fizeram a troca ofensiva de fim de jogo. */
+  cartadaOfensiva: Set<string>;
   minuto: number;
 }
 
@@ -409,6 +479,9 @@ export interface ContextoMinuto {
   timeFora: Clube;
   jogadoresCasa: Player[];
   jogadoresFora: Player[];
+  /** Elencos COMPLETOS (banco incluso) — usados pelas trocas da IA. */
+  elencoCasa: Player[];
+  elencoFora: Player[];
   /** Força ATUAL das equipes (já com fadiga, expulsões e substituições). */
   forcaCasa: ForcaTime;
   forcaFora: ForcaTime;
@@ -435,6 +508,13 @@ export function iniciarPartidaAoVivo(seed: number): EstadoPartidaAoVivo {
     posseAcumuladaCasa: 0,
     rngEstatisticas,
     estatisticas: criarEstatisticasAoVivo(rngEstatisticas),
+    rngSubs: criarRNGComSeed(seed + 303_949),
+    formacoesAoVivo: new Map<string, Formacao>(),
+    expulsos: new Set<string>(),
+    lesionadosPendentes: [],
+    subsIA: new Map<string, number>(),
+    sairamNaPartida: new Set<string>(),
+    cartadaOfensiva: new Set<string>(),
     minuto: 0,
   };
 }
@@ -478,14 +558,20 @@ export function calcularContextoMinuto(
   const opcoes = estado
     ? {indisponiveis: estado.indisponiveis, condicaoAtual: estado.condicaoAtual}
     : undefined;
+  // Formações AO VIVO: as trocas da IA vivem no estado (a formação persistida
+  // do clube não muda); o time do usuário troca via store (formacaoAtual).
+  const formacaoCasa =
+    estado?.formacoesAoVivo.get(timeCasa.id) ?? timeCasa.formacaoAtual;
+  const formacaoFora =
+    estado?.formacoesAoVivo.get(timeFora.id) ?? timeFora.formacaoAtual;
   const forcaCasa = calcularForcaTime(
-    timeCasa.formacaoAtual,
+    formacaoCasa,
     jogadoresCasa,
     timeCasa.taticaAtual,
     opcoes,
   );
   const forcaFora = calcularForcaTime(
-    timeFora.formacaoAtual,
+    formacaoFora,
     jogadoresFora,
     timeFora.taticaAtual,
     opcoes,
@@ -495,13 +581,12 @@ export function calcularContextoMinuto(
   // EM CAMPO agora — não o elenco inteiro. Quem foi substituído, expulso ou
   // lesionado não marca/leva cartão, e a súmula credita só quem jogou.
   const indisponiveis = estado?.indisponiveis;
-  const titularesEmCampo = (clube: Clube, todos: Player[]): Player[] => {
+  const titularesEmCampo = (formacao: Formacao, todos: Player[]): Player[] => {
     const porId = new Map(todos.map(jogador => [jogador.id, jogador]));
-    const titulares = clube.formacaoAtual?.titulares ?? [];
     // Exclui também lesionados/suspensos PRÉ-jogo (não só os que saíram durante
-    // a partida): clube da IA nunca troca a escalação, e um suspenso escalado
-    // não pode ganhar passes/finalizações nas estatísticas de quem jogou.
-    return titulares
+    // a partida): um suspenso escalado não pode ganhar passes/finalizações nas
+    // estatísticas de quem jogou.
+    return formacao.titulares
       .map(titular => porId.get(titular.jogadorId))
       .filter(
         (jogador): jogador is Player =>
@@ -511,14 +596,16 @@ export function calcularContextoMinuto(
           !indisponiveis?.has(jogador.id),
       );
   };
-  const emCampoCasa = titularesEmCampo(timeCasa, jogadoresCasa);
-  const emCampoFora = titularesEmCampo(timeFora, jogadoresFora);
+  const emCampoCasa = titularesEmCampo(formacaoCasa, jogadoresCasa);
+  const emCampoFora = titularesEmCampo(formacaoFora, jogadoresFora);
 
   return {
     timeCasa,
     timeFora,
     jogadoresCasa: emCampoCasa,
     jogadoresFora: emCampoFora,
+    elencoCasa: jogadoresCasa,
+    elencoFora: jogadoresFora,
     forcaCasa,
     forcaFora,
     probabilidades: calcularProbabilidades(
@@ -746,6 +833,7 @@ export function simularMinuto(
     );
     if (ev.tipo === 'cartao_vermelho') {
       estado.indisponiveis.add(ev.jogadorId);
+      estado.expulsos.add(ev.jogadorId);
     }
     adicionar(ev);
   }
@@ -760,19 +848,52 @@ export function simularMinuto(
     );
     if (ev.tipo === 'cartao_vermelho') {
       estado.indisponiveis.add(ev.jogadorId);
+      estado.expulsos.add(ev.jogadorId);
     }
     adicionar(ev);
   }
 
   if (rng() < p.probPenaltiCasaPorMinuto) {
+    // A falta vem ANTES da cobrança: infrator do time de fora, com cartão
+    // quando o lance merece (vermelho tira o jogador do resto do jogo).
+    const falta = simularFaltaDoPenalti(
+      minuto,
+      ctx.timeFora,
+      emCampoFora,
+      rng,
+      estado.amarelosPartida,
+    );
+    if (falta.eventoCartao) {
+      if (falta.eventoCartao.tipo === 'cartao_vermelho') {
+        estado.indisponiveis.add(falta.eventoCartao.jogadorId);
+        estado.expulsos.add(falta.eventoCartao.jogadorId);
+      }
+      adicionar(falta.eventoCartao);
+    }
     const penalti = simularPenalti(minuto, ctx.timeCasa, emCampoCasa, ctx.goleiroFora, rng);
+    penalti.evento.jogadorFaltaId = falta.ofensor.id;
     if (penalti.gol) {
       estado.placarCasa += 1;
     }
     adicionar(penalti.evento);
   }
   if (rng() < p.probPenaltiForaPorMinuto) {
+    const falta = simularFaltaDoPenalti(
+      minuto,
+      ctx.timeCasa,
+      emCampoCasa,
+      rng,
+      estado.amarelosPartida,
+    );
+    if (falta.eventoCartao) {
+      if (falta.eventoCartao.tipo === 'cartao_vermelho') {
+        estado.indisponiveis.add(falta.eventoCartao.jogadorId);
+        estado.expulsos.add(falta.eventoCartao.jogadorId);
+      }
+      adicionar(falta.eventoCartao);
+    }
     const penalti = simularPenalti(minuto, ctx.timeFora, emCampoFora, ctx.goleiroCasa, rng);
+    penalti.evento.jogadorFaltaId = falta.ofensor.id;
     if (penalti.gol) {
       estado.placarFora += 1;
     }
@@ -782,12 +903,26 @@ export function simularMinuto(
   if (rng() < p.probLesaoCasaPorMinuto) {
     const ev = simularLesao(minuto, ctx.timeCasa, emCampoCasa, rng);
     estado.indisponiveis.add(ev.jogadorId);
+    estado.lesionadosPendentes.push({
+      clubeId: ctx.timeCasa.id,
+      jogadorId: ev.jogadorId,
+    });
     adicionar(ev);
   }
   if (rng() < p.probLesaoForaPorMinuto) {
     const ev = simularLesao(minuto, ctx.timeFora, emCampoFora, rng);
     estado.indisponiveis.add(ev.jogadorId);
+    estado.lesionadosPendentes.push({
+      clubeId: ctx.timeFora.id,
+      jogadorId: ev.jogadorId,
+    });
     adicionar(ev);
+  }
+
+  // Substituições da IA (lesão/fadiga/placar): o técnico adversário trabalha.
+  // A troca entra na súmula e vale a partir do próximo contexto de minuto.
+  for (const troca of processarSubstituicoesIA(estado, ctx)) {
+    adicionar(troca);
   }
 
   if (rng() < p.probChanceNarrativaPorMinuto) {
