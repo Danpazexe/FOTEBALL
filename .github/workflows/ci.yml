@@ -90,3 +90,44 @@ jobs:
             exit 1
           fi
           echo "Todas as checagens passaram. ✅"
+
+  telegram-notify:
+    name: Telegram notification
+    if: always()
+    needs: [quality, ci-status]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enviar notificação para Telegram
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${TELEGRAM_CHAT_ID}" ]; then
+            echo "Secrets TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID não configurados. Pulando Telegram."
+            exit 0
+          fi
+
+          if [ "${QUALITY_RESULT}" = "success" ]; then
+            ICON="✅"
+            TITLE="CI passou"
+          else
+            ICON="❌"
+            TITLE="CI falhou"
+          fi
+
+          TEXT="${ICON} FOTEBALL — ${TITLE}
+Workflow: ${{ github.workflow }}
+Evento: ${{ github.event_name }}
+Ref: ${{ github.ref_name }}
+Commit: ${{ github.sha }}
+Run: ${RUN_URL}"
+
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${TEXT}" \
+            >/dev/null
