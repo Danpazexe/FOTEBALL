@@ -254,7 +254,8 @@ const styles = StyleSheet.create({
     paddingTop: espaco.xl,
   },
   favoritismo: {
-    color: cores.secundariaClara,
+    // Dourado padrão: a variante "clara" era para fundo escuro e some no claro.
+    color: cores.secundaria,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.5,

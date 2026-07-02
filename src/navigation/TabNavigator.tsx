@@ -41,7 +41,8 @@ export function TabNavigator() {
         tabBarActiveTintColor: cores.primaria,
         tabBarInactiveTintColor: cores.textoSecundario,
         tabBarStyle: {
-          backgroundColor: 'rgba(8, 11, 20, 0.94)',
+          // Tab bar clara (modelo SofaScore): superfície branca + fio sutil.
+          backgroundColor: cores.superficieElevada,
           borderTopColor: cores.bordaTransl,
           borderTopWidth: 1,
           elevation: 0,

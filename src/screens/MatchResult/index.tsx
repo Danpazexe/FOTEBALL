@@ -26,7 +26,7 @@ import {
   calcularNotaPartida,
   type ResultadoJogador,
 } from '../../engine/simulation/matchRating';
-import {corDoTime, espaco, raio} from '../../theme';
+import {acentos, cores, corDoTime, espaco, raio, suaves} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
@@ -41,29 +41,10 @@ import type {
 
 const DURACAO = 90;
 
-/** Paleta CLARA da súmula (modelo SofaScore) — local desta tela; o resto do
- * app segue o tema escuro premium de `src/theme`. */
-const CLARO = {
-  fundo: '#F1F3F7',
-  card: '#FFFFFF',
-  borda: '#E5E9F0',
-  divisor: '#EFF2F6',
-  texto: '#17233B',
-  textoSec: '#7C8698',
-  track: '#EDF0F4',
-  verde: '#12B76A',
-  verdeSuave: '#E4F7EE',
-  amarelo: '#C99A06',
-  amareloSuave: '#FFF4D6',
-  vermelho: '#E5484D',
-  vermelhoSuave: '#FFECEE',
-  azul: '#1D6FE0',
-  azulSuave: '#E7F0FE',
-  laranja: '#D97A00',
-  laranjaSuave: '#FFF1DE',
-  rosa: '#D6336C',
-  rosaSuave: '#FBE7F0',
-} as const;
+/** Tons utilitários da súmula sem equivalente exato nos tokens globais
+ * (`src/theme`): divisor de linhas e trilho de barras/abas do modelo. */
+const DIVISOR = '#EFF2F6';
+const TRACK = '#EDF0F4';
 
 type LinhaJogador = {
   jogador: Player;
@@ -85,29 +66,29 @@ function nomeCurto(jogador: Player): string {
  * meio laranja, pontas rosa, centroavante vermelho). */
 function corPosicao(posicao: Position): {fundo: string; texto: string} {
   if (posicao === 'GOL') {
-    return {fundo: CLARO.amareloSuave, texto: CLARO.amarelo};
+    return {fundo: suaves.amarelo, texto: acentos.amarelo};
   }
   if (['ZAG', 'LD', 'LE'].includes(posicao)) {
-    return {fundo: CLARO.azulSuave, texto: CLARO.azul};
+    return {fundo: suaves.azul, texto: acentos.azul};
   }
   if (['VOL', 'MC', 'MEI'].includes(posicao)) {
-    return {fundo: CLARO.laranjaSuave, texto: CLARO.laranja};
+    return {fundo: suaves.laranja, texto: acentos.laranja};
   }
   if (['PD', 'PE', 'SA'].includes(posicao)) {
-    return {fundo: CLARO.rosaSuave, texto: CLARO.rosa};
+    return {fundo: suaves.rosa, texto: acentos.rosa};
   }
-  return {fundo: CLARO.vermelhoSuave, texto: CLARO.vermelho};
+  return {fundo: suaves.vermelho, texto: acentos.vermelho};
 }
 
 /** Pill de nota (modelo): verde para boa, amarelo regular, vermelho ruim. */
 function corNotaPill(nota: number): {fundo: string; texto: string} {
   if (nota >= 7.5) {
-    return {fundo: CLARO.verdeSuave, texto: CLARO.verde};
+    return {fundo: suaves.verde, texto: acentos.verde};
   }
   if (nota >= 6) {
-    return {fundo: CLARO.amareloSuave, texto: CLARO.amarelo};
+    return {fundo: suaves.amarelo, texto: acentos.amarelo};
   }
-  return {fundo: CLARO.vermelhoSuave, texto: CLARO.vermelho};
+  return {fundo: suaves.vermelho, texto: acentos.vermelho};
 }
 
 function rotuloGramado(nivelInfraestrutura: number): string {
@@ -154,18 +135,18 @@ function iconeEvento(tipo: EventoPartida['tipo']): IconeNome {
 
 function corEvento(tipo: EventoPartida['tipo']): string {
   if (tipo === 'gol') {
-    return CLARO.verde;
+    return acentos.verde;
   }
   if (tipo === 'cartao_amarelo') {
-    return CLARO.amarelo;
+    return acentos.amarelo;
   }
   if (tipo === 'cartao_vermelho' || tipo === 'lesao') {
-    return CLARO.vermelho;
+    return acentos.vermelho;
   }
   if (tipo === 'penalti') {
-    return CLARO.laranja;
+    return acentos.laranja;
   }
-  return CLARO.textoSec;
+  return cores.textoSecundario;
 }
 
 /**
@@ -435,7 +416,7 @@ function MapaPosseZonas({
         ))}
         <View style={styles.mapaMeioCampo} />
       </View>
-      <Icone nome="seta-cima" tamanho={14} cor={CLARO.textoSec} />
+      <Icone nome="seta-cima" tamanho={14} cor={cores.textoSecundario} />
     </View>
   );
 }
@@ -470,7 +451,7 @@ function MapaPerigoSetores({
           />
         ))}
       </View>
-      <Icone nome="seta-cima" tamanho={14} cor={CLARO.textoSec} />
+      <Icone nome="seta-cima" tamanho={14} cor={cores.textoSecundario} />
     </View>
   );
 }
@@ -508,13 +489,13 @@ function TabelaJogadores({
             {nomeCurto(jogador)}
           </Text>
           {destaque ? (
-            <Icone nome="trofeu" tamanho={11} cor={CLARO.amarelo} />
+            <Icone nome="trofeu" tamanho={11} cor={acentos.amarelo} />
           ) : null}
           {linha.entrou ? (
-            <Icone nome="seta-cima" tamanho={11} cor={CLARO.verde} />
+            <Icone nome="seta-cima" tamanho={11} cor={acentos.verde} />
           ) : null}
           {linha.saiu ? (
-            <Icone nome="seta-baixo" tamanho={11} cor={CLARO.vermelho} />
+            <Icone nome="seta-baixo" tamanho={11} cor={acentos.vermelho} />
           ) : null}
         </View>
         {jogou && linha.nota !== null ? (
@@ -619,7 +600,7 @@ function MatchResult(): React.JSX.Element {
       <View style={styles.tela}>
         <SafeAreaView style={styles.telaSafe}>
           <Pressable style={styles.voltar} onPress={() => nav.goBack()}>
-            <Icone nome="voltar" tamanho={18} cor={CLARO.texto} />
+            <Icone nome="voltar" tamanho={18} cor={cores.texto} />
             <Text style={styles.voltarTexto}>Voltar</Text>
           </Pressable>
           <TextoVazio>Partida não encontrada.</TextoVazio>
@@ -991,7 +972,7 @@ function MatchResult(): React.JSX.Element {
           contentContainerStyle={styles.conteudo}
           showsVerticalScrollIndicator={false}>
           <Pressable style={styles.voltar} onPress={() => nav.goBack()}>
-            <Icone nome="voltar" tamanho={18} cor={CLARO.texto} />
+            <Icone nome="voltar" tamanho={18} cor={cores.texto} />
             <Text style={styles.voltarTexto}>Voltar</Text>
           </Pressable>
 
@@ -1021,7 +1002,7 @@ function MatchResult(): React.JSX.Element {
             <View style={styles.metaChips}>
               {estadio ? (
                 <View style={styles.metaChip}>
-                  <Icone nome="estadio" tamanho={13} cor={CLARO.textoSec} />
+                  <Icone nome="estadio" tamanho={13} cor={cores.textoSecundario} />
                   <Text style={styles.metaChipTexto} numberOfLines={1}>
                     {estadio.nome}
                   </Text>
@@ -1029,7 +1010,7 @@ function MatchResult(): React.JSX.Element {
               ) : null}
               {est?.publico !== undefined ? (
                 <View style={styles.metaChip}>
-                  <Icone nome="publico" tamanho={13} cor={CLARO.textoSec} />
+                  <Icone nome="publico" tamanho={13} cor={cores.textoSecundario} />
                   <Text style={styles.metaChipTexto}>
                     {est.publico.toLocaleString('pt-BR')}
                   </Text>
@@ -1040,7 +1021,7 @@ function MatchResult(): React.JSX.Element {
                   <Icone
                     nome={iconeClima(est.clima)}
                     tamanho={13}
-                    cor={CLARO.textoSec}
+                    cor={cores.textoSecundario}
                   />
                   <Text style={styles.metaChipTexto}>
                     {est.clima} · {est.temperatura}°C
@@ -1049,7 +1030,7 @@ function MatchResult(): React.JSX.Element {
               ) : null}
               {estadio ? (
                 <View style={styles.metaChip}>
-                  <Icone nome="gramado" tamanho={13} cor={CLARO.textoSec} />
+                  <Icone nome="gramado" tamanho={13} cor={cores.textoSecundario} />
                   <Text style={styles.metaChipTexto}>
                     {rotuloGramado(estadio.nivelInfraestrutura)}
                   </Text>
@@ -1097,7 +1078,7 @@ function MatchResult(): React.JSX.Element {
 
 const styles = StyleSheet.create({
   tela: {
-    backgroundColor: CLARO.fundo,
+    backgroundColor: cores.fundo,
     flex: 1,
   },
   telaSafe: {
@@ -1115,13 +1096,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   voltarTexto: {
-    color: CLARO.texto,
+    color: cores.texto,
     fontSize: 14,
     fontWeight: '700',
   },
   placarCard: {
-    backgroundColor: CLARO.card,
-    borderColor: CLARO.borda,
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
     borderRadius: raio.lg,
     borderWidth: 1,
     gap: espaco.sm,
@@ -1144,7 +1125,7 @@ const styles = StyleSheet.create({
     width: 4,
   },
   placarTime: {
-    color: CLARO.texto,
+    color: cores.texto,
     flex: 1,
     fontSize: 15,
     fontWeight: '800',
@@ -1153,13 +1134,13 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   placarNumeros: {
-    color: CLARO.texto,
+    color: cores.texto,
     fontSize: 28,
     fontWeight: '900',
     letterSpacing: -0.5,
   },
   placarMeta: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
@@ -1172,7 +1153,7 @@ const styles = StyleSheet.create({
   },
   metaChip: {
     alignItems: 'center',
-    backgroundColor: CLARO.fundo,
+    backgroundColor: cores.fundo,
     borderRadius: raio.pill,
     flexDirection: 'row',
     gap: 4,
@@ -1181,12 +1162,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   metaChipTexto: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 11,
     fontWeight: '700',
   },
   abas: {
-    backgroundColor: CLARO.track,
+    backgroundColor: TRACK,
     borderRadius: raio.pill,
     flexDirection: 'row',
     padding: 3,
@@ -1198,7 +1179,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   abaAtiva: {
-    backgroundColor: CLARO.card,
+    backgroundColor: cores.superficie,
     shadowColor: '#0F1E3D',
     shadowOffset: {width: 0, height: 1},
     shadowOpacity: 0.12,
@@ -1206,23 +1187,23 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   abaTexto: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 13,
     fontWeight: '700',
   },
   abaTextoAtiva: {
-    color: CLARO.texto,
+    color: cores.texto,
   },
   card: {
-    backgroundColor: CLARO.card,
-    borderColor: CLARO.borda,
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
     borderRadius: raio.lg,
     borderWidth: 1,
     gap: espaco.sm,
     padding: espaco.lg,
   },
   cardTitulo: {
-    color: CLARO.texto,
+    color: cores.texto,
     fontSize: 15,
     fontWeight: '800',
   },
@@ -1241,7 +1222,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   craqueNome: {
-    color: CLARO.texto,
+    color: cores.texto,
     fontSize: 16,
     fontWeight: '900',
   },
@@ -1251,7 +1232,7 @@ const styles = StyleSheet.create({
     gap: espaco.xs,
   },
   craqueDetalhe: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 12,
     fontWeight: '600',
   },
@@ -1261,8 +1242,8 @@ const styles = StyleSheet.create({
   },
   craqueChip: {
     alignItems: 'flex-start',
-    backgroundColor: CLARO.card,
-    borderColor: CLARO.borda,
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
     borderRadius: raio.md,
     borderWidth: 1,
     flex: 1,
@@ -1271,26 +1252,26 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   craqueChipNota: {
-    backgroundColor: CLARO.verdeSuave,
-    borderColor: CLARO.verdeSuave,
+    backgroundColor: suaves.verde,
+    borderColor: suaves.verde,
   },
   craqueChipValor: {
-    color: CLARO.texto,
+    color: cores.texto,
     fontSize: 15,
     fontWeight: '900',
   },
   craqueChipValorNota: {
-    color: CLARO.verde,
+    color: acentos.verde,
     fontSize: 15,
     fontWeight: '900',
   },
   craqueChipRotulo: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 9,
     fontWeight: '700',
   },
   craqueChipRotuloNota: {
-    color: CLARO.verde,
+    color: acentos.verde,
     fontSize: 9,
     fontWeight: '700',
   },
@@ -1331,7 +1312,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   estatValor: {
-    color: CLARO.texto,
+    color: cores.texto,
     fontSize: 13,
     fontWeight: '900',
     minWidth: 48,
@@ -1340,7 +1321,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   estatRotulo: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     flex: 1,
     fontSize: 12,
     fontWeight: '600',
@@ -1351,7 +1332,7 @@ const styles = StyleSheet.create({
     gap: espaco.sm,
   },
   estatTrack: {
-    backgroundColor: CLARO.track,
+    backgroundColor: TRACK,
     borderRadius: raio.pill,
     flex: 1,
     flexDirection: 'row',
@@ -1366,7 +1347,7 @@ const styles = StyleSheet.create({
     flex: 0.0001,
   },
   momentumChart: {
-    backgroundColor: CLARO.fundo,
+    backgroundColor: cores.fundo,
     borderRadius: raio.md,
     flexDirection: 'row',
     height: 96,
@@ -1389,7 +1370,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: espaco.sm,
   },
   momentumEixoTexto: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 10,
   },
   momentumLegenda: {
@@ -1404,7 +1385,7 @@ const styles = StyleSheet.create({
     width: 8,
   },
   legendaTexto: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 11,
     fontWeight: '700',
     marginRight: espaco.sm,
@@ -1414,14 +1395,14 @@ const styles = StyleSheet.create({
   },
   timelineLinha: {
     alignItems: 'center',
-    borderBottomColor: CLARO.divisor,
+    borderBottomColor: DIVISOR,
     borderBottomWidth: 1,
     flexDirection: 'row',
     gap: espaco.sm,
     paddingVertical: 7,
   },
   timelineMinuto: {
-    color: CLARO.texto,
+    color: cores.texto,
     fontSize: 12,
     fontWeight: '900',
     minWidth: 28,
@@ -1432,18 +1413,18 @@ const styles = StyleSheet.create({
     width: 3,
   },
   timelineTexto: {
-    color: CLARO.texto,
+    color: cores.texto,
     flex: 1,
     fontSize: 12,
     fontWeight: '500',
   },
   timelineSigla: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 10,
     fontWeight: '800',
   },
   divisor: {
-    backgroundColor: CLARO.divisor,
+    backgroundColor: DIVISOR,
     height: 1,
   },
   jogadorLinha: {
@@ -1453,7 +1434,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   jogadorLinhaDestaque: {
-    backgroundColor: CLARO.amareloSuave,
+    backgroundColor: suaves.amarelo,
     borderRadius: raio.sm,
   },
   posBadge: {
@@ -1480,13 +1461,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   jogadorNome: {
-    color: CLARO.texto,
+    color: cores.texto,
     flexShrink: 1,
     fontSize: 12,
     fontWeight: '600',
   },
   jogadorTraco: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 11,
     minWidth: 34,
     textAlign: 'center',
@@ -1503,21 +1484,21 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   jogadorCelula: {
-    color: CLARO.texto,
+    color: cores.texto,
     fontSize: 10,
     fontWeight: '700',
     minWidth: 20,
     textAlign: 'center',
   },
   jogadorCelulaLarga: {
-    color: CLARO.texto,
+    color: cores.texto,
     fontSize: 10,
     fontWeight: '700',
     minWidth: 42,
     textAlign: 'center',
   },
   tabelaHeaderTexto: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 9,
     fontWeight: '800',
   },
@@ -1526,7 +1507,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   bancoTitulo: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 9,
     fontWeight: '800',
     marginBottom: 2,
@@ -1542,14 +1523,14 @@ const styles = StyleSheet.create({
     gap: espaco.xs,
   },
   mapaTitulo: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 11,
     fontWeight: '800',
   },
   mapaCampo: {
     aspectRatio: 0.72,
-    backgroundColor: CLARO.fundo,
-    borderColor: CLARO.borda,
+    backgroundColor: cores.fundo,
+    borderColor: cores.borda,
     borderRadius: raio.md,
     borderWidth: 1,
     overflow: 'hidden',
@@ -1563,12 +1544,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   mapaZona: {
-    borderColor: CLARO.card,
+    borderColor: cores.superficie,
     borderWidth: 0.5,
     flex: 1,
   },
   mapaMeioCampo: {
-    backgroundColor: CLARO.borda,
+    backgroundColor: cores.borda,
     height: 1,
     left: 0,
     position: 'absolute',
@@ -1576,19 +1557,19 @@ const styles = StyleSheet.create({
     top: '50%',
   },
   mapaLegenda: {
-    color: CLARO.textoSec,
+    color: cores.textoSecundario,
     fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
   },
   botaoContinuar: {
     alignItems: 'center',
-    backgroundColor: CLARO.azul,
+    backgroundColor: acentos.azul,
     borderRadius: raio.md,
     paddingVertical: 14,
   },
   botaoContinuarTexto: {
-    color: '#FFFFFF',
+    color: cores.contrastePrimaria,
     fontSize: 15,
     fontWeight: '800',
   },

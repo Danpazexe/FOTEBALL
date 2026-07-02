@@ -3,7 +3,15 @@ import {StyleSheet, Text, View} from 'react-native';
 
 import Escudo from '../Escudo';
 import Icone, {type IconeNome} from '../Icone';
-import {contrasteTexto, cores, espaco, raio, sombra} from '../../theme';
+import {
+  acentos,
+  contrasteTexto,
+  cores,
+  espaco,
+  raio,
+  sombra,
+  suaves,
+} from '../../theme';
 
 export type LadoEvento = 'casa' | 'fora' | 'neutro';
 
@@ -166,7 +174,7 @@ const styles = StyleSheet.create({
     paddingVertical: espaco.xs,
   },
   marcoFim: {
-    backgroundColor: 'rgba(0,229,160,0.12)',
+    backgroundColor: suaves.verde,
     borderRadius: raio.md,
     paddingHorizontal: espaco.md,
     paddingVertical: espaco.sm,
@@ -211,7 +219,7 @@ const styles = StyleSheet.create({
     ...sombra.suave,
   },
   bolhaGol: {
-    backgroundColor: `${cores.secundaria}1F`,
+    backgroundColor: suaves.amarelo,
   },
   bolhaCasa: {
     borderBottomRightRadius: raio.md,
@@ -255,7 +263,8 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   descricaoGol: {
-    color: cores.secundariaClara,
+    // Acento âmbar legível sobre o fundo suave amarelo da bolha de gol.
+    color: acentos.amarelo,
     fontSize: 14,
     fontWeight: '900',
   },

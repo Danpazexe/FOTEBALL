@@ -17,7 +17,7 @@ import {
 } from '../../engine/progression/academiaEngine';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio, sombra} from '../../theme';
+import {cores, espaco, raio, sombra, suaves} from '../../theme';
 import {moeda} from '../../utils/formatters';
 import {Pressable} from 'react-native';
 
@@ -152,7 +152,8 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   faixaChipS: {
-    backgroundColor: 'rgba(255,214,0,0.12)',
+    // Fundo suave dourado (token do tema claro) sob o texto do acento.
+    backgroundColor: suaves.amarelo,
   },
   faixaTexto: {
     fontSize: 14,

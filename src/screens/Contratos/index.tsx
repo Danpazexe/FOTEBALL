@@ -13,7 +13,7 @@ import OverallBadge from '../../components/OverallBadge';
 import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, useJogadoresUsuario} from '../../store/useGameStore';
-import {cores, espaco, raio, sombra} from '../../theme';
+import {acentos, cores, espaco, raio, sombra} from '../../theme';
 import {moeda} from '../../utils/formatters';
 import type {Player} from '../../types';
 
@@ -89,7 +89,7 @@ function Contratos(): React.JSX.Element {
                   <Text
                     style={[
                       styles.contrato,
-                      {color: urgente ? cores.perigo : cores.secundaria},
+                      {color: urgente ? cores.perigo : acentos.amarelo},
                     ]}>
                     Contrato até {ano} {urgente ? '· expira já!' : '· próxima'}
                   </Text>

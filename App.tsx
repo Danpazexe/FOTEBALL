@@ -6,7 +6,7 @@ import {
   initialWindowMetrics,
 } from 'react-native-safe-area-context';
 import {
-  DarkTheme,
+  DefaultTheme,
   NavigationContainer,
   type Theme,
 } from '@react-navigation/native';
@@ -26,9 +26,9 @@ import {cores} from './src/theme';
 const DEBOUNCE_SALVAR_MS = 800;
 
 const temaFoteball: Theme = {
-  ...DarkTheme,
+  ...DefaultTheme,
   colors: {
-    ...DarkTheme.colors,
+    ...DefaultTheme.colors,
     primary: cores.primaria,
     background: cores.fundo,
     card: cores.superficie,
@@ -111,7 +111,7 @@ function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <StatusBar barStyle="light-content" backgroundColor={cores.fundo} />
+        <StatusBar barStyle="dark-content" backgroundColor={cores.fundo} />
         <NavigationContainer theme={temaFoteball}>
           <FeedbackProvider>
             <RootNavigator />

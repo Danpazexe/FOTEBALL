@@ -3,36 +3,63 @@
  * Fonte única de cores/espaçamento usada por todas as telas e componentes.
  */
 
+/**
+ * Paleta CLARA (modelo SofaScore, a pedido do usuário): fundo cinza-claro,
+ * cards brancos, texto azul-marinho e acentos vivos. A API de tokens é a
+ * mesma da era escura — as telas que consomem tokens re-tematizam sozinhas.
+ */
 export const cores = {
-  fundo: '#0A0E1A',
-  fundoTopo: '#101A38',
-  fundoBase: '#06090F',
-  // Pitch / gramado (telas de jogo e tática).
-  gramado: '#071B12',
-  superficie: '#131929',
-  superficieAlt: '#182231',
-  superficieElevada: '#1B2740',
-  borda: '#23304A',
-  bordaClara: '#2E3D5C',
-  // Vidro (glass) — superfícies translúcidas premium (nav, chips, overlays).
-  glass: 'rgba(255, 255, 255, 0.045)',
-  glassForte: 'rgba(255, 255, 255, 0.075)',
-  bordaTransl: 'rgba(255, 255, 255, 0.08)',
-  bordaTranslForte: 'rgba(255, 255, 255, 0.14)',
-  primaria: '#00E5A0',
-  primariaClara: '#46F2BE',
-  primariaEscura: '#00A878',
-  primariaGlow: 'rgba(0, 229, 160, 0.35)',
-  secundaria: '#FFD600',
-  secundariaClara: '#FFE36B',
-  secundariaEscura: '#E0A400',
-  perigo: '#FF3B5C',
-  sucesso: '#22C55E',
-  aviso: '#FF8A3D',
-  texto: '#F0F4FF',
-  textoSecundario: '#8892A4',
-  textoMuted: '#5F6B82',
-  contrastePrimaria: '#04130C',
+  fundo: '#F1F3F7',
+  fundoTopo: '#FFFFFF',
+  fundoBase: '#E9EDF3',
+  // Pitch / gramado (telas de jogo e tática) — verde suave sobre o claro.
+  gramado: '#E3F2E8',
+  superficie: '#FFFFFF',
+  superficieAlt: '#F7F9FC',
+  superficieElevada: '#FFFFFF',
+  borda: '#E5E9F0',
+  bordaClara: '#D9DFEA',
+  // "Vidro" no claro: véus azul-marinho sutis (chips, nav, overlays).
+  glass: 'rgba(23, 35, 59, 0.045)',
+  glassForte: 'rgba(23, 35, 59, 0.075)',
+  bordaTransl: 'rgba(23, 35, 59, 0.10)',
+  bordaTranslForte: 'rgba(23, 35, 59, 0.16)',
+  primaria: '#12B76A',
+  primariaClara: '#3BD68B',
+  primariaEscura: '#0A9153',
+  primariaGlow: 'rgba(18, 183, 106, 0.22)',
+  secundaria: '#E5A400',
+  secundariaClara: '#FFC93C',
+  secundariaEscura: '#B7791F',
+  perigo: '#E5484D',
+  sucesso: '#12B76A',
+  aviso: '#E08700',
+  texto: '#17233B',
+  textoSecundario: '#7C8698',
+  textoMuted: '#9AA4B5',
+  contrastePrimaria: '#FFFFFF',
+} as const;
+
+/**
+ * Tons SUAVES + acentos (modelo): fundos de badge/pill com texto forte do
+ * mesmo matiz — posição do jogador, nota, chips de status.
+ */
+export const suaves = {
+  verde: '#E4F7EE',
+  amarelo: '#FFF4D6',
+  vermelho: '#FFECEE',
+  azul: '#E7F0FE',
+  laranja: '#FFF1DE',
+  rosa: '#FBE7F0',
+} as const;
+
+export const acentos = {
+  verde: '#12B76A',
+  amarelo: '#C99A06',
+  vermelho: '#E5484D',
+  azul: '#1D6FE0',
+  laranja: '#D97A00',
+  rosa: '#D6336C',
 } as const;
 
 export const espaco = {
@@ -78,47 +105,47 @@ export const tipografia = {
  * Mantidos como `string[]` (não `as const`) para serem passados a props mutáveis.
  */
 export const gradientes = {
-  fundo: ['#101A38', '#0A0E1A', '#06090F'],
-  primaria: ['#46F2BE', '#00E5A0', '#00A878'],
-  // Premium UI v0.0.3 — superfícies profundas (3 stops) e acentos.
-  card: ['#1B2740', '#131929', '#06090F'], // surfacePremium
-  hero: ['#13315F', '#0C1428', '#06090F'], // matchHero
-  ouro: ['#FFE36B', '#FFD600', '#E0A400'], // goldPrestige
-  ouroEscuro: ['#111111', '#1B2740', '#0A0E1A'], // darkGold
-  gramado: ['#0E3323', '#082116', '#05120C'], // pitch
-  craque: ['#1A2B5C', '#0A1230'],
+  fundo: ['#FFFFFF', '#F4F6FA', '#E9EDF3'],
+  primaria: ['#3BD68B', '#12B76A', '#0A9153'],
+  // Superfícies claras (3 stops) e acentos do modelo.
+  card: ['#FFFFFF', '#F7F9FC', '#EEF2F7'], // surfacePremium
+  hero: ['#E7F0FE', '#F4F7FC', '#FFFFFF'], // matchHero
+  ouro: ['#FFD883', '#E5A400', '#B7791F'], // goldPrestige
+  ouroEscuro: ['#FFFFFF', '#F6EED9', '#E9EDF3'], // darkGold (claro)
+  gramado: ['#DFF2E5', '#EAF6EE', '#F4FBF6'], // pitch
+  craque: ['#E7F0FE', '#F4F7FC'],
 };
 
 /** Sombras/elevação reutilizáveis (iOS shadow* + Android elevation). */
 export const sombra = {
   suave: {
-    shadowColor: '#000000',
-    shadowOffset: {width: 0, height: 3},
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: '#0F1E3D',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 2,
   },
   card: {
-    shadowColor: '#000000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.38,
-    shadowRadius: 14,
-    elevation: 6,
+    shadowColor: '#0F1E3D',
+    shadowOffset: {width: 0, height: 5},
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
   },
   glow: {
-    shadowColor: '#00E5A0',
+    shadowColor: '#12B76A',
     shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  // Brilho dourado para botões/elementos premium (v0.0.2).
-  ouro: {
-    shadowColor: '#FFD600',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.45,
+    shadowOpacity: 0.3,
     shadowRadius: 14,
     elevation: 8,
+  },
+  // Brilho dourado para botões/elementos premium.
+  ouro: {
+    shadowColor: '#E5A400',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    elevation: 6,
   },
 };
 
@@ -323,5 +350,5 @@ export function contrasteTexto(corHex: string): string {
   const g = parseInt(hex.slice(2, 4), 16);
   const b = parseInt(hex.slice(4, 6), 16);
   const luminancia = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminancia > 0.6 ? '#0A0E1A' : '#FFFFFF';
+  return luminancia > 0.6 ? '#17233B' : '#FFFFFF';
 }

@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.8,
   },
   saldoPill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: cores.glass,
     borderColor: cores.primariaGlow,
     borderRadius: raio.pill,
     borderWidth: 1,
@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
   },
   centralBtn: {
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: cores.glass,
     borderColor: cores.bordaTransl,
     borderRadius: raio.lg,
     borderWidth: 1,

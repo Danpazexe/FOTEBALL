@@ -98,9 +98,10 @@ function AttributeRadar({
         stroke={cores.borda}
         strokeWidth={1}
       />
+      {/* preenchimento translúcido no verde da marca (token, segue o tema) */}
       <Polygon
         points={dataPontos}
-        fill="rgba(0,229,160,0.35)"
+        fill={cores.primariaGlow}
         stroke={cores.primaria}
         strokeWidth={2}
       />

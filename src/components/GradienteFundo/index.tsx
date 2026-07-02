@@ -14,7 +14,7 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
-import {gradientes} from '../../theme';
+import {cores, gradientes} from '../../theme';
 
 function GradienteFundo(): React.JSX.Element {
   const {width, height} = useWindowDimensions();
@@ -29,8 +29,8 @@ function GradienteFundo(): React.JSX.Element {
             <Stop offset="1" stopColor={gradientes.fundo[2]} />
           </LinearGradient>
           <RadialGradient id="ftBrilho" cx="50%" cy="-2%" rx="80%" ry="42%">
-            <Stop offset="0" stopColor="#00E5A0" stopOpacity="0.16" />
-            <Stop offset="1" stopColor="#00E5A0" stopOpacity="0" />
+            <Stop offset="0" stopColor={cores.primaria} stopOpacity="0.08" />
+            <Stop offset="1" stopColor={cores.primaria} stopOpacity="0" />
           </RadialGradient>
         </Defs>
         <Rect x="0" y="0" width={width} height={height} fill="url(#ftFundo)" />

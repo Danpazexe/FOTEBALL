@@ -13,7 +13,7 @@ import {AppHeader, ScreenContainer, Section} from '../../components/ui';
 import Icone from '../../components/Icone';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {acentos, cores, espaco, raio, suaves} from '../../theme';
 import {siglaClube} from '../../utils/formatters';
 import {diasNoMes, indiceDiaSemana, nomeMes} from '../../utils/datas';
 import type {Partida} from '../../types';
@@ -28,12 +28,22 @@ interface JogoCalendario {
   partidaId?: string;
 }
 
+/** Fundo da célula por estado — tons suaves do tema claro (fundo + acento). */
 const COR_ESTADO: Record<EstadoJogo, string> = {
-  vitoria: '#166534',
-  empate: '#374151',
-  derrota: '#7F1D1D',
+  vitoria: suaves.verde,
+  empate: cores.glassForte,
+  derrota: suaves.vermelho,
   proxima: cores.primaria,
   futura: cores.superficieElevada,
+};
+
+/** Texto da célula: acento do mesmo matiz do fundo suave (padrão badge). */
+const COR_TEXTO_ESTADO: Record<EstadoJogo, string> = {
+  vitoria: acentos.verde,
+  empate: cores.texto,
+  derrota: acentos.vermelho,
+  proxima: cores.contrastePrimaria,
+  futura: cores.texto,
 };
 
 const CABECALHO_SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
@@ -186,12 +196,7 @@ function Calendario(): React.JSX.Element {
                     </View>
                   );
                 }
-                const corTexto =
-                  jogo.estado === 'proxima'
-                    ? cores.contrastePrimaria
-                    : jogo.estado === 'futura'
-                      ? cores.texto
-                      : '#FFFFFF';
+                const corTexto = COR_TEXTO_ESTADO[jogo.estado];
                 return (
                   <Pressable
                     accessibilityRole="button"
@@ -205,7 +210,7 @@ function Calendario(): React.JSX.Element {
                     ]}>
                     {jogo.tipo === 'copa' ? (
                       <View style={styles.copaMarca}>
-                        <Icone nome="trofeu" tamanho={9} cor={cores.secundaria} />
+                        <Icone nome="trofeu" tamanho={9} cor={acentos.amarelo} />
                       </View>
                     ) : null}
                     <Text style={[styles.diaNumJogo, {color: corTexto}]}>
@@ -225,12 +230,12 @@ function Calendario(): React.JSX.Element {
       })}
 
       <View style={styles.legenda}>
-        <Legenda cor="#166534" texto="Vitória" />
-        <Legenda cor="#374151" texto="Empate" />
-        <Legenda cor="#7F1D1D" texto="Derrota" />
+        <Legenda cor={acentos.verde} texto="Vitória" />
+        <Legenda cor={cores.textoSecundario} texto="Empate" />
+        <Legenda cor={acentos.vermelho} texto="Derrota" />
         <Legenda cor={cores.primaria} texto="Próxima" />
         <View style={styles.legendaItem}>
-          <Icone nome="trofeu" tamanho={13} cor={cores.secundaria} />
+          <Icone nome="trofeu" tamanho={13} cor={acentos.amarelo} />
           <Text style={styles.legendaTexto}>Copa do Brasil</Text>
         </View>
       </View>

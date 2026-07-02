@@ -904,7 +904,9 @@ export default AjustesPartida;
 
 const styles = StyleSheet.create({
   overlay: {
-    backgroundColor: 'rgba(5,8,14,0.92)',
+    // Scrim de modal em azul-marinho (família do tema claro): mantém o foco
+    // no painel escurecendo o jogo atrás, em qualquer tema.
+    backgroundColor: 'rgba(23,35,59,0.88)',
     bottom: 0,
     left: 0,
     position: 'absolute',
@@ -1057,14 +1059,14 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   pitch: {
-    backgroundColor: '#123524',
-    borderColor: 'rgba(240,244,255,0.25)',
+    backgroundColor: cores.gramado,
+    borderColor: cores.bordaTranslForte,
     borderRadius: raio.md,
     borderWidth: 2,
     overflow: 'hidden',
   },
   linhaCentral: {
-    backgroundColor: 'rgba(240,244,255,0.4)',
+    backgroundColor: cores.bordaTranslForte,
     height: 2,
     left: 0,
     position: 'absolute',
@@ -1072,7 +1074,7 @@ const styles = StyleSheet.create({
     top: ALTURA / 2 - 1,
   },
   circuloCentral: {
-    borderColor: 'rgba(240,244,255,0.4)',
+    borderColor: cores.bordaTranslForte,
     borderRadius: LARGURA * 0.15,
     borderWidth: 2,
     height: LARGURA * 0.3,
@@ -1082,7 +1084,7 @@ const styles = StyleSheet.create({
     width: LARGURA * 0.3,
   },
   area: {
-    borderColor: 'rgba(240,244,255,0.35)',
+    borderColor: cores.bordaTranslForte,
     borderWidth: 2,
     height: ALTURA * 0.12,
     left: LARGURA * 0.22,
@@ -1104,21 +1106,23 @@ const styles = StyleSheet.create({
     opacity: 0.25,
   },
   slotPos: {
-    color: 'rgba(240,244,255,0.65)',
+    color: cores.textoSecundario,
     fontSize: 9,
     fontWeight: '700',
     marginBottom: 1,
   },
   ficha: {
     alignItems: 'center',
-    backgroundColor: '#0A0E1A',
+    // Ficha em azul-marinho: as cores de tier (corOverall) são claras e só
+    // leem bem sobre fundo escuro — intencional mesmo no tema claro.
+    backgroundColor: cores.texto,
     borderRadius: DIAM,
     height: DIAM,
     justifyContent: 'center',
     width: DIAM,
   },
   fichaHover: {
-    backgroundColor: '#0F2A1C',
+    backgroundColor: cores.primariaEscura,
   },
   fichaOverall: {
     fontSize: RAIO * 0.9,
@@ -1171,7 +1175,7 @@ const styles = StyleSheet.create({
   },
   fichaBanco: {
     alignItems: 'center',
-    backgroundColor: '#0A0E1A',
+    backgroundColor: cores.texto,
     borderRadius: 32,
     borderWidth: 2,
     height: 32,
@@ -1259,7 +1263,7 @@ const styles = StyleSheet.create({
   },
   ghostFicha: {
     alignItems: 'center',
-    backgroundColor: '#0A0E1A',
+    backgroundColor: cores.texto,
     borderRadius: 48,
     borderWidth: 3,
     height: 48,
@@ -1271,9 +1275,9 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   ghostNome: {
-    backgroundColor: 'rgba(10,14,26,0.85)',
+    backgroundColor: 'rgba(23,35,59,0.85)',
     borderRadius: 6,
-    color: cores.texto,
+    color: cores.contrastePrimaria,
     fontSize: 11,
     fontWeight: '800',
     marginTop: 3,

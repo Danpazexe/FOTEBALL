@@ -190,8 +190,9 @@ const styles = StyleSheet.create({
     ...sombra.ouro,
   },
   jogarDisabled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderColor: 'rgba(255, 255, 255, 0.10)',
+    // Vidro do tema (véu azul-marinho) — o rgba branco sumia no tema claro.
+    backgroundColor: cores.glass,
+    borderColor: cores.bordaTransl,
     borderWidth: 1,
     elevation: 0,
     shadowOpacity: 0,
@@ -208,6 +209,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   jogarTextoDisabled: {
-    color: 'rgba(240, 244, 255, 0.32)',
+    color: cores.textoMuted,
   },
 });

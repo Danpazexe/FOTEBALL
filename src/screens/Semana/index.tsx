@@ -34,7 +34,16 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {cores, corCondicao, espaco, raio, sombra, tipografia} from '../../theme';
+import {
+  acentos,
+  cores,
+  corCondicao,
+  espaco,
+  raio,
+  sombra,
+  suaves,
+  tipografia,
+} from '../../theme';
 
 const SECOES_POSICAO: SecaoPosicao[] = [
   'Goleiros',
@@ -62,7 +71,7 @@ function rotuloRisco(risco: number): {texto: string; cor: string} {
     return {texto: 'Baixo', cor: cores.primaria};
   }
   if (risco <= 0.035) {
-    return {texto: 'Médio', cor: cores.secundaria};
+    return {texto: 'Médio', cor: acentos.amarelo};
   }
   return {texto: 'Alto', cor: cores.perigo};
 }
@@ -80,7 +89,7 @@ function corMoral(moral: number): string {
     return cores.primaria;
   }
   if (moral >= 50) {
-    return cores.secundaria;
+    return acentos.amarelo;
   }
   return cores.perigo;
 }
@@ -518,14 +527,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  // Badge padrão do tema claro: fundo suave + texto do acento (mesmo matiz).
   afinidadeBadge: {
-    backgroundColor: cores.superficie,
+    backgroundColor: suaves.amarelo,
     borderRadius: raio.sm,
     paddingHorizontal: espaco.sm,
     paddingVertical: 3,
   },
   afinidadeTexto: {
-    color: cores.secundaria,
+    color: acentos.amarelo,
     fontSize: 12,
     fontWeight: '800',
   },

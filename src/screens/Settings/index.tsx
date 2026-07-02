@@ -135,7 +135,9 @@ function LinhaSwitch({
         value={valor}
         onValueChange={onValueChange}
         trackColor={{false: cores.borda, true: cores.primaria}}
-        thumbColor={cores.texto}
+        // Polegar branco (padrão de switch no tema claro) — cores.texto agora é
+        // azul-marinho e deixaria o polegar escuro demais.
+        thumbColor={cores.contrastePrimaria}
       />
     </View>
   );

@@ -21,7 +21,7 @@ import {
   selecionarClubeUsuario,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, espaco, raio, sombra, tipografia} from '../../theme';
+import {acentos, cores, espaco, raio, sombra, tipografia} from '../../theme';
 import {moeda, nomeClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
@@ -454,7 +454,8 @@ const styles = StyleSheet.create({
     paddingVertical: espaco.sm,
   },
   contra: {
-    color: cores.secundaria,
+    // Amarelo do acento (legível sobre card branco, ao contrário do dourado).
+    color: acentos.amarelo,
     fontSize: 13,
     fontWeight: '700',
   },

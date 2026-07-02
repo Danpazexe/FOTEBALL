@@ -207,7 +207,7 @@ export function Botao({
       : styles.botaoTextoPequena;
 
   const corConteudo = disabled
-    ? 'rgba(240, 244, 255, 0.32)'
+    ? cores.textoMuted
     : variante === 'secundaria'
     ? cores.texto
     : variante === 'pequena'
@@ -411,8 +411,8 @@ const styles = StyleSheet.create({
   },
   // Estado desabilitado "glass": sem cor de ação, sem glow (dourado/verde).
   botaoDisabledGlass: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderColor: 'rgba(255, 255, 255, 0.10)',
+    backgroundColor: cores.glass,
+    borderColor: cores.bordaTransl,
     borderWidth: 1,
     elevation: 0,
     shadowOpacity: 0,
@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   botaoTextoDisabled: {
-    color: 'rgba(240, 244, 255, 0.32)',
+    color: cores.textoMuted,
   },
   textoVazio: {
     color: cores.textoSecundario,
