@@ -1,36 +1,32 @@
 /**
- * Tela de súmula da partida — relatório pós-jogo completo (modelo SofaScore):
- *
- * placar + condições do jogo (estádio, público REAL da bilheteria, clima,
- * gramado) → craque do jogo → estatísticas avançadas com barras → momentum
- * minuto a minuto → linha do tempo → tabela de jogadores por time (nota,
- * minutos, gols, assistências, finalizações e passes) → posse por zona e
- * perigo ofensivo por setor.
+ * Tela de súmula da partida — relatório pós-jogo no estilo do modelo enviado
+ * pelo usuário (SofaScore claro): cards brancos sobre fundo cinza-claro,
+ * badges de posição coloridos por setor, pill de nota, barras finas e abas
+ * Casa | Resumo | Fora fazendo as vezes das três colunas do desktop.
  *
  * TODOS os números vêm da engine (acumulados durante a simulação) ou dos
  * eventos persistidos — nada é inventado aqui. Partidas de saves antigos, sem
  * `estatisticas`, degradam para as seções que os eventos permitem montar.
  */
 
-import React, {useMemo} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import React, {useMemo, useState} from 'react';
+import {
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
-import {
-  AppHeader,
-  Botao,
-  ScreenContainer,
-  Section,
-  TextoVazio,
-} from '../../components/ui';
-import {EventItem} from '../../components/MatchNarration/EventItem';
-import {ScoreHeader} from '../../components/MatchNarration/ScoreHeader';
+import {TextoVazio} from '../../components/ui';
 import Icone, {type IconeNome} from '../../components/Icone';
 import {
   calcularNotaPartida,
   type ResultadoJogador,
 } from '../../engine/simulation/matchRating';
-import {cores, corDoTime, espaco, raio, sombra} from '../../theme';
+import {corDoTime, espaco, raio} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
@@ -40,9 +36,34 @@ import type {
   EventoPartida,
   Partida,
   Player,
+  Position,
 } from '../../types';
 
 const DURACAO = 90;
+
+/** Paleta CLARA da súmula (modelo SofaScore) — local desta tela; o resto do
+ * app segue o tema escuro premium de `src/theme`. */
+const CLARO = {
+  fundo: '#F1F3F7',
+  card: '#FFFFFF',
+  borda: '#E5E9F0',
+  divisor: '#EFF2F6',
+  texto: '#17233B',
+  textoSec: '#7C8698',
+  track: '#EDF0F4',
+  verde: '#12B76A',
+  verdeSuave: '#E4F7EE',
+  amarelo: '#C99A06',
+  amareloSuave: '#FFF4D6',
+  vermelho: '#E5484D',
+  vermelhoSuave: '#FFECEE',
+  azul: '#1D6FE0',
+  azulSuave: '#E7F0FE',
+  laranja: '#D97A00',
+  laranjaSuave: '#FFF1DE',
+  rosa: '#D6336C',
+  rosaSuave: '#FBE7F0',
+} as const;
 
 type LinhaJogador = {
   jogador: Player;
@@ -54,19 +75,39 @@ type LinhaJogador = {
   nota: number | null;
 };
 
+type Aba = 'casa' | 'resumo' | 'fora';
+
 function nomeCurto(jogador: Player): string {
   return jogador.apelido ?? jogador.nome;
 }
 
-/** Verde (ótima) → amarelo (regular) → vermelho (ruim). */
-function corNota(nota: number): string {
+/** Cores do badge de POSIÇÃO por setor (modelo: GOL amarelo, defesa azul,
+ * meio laranja, pontas rosa, centroavante vermelho). */
+function corPosicao(posicao: Position): {fundo: string; texto: string} {
+  if (posicao === 'GOL') {
+    return {fundo: CLARO.amareloSuave, texto: CLARO.amarelo};
+  }
+  if (['ZAG', 'LD', 'LE'].includes(posicao)) {
+    return {fundo: CLARO.azulSuave, texto: CLARO.azul};
+  }
+  if (['VOL', 'MC', 'MEI'].includes(posicao)) {
+    return {fundo: CLARO.laranjaSuave, texto: CLARO.laranja};
+  }
+  if (['PD', 'PE', 'SA'].includes(posicao)) {
+    return {fundo: CLARO.rosaSuave, texto: CLARO.rosa};
+  }
+  return {fundo: CLARO.vermelhoSuave, texto: CLARO.vermelho};
+}
+
+/** Pill de nota (modelo): verde para boa, amarelo regular, vermelho ruim. */
+function corNotaPill(nota: number): {fundo: string; texto: string} {
   if (nota >= 7.5) {
-    return cores.primaria;
+    return {fundo: CLARO.verdeSuave, texto: CLARO.verde};
   }
   if (nota >= 6) {
-    return cores.secundaria;
+    return {fundo: CLARO.amareloSuave, texto: CLARO.amarelo};
   }
-  return cores.perigo;
+  return {fundo: CLARO.vermelhoSuave, texto: CLARO.vermelho};
 }
 
 function rotuloGramado(nivelInfraestrutura: number): string {
@@ -90,6 +131,41 @@ function iconeClima(clima: string): IconeNome {
     return 'clima-nublado';
   }
   return 'clima-sol';
+}
+
+function iconeEvento(tipo: EventoPartida['tipo']): IconeNome {
+  if (tipo === 'gol') {
+    return 'bola';
+  }
+  if (tipo === 'cartao_amarelo' || tipo === 'cartao_vermelho') {
+    return 'cartao';
+  }
+  if (tipo === 'substituicao') {
+    return 'substituicao';
+  }
+  if (tipo === 'lesao') {
+    return 'lesao';
+  }
+  if (tipo === 'penalti') {
+    return 'penalti';
+  }
+  return 'chance';
+}
+
+function corEvento(tipo: EventoPartida['tipo']): string {
+  if (tipo === 'gol') {
+    return CLARO.verde;
+  }
+  if (tipo === 'cartao_amarelo') {
+    return CLARO.amarelo;
+  }
+  if (tipo === 'cartao_vermelho' || tipo === 'lesao') {
+    return CLARO.vermelho;
+  }
+  if (tipo === 'penalti') {
+    return CLARO.laranja;
+  }
+  return CLARO.textoSec;
 }
 
 /**
@@ -199,7 +275,24 @@ function linhasDoTime(
   return {emCampo, banco: [...entraram, ...naoJogaram]};
 }
 
-/** Uma linha da lista de estatísticas com barras proporcionais dos dois lados. */
+/** Card branco padrão da súmula. */
+function Card({
+  titulo,
+  children,
+}: {
+  titulo?: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <View style={styles.card}>
+      {titulo ? <Text style={styles.cardTitulo}>{titulo}</Text> : null}
+      {children}
+    </View>
+  );
+}
+
+/** Linha de estatística do modelo: valores nas pontas, rótulo no centro,
+ * duas meias-barras que crescem a partir do centro. */
 function LinhaEstatistica({
   rotulo,
   casa,
@@ -225,11 +318,13 @@ function LinhaEstatistica({
         <Text style={styles.estatRotulo} numberOfLines={1}>
           {rotulo}
         </Text>
-        <Text style={styles.estatValor}>{mostrar(fora)}</Text>
+        <Text style={[styles.estatValor, styles.estatValorDireita]}>
+          {mostrar(fora)}
+        </Text>
       </View>
       <View style={styles.estatBarras}>
-        <View style={styles.estatBarraTrack}>
-          <View style={styles.estatBarraEspaco} />
+        <View style={styles.estatTrack}>
+          <View style={styles.estatEspaco} />
           <View
             style={[
               styles.estatBarra,
@@ -237,14 +332,14 @@ function LinhaEstatistica({
             ]}
           />
         </View>
-        <View style={styles.estatBarraTrack}>
+        <View style={styles.estatTrack}>
           <View
             style={[
               styles.estatBarra,
               {flex: Math.max(0.02, 1 - fracaoCasa), backgroundColor: corFora},
             ]}
           />
-          <View style={styles.estatBarraEspaco} />
+          <View style={styles.estatEspaco} />
         </View>
       </View>
     </View>
@@ -270,7 +365,7 @@ function GraficoMomentum({
               {valor > 0 ? (
                 <View
                   style={[
-                    styles.momentumBarraCima,
+                    styles.momentumBarra,
                     {height: `${valor * 100}%`, backgroundColor: corCasa},
                   ]}
                 />
@@ -280,7 +375,7 @@ function GraficoMomentum({
               {valor < 0 ? (
                 <View
                   style={[
-                    styles.momentumBarraBaixo,
+                    styles.momentumBarra,
                     {height: `${-valor * 100}%`, backgroundColor: corFora},
                   ]}
                 />
@@ -300,7 +395,7 @@ function GraficoMomentum({
   );
 }
 
-/** Mini-campo 3×3 de posse por zona (ataque para cima). */
+/** Mini-campo 3×3 de posse por zona (ataque para cima), fundo claro. */
 function MapaPosseZonas({
   zonas,
   cor,
@@ -311,7 +406,6 @@ function MapaPosseZonas({
   titulo: string;
 }): React.JSX.Element {
   const maximo = Math.max(0.01, ...zonas.flat());
-  // Linha [2] = terço ofensivo, desenhada no topo (ataca para cima).
   const linhasDesenho = [2, 1, 0] as const;
   return (
     <View style={styles.mapaColuna}>
@@ -328,7 +422,8 @@ function MapaPosseZonas({
                   styles.mapaZona,
                   {
                     backgroundColor: cor,
-                    opacity: 0.12 + 0.78 * ((zonas[linha]?.[coluna] ?? 0) / maximo),
+                    opacity:
+                      0.08 + 0.82 * ((zonas[linha]?.[coluna] ?? 0) / maximo),
                   },
                 ]}
               />
@@ -337,12 +432,12 @@ function MapaPosseZonas({
         ))}
         <View style={styles.mapaMeioCampo} />
       </View>
-      <Icone nome="seta-cima" tamanho={14} cor={cores.textoSecundario} />
+      <Icone nome="seta-cima" tamanho={14} cor={CLARO.textoSec} />
     </View>
   );
 }
 
-/** Mini-campo de perigo ofensivo por corredor (esquerda/centro/direita). */
+/** Mini-campo de perigo ofensivo por corredor, fundo claro. */
 function MapaPerigoSetores({
   setores,
   cor,
@@ -363,29 +458,27 @@ function MapaPerigoSetores({
           <View
             key={`setor_${setor}`}
             style={[
-              styles.mapaSetor,
+              styles.mapaZona,
               {
                 backgroundColor: cor,
-                opacity: 0.12 + 0.78 * ((setores[setor] ?? 0) / maximo),
+                opacity: 0.08 + 0.82 * ((setores[setor] ?? 0) / maximo),
               },
             ]}
           />
         ))}
       </View>
-      <Icone nome="seta-cima" tamanho={14} cor={cores.textoSecundario} />
+      <Icone nome="seta-cima" tamanho={14} cor={CLARO.textoSec} />
     </View>
   );
 }
 
-/** Tabela de jogadores de um time (nota/min/G/A/finalizações/passes). */
+/** Tabela de jogadores no estilo do modelo (POS colorido, nota em pill). */
 function TabelaJogadores({
-  titulo,
   linhas,
   banco,
   estatisticas,
   melhorId,
 }: {
-  titulo: string;
   linhas: LinhaJogador[];
   banco: LinhaJogador[];
   estatisticas: EstatisticasTimePartida | undefined;
@@ -396,26 +489,42 @@ function TabelaJogadores({
     const fin = estatisticas?.finalizacoesPorJogador[jogador.id];
     const passes = estatisticas?.passesPorJogador[jogador.id];
     const jogou = linha.nota !== null;
+    const pos = corPosicao(jogador.posicaoPrincipal);
+    const destaque = jogador.id === melhorId;
     return (
-      <View key={jogador.id} style={styles.jogadorLinha}>
-        <Text style={styles.jogadorPos}>{jogador.posicaoPrincipal}</Text>
+      <View
+        key={jogador.id}
+        style={[styles.jogadorLinha, destaque && styles.jogadorLinhaDestaque]}>
+        <View style={[styles.posBadge, {backgroundColor: pos.fundo}]}>
+          <Text style={[styles.posBadgeTexto, {color: pos.texto}]}>
+            {jogador.posicaoPrincipal}
+          </Text>
+        </View>
         <View style={styles.jogadorNomeWrap}>
           <Text style={styles.jogadorNome} numberOfLines={1}>
             {nomeCurto(jogador)}
           </Text>
-          {jogador.id === melhorId ? (
-            <Icone nome="trofeu" tamanho={11} cor={cores.secundaria} />
+          {destaque ? (
+            <Icone nome="trofeu" tamanho={11} cor={CLARO.amarelo} />
           ) : null}
           {linha.entrou ? (
-            <Icone nome="seta-cima" tamanho={11} cor={cores.primaria} />
+            <Icone nome="seta-cima" tamanho={11} cor={CLARO.verde} />
           ) : null}
           {linha.saiu ? (
-            <Icone nome="seta-baixo" tamanho={11} cor={cores.perigo} />
+            <Icone nome="seta-baixo" tamanho={11} cor={CLARO.vermelho} />
           ) : null}
         </View>
         {jogou && linha.nota !== null ? (
-          <View style={[styles.notaBadge, {borderColor: corNota(linha.nota)}]}>
-            <Text style={[styles.notaValor, {color: corNota(linha.nota)}]}>
+          <View
+            style={[
+              styles.notaPill,
+              {backgroundColor: corNotaPill(linha.nota).fundo},
+            ]}>
+            <Text
+              style={[
+                styles.notaPillTexto,
+                {color: corNotaPill(linha.nota).texto},
+              ]}>
               {linha.nota.toFixed(1)}
             </Text>
           </View>
@@ -438,10 +547,9 @@ function TabelaJogadores({
   };
 
   return (
-    <View style={styles.tabelaTime}>
-      <Text style={styles.tabelaTitulo}>{titulo}</Text>
+    <View>
       <View style={styles.jogadorLinha}>
-        <Text style={[styles.jogadorPos, styles.tabelaHeaderTexto]}>POS</Text>
+        <Text style={[styles.posHeader, styles.tabelaHeaderTexto]}>POS</Text>
         <Text style={[styles.jogadorNomeWrapHeader, styles.tabelaHeaderTexto]}>
           NOME
         </Text>
@@ -458,6 +566,7 @@ function TabelaJogadores({
           PS
         </Text>
       </View>
+      <View style={styles.divisor} />
       {linhas.map(renderLinha)}
       {banco.length > 0 ? (
         <>
@@ -473,6 +582,7 @@ function MatchResult(): React.JSX.Element {
   const nav = useAppNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'MatchResult'>>();
   const {partidaId} = route.params;
+  const [aba, setAba] = useState<Aba>('resumo');
 
   const partida = useGameStore(state =>
     state.partidas.find(item => item.id === partidaId),
@@ -488,8 +598,12 @@ function MatchResult(): React.JSX.Element {
     const clubeFora = clubes.find(c => c.id === partida.timeFora);
     const casa = linhasDoTime(clubeCasa, jogadores, partida, true);
     const fora = linhasDoTime(clubeFora, jogadores, partida, false);
-    const todas = [...casa.emCampo, ...casa.banco, ...fora.emCampo, ...fora.banco]
-      .filter(l => l.nota !== null);
+    const todas = [
+      ...casa.emCampo,
+      ...casa.banco,
+      ...fora.emCampo,
+      ...fora.banco,
+    ].filter(l => l.nota !== null);
     const melhor =
       todas.length > 0
         ? todas.reduce((m, l) => ((l.nota ?? 0) > (m.nota ?? 0) ? l : m))
@@ -499,10 +613,15 @@ function MatchResult(): React.JSX.Element {
 
   if (!partida || !dados) {
     return (
-      <ScreenContainer scroll>
-        <AppHeader titulo="Súmula" onBack={() => nav.goBack()} />
-        <TextoVazio>Partida não encontrada.</TextoVazio>
-      </ScreenContainer>
+      <View style={styles.tela}>
+        <SafeAreaView style={styles.telaSafe}>
+          <Pressable style={styles.voltar} onPress={() => nav.goBack()}>
+            <Icone nome="voltar" tamanho={18} cor={CLARO.texto} />
+            <Text style={styles.voltarTexto}>Voltar</Text>
+          </Pressable>
+          <TextoVazio>Partida não encontrada.</TextoVazio>
+        </SafeAreaView>
+      </View>
     );
   }
 
@@ -512,7 +631,9 @@ function MatchResult(): React.JSX.Element {
   const corFora = corDoTime(partida.timeFora);
   const siglaCasa = siglaClube(clubes, partida.timeCasa);
   const siglaFora = siglaClube(clubes, partida.timeFora);
-  const eventosOrdenados = [...partida.eventos].sort((a, b) => a.minuto - b.minuto);
+  const eventosOrdenados = [...partida.eventos].sort(
+    (a, b) => a.minuto - b.minuto,
+  );
   const est = partida.estatisticas;
   const estadio = dados.clubeCasa?.estadio;
   const melhorJogador = dados.melhor;
@@ -528,132 +649,116 @@ function MatchResult(): React.JSX.Element {
   const pct = (certos: number, tentados: number): number =>
     tentados > 0 ? Math.round((certos / tentados) * 100) : 0;
 
-  return (
-    <ScreenContainer scroll>
-      <AppHeader titulo="Súmula" onBack={() => nav.goBack()} />
+  const abas: Array<{chave: Aba; rotulo: string}> = [
+    {chave: 'casa', rotulo: siglaCasa},
+    {chave: 'resumo', rotulo: 'Resumo'},
+    {chave: 'fora', rotulo: siglaFora},
+  ];
 
-      <View style={styles.placar}>
-        <ScoreHeader
-          nomeCasa={nomeClube(clubes, partida.timeCasa)}
-          nomeFora={nomeClube(clubes, partida.timeFora)}
-          placarCasa={placarCasa}
-          placarFora={placarFora}
-          rotulo="FINAL"
-          clubeIdCasa={partida.timeCasa}
-          clubeIdFora={partida.timeFora}
-          siglaCasa={siglaCasa}
-          siglaFora={siglaFora}
-          corCasa={corCasa}
-          corFora={corFora}
-        />
-        <View style={styles.metaChips}>
-          {estadio ? (
-            <View style={styles.metaChip}>
-              <Icone nome="estadio" tamanho={13} cor={cores.textoSecundario} />
-              <Text style={styles.metaChipTexto} numberOfLines={1}>
-                {estadio.nome}
-              </Text>
-            </View>
-          ) : null}
-          {est?.publico !== undefined ? (
-            <View style={styles.metaChip}>
-              <Icone nome="publico" tamanho={13} cor={cores.textoSecundario} />
-              <Text style={styles.metaChipTexto}>
-                {est.publico.toLocaleString('pt-BR')}
-              </Text>
-            </View>
-          ) : null}
-          {est ? (
-            <View style={styles.metaChip}>
-              <Icone
-                nome={iconeClima(est.clima)}
-                tamanho={13}
-                cor={cores.textoSecundario}
-              />
-              <Text style={styles.metaChipTexto}>
-                {est.clima} · {est.temperatura}°C
-              </Text>
-            </View>
-          ) : null}
-          {estadio ? (
-            <View style={styles.metaChip}>
-              <Icone nome="gramado" tamanho={13} cor={cores.textoSecundario} />
-              <Text style={styles.metaChipTexto}>
-                {rotuloGramado(estadio.nivelInfraestrutura)}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-      </View>
-
+  const renderResumo = () => (
+    <>
       {melhorJogador && melhorJogador.nota !== null ? (
-        <Section titulo="Craque do jogo">
+        <Card titulo="Craque do jogo">
           <View style={styles.craque}>
             <View
               style={[
                 styles.craqueFaixa,
-                {backgroundColor: corDoTime(melhorJogador.jogador.clubeId ?? '')},
+                {
+                  backgroundColor: corDoTime(
+                    melhorJogador.jogador.clubeId ?? '',
+                  ),
+                },
               ]}
             />
             <View style={styles.craqueInfo}>
               <Text style={styles.craqueNome} numberOfLines={1}>
                 {nomeCurto(melhorJogador.jogador)}
               </Text>
-              <Text style={styles.craqueDetalhe}>
-                {melhorJogador.jogador.posicaoPrincipal} ·{' '}
-                {siglaClube(clubes, melhorJogador.jogador.clubeId ?? '')}
-              </Text>
-            </View>
-            <View style={styles.craqueChips}>
-              <View style={[styles.craqueChip, styles.craqueChipNota]}>
-                <Text style={styles.craqueChipValorNota}>
-                  {melhorJogador.nota.toFixed(1)}
+              <View style={styles.craqueSubRow}>
+                <View
+                  style={[
+                    styles.posBadge,
+                    {
+                      backgroundColor: corPosicao(
+                        melhorJogador.jogador.posicaoPrincipal,
+                      ).fundo,
+                    },
+                  ]}>
+                  <Text
+                    style={[
+                      styles.posBadgeTexto,
+                      {
+                        color: corPosicao(
+                          melhorJogador.jogador.posicaoPrincipal,
+                        ).texto,
+                      },
+                    ]}>
+                    {melhorJogador.jogador.posicaoPrincipal}
+                  </Text>
+                </View>
+                <Text style={styles.craqueDetalhe}>
+                  {siglaClube(clubes, melhorJogador.jogador.clubeId ?? '')}
                 </Text>
-                <Text style={styles.craqueChipRotuloNota}>Nota</Text>
               </View>
-              <View style={styles.craqueChip}>
-                <Text style={styles.craqueChipValor}>{melhorJogador.gols}</Text>
-                <Text style={styles.craqueChipRotulo}>Gols</Text>
-              </View>
+            </View>
+          </View>
+          <View style={styles.craqueChips}>
+            <View style={[styles.craqueChip, styles.craqueChipNota]}>
+              <Text style={styles.craqueChipValorNota}>
+                {melhorJogador.nota.toFixed(1)}
+              </Text>
+              <Text style={styles.craqueChipRotuloNota}>Nota</Text>
+            </View>
+            <View style={styles.craqueChip}>
+              <Text style={styles.craqueChipValor}>{melhorJogador.gols}</Text>
+              <Text style={styles.craqueChipRotulo}>Gols</Text>
+            </View>
+            <View style={styles.craqueChip}>
+              <Text style={styles.craqueChipValor}>
+                {melhorJogador.assistencias}
+              </Text>
+              <Text style={styles.craqueChipRotulo}>Assistências</Text>
+            </View>
+            {melhorEstat ? (
               <View style={styles.craqueChip}>
                 <Text style={styles.craqueChipValor}>
-                  {melhorJogador.assistencias}
+                  {melhorEstat.noAlvo}/{melhorEstat.total}
                 </Text>
-                <Text style={styles.craqueChipRotulo}>Assist.</Text>
+                <Text style={styles.craqueChipRotulo}>Finalizações</Text>
               </View>
-              {melhorEstat ? (
-                <View style={styles.craqueChip}>
-                  <Text style={styles.craqueChipValor}>
-                    {melhorEstat.noAlvo}/{melhorEstat.total}
-                  </Text>
-                  <Text style={styles.craqueChipRotulo}>Final.</Text>
-                </View>
-              ) : null}
-            </View>
+            ) : null}
           </View>
-        </Section>
+        </Card>
       ) : null}
 
-      <Section titulo="Estatísticas">
-        <View style={styles.posseRow}>
-          <Text style={[styles.posseValor, {color: corCasa}]}>{posseCasa}%</Text>
-          <View style={styles.posseTrack}>
-            <View
-              style={[
-                styles.posseFill,
-                {flex: posseCasa, backgroundColor: corCasa},
-              ]}
-            />
-            <View
-              style={[
-                styles.posseFill,
-                {flex: posseFora, backgroundColor: corFora},
-              ]}
-            />
+      <Card titulo="Estatísticas">
+        <View style={styles.posseCabecalho}>
+          <View style={[styles.possePill, {borderColor: corCasa}]}>
+            <Text style={[styles.possePillTexto, {color: corCasa}]}>
+              {posseCasa}%
+            </Text>
           </View>
-          <Text style={[styles.posseValor, {color: corFora}]}>{posseFora}%</Text>
+          <Text style={styles.estatRotulo}>Posse de bola</Text>
+          <View style={[styles.possePill, {borderColor: corFora}]}>
+            <Text style={[styles.possePillTexto, {color: corFora}]}>
+              {posseFora}%
+            </Text>
+          </View>
         </View>
-        <Text style={styles.posseLegenda}>Posse de bola</Text>
+        <View style={styles.posseTrack}>
+          <View
+            style={[
+              styles.posseFill,
+              {flex: posseCasa, backgroundColor: corCasa},
+            ]}
+          />
+          <View
+            style={[
+              styles.posseFill,
+              {flex: posseFora, backgroundColor: corFora},
+            ]}
+          />
+        </View>
         {est ? (
           <View style={styles.estatLista}>
             <LinhaEstatistica
@@ -784,10 +889,10 @@ function MatchResult(): React.JSX.Element {
             Estatísticas indisponíveis para partidas antigas.
           </TextoVazio>
         )}
-      </Section>
+      </Card>
 
       {est && est.momentumPorMinuto.length > 0 ? (
-        <Section titulo="Momentum da partida">
+        <Card titulo="Momentum da partida">
           <GraficoMomentum
             serie={est.momentumPorMinuto}
             corCasa={corCasa}
@@ -799,92 +904,262 @@ function MatchResult(): React.JSX.Element {
             <View style={[styles.legendaDot, {backgroundColor: corFora}]} />
             <Text style={styles.legendaTexto}>{siglaFora}</Text>
           </View>
-        </Section>
+        </Card>
       ) : null}
 
-      <Section titulo="Linha do tempo">
+      <Card titulo="Linha do tempo">
         {eventosOrdenados.length === 0 ? (
           <TextoVazio>Nenhum lance registrado nesta partida.</TextoVazio>
         ) : (
-          <View style={styles.eventos}>
+          <View style={styles.timeline}>
             {eventosOrdenados.map((evento, indice) => {
               const ehCasa = evento.timeId === partida.timeCasa;
               return (
-                <EventItem
+                <View
                   key={`${evento.minuto}-${evento.tipo}-${indice}`}
-                  minuto={evento.minuto}
-                  tipo={evento.tipo}
-                  descricao={evento.descricao}
-                  lado={ehCasa ? 'casa' : 'fora'}
-                  sigla={ehCasa ? siglaCasa : siglaFora}
-                  corTime={ehCasa ? corCasa : corFora}
-                  clubeId={evento.timeId}
-                />
+                  style={styles.timelineLinha}>
+                  <Text style={styles.timelineMinuto}>{evento.minuto}'</Text>
+                  <View
+                    style={[
+                      styles.timelineFaixa,
+                      {backgroundColor: ehCasa ? corCasa : corFora},
+                    ]}
+                  />
+                  <Icone
+                    nome={iconeEvento(evento.tipo)}
+                    tamanho={14}
+                    cor={corEvento(evento.tipo)}
+                  />
+                  <Text style={styles.timelineTexto} numberOfLines={2}>
+                    {evento.descricao}
+                  </Text>
+                  <Text style={styles.timelineSigla}>
+                    {ehCasa ? siglaCasa : siglaFora}
+                  </Text>
+                </View>
               );
             })}
           </View>
         )}
-      </Section>
+      </Card>
+    </>
+  );
 
-      <Section titulo="Jogadores">
-        <TabelaJogadores
-          titulo={nomeClube(clubes, partida.timeCasa)}
-          linhas={dados.casa.emCampo}
-          banco={dados.casa.banco}
-          estatisticas={est?.casa}
-          melhorId={melhorJogador?.jogador.id}
-        />
-        <TabelaJogadores
-          titulo={nomeClube(clubes, partida.timeFora)}
-          linhas={dados.fora.emCampo}
-          banco={dados.fora.banco}
-          estatisticas={est?.fora}
-          melhorId={melhorJogador?.jogador.id}
-        />
-      </Section>
-
-      {est ? (
-        <>
-          <Section titulo="Posse por zona">
+  const renderTime = (lado: 'casa' | 'fora') => {
+    const time = lado === 'casa' ? dados.casa : dados.fora;
+    const estTime = lado === 'casa' ? est?.casa : est?.fora;
+    const cor = lado === 'casa' ? corCasa : corFora;
+    const sigla = lado === 'casa' ? siglaCasa : siglaFora;
+    return (
+      <>
+        <Card titulo={nomeClube(clubes, lado === 'casa' ? partida.timeCasa : partida.timeFora)}>
+          <TabelaJogadores
+            linhas={time.emCampo}
+            banco={time.banco}
+            estatisticas={estTime}
+            melhorId={melhorJogador?.jogador.id}
+          />
+        </Card>
+        {estTime ? (
+          <Card>
             <View style={styles.mapasRow}>
               <MapaPosseZonas
-                zonas={est.casa.posseZonas}
-                cor={corCasa}
-                titulo={siglaCasa}
-              />
-              <MapaPosseZonas
-                zonas={est.fora.posseZonas}
-                cor={corFora}
-                titulo={siglaFora}
-              />
-            </View>
-          </Section>
-          <Section titulo="Perigo ofensivo por setor">
-            <View style={styles.mapasRow}>
-              <MapaPerigoSetores
-                setores={est.casa.perigoSetores}
-                cor={corCasa}
-                titulo={siglaCasa}
+                zonas={estTime.posseZonas}
+                cor={cor}
+                titulo="Posse por zona"
               />
               <MapaPerigoSetores
-                setores={est.fora.perigoSetores}
-                cor={corFora}
-                titulo={siglaFora}
+                setores={estTime.perigoSetores}
+                cor={cor}
+                titulo="Perigo por setor"
               />
             </View>
-          </Section>
-        </>
-      ) : null}
+            <Text style={styles.mapaLegenda}>{sigla} ataca para cima</Text>
+          </Card>
+        ) : null}
+      </>
+    );
+  };
 
-      <Botao titulo="Continuar" onPress={() => nav.navigate('MainTabs')} />
-    </ScreenContainer>
+  return (
+    <View style={styles.tela}>
+      <SafeAreaView style={styles.telaSafe}>
+        <ScrollView
+          contentContainerStyle={styles.conteudo}
+          showsVerticalScrollIndicator={false}>
+          <Pressable style={styles.voltar} onPress={() => nav.goBack()}>
+            <Icone nome="voltar" tamanho={18} cor={CLARO.texto} />
+            <Text style={styles.voltarTexto}>Voltar</Text>
+          </Pressable>
+
+          <View style={styles.placarCard}>
+            <View style={styles.placarLinha}>
+              <View style={styles.placarTimeWrap}>
+                <View style={[styles.placarFaixa, {backgroundColor: corCasa}]} />
+                <Text style={styles.placarTime} numberOfLines={1}>
+                  {nomeClube(clubes, partida.timeCasa)}
+                </Text>
+              </View>
+              <Text style={styles.placarNumeros}>
+                {placarCasa} - {placarFora}
+              </Text>
+              <View style={styles.placarTimeWrap}>
+                <Text
+                  style={[styles.placarTime, styles.placarTimeDireita]}
+                  numberOfLines={1}>
+                  {nomeClube(clubes, partida.timeFora)}
+                </Text>
+                <View style={[styles.placarFaixa, {backgroundColor: corFora}]} />
+              </View>
+            </View>
+            <Text style={styles.placarMeta}>
+              Rodada {partida.rodada} · {partida.data}
+            </Text>
+            <View style={styles.metaChips}>
+              {estadio ? (
+                <View style={styles.metaChip}>
+                  <Icone nome="estadio" tamanho={13} cor={CLARO.textoSec} />
+                  <Text style={styles.metaChipTexto} numberOfLines={1}>
+                    {estadio.nome}
+                  </Text>
+                </View>
+              ) : null}
+              {est?.publico !== undefined ? (
+                <View style={styles.metaChip}>
+                  <Icone nome="publico" tamanho={13} cor={CLARO.textoSec} />
+                  <Text style={styles.metaChipTexto}>
+                    {est.publico.toLocaleString('pt-BR')}
+                  </Text>
+                </View>
+              ) : null}
+              {est ? (
+                <View style={styles.metaChip}>
+                  <Icone
+                    nome={iconeClima(est.clima)}
+                    tamanho={13}
+                    cor={CLARO.textoSec}
+                  />
+                  <Text style={styles.metaChipTexto}>
+                    {est.clima} · {est.temperatura}°C
+                  </Text>
+                </View>
+              ) : null}
+              {estadio ? (
+                <View style={styles.metaChip}>
+                  <Icone nome="gramado" tamanho={13} cor={CLARO.textoSec} />
+                  <Text style={styles.metaChipTexto}>
+                    {rotuloGramado(estadio.nivelInfraestrutura)}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.abas}>
+            {abas.map(item => (
+              <Pressable
+                key={item.chave}
+                style={[
+                  styles.aba,
+                  aba === item.chave && styles.abaAtiva,
+                ]}
+                onPress={() => setAba(item.chave)}>
+                <Text
+                  style={[
+                    styles.abaTexto,
+                    aba === item.chave && styles.abaTextoAtiva,
+                  ]}>
+                  {item.rotulo}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {aba === 'resumo'
+            ? renderResumo()
+            : aba === 'casa'
+              ? renderTime('casa')
+              : renderTime('fora')}
+
+          <Pressable
+            style={styles.botaoContinuar}
+            onPress={() => nav.navigate('MainTabs')}>
+            <Text style={styles.botaoContinuarTexto}>Continuar</Text>
+          </Pressable>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  placar: {
+  tela: {
+    backgroundColor: CLARO.fundo,
+    flex: 1,
+  },
+  telaSafe: {
+    flex: 1,
+  },
+  conteudo: {
+    gap: espaco.md,
+    padding: espaco.lg,
+    paddingBottom: espaco.xxl,
+  },
+  voltar: {
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  voltarTexto: {
+    color: CLARO.texto,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  placarCard: {
+    backgroundColor: CLARO.card,
+    borderColor: CLARO.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     gap: espaco.sm,
-    marginVertical: espaco.lg,
+    padding: espaco.lg,
+  },
+  placarLinha: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  placarTimeWrap: {
+    alignItems: 'center',
+    flex: 1,
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  placarFaixa: {
+    borderRadius: 2,
+    height: 24,
+    width: 4,
+  },
+  placarTime: {
+    color: CLARO.texto,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  placarTimeDireita: {
+    textAlign: 'right',
+  },
+  placarNumeros: {
+    color: CLARO.texto,
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  placarMeta: {
+    color: CLARO.textoSec,
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
   },
   metaChips: {
     flexDirection: 'row',
@@ -894,10 +1169,8 @@ const styles = StyleSheet.create({
   },
   metaChip: {
     alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.md,
-    borderWidth: 1,
+    backgroundColor: CLARO.fundo,
+    borderRadius: raio.pill,
     flexDirection: 'row',
     gap: 4,
     maxWidth: 200,
@@ -905,110 +1178,149 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   metaChipTexto: {
-    color: cores.textoSecundario,
+    color: CLARO.textoSec,
     fontSize: 11,
     fontWeight: '700',
   },
-  craque: {
+  abas: {
+    backgroundColor: CLARO.track,
+    borderRadius: raio.pill,
+    flexDirection: 'row',
+    padding: 3,
+  },
+  aba: {
     alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
+    borderRadius: raio.pill,
+    flex: 1,
+    paddingVertical: 8,
+  },
+  abaAtiva: {
+    backgroundColor: CLARO.card,
+    shadowColor: '#0F1E3D',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  abaTexto: {
+    color: CLARO.textoSec,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  abaTextoAtiva: {
+    color: CLARO.texto,
+  },
+  card: {
+    backgroundColor: CLARO.card,
+    borderColor: CLARO.borda,
     borderRadius: raio.lg,
     borderWidth: 1,
+    gap: espaco.sm,
+    padding: espaco.lg,
+  },
+  cardTitulo: {
+    color: CLARO.texto,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  craque: {
+    alignItems: 'center',
     flexDirection: 'row',
     gap: espaco.sm,
-    padding: espaco.md,
-    ...sombra.suave,
   },
   craqueFaixa: {
     borderRadius: 3,
-    height: 40,
+    height: 36,
     width: 5,
   },
   craqueInfo: {
     flex: 1,
+    gap: 3,
   },
   craqueNome: {
-    color: cores.texto,
-    fontSize: 15,
+    color: CLARO.texto,
+    fontSize: 16,
     fontWeight: '900',
   },
+  craqueSubRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
   craqueDetalhe: {
-    color: cores.textoSecundario,
+    color: CLARO.textoSec,
     fontSize: 12,
+    fontWeight: '600',
   },
   craqueChips: {
     flexDirection: 'row',
     gap: espaco.xs,
   },
   craqueChip: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaTransl,
+    alignItems: 'flex-start',
+    backgroundColor: CLARO.card,
+    borderColor: CLARO.borda,
     borderRadius: raio.md,
     borderWidth: 1,
-    minWidth: 44,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    flex: 1,
+    gap: 1,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 6,
   },
   craqueChipNota: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
+    backgroundColor: CLARO.verdeSuave,
+    borderColor: CLARO.verdeSuave,
   },
   craqueChipValor: {
-    color: cores.texto,
-    fontSize: 14,
+    color: CLARO.texto,
+    fontSize: 15,
     fontWeight: '900',
   },
   craqueChipValorNota: {
-    color: cores.contrastePrimaria,
-    fontSize: 14,
+    color: CLARO.verde,
+    fontSize: 15,
     fontWeight: '900',
   },
   craqueChipRotulo: {
-    color: cores.textoSecundario,
+    color: CLARO.textoSec,
     fontSize: 9,
     fontWeight: '700',
   },
   craqueChipRotuloNota: {
-    color: cores.contrastePrimaria,
+    color: CLARO.verde,
     fontSize: 9,
     fontWeight: '700',
   },
-  posseRow: {
+  posseCabecalho: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: espaco.sm,
+    justifyContent: 'space-between',
+  },
+  possePill: {
+    borderRadius: raio.pill,
+    borderWidth: 1.5,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 2,
+  },
+  possePillTexto: {
+    fontSize: 13,
+    fontWeight: '900',
   },
   posseTrack: {
-    borderRadius: raio.sm,
-    flex: 1,
+    borderRadius: raio.pill,
     flexDirection: 'row',
-    height: 10,
+    height: 12,
     overflow: 'hidden',
   },
   posseFill: {
     height: '100%',
   },
-  posseValor: {
-    fontSize: 13,
-    fontWeight: '900',
-    minWidth: 38,
-    textAlign: 'center',
-  },
-  posseLegenda: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-    marginTop: 4,
-    textAlign: 'center',
-  },
   estatLista: {
-    gap: espaco.sm,
-    marginTop: espaco.md,
+    gap: espaco.md,
+    marginTop: espaco.sm,
   },
   estatLinha: {
-    gap: 3,
+    gap: 4,
   },
   estatCabecalho: {
     alignItems: 'center',
@@ -1016,13 +1328,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   estatValor: {
-    color: cores.texto,
+    color: CLARO.texto,
     fontSize: 13,
     fontWeight: '900',
     minWidth: 48,
   },
+  estatValorDireita: {
+    textAlign: 'right',
+  },
   estatRotulo: {
-    color: cores.textoSecundario,
+    color: CLARO.textoSec,
     flex: 1,
     fontSize: 12,
     fontWeight: '600',
@@ -1032,26 +1347,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: espaco.sm,
   },
-  estatBarraTrack: {
-    backgroundColor: cores.superficieElevada,
-    borderRadius: raio.sm,
+  estatTrack: {
+    backgroundColor: CLARO.track,
+    borderRadius: raio.pill,
     flex: 1,
     flexDirection: 'row',
-    height: 6,
+    height: 7,
     overflow: 'hidden',
   },
   estatBarra: {
-    borderRadius: raio.sm,
+    borderRadius: raio.pill,
     height: '100%',
   },
-  estatBarraEspaco: {
+  estatEspaco: {
     flex: 0.0001,
   },
   momentumChart: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
+    backgroundColor: CLARO.fundo,
     borderRadius: raio.md,
-    borderWidth: 1,
     flexDirection: 'row',
     height: 96,
     overflow: 'hidden',
@@ -1063,11 +1376,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
-  momentumBarraCima: {
-    width: '100%',
-  },
-  momentumBarraBaixo: {
-    alignSelf: 'stretch',
+  momentumBarra: {
     width: '100%',
   },
   momentumEixo: {
@@ -1077,7 +1386,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: espaco.sm,
   },
   momentumEixoTexto: {
-    color: cores.textoSecundario,
+    color: CLARO.textoSec,
     fontSize: 10,
   },
   momentumLegenda: {
@@ -1085,7 +1394,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: espaco.xs,
     justifyContent: 'center',
-    marginTop: espaco.sm,
   },
   legendaDot: {
     borderRadius: 4,
@@ -1093,49 +1401,71 @@ const styles = StyleSheet.create({
     width: 8,
   },
   legendaTexto: {
-    color: cores.textoSecundario,
+    color: CLARO.textoSec,
     fontSize: 11,
     fontWeight: '700',
     marginRight: espaco.sm,
   },
-  eventos: {
+  timeline: {
+    gap: 2,
+  },
+  timelineLinha: {
+    alignItems: 'center',
+    borderBottomColor: CLARO.divisor,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
     gap: espaco.sm,
+    paddingVertical: 7,
   },
-  tabelaTime: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    marginBottom: espaco.sm,
-    padding: espaco.sm,
-    ...sombra.suave,
-  },
-  tabelaTitulo: {
-    color: cores.texto,
-    fontSize: 13,
+  timelineMinuto: {
+    color: CLARO.texto,
+    fontSize: 12,
     fontWeight: '900',
-    marginBottom: espaco.xs,
+    minWidth: 28,
   },
-  tabelaHeaderTexto: {
-    color: cores.textoSecundario,
-    fontSize: 9,
+  timelineFaixa: {
+    borderRadius: 2,
+    height: 18,
+    width: 3,
+  },
+  timelineTexto: {
+    color: CLARO.texto,
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  timelineSigla: {
+    color: CLARO.textoSec,
+    fontSize: 10,
     fontWeight: '800',
   },
-  tabelaHeaderNota: {
-    minWidth: 34,
-    textAlign: 'center',
+  divisor: {
+    backgroundColor: CLARO.divisor,
+    height: 1,
   },
   jogadorLinha: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 4,
+    gap: 5,
+    paddingVertical: 4,
+  },
+  jogadorLinhaDestaque: {
+    backgroundColor: CLARO.amareloSuave,
+    borderRadius: raio.sm,
+  },
+  posBadge: {
+    alignItems: 'center',
+    borderRadius: 6,
+    minWidth: 34,
+    paddingHorizontal: 4,
     paddingVertical: 3,
   },
-  jogadorPos: {
-    color: cores.textoSecundario,
+  posBadgeTexto: {
     fontSize: 9,
-    fontWeight: '800',
-    minWidth: 26,
+    fontWeight: '900',
+  },
+  posHeader: {
+    minWidth: 34,
   },
   jogadorNomeWrap: {
     alignItems: 'center',
@@ -1147,45 +1477,53 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   jogadorNome: {
-    color: cores.texto,
+    color: CLARO.texto,
     flexShrink: 1,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
   },
   jogadorTraco: {
-    color: cores.textoSecundario,
+    color: CLARO.textoSec,
     fontSize: 11,
     minWidth: 34,
     textAlign: 'center',
   },
-  notaBadge: {
-    borderRadius: raio.sm,
-    borderWidth: 1.5,
+  notaPill: {
+    alignItems: 'center',
+    borderRadius: 6,
     minWidth: 34,
     paddingHorizontal: 3,
-    paddingVertical: 1,
+    paddingVertical: 3,
   },
-  notaValor: {
+  notaPillTexto: {
     fontSize: 11,
     fontWeight: '900',
-    textAlign: 'center',
   },
   jogadorCelula: {
-    color: cores.texto,
+    color: CLARO.texto,
     fontSize: 10,
     fontWeight: '700',
-    minWidth: 22,
+    minWidth: 20,
     textAlign: 'center',
   },
   jogadorCelulaLarga: {
-    color: cores.texto,
+    color: CLARO.texto,
     fontSize: 10,
     fontWeight: '700',
-    minWidth: 44,
+    minWidth: 42,
+    textAlign: 'center',
+  },
+  tabelaHeaderTexto: {
+    color: CLARO.textoSec,
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  tabelaHeaderNota: {
+    minWidth: 34,
     textAlign: 'center',
   },
   bancoTitulo: {
-    color: cores.textoSecundario,
+    color: CLARO.textoSec,
     fontSize: 9,
     fontWeight: '800',
     marginBottom: 2,
@@ -1201,13 +1539,14 @@ const styles = StyleSheet.create({
     gap: espaco.xs,
   },
   mapaTitulo: {
-    color: cores.textoSecundario,
+    color: CLARO.textoSec,
     fontSize: 11,
     fontWeight: '800',
   },
   mapaCampo: {
     aspectRatio: 0.72,
-    borderColor: cores.bordaTransl,
+    backgroundColor: CLARO.fundo,
+    borderColor: CLARO.borda,
     borderRadius: raio.md,
     borderWidth: 1,
     overflow: 'hidden',
@@ -1221,22 +1560,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   mapaZona: {
-    borderColor: cores.superficie,
-    borderWidth: 0.5,
-    flex: 1,
-  },
-  mapaSetor: {
-    borderColor: cores.superficie,
+    borderColor: CLARO.card,
     borderWidth: 0.5,
     flex: 1,
   },
   mapaMeioCampo: {
-    backgroundColor: cores.bordaTransl,
+    backgroundColor: CLARO.borda,
     height: 1,
     left: 0,
     position: 'absolute',
     right: 0,
     top: '50%',
+  },
+  mapaLegenda: {
+    color: CLARO.textoSec,
+    fontSize: 10,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  botaoContinuar: {
+    alignItems: 'center',
+    backgroundColor: CLARO.azul,
+    borderRadius: raio.md,
+    paddingVertical: 14,
+  },
+  botaoContinuarTexto: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
   },
 });
 
