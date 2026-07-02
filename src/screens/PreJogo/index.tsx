@@ -16,10 +16,11 @@ import {
 } from '../../components/ui';
 import BarrasForca from '../../components/BarrasForca';
 import Escudo from '../../components/Escudo';
+import Painel from '../../components/Painel';
 import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {selecionarProximoJogo, useGameStore} from '../../store/useGameStore';
-import {cores, corDoTime, espaco, raio} from '../../theme';
+import {cores, corDoTime, espaco, gradientes} from '../../theme';
 import {forcaDoClube} from '../../utils/forca';
 import {nomeClube} from '../../utils/formatters';
 
@@ -76,6 +77,16 @@ function PreJogo(): React.JSX.Element {
     );
   }
 
+  // Favoritismo: força + leve mando de campo.
+  const diffForca =
+    confronto.forcaCasa.overall + 3 - confronto.forcaFora.overall;
+  const favoritismo =
+    Math.abs(diffForca) < 2
+      ? 'Confronto equilibrado'
+      : `Favorito${Math.abs(diffForca) >= 6 ? '' : ' leve'}: ${
+          diffForca > 0 ? confronto.casa.nome : confronto.fora.nome
+        }`;
+
   return (
     <ScreenContainer scroll>
       <AppHeader
@@ -84,61 +95,94 @@ function PreJogo(): React.JSX.Element {
         onBack={() => nav.goBack()}
       />
 
-      <View style={styles.confronto}>
-        <View style={styles.time}>
-          <Escudo clubeId={confronto.casa.id} sigla={confronto.casa.sigla} tamanho={56} />
-          <Text style={styles.timeNome} numberOfLines={1}>
-            {confronto.casa.nome}
-          </Text>
-          <Text style={styles.forca}>{Math.round(confronto.forcaCasa.overall)}</Text>
+      {/* Versus — "Vestiário" */}
+      <Painel
+        gradiente={gradientes.craque}
+        acento={cores.secundaria}
+        style={styles.versusPainel}>
+        <View style={styles.confronto}>
+          <View style={styles.time}>
+            <Escudo
+              clubeId={confronto.casa.id}
+              sigla={confronto.casa.sigla}
+              tamanho={56}
+            />
+            <Text style={styles.timeNome} numberOfLines={1}>
+              {confronto.casa.nome}
+            </Text>
+            <Text style={styles.forca}>
+              {Math.round(confronto.forcaCasa.overall)}
+            </Text>
+            <Text style={styles.mando}>Casa</Text>
+          </View>
+          <Text style={styles.vs}>VS</Text>
+          <View style={styles.time}>
+            <Escudo
+              clubeId={confronto.fora.id}
+              sigla={confronto.fora.sigla}
+              tamanho={56}
+            />
+            <Text style={styles.timeNome} numberOfLines={1}>
+              {confronto.fora.nome}
+            </Text>
+            <Text style={styles.forca}>
+              {Math.round(confronto.forcaFora.overall)}
+            </Text>
+            <Text style={styles.mando}>Fora</Text>
+          </View>
         </View>
-        <Text style={styles.vs}>VS</Text>
-        <View style={styles.time}>
-          <Escudo clubeId={confronto.fora.id} sigla={confronto.fora.sigla} tamanho={56} />
-          <Text style={styles.timeNome} numberOfLines={1}>
-            {confronto.fora.nome}
-          </Text>
-          <Text style={styles.forca}>{Math.round(confronto.forcaFora.overall)}</Text>
-        </View>
-      </View>
+        <Text style={styles.favoritismo}>{favoritismo}</Text>
+      </Painel>
 
-      <BarrasForca
-        casa={confronto.forcaCasa}
-        fora={confronto.forcaFora}
-        corCasa={corDoTime(confronto.casa.id)}
-        corFora={corDoTime(confronto.fora.id)}
-      />
+      <Section titulo="Comparativo de força">
+        <Painel>
+          <View style={styles.comparativo}>
+            <BarrasForca
+              casa={confronto.forcaCasa}
+              fora={confronto.forcaFora}
+              corCasa={corDoTime(confronto.casa.id)}
+              corFora={corDoTime(confronto.fora.id)}
+            />
+          </View>
+        </Painel>
+      </Section>
 
       <Section titulo="Histórico de confrontos">
         {historico.length === 0 ? (
           <TextoVazio>Sem confrontos anteriores.</TextoVazio>
         ) : (
-          <View style={styles.historico}>
-            {historico.map(p => (
-              <View key={p.id} style={styles.histLinha}>
-                <Text style={styles.histRodada}>R{p.rodada}</Text>
-                <Text style={styles.histTexto}>
-                  {nomeClube(clubes, p.timeCasa)} {p.placarCasa ?? 0} ×{' '}
-                  {p.placarFora ?? 0} {nomeClube(clubes, p.timeFora)}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <Painel>
+            <View style={styles.historico}>
+              {historico.map(p => (
+                <View key={p.id} style={styles.histLinha}>
+                  <Text style={styles.histRodada}>R{p.rodada}</Text>
+                  <Text style={styles.histTexto}>
+                    {nomeClube(clubes, p.timeCasa)} {p.placarCasa ?? 0} ×{' '}
+                    {p.placarFora ?? 0} {nomeClube(clubes, p.timeFora)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Painel>
         )}
       </Section>
 
       <Section titulo="Coletiva de imprensa">
-        <Text style={styles.coletivaTexto}>
-          {coletivaConcedida
-            ? 'Você já falou com a imprensa antes deste jogo.'
-            : 'Enfrente os jornalistas: 3 perguntas sobre escalação, um jogador e o adversário. Suas respostas mexem com a moral do elenco.'}
-        </Text>
-        <Botao
-          variante="secundaria"
-          icone="conversa"
-          titulo={coletivaConcedida ? 'Ver coletiva' : 'Ir à coletiva'}
-          onPress={() => nav.navigate('Coletiva')}
-        />
+        <Painel>
+          <View style={styles.coletivaConteudo}>
+            <Text style={styles.coletivaTexto}>
+              {coletivaConcedida
+                ? 'Você já falou com a imprensa antes deste jogo.'
+                : 'Enfrente os jornalistas: 3 perguntas sobre escalação, um jogador e o adversário. Suas respostas mexem com a moral do elenco.'}
+            </Text>
+            <Botao
+              variante="secundaria"
+              icone="conversa"
+              titulo={coletivaConcedida ? 'Ver coletiva' : 'Ir à coletiva'}
+              onPress={() => nav.navigate('Coletiva')}
+            />
+          </View>
+        </Painel>
       </Section>
 
       <View style={styles.acoes}>
@@ -156,6 +200,7 @@ function PreJogo(): React.JSX.Element {
         </View>
         <View style={styles.acaoFlex}>
           <Botao
+            variante="ouro"
             icone="jogar"
             titulo="Jogar ao vivo"
             onPress={() => nav.navigate('MatchSimulation')}
@@ -169,11 +214,13 @@ function PreJogo(): React.JSX.Element {
 export default PreJogo;
 
 const styles = StyleSheet.create({
+  versusPainel: {
+    marginBottom: espaco.md,
+  },
   confronto: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: espaco.md,
   },
   time: {
     alignItems: 'center',
@@ -188,26 +235,45 @@ const styles = StyleSheet.create({
   },
   forca: {
     color: cores.primaria,
-    fontSize: 22,
+    fontSize: 30,
     fontWeight: '900',
+    letterSpacing: -0.6,
+  },
+  mando: {
+    color: cores.textoSecundario,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   vs: {
-    color: cores.textoSecundario,
+    color: cores.secundaria,
     fontSize: 18,
     fontWeight: '900',
     paddingHorizontal: espaco.sm,
+    paddingTop: espaco.xl,
+  },
+  favoritismo: {
+    // Dourado padrão: a variante "clara" era para fundo escuro e some no claro.
+    color: cores.secundaria,
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginTop: espaco.md,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  comparativo: {
+    alignItems: 'center',
   },
   historico: {
     gap: espaco.xs,
   },
   histLinha: {
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
     flexDirection: 'row',
     gap: espaco.sm,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
+    paddingVertical: espaco.xs,
   },
   histRodada: {
     color: cores.secundaria,
@@ -220,11 +286,13 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
   },
+  coletivaConteudo: {
+    gap: espaco.md,
+  },
   coletivaTexto: {
     color: cores.textoSecundario,
     fontSize: 13,
     lineHeight: 19,
-    marginBottom: espaco.md,
   },
   acoes: {
     flexDirection: 'row',

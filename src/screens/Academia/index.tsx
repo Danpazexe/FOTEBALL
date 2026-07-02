@@ -17,7 +17,7 @@ import {
 } from '../../engine/progression/academiaEngine';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra, suaves} from '../../theme';
 import {moeda} from '../../utils/formatters';
 import {Pressable} from 'react-native';
 
@@ -110,13 +110,14 @@ const styles = StyleSheet.create({
   },
   card: {
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.md,
     padding: espaco.md,
+    ...sombra.card,
   },
   main: {
     flex: 1,
@@ -151,7 +152,8 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   faixaChipS: {
-    backgroundColor: 'rgba(255,214,0,0.12)',
+    // Fundo suave dourado (token do tema claro) sob o texto do acento.
+    backgroundColor: suaves.amarelo,
   },
   faixaTexto: {
     fontSize: 14,

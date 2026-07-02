@@ -45,19 +45,40 @@ export function fatorOcupacaoPorPreco(fatorPreco: number): number {
   return Math.min(1.2, Math.max(0.4, 1 - (fatorPreco - 1) * 0.6));
 }
 
+/**
+ * Ocupação do estádio num jogo em casa (0..0.98): posição na tabela puxa a
+ * torcida; o fator de preço do técnico (§8.2) escala inversamente.
+ */
+export function calcularOcupacaoJogo(
+  clube: Clube,
+  posicaoTabela: number,
+): number {
+  const fatorPosicao = Math.max(0.45, 1.15 - posicaoTabela * 0.025);
+  const ocupacaoBase = Math.min(0.96, 0.48 + fatorPosicao * 0.32);
+  const fatorPreco = clube.estadio.precoIngressoFator ?? 1;
+  return Math.min(0.98, ocupacaoBase * fatorOcupacaoPorPreco(fatorPreco));
+}
+
+/** Público presente num jogo em casa — a MESMA conta da bilheteria. */
+export function calcularPublicoJogo(
+  clube: Clube,
+  posicaoTabela: number,
+): number {
+  return Math.round(
+    clube.estadio.capacidade * calcularOcupacaoJogo(clube, posicaoTabela),
+  );
+}
+
 export function aplicarBilheteria(
   clube: Clube,
   posicaoTabela: number,
   data: string,
 ): Clube {
-  const fatorPosicao = Math.max(0.45, 1.15 - posicaoTabela * 0.025);
-  const ocupacaoBase = Math.min(0.96, 0.48 + fatorPosicao * 0.32);
-
   // Preço ajustável pelo técnico: o fator escala o preço e (inversamente) a
   // ocupação — há um ponto ideal entre lotar barato e cobrar caro com estádio vazio.
   const fatorPreco = clube.estadio.precoIngressoFator ?? 1;
   const precoEfetivo = clube.estadio.precoMedioIngresso * fatorPreco;
-  const ocupacao = Math.min(0.98, ocupacaoBase * fatorOcupacaoPorPreco(fatorPreco));
+  const ocupacao = calcularOcupacaoJogo(clube, posicaoTabela);
 
   const valor = Math.round(clube.estadio.capacidade * ocupacao * precoEfetivo);
 

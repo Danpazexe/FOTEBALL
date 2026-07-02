@@ -11,7 +11,7 @@ import {AppHeader, ScreenContainer} from '../../components/ui';
 import {useAppNavigation} from '../../navigation/types';
 import {useAchievementsStore} from '../../store/useAchievementsStore';
 import {useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra, tipografia} from '../../theme';
 import type {EstadoFinanceiro} from '../../types';
 
 const ESTADO_FINANCEIRO: Record<
@@ -107,14 +107,15 @@ export default Gabinete;
 
 const styles = StyleSheet.create({
   carreiraCard: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.lg,
     marginBottom: espaco.md,
     padding: espaco.md,
+    ...sombra.card,
   },
   carreiraItem: {
     flex: 1,
@@ -127,8 +128,7 @@ const styles = StyleSheet.create({
   },
   carreiraValor: {
     color: cores.texto,
-    fontSize: 20,
-    fontWeight: '900',
+    ...tipografia.numero,
   },
   barraFundo: {
     backgroundColor: cores.fundo,
@@ -157,20 +157,21 @@ const styles = StyleSheet.create({
   },
   card: {
     alignItems: 'center',
-    borderRadius: raio.md,
+    borderRadius: raio.lg,
     borderWidth: 1,
     gap: espaco.xs,
     minHeight: 132,
     padding: espaco.md,
     width: '48%',
+    ...sombra.card,
   },
   cardAtivo: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
   },
   cardInativo: {
     backgroundColor: cores.fundo,
-    borderColor: cores.borda,
+    borderColor: cores.bordaTransl,
     opacity: 0.75,
   },
   nome: {

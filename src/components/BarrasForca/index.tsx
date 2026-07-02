@@ -1,16 +1,14 @@
 import React from 'react';
-import {StyleSheet, View} from 'react-native';
-import Svg, {Rect, Text as SvgText} from 'react-native-svg';
+import {StyleSheet, Text, View} from 'react-native';
 
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
-import {cores} from '../../theme';
+import {cores, espaco, raio} from '../../theme';
 
 type BarrasForcaProps = {
   casa: ForcaTime;
   fora: ForcaTime;
   corCasa: string;
   corFora: string;
-  largura?: number;
 };
 
 const LINHAS: Array<{rotulo: string; chave: keyof ForcaTime}> = [
@@ -20,97 +18,47 @@ const LINHAS: Array<{rotulo: string; chave: keyof ForcaTime}> = [
 ];
 
 /**
- * Barras comparativas casa x fora (ataque/meio/defesa). Cada linha é dividida
- * proporcionalmente: mandante cresce da esquerda, visitante da direita.
+ * Barras comparativas casa x fora (ataque/meio/defesa), em linha legível:
+ *   RÓTULO   nºCasa  [barra casa | barra fora]  nºFora
+ * O rótulo fica à esquerda (não mais sobre a divisão das barras); os números
+ * de cada time ladeiam a barra. A barra é um "cabo de guerra": cada lado cresce
+ * proporcionalmente à sua força.
  */
 function BarrasForca({
   casa,
   fora,
   corCasa,
   corFora,
-  largura = 280,
 }: BarrasForcaProps): React.JSX.Element {
-  const alturaLinha = 22;
-  const gap = 8;
-  const altura = LINHAS.length * alturaLinha + (LINHAS.length - 1) * gap;
-  const margem = 30; // espaço lateral para os números
-  const barraLargura = largura - margem * 2;
-
   return (
     <View style={styles.wrap}>
-      <Svg width={largura} height={altura}>
-        {LINHAS.map((linha, index) => {
-          const y = index * (alturaLinha + gap);
-          const valorCasa = Math.round(casa[linha.chave]);
-          const valorFora = Math.round(fora[linha.chave]);
-          const total = Math.max(1, valorCasa + valorFora);
-          const fracCasa = valorCasa / total;
-          const larguraCasa = barraLargura * fracCasa;
-          const meioY = y + alturaLinha / 2;
-          return (
-            <React.Fragment key={linha.chave}>
-              {/* trilho */}
-              <Rect
-                x={margem}
-                y={y}
-                width={barraLargura}
-                height={alturaLinha}
-                rx={5}
-                fill={cores.fundo}
+      {LINHAS.map(linha => {
+        const valorCasa = Math.round(casa[linha.chave]);
+        const valorFora = Math.round(fora[linha.chave]);
+        const total = Math.max(1, valorCasa + valorFora);
+        const fracCasa = valorCasa / total;
+        return (
+          <View key={linha.chave} style={styles.linha}>
+            <Text style={styles.rotulo}>{linha.rotulo}</Text>
+            <Text style={[styles.numero, styles.numeroCasa]}>{valorCasa}</Text>
+            <View style={styles.track}>
+              <View
+                style={[
+                  styles.fill,
+                  {flex: fracCasa, backgroundColor: corCasa},
+                ]}
               />
-              {/* mandante (esquerda) */}
-              <Rect
-                x={margem}
-                y={y}
-                width={Math.max(2, larguraCasa)}
-                height={alturaLinha}
-                rx={5}
-                fill={corCasa}
-                opacity={0.92}
+              <View
+                style={[
+                  styles.fill,
+                  {flex: 1 - fracCasa, backgroundColor: corFora},
+                ]}
               />
-              {/* visitante (direita) */}
-              <Rect
-                x={margem + larguraCasa}
-                y={y}
-                width={Math.max(2, barraLargura - larguraCasa)}
-                height={alturaLinha}
-                rx={5}
-                fill={corFora}
-                opacity={0.92}
-              />
-              {/* números nas pontas */}
-              <SvgText
-                x={margem - 6}
-                y={meioY + 4}
-                fill={cores.texto}
-                fontSize={11}
-                fontWeight="bold"
-                textAnchor="end">
-                {valorCasa}
-              </SvgText>
-              <SvgText
-                x={margem + barraLargura + 6}
-                y={meioY + 4}
-                fill={cores.texto}
-                fontSize={11}
-                fontWeight="bold"
-                textAnchor="start">
-                {valorFora}
-              </SvgText>
-              {/* rótulo central */}
-              <SvgText
-                x={largura / 2}
-                y={meioY + 4}
-                fill={cores.texto}
-                fontSize={11}
-                fontWeight="bold"
-                textAnchor="middle">
-                {linha.rotulo}
-              </SvgText>
-            </React.Fragment>
-          );
-        })}
-      </Svg>
+            </View>
+            <Text style={[styles.numero, styles.numeroFora]}>{valorFora}</Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -119,6 +67,43 @@ export default BarrasForca;
 
 const styles = StyleSheet.create({
   wrap: {
+    gap: espaco.sm,
+    width: '100%',
+  },
+  linha: {
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  rotulo: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    width: 30,
+  },
+  numero: {
+    color: cores.texto,
+    fontSize: 13,
+    fontWeight: '800',
+    minWidth: 22,
+  },
+  numeroCasa: {
+    textAlign: 'right',
+  },
+  numeroFora: {
+    textAlign: 'left',
+  },
+  track: {
+    backgroundColor: cores.fundoBase,
+    borderRadius: raio.pill,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 2,
+    height: 10,
+    overflow: 'hidden',
+  },
+  fill: {
+    height: '100%',
   },
 });

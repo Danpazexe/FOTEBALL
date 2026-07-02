@@ -21,6 +21,8 @@ import CartaJogador from '../../components/CartaJogador';
 import AttributeRadar from '../../components/AttributeRadar';
 import Icone, {type IconeNome} from '../../components/Icone';
 import OverallBadge from '../../components/OverallBadge';
+import Painel from '../../components/Painel';
+import StatBar from '../../components/StatBar';
 import {useConfirm, useToast} from '../../components/feedback';
 import {cores, corOverall, espaco, raio} from '../../theme';
 import {moeda, nomeClube} from '../../utils/formatters';
@@ -112,10 +114,6 @@ function PlayerDetail(): React.JSX.Element {
   }
 
   const est = jogador.estatisticasTemporada;
-  const potencialPct = Math.max(
-    0,
-    Math.min(100, (jogador.overall / jogador.potencial) * 100),
-  );
   const status = statusJogador(jogador);
   const tendencia = tendenciaJogador(jogador);
   const tipoInfo = jogador.tipo ? TIPO_LABEL[jogador.tipo] : undefined;
@@ -200,56 +198,74 @@ function PlayerDetail(): React.JSX.Element {
 
       {/* Evolução: overall -> potencial + tendência */}
       <Section titulo="Evolução">
-        <View style={styles.evoLinha}>
-          <Text style={styles.evoTexto}>
-            Overall <Text style={styles.evoForte}>{jogador.overall}</Text> ·
-            Potencial <Text style={styles.evoForte}>{jogador.potencial}</Text>
-          </Text>
-          <View style={styles.chipsRow}>
-            {tipoInfo ? (
-              <View
-                style={[styles.tendenciaChip, {backgroundColor: `${tipoInfo.cor}22`}]}>
-                <Text style={[styles.tendenciaTexto, {color: tipoInfo.cor}]}>
-                  {tipoInfo.rotulo}
-                </Text>
-              </View>
-            ) : null}
-            <View style={[styles.tendenciaChip, {backgroundColor: `${tendencia.cor}22`}]}>
-              <Text style={[styles.tendenciaTexto, {color: tendencia.cor}]}>
-                {tendencia.rotulo}
+        <Painel>
+          <View style={styles.evoConteudo}>
+            <View style={styles.evoLinha}>
+              <Text style={styles.evoTexto}>
+                Overall <Text style={styles.evoForte}>{jogador.overall}</Text> ·
+                Potencial{' '}
+                <Text style={styles.evoForte}>{jogador.potencial}</Text>
               </Text>
+              <View style={styles.chipsRow}>
+                {tipoInfo ? (
+                  <View
+                    style={[
+                      styles.tendenciaChip,
+                      {
+                        backgroundColor: `${tipoInfo.cor}1F`,
+                        borderColor: `${tipoInfo.cor}66`,
+                      },
+                    ]}>
+                    <Text style={[styles.tendenciaTexto, {color: tipoInfo.cor}]}>
+                      {tipoInfo.rotulo}
+                    </Text>
+                  </View>
+                ) : null}
+                <View
+                  style={[
+                    styles.tendenciaChip,
+                    {
+                      backgroundColor: `${tendencia.cor}1F`,
+                      borderColor: `${tendencia.cor}66`,
+                    },
+                  ]}>
+                  <Text style={[styles.tendenciaTexto, {color: tendencia.cor}]}>
+                    {tendencia.rotulo}
+                  </Text>
+                </View>
+              </View>
             </View>
+            <StatBar
+              valor={jogador.overall}
+              max={jogador.potencial}
+              cor={corOverall(jogador.overall)}
+              mostrarValor={false}
+            />
+            <Text style={styles.evoLegenda}>
+              {jogador.potencial > jogador.overall
+                ? `Pode evoluir até ${jogador.potencial}.`
+                : 'Já atingiu o teto de evolução.'}
+            </Text>
           </View>
-        </View>
-        <View style={styles.barraFundo}>
-          <View
-            style={[
-              styles.barraPreenchida,
-              {width: `${potencialPct}%`, backgroundColor: corOverall(jogador.overall)},
-            ]}
-          />
-        </View>
-        <Text style={styles.evoLegenda}>
-          {jogador.potencial > jogador.overall
-            ? `Pode evoluir até ${jogador.potencial}.`
-            : 'Já atingiu o teto de evolução.'}
-        </Text>
+        </Painel>
       </Section>
 
       {(jogador.habilidades ?? []).length > 0 ? (
         <Section titulo="Habilidades">
-          <View style={styles.habilidadesWrap}>
-            {(jogador.habilidades ?? []).map(hab => (
-              <View key={hab} style={styles.habilidadeItem}>
-                <Text style={styles.habilidadeRotulo}>
-                  {HABILIDADES[hab].rotulo}
-                </Text>
-                <Text style={styles.habilidadeDescricao}>
-                  {HABILIDADES[hab].descricao}
-                </Text>
-              </View>
-            ))}
-          </View>
+          <Painel>
+            <View style={styles.habilidadesWrap}>
+              {(jogador.habilidades ?? []).map(hab => (
+                <View key={hab} style={styles.habilidadeItem}>
+                  <Text style={styles.habilidadeRotulo}>
+                    {HABILIDADES[hab].rotulo}
+                  </Text>
+                  <Text style={styles.habilidadeDescricao}>
+                    {HABILIDADES[hab].descricao}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </Painel>
         </Section>
       ) : null}
 
@@ -291,30 +307,39 @@ function PlayerDetail(): React.JSX.Element {
       </Section>
 
       <Section titulo="Radar de atributos">
-        <View style={styles.radarWrap}>
-          <AttributeRadar jogador={jogador} />
-        </View>
+        <Painel>
+          <View style={styles.radarWrap}>
+            <AttributeRadar jogador={jogador} />
+          </View>
+        </Painel>
       </Section>
 
       <Section titulo="Atributos">
-        <View style={styles.atributosGrid}>
-          {ATRIBUTOS.map(attr => (
-            <AtributoLinha
-              key={attr.chave}
-              label={attr.label}
-              valor={jogador.atributos[attr.chave]}
-              progresso={jogador.progressoAtributos?.[attr.chave] ?? 0}
-            />
-          ))}
-        </View>
-        <Text style={styles.atributosNota}>
-          A barra fina mostra o progresso no treino rumo ao próximo ponto.
-        </Text>
+        <Painel>
+          <View style={styles.atributosGrid}>
+            {ATRIBUTOS.map(attr => (
+              <AtributoLinha
+                key={attr.chave}
+                label={attr.label}
+                valor={jogador.atributos[attr.chave]}
+                progresso={jogador.progressoAtributos?.[attr.chave] ?? 0}
+              />
+            ))}
+          </View>
+          <Text style={styles.atributosNota}>
+            A barra fina mostra o progresso no treino rumo ao próximo ponto.
+          </Text>
+        </Painel>
       </Section>
 
       {doClubeUsuario && !jogador.emprestimo ? (
         <View style={styles.acoes}>
-          <Botao icone="dinheiro" titulo="Vender jogador" onPress={handleVender} />
+          <Botao
+            variante="perigo"
+            icone="dinheiro"
+            titulo="Vender jogador"
+            onPress={handleVender}
+          />
           <Botao
             variante="secundaria"
             icone="troca"
@@ -388,17 +413,20 @@ const styles = StyleSheet.create({
   statusChip: {
     alignItems: 'center',
     alignSelf: 'center',
-    borderRadius: raio.sm,
+    borderRadius: raio.pill,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.sm,
     marginBottom: espaco.lg,
-    paddingHorizontal: espaco.md,
+    paddingHorizontal: espaco.lg,
     paddingVertical: espaco.sm,
   },
   statusTexto: {
     fontSize: 14,
     fontWeight: '800',
+  },
+  evoConteudo: {
+    gap: espaco.md,
   },
   evoLinha: {
     alignItems: 'center',
@@ -414,8 +442,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   tendenciaChip: {
-    borderRadius: raio.sm,
-    paddingHorizontal: espaco.sm,
+    borderRadius: raio.pill,
+    borderWidth: 1,
+    paddingHorizontal: espaco.md,
     paddingVertical: espaco.xs,
   },
   tendenciaTexto: {
@@ -449,17 +478,6 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 12,
     marginTop: 2,
-  },
-  barraFundo: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
-    height: 10,
-    overflow: 'hidden',
-    width: '100%',
-  },
-  barraPreenchida: {
-    borderRadius: raio.sm,
-    height: '100%',
   },
   evoLegenda: {
     color: cores.textoSecundario,

@@ -1,4 +1,13 @@
-import type {Clube, EventoPartida, Partida, Player, Position} from '../../types';
+import type {
+  Clube,
+  EstatisticasPartida,
+  EventoPartida,
+  Formacao,
+  Partida,
+  Player,
+  Position,
+  Tatica,
+} from '../../types';
 
 import {
   fatorPesoAssistencia,
@@ -11,12 +20,19 @@ import {
   type ProbabilidadesPartida,
 } from './probabilityCalc';
 import {
+  acumularEstatisticasMinuto,
+  criarEstatisticasAoVivo,
+  finalizarEstatisticas,
+  type EstatisticasAoVivo,
+} from './matchStats';
+import {
   criarRNGComSeed,
   inteiroEntre,
   limitar,
   type RandomGenerator,
 } from './rng';
-import {calcularForcaTime} from './teamStrength';
+import {processarSubstituicoesIA} from './substituicoesIA';
+import {calcularForcaTime, type ForcaTime} from './teamStrength';
 
 export interface SimularPartidaInput {
   timeCasa: Clube;
@@ -320,6 +336,60 @@ function simularPenalti(
   return {evento, gol: convertido};
 }
 
+/**
+ * A falta que origina o pênalti: um defensor do time INFRATOR é apontado
+ * (mesmo perfil de quem leva cartão — zaga/laterais/volante que desarmam
+ * muito) e pode ser punido: amarelo na maioria das punições, vermelho direto
+ * no lance desesperado e segundo amarelo expulsando. ~55% das faltas de
+ * pênalti passam sem cartão (o pênalti já é a punição).
+ */
+function simularFaltaDoPenalti(
+  minuto: number,
+  clubeInfrator: Clube,
+  jogadoresInfratores: Player[],
+  rng: RandomGenerator,
+  amarelosPartida: Map<string, number>,
+): {ofensor: Player; eventoCartao?: EventoPartida} {
+  const ofensor = escolherJogadorPonderado(jogadoresInfratores, rng, atleta => {
+    const base = ['ZAG', 'LD', 'LE', 'VOL'].includes(atleta.posicaoPrincipal)
+      ? 2
+      : 1;
+    return base * (0.6 + atleta.atributos.desarme / 100);
+  });
+
+  const sorteio = rng();
+  if (sorteio >= 0.45) {
+    return {ofensor};
+  }
+  const jaTinhaAmarelo = (amarelosPartida.get(ofensor.id) ?? 0) >= 1;
+  const vermelhoDireto = sorteio < 0.06;
+  if (vermelhoDireto || jaTinhaAmarelo) {
+    return {
+      ofensor,
+      eventoCartao: criarEvento(
+        minuto,
+        'cartao_vermelho',
+        clubeInfrator.id,
+        ofensor,
+        jaTinhaAmarelo && !vermelhoDireto
+          ? `${ofensor.nome} cometeu o pênalti, recebeu o segundo amarelo e foi expulso.`
+          : `${ofensor.nome} cometeu o pênalti e recebeu cartão vermelho.`,
+      ),
+    };
+  }
+  amarelosPartida.set(ofensor.id, (amarelosPartida.get(ofensor.id) ?? 0) + 1);
+  return {
+    ofensor,
+    eventoCartao: criarEvento(
+      minuto,
+      'cartao_amarelo',
+      clubeInfrator.id,
+      ofensor,
+      `${ofensor.nome} cometeu o pênalti e recebeu cartão amarelo.`,
+    ),
+  };
+}
+
 function simularLesao(
   minuto: number,
   clube: Clube,
@@ -363,6 +433,12 @@ function simularChance(
 /** Estado mutável de uma partida simulada minuto a minuto (ao vivo). */
 export interface EstadoPartidaAoVivo {
   rng: RandomGenerator;
+  /**
+   * RNG exclusivo da disputa de posse (1 consumo por minuto). Separado do RNG
+   * de eventos para que a posse não altere o sorteio de gols/cartões — o mesmo
+   * seed continua produzindo exatamente a mesma partida.
+   */
+  rngPosse: RandomGenerator;
   placarCasa: number;
   placarFora: number;
   eventos: EventoPartida[];
@@ -371,6 +447,29 @@ export interface EstadoPartidaAoVivo {
   indisponiveis: Set<string>;
   /** Condição física ATUAL por jogador (fadiga dinâmica). Vazio = usa a pré-jogo. */
   condicaoAtual: Map<string, number>;
+  /** Soma das frações de posse da CASA por minuto simulado (0..1 cada). */
+  posseAcumuladaCasa: number;
+  /**
+   * RNG exclusivo das estatísticas avançadas (volume de chutes, faltas...).
+   * Como o de posse, não toca a sequência de eventos da partida.
+   */
+  rngEstatisticas: RandomGenerator;
+  /** Estatísticas avançadas acumuladas minuto a minuto (ver matchStats). */
+  estatisticas: EstatisticasAoVivo;
+  /** RNG das decisões de substituição da IA (ver substituicoesIA). */
+  rngSubs: RandomGenerator;
+  /** Formações AO VIVO dos clubes da IA (trocas aplicadas pela engine). */
+  formacoesAoVivo: Map<string, Formacao>;
+  /** Expulsos na partida — NUNCA têm reposição (regra do futebol). */
+  expulsos: Set<string>;
+  /** Lesões aguardando a reposição da IA. */
+  lesionadosPendentes: Array<{clubeId: string; jogadorId: string}>;
+  /** Substituições já feitas por clube (teto de 5). */
+  subsIA: Map<string, number>;
+  /** Quem já saiu não volta (inclui trocas da IA). */
+  sairamNaPartida: Set<string>;
+  /** Clubes que já fizeram a troca ofensiva de fim de jogo. */
+  cartadaOfensiva: Set<string>;
   minuto: number;
 }
 
@@ -380,6 +479,12 @@ export interface ContextoMinuto {
   timeFora: Clube;
   jogadoresCasa: Player[];
   jogadoresFora: Player[];
+  /** Elencos COMPLETOS (banco incluso) — usados pelas trocas da IA. */
+  elencoCasa: Player[];
+  elencoFora: Player[];
+  /** Força ATUAL das equipes (já com fadiga, expulsões e substituições). */
+  forcaCasa: ForcaTime;
+  forcaFora: ForcaTime;
   probabilidades: ProbabilidadesPartida;
   goleiroCasa: Player | undefined;
   goleiroFora: Player | undefined;
@@ -388,14 +493,28 @@ export interface ContextoMinuto {
 }
 
 export function iniciarPartidaAoVivo(seed: number): EstadoPartidaAoVivo {
+  // Streams independentes: offsets grandes produzem sequências sem relação
+  // com a dos eventos, mantendo o determinismo por seed.
+  const rngEstatisticas = criarRNGComSeed(seed + 202_777);
   return {
     rng: criarRNGComSeed(seed),
+    rngPosse: criarRNGComSeed(seed + 101_159),
     placarCasa: 0,
     placarFora: 0,
     eventos: [],
     amarelosPartida: new Map<string, number>(),
     indisponiveis: new Set<string>(),
     condicaoAtual: new Map<string, number>(),
+    posseAcumuladaCasa: 0,
+    rngEstatisticas,
+    estatisticas: criarEstatisticasAoVivo(rngEstatisticas),
+    rngSubs: criarRNGComSeed(seed + 303_949),
+    formacoesAoVivo: new Map<string, Formacao>(),
+    expulsos: new Set<string>(),
+    lesionadosPendentes: [],
+    subsIA: new Map<string, number>(),
+    sairamNaPartida: new Set<string>(),
+    cartadaOfensiva: new Set<string>(),
     minuto: 0,
   };
 }
@@ -439,14 +558,20 @@ export function calcularContextoMinuto(
   const opcoes = estado
     ? {indisponiveis: estado.indisponiveis, condicaoAtual: estado.condicaoAtual}
     : undefined;
+  // Formações AO VIVO: as trocas da IA vivem no estado (a formação persistida
+  // do clube não muda); o time do usuário troca via store (formacaoAtual).
+  const formacaoCasa =
+    estado?.formacoesAoVivo.get(timeCasa.id) ?? timeCasa.formacaoAtual;
+  const formacaoFora =
+    estado?.formacoesAoVivo.get(timeFora.id) ?? timeFora.formacaoAtual;
   const forcaCasa = calcularForcaTime(
-    timeCasa.formacaoAtual,
+    formacaoCasa,
     jogadoresCasa,
     timeCasa.taticaAtual,
     opcoes,
   );
   const forcaFora = calcularForcaTime(
-    timeFora.formacaoAtual,
+    formacaoFora,
     jogadoresFora,
     timeFora.taticaAtual,
     opcoes,
@@ -456,24 +581,33 @@ export function calcularContextoMinuto(
   // EM CAMPO agora — não o elenco inteiro. Quem foi substituído, expulso ou
   // lesionado não marca/leva cartão, e a súmula credita só quem jogou.
   const indisponiveis = estado?.indisponiveis;
-  const titularesEmCampo = (clube: Clube, todos: Player[]): Player[] => {
+  const titularesEmCampo = (formacao: Formacao, todos: Player[]): Player[] => {
     const porId = new Map(todos.map(jogador => [jogador.id, jogador]));
-    const titulares = clube.formacaoAtual?.titulares ?? [];
-    return titulares
+    // Exclui também lesionados/suspensos PRÉ-jogo (não só os que saíram durante
+    // a partida): um suspenso escalado não pode ganhar passes/finalizações nas
+    // estatísticas de quem jogou.
+    return formacao.titulares
       .map(titular => porId.get(titular.jogadorId))
       .filter(
         (jogador): jogador is Player =>
-          jogador !== undefined && !indisponiveis?.has(jogador.id),
+          jogador !== undefined &&
+          !jogador.lesionado &&
+          !jogador.suspenso &&
+          !indisponiveis?.has(jogador.id),
       );
   };
-  const emCampoCasa = titularesEmCampo(timeCasa, jogadoresCasa);
-  const emCampoFora = titularesEmCampo(timeFora, jogadoresFora);
+  const emCampoCasa = titularesEmCampo(formacaoCasa, jogadoresCasa);
+  const emCampoFora = titularesEmCampo(formacaoFora, jogadoresFora);
 
   return {
     timeCasa,
     timeFora,
     jogadoresCasa: emCampoCasa,
     jogadoresFora: emCampoFora,
+    elencoCasa: jogadoresCasa,
+    elencoFora: jogadoresFora,
+    forcaCasa,
+    forcaFora,
     probabilidades: calcularProbabilidades(
       forcaCasa,
       forcaFora,
@@ -486,6 +620,21 @@ export function calcularContextoMinuto(
     fatorVermelhoCasa: fatorVermelhoTatica(timeCasa),
     fatorVermelhoFora: fatorVermelhoTatica(timeFora),
   };
+}
+
+/** Ids dos titulares DISPONÍVEIS no apito — vira o snapshot da súmula. */
+export function idsTitularesDisponiveis(
+  clube: Clube,
+  jogadores: Player[],
+): string[] {
+  const porId = new Map(jogadores.map(jogador => [jogador.id, jogador]));
+  return (clube.formacaoAtual?.titulares ?? [])
+    .map(titular => porId.get(titular.jogadorId))
+    .filter(
+      (jogador): jogador is Player =>
+        jogador !== undefined && !jogador.lesionado && !jogador.suspenso,
+    )
+    .map(jogador => jogador.id);
 }
 
 /** Reta final do jogo é mais aberta: mais gols nos últimos 20 minutos. */
@@ -506,6 +655,111 @@ function fatorMomentum(diffGols: number, minuto: number): number {
     return 0.93;
   }
   return 1;
+}
+
+/**
+ * Quanto a tática MANDA ter a bola: posse de bola retém, contra-ataque e bola
+ * longa abrem mão dela por escolha; pressão alta a recupera no campo do rival;
+ * ritmo lento cadencia. Devolve um ajuste aditivo à fração de posse do time.
+ */
+function intencaoPosse(tatica: Tatica | null | undefined): number {
+  if (!tatica) {
+    return 0;
+  }
+  let intencao = 0;
+  if (tatica.estiloOfensivo === 'Posse de bola') {
+    intencao += 0.05;
+  } else if (tatica.estiloOfensivo === 'Contra-ataque') {
+    intencao -= 0.05;
+  } else if (tatica.estiloOfensivo === 'Ataque direto') {
+    intencao -= 0.03;
+  }
+  if (tatica.marcacao === 'Pressão alta') {
+    intencao += 0.02;
+  }
+  if (tatica.ritmo === 'Lento') {
+    intencao += 0.02;
+  }
+  return intencao;
+}
+
+/**
+ * Disputa a posse do minuto e acumula a fração da CASA no estado. Nada aqui é
+ * cosmético — tudo deriva do jogo REAL neste minuto:
+ *  - domínio de meio-campo ATUAL (a força é recalculada minuto a minuto, então
+ *    fadiga, expulsões e substituições movem a posse imediatamente);
+ *  - intenção tática das duas comissões (ver `intencaoPosse`);
+ *  - placar × relógio (quem perde vai atrás da bola, quem vence administra);
+ *  - lances do minuto (o time que criou/marcou estava com a bola);
+ *  - disputa lance-a-lance via `rngPosse` (determinística por seed, exatamente
+ *    1 consumo por minuto, sem tocar no RNG de eventos).
+ */
+function disputarPosseMinuto(
+  estado: EstadoPartidaAoVivo,
+  ctx: ContextoMinuto,
+  eventosDoMinuto: EventoPartida[],
+): number {
+  // Diferenças de força de meio são sutis (ex.: 72×66); em posse elas aparecem
+  // grandes. O fator 3.2 traduz: meio 75×60 ≈ 68% de bola, times iguais = 50%.
+  const meioCasa = Math.max(1, ctx.forcaCasa.meio);
+  const meioFora = Math.max(1, ctx.forcaFora.meio);
+  let fracaoCasa = 0.5 + (meioCasa / (meioCasa + meioFora) - 0.5) * 3.2;
+
+  fracaoCasa +=
+    intencaoPosse(ctx.timeCasa.taticaAtual) -
+    intencaoPosse(ctx.timeFora.taticaAtual);
+
+  // Placar × relógio: quem está atrás toma a iniciativa (e mais forte perto do
+  // fim); o efeito espelha no adversário, que cede a bola para administrar.
+  const diff = estado.placarCasa - estado.placarFora;
+  if (diff !== 0) {
+    const pressao =
+      Math.min(3, Math.abs(diff)) * 0.02 * (0.5 + estado.minuto / 90);
+    fracaoCasa += diff < 0 ? pressao : -pressao;
+  }
+
+  // Lances do minuto: gol/pênalti/chance só nascem com a bola no pé.
+  for (const evento of eventosDoMinuto) {
+    const pesoLance =
+      evento.tipo === 'gol'
+        ? 0.12
+        : evento.tipo === 'penalti' || evento.tipo === 'chance_perdida'
+          ? 0.08
+          : 0;
+    if (pesoLance > 0) {
+      fracaoCasa += evento.timeId === ctx.timeCasa.id ? pesoLance : -pesoLance;
+    }
+  }
+
+  // Disputa do minuto (±9%): bola dividida, erro de passe, bola parada.
+  fracaoCasa += (estado.rngPosse() - 0.5) * 0.18;
+
+  const fracaoFinal = limitar(fracaoCasa, 0.15, 0.85);
+  estado.posseAcumuladaCasa += fracaoFinal;
+  return fracaoFinal;
+}
+
+/** Fecha as estatísticas avançadas do estado para persistir na Partida. */
+export function calcularEstatisticasFinais(
+  estado: EstadoPartidaAoVivo,
+): EstatisticasPartida {
+  return finalizarEstatisticas(estado.estatisticas);
+}
+
+/**
+ * Posse acumulada (%) até o minuto atual — o número que uma transmissão
+ * mostraria agora. 50/50 antes de a bola rolar; sempre soma 100.
+ */
+export function calcularPossePartida(estado: EstadoPartidaAoVivo): {
+  casa: number;
+  fora: number;
+} {
+  if (estado.minuto <= 0) {
+    return {casa: 50, fora: 50};
+  }
+  const casa = Math.round((estado.posseAcumuladaCasa / estado.minuto) * 100);
+  const casaLimitada = limitar(casa, 15, 85);
+  return {casa: casaLimitada, fora: 100 - casaLimitada};
 }
 
 /** Desgaste físico por minuto; resistência alta poupa, ritmo intenso cobra. */
@@ -579,6 +833,7 @@ export function simularMinuto(
     );
     if (ev.tipo === 'cartao_vermelho') {
       estado.indisponiveis.add(ev.jogadorId);
+      estado.expulsos.add(ev.jogadorId);
     }
     adicionar(ev);
   }
@@ -593,19 +848,52 @@ export function simularMinuto(
     );
     if (ev.tipo === 'cartao_vermelho') {
       estado.indisponiveis.add(ev.jogadorId);
+      estado.expulsos.add(ev.jogadorId);
     }
     adicionar(ev);
   }
 
   if (rng() < p.probPenaltiCasaPorMinuto) {
+    // A falta vem ANTES da cobrança: infrator do time de fora, com cartão
+    // quando o lance merece (vermelho tira o jogador do resto do jogo).
+    const falta = simularFaltaDoPenalti(
+      minuto,
+      ctx.timeFora,
+      emCampoFora,
+      rng,
+      estado.amarelosPartida,
+    );
+    if (falta.eventoCartao) {
+      if (falta.eventoCartao.tipo === 'cartao_vermelho') {
+        estado.indisponiveis.add(falta.eventoCartao.jogadorId);
+        estado.expulsos.add(falta.eventoCartao.jogadorId);
+      }
+      adicionar(falta.eventoCartao);
+    }
     const penalti = simularPenalti(minuto, ctx.timeCasa, emCampoCasa, ctx.goleiroFora, rng);
+    penalti.evento.jogadorFaltaId = falta.ofensor.id;
     if (penalti.gol) {
       estado.placarCasa += 1;
     }
     adicionar(penalti.evento);
   }
   if (rng() < p.probPenaltiForaPorMinuto) {
+    const falta = simularFaltaDoPenalti(
+      minuto,
+      ctx.timeCasa,
+      emCampoCasa,
+      rng,
+      estado.amarelosPartida,
+    );
+    if (falta.eventoCartao) {
+      if (falta.eventoCartao.tipo === 'cartao_vermelho') {
+        estado.indisponiveis.add(falta.eventoCartao.jogadorId);
+        estado.expulsos.add(falta.eventoCartao.jogadorId);
+      }
+      adicionar(falta.eventoCartao);
+    }
     const penalti = simularPenalti(minuto, ctx.timeFora, emCampoFora, ctx.goleiroCasa, rng);
+    penalti.evento.jogadorFaltaId = falta.ofensor.id;
     if (penalti.gol) {
       estado.placarFora += 1;
     }
@@ -615,12 +903,26 @@ export function simularMinuto(
   if (rng() < p.probLesaoCasaPorMinuto) {
     const ev = simularLesao(minuto, ctx.timeCasa, emCampoCasa, rng);
     estado.indisponiveis.add(ev.jogadorId);
+    estado.lesionadosPendentes.push({
+      clubeId: ctx.timeCasa.id,
+      jogadorId: ev.jogadorId,
+    });
     adicionar(ev);
   }
   if (rng() < p.probLesaoForaPorMinuto) {
     const ev = simularLesao(minuto, ctx.timeFora, emCampoFora, rng);
     estado.indisponiveis.add(ev.jogadorId);
+    estado.lesionadosPendentes.push({
+      clubeId: ctx.timeFora.id,
+      jogadorId: ev.jogadorId,
+    });
     adicionar(ev);
+  }
+
+  // Substituições da IA (lesão/fadiga/placar): o técnico adversário trabalha.
+  // A troca entra na súmula e vale a partir do próximo contexto de minuto.
+  for (const troca of processarSubstituicoesIA(estado, ctx)) {
+    adicionar(troca);
   }
 
   if (rng() < p.probChanceNarrativaPorMinuto) {
@@ -636,6 +938,25 @@ export function simularMinuto(
       ),
     );
   }
+
+  // Posse do minuto: usa a força/eventos REAIS deste minuto (nada cosmético).
+  const fracaoPosseCasa = disputarPosseMinuto(estado, ctx, novos);
+
+  // Estatísticas avançadas do minuto (xG, chutes, passes, zonas, momentum).
+  acumularEstatisticasMinuto(estado.estatisticas, {
+    timeCasaId: ctx.timeCasa.id,
+    emCampoCasa,
+    emCampoFora,
+    taticaCasa: ctx.timeCasa.taticaAtual,
+    taticaFora: ctx.timeFora.taticaAtual,
+    probabilidades: p,
+    eventosDoMinuto: novos,
+    fracaoPosseCasa,
+    fatorTempo: fTempo,
+    momentumCasa,
+    momentumFora,
+    rng: estado.rngEstatisticas,
+  });
 
   // Fadiga do minuto (sem RNG): aplica ao fim, para que o próximo ctx a reflita.
   aplicarFadiga(estado, emCampoCasa, ctx.timeCasa.taticaAtual?.ritmo ?? 'Normal');
@@ -684,6 +1005,8 @@ export function simularPartida(input: SimularPartidaInput): Partida {
     }
   }
 
+  const posse = calcularPossePartida(estado);
+
   return {
     id: `match_${input.timeCasa.id}_${input.timeFora.id}_${input.seed}_${inteiroEntre(
       estado.rng,
@@ -700,6 +1023,11 @@ export function simularPartida(input: SimularPartidaInput): Partida {
     eventos: estado.eventos.sort((a, b) => a.minuto - b.minuto),
     jogada: true,
     modoJogado: 'simulado',
+    posseCasa: posse.casa,
+    posseFora: posse.fora,
+    estatisticas: calcularEstatisticasFinais(estado),
+    titularesCasa: idsTitularesDisponiveis(input.timeCasa, input.jogadoresCasa),
+    titularesFora: idsTitularesDisponiveis(input.timeFora, input.jogadoresFora),
     vencedorPenaltis,
   };
 }

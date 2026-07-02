@@ -16,7 +16,7 @@ import {useConfirm} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import type {RootStackParamList} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra} from '../../theme';
 import type {Clube, Player} from '../../types';
 import {moeda} from '../../utils/formatters';
 
@@ -156,13 +156,14 @@ const styles = StyleSheet.create({
   },
   item: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.md,
     padding: espaco.md,
+    ...sombra.card,
   },
   itemInfoWrap: {
     flex: 1,
