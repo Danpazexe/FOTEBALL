@@ -77,7 +77,8 @@ export function PlayerFace({
   const [hasImageError, setHasImageError] = useState(false);
   const initials = useMemo(() => getInitials(nome), [nome]);
   const accentColor = posicao ? POSITION_COLORS[posicao] : '#00E5A0';
-  const shouldShowImage = Boolean(normalizedFaceUrl && !hasImageError);
+  const imageSource =
+    normalizedFaceUrl && !hasImageError ? {uri: normalizedFaceUrl} : null;
 
   useEffect(() => {
     setHasImageError(false);
@@ -95,9 +96,9 @@ export function PlayerFace({
         },
         style,
       ]}>
-      {shouldShowImage ? (
+      {imageSource ? (
         <Image
-          source={{uri: normalizedFaceUrl ?? undefined}}
+          source={imageSource}
           style={{width: size, height: size, borderRadius: size / 2}}
           resizeMode="cover"
           onError={() => setHasImageError(true)}
