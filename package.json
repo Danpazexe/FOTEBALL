@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "link:fonts": "npx react-native-asset"
   },
   "dependencies": {
     "@op-engineering/op-sqlite": "^16.2.1",
