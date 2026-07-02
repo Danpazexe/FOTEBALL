@@ -2,11 +2,17 @@
  * Efeitos sonoros do FOTEBALL via react-native-sound.
  *
  * Os arquivos-fonte vivem em `src/audio/*.mp3` e são empacotados como recursos
- * nativos do Android (`android/app/src/main/res/raw/`) — o carregamento é pelo
- * NOME do arquivo. No iOS precisariam ser adicionados ao bundle do Xcode.
+ * nativos do Android (`android/app/src/main/res/raw/`) e do iOS (bundle do
+ * Xcode) — o carregamento é pelo NOME do arquivo.
  *
  * O carregamento é preguiçoso e tolerante a falhas: se um som não carregar,
  * as funções de tocar simplesmente não fazem nada (o jogo segue sem áudio).
+ *
+ * IMPORTANTE (bug corrigido): na lib 0.13, `stop()`/`play()` são no-op
+ * SILENCIOSOS enquanto o som não terminou de carregar — um gol nos primeiros
+ * segundos da primeira partida ficava mudo. Agora acompanhamos o load de cada
+ * efeito: pedido antes de carregar fica PENDENTE e toca assim que o load
+ * termina, em vez de se perder.
  */
 
 import Sound from 'react-native-sound';
@@ -31,8 +37,25 @@ const ARQUIVOS = {
 type NomeSom = keyof typeof ARQUIVOS;
 
 const sons = new Map<NomeSom, Sound>();
+/** Sons cujo load nativo já terminou com sucesso. */
+const prontos = new Set<NomeSom>();
+/** Pedidos feitos ANTES de o som carregar — tocam assim que ficarem prontos. */
+const pendentes = new Set<NomeSom>();
 let carregado = false;
 let habilitado = true;
+
+function reproduzir(nome: NomeSom): void {
+  const som = sons.get(nome);
+  if (!habilitado || !som) {
+    return;
+  }
+  // Reinicia antes de tocar para permitir lances em sequência.
+  som.stop(() => {
+    som.play(() => {
+      // play concluído — nada a fazer.
+    });
+  });
+}
 
 /** Pré-carrega os efeitos. Idempotente — pode ser chamado a cada partida. */
 export function inicializarSons(): void {
@@ -47,8 +70,18 @@ export function inicializarSons(): void {
       // O segundo argumento (MAIN_BUNDLE) faz o Android procurar em res/raw.
       sons.set(
         nome,
-        new Sound(arquivo, Sound.MAIN_BUNDLE, () => {
-          // Erro ignorado de propósito: sem áudio o jogo continua normal.
+        new Sound(arquivo, Sound.MAIN_BUNDLE, erro => {
+          if (erro !== null) {
+            // Erro ignorado de propósito: sem áudio o jogo continua normal.
+            pendentes.delete(nome);
+            return;
+          }
+          prontos.add(nome);
+          // Lance aconteceu enquanto o som carregava? Toca agora (atraso de
+          // ~1s é melhor que um gol mudo).
+          if (pendentes.delete(nome)) {
+            reproduzir(nome);
+          }
         }),
       );
     } catch {
@@ -60,19 +93,20 @@ export function inicializarSons(): void {
 /** Liga/desliga os efeitos (controlado pela tela de Ajustes). */
 export function definirSomHabilitado(valor: boolean): void {
   habilitado = valor;
+  if (!valor) {
+    pendentes.clear();
+  }
 }
 
 function tocar(nome: NomeSom): void {
-  const som = sons.get(nome);
-  if (!habilitado || !som) {
+  if (!habilitado || !sons.has(nome)) {
     return;
   }
-  // Reinicia antes de tocar para permitir lances em sequência.
-  som.stop(() => {
-    som.play(() => {
-      // play concluído — nada a fazer.
-    });
-  });
+  if (!prontos.has(nome)) {
+    pendentes.add(nome);
+    return;
+  }
+  reproduzir(nome);
 }
 
 /** Gol: festa quando é do time do usuário, lamento quando é do adversário. */
