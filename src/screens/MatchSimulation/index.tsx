@@ -33,10 +33,10 @@ import {
   tocarPenaltiPerdido,
 } from '../../audio/sons';
 import {Botao, ScreenContainer} from '../../components/ui';
-import Icone from '../../components/Icone';
-import {EventItem, type LadoEvento} from '../../components/MatchNarration/EventItem';
-import Painel from '../../components/Painel';
+import Icone, {type IconeNome} from '../../components/Icone';
+import {LanceLimpo, type LadoLance} from '../../components/MatchNarration/LanceLimpo';
 import AjustesPartida from '../../components/MatchNarration/AjustesPartida';
+import {calcularPublicoJogo} from '../../engine/finance/financeEngine';
 import {
   narrarEvento,
   narrarFim,
@@ -61,7 +61,7 @@ import {
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, corDoTime, espaco, raio} from '../../theme';
+import {cores, corDoTime, espaco, raio, sombra} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {Clube, EventoPartida, Formacao, Partida, Player} from '../../types';
 import {useAppNavigation, useAppRoute} from '../../navigation/types';
@@ -70,10 +70,14 @@ type ItemTimeline = {
   minuto: number;
   tipo: string;
   descricao: string;
-  lado: LadoEvento;
+  lado: LadoLance;
   sigla?: string;
   corTime?: string;
   timeId?: string;
+  /** Campos do lance "clean": nome principal, linha cinza e pill de placar. */
+  autor?: string;
+  detalhe?: string;
+  placarPill?: string;
 };
 
 const MINUTO_INTERVALO = 45;
@@ -103,12 +107,36 @@ function mapearNomesJogadores(jogadores: Player[]): Record<string, string> {
   return mapa;
 }
 
+function rotuloGramado(nivelInfraestrutura: number): string {
+  if (nivelInfraestrutura >= 4) {
+    return 'Ótimo';
+  }
+  if (nivelInfraestrutura === 3) {
+    return 'Bom';
+  }
+  if (nivelInfraestrutura === 2) {
+    return 'Regular';
+  }
+  return 'Ruim';
+}
+
+function iconeClima(clima: string): IconeNome {
+  if (clima === 'Chuvoso') {
+    return 'clima-chuva';
+  }
+  if (clima === 'Nublado') {
+    return 'clima-nublado';
+  }
+  return 'clima-sol';
+}
+
 function MatchSimulation(): React.JSX.Element | null {
   const nav = useAppNavigation();
   const route = useAppRoute<'MatchSimulation'>();
   const modoCopa = route.params?.copa === true;
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const jogadores = useGameStore(state => state.jogadores);
+  const tabela = useGameStore(state => state.tabela);
   const atualizarFormacaoUsuario = useGameStore(
     state => state.atualizarFormacaoUsuario,
   );
@@ -132,7 +160,7 @@ function MatchSimulation(): React.JSX.Element | null {
   const nomeCasaRef = useRef('');
   const nomeForaRef = useRef('');
   const nomesRef = useRef<Record<string, string>>({});
-  const ladoUsuarioRef = useRef<LadoEvento>('casa');
+  const ladoUsuarioRef = useRef<LadoLance>('casa');
   const pausarNoIntervaloRef = useRef(true);
   const marcosRef = useRef({intervalo: false, segundoTempo: false, fim: false});
   const comitadoRef = useRef(false);
@@ -158,8 +186,6 @@ function MatchSimulation(): React.JSX.Element | null {
   const [ajustesVisivel, setAjustesVisivel] = useState(false);
   // Jogadores que já saíram não podem voltar (regra oficial).
   const [jaSairam, setJaSairam] = useState<Set<string>>(() => new Set());
-
-  const listaRef = useRef<FlatList<ItemTimeline>>(null);
 
   // Prepara a partida do usuário (sem simular nada ainda).
   useEffect(() => {
@@ -374,11 +400,33 @@ function MatchSimulation(): React.JSX.Element | null {
     const novosItens: ItemTimeline[] = [];
     const criarItem = (ev: EventoPartida): ItemTimeline => {
       const ehCasa = ev.timeId === fixture.timeCasa;
+      const nomeAutor = nomesRef.current[ev.jogadorId] ?? 'Jogador';
+
+      // Campos do lance "clean" (modelo SofaScore): nome + detalhe em cinza.
+      let autor: string | undefined = nomeAutor;
+      let detalhe: string | undefined;
+      let placarPill: string | undefined;
+      if (ev.tipo === 'gol') {
+        placarPill = `${estado.placarCasa} - ${estado.placarFora}`;
+        detalhe = ev.jogadorAssistenciaId
+          ? `(${nomesRef.current[ev.jogadorAssistenciaId] ?? 'assistência'})`
+          : ev.penaltiData
+            ? '(pênalti)'
+            : undefined;
+      } else if (ev.tipo === 'substituicao') {
+        autor = ev.jogadorEntraId
+          ? nomesRef.current[ev.jogadorEntraId] ?? 'Reserva'
+          : nomeAutor;
+        detalhe = `(${nomeAutor})`;
+      } else if (ev.tipo === 'penalti') {
+        detalhe = '(pênalti desperdiçado)';
+      }
+
       return {
         minuto: ev.minuto,
         tipo: ev.tipo,
         descricao: narrarEvento(ev, {
-          nomeJogador: nomesRef.current[ev.jogadorId] ?? 'O jogador',
+          nomeJogador: nomeAutor,
           nomeJogadorEntra: ev.jogadorEntraId
             ? nomesRef.current[ev.jogadorEntraId] ?? 'o reserva'
             : undefined,
@@ -389,6 +437,9 @@ function MatchSimulation(): React.JSX.Element | null {
         sigla: ehCasa ? siglaCasa : siglaFora,
         corTime: ehCasa ? corCasa : corFora,
         timeId: ev.timeId,
+        autor,
+        detalhe,
+        placarPill,
       };
     };
 
@@ -445,6 +496,7 @@ function MatchSimulation(): React.JSX.Element | null {
             estado.placarFora,
           ),
           lado: 'neutro',
+          placarPill: `${estado.placarCasa} - ${estado.placarFora}`,
         });
       }
       if (proximoMinuto === DURACAO && !marcosRef.current.fim) {
@@ -459,6 +511,7 @@ function MatchSimulation(): React.JSX.Element | null {
             estado.placarFora,
           ),
           lado: 'neutro',
+          placarPill: `${estado.placarCasa} - ${estado.placarFora}`,
         });
       }
     }
@@ -475,13 +528,6 @@ function MatchSimulation(): React.JSX.Element | null {
     setPlacar({casa: estado.placarCasa, fora: estado.placarFora});
     setPosse(calcularPossePartida(estado));
   }, [minuto, fixture, siglaCasa, siglaFora, corCasa, corFora]);
-
-  // Rola a lista a cada novo lance.
-  useEffect(() => {
-    if (eventos.length > 0) {
-      listaRef.current?.scrollToEnd({animated: true});
-    }
-  }, [eventos.length]);
 
   // Pulso + som quando o placar aumenta.
   const totalGols = placar.casa + placar.fora;
@@ -622,13 +668,21 @@ function MatchSimulation(): React.JSX.Element | null {
         sigla: lado === 'casa' ? siglaCasa : siglaFora,
         corTime: corDoTime(clubeUsuario?.id ?? ''),
         timeId: clubeUsuario?.id,
+        autor: nomeEntra,
+        detalhe: `(${nomeSai})`,
       },
     ]);
     setSubsFeitas(n => n + 1);
   };
 
-  const eventosOrdenados = useMemo(
-    () => [...eventos].sort((a, b) => a.minuto - b.minuto),
+  // Feed "clean": lance mais RECENTE no topo (como o modelo) — o novo evento
+  // aparece sem auto-scroll. Empate de minuto mantém o mais novo acima.
+  const eventosFeed = useMemo(
+    () =>
+      eventos
+        .map((item, indice) => ({item, indice}))
+        .sort((a, b) => b.item.minuto - a.item.minuto || b.indice - a.indice)
+        .map(({item}) => item),
     [eventos],
   );
 
@@ -646,77 +700,141 @@ function MatchSimulation(): React.JSX.Element | null {
   // expulsões e fadiga movem este número de verdade — nada é inventado na UI.
   const posseCasa = posse.casa;
 
+  // Condições do jogo (modelo): estádio do mandante, público pela fórmula
+  // REAL da bilheteria (posição atual na tabela) e clima sorteado pela engine.
+  const clubeCasaObj =
+    ladoUsuarioRef.current === 'casa' ? clubeUsuario : adversarioRef.current;
+  const estadioCasa = clubeCasaObj?.estadio;
+  const posicaoMandante = clubeCasaObj
+    ? tabela.findIndex(linha => linha.clubeId === clubeCasaObj.id) + 1
+    : 0;
+  const publico = clubeCasaObj
+    ? calcularPublicoJogo(clubeCasaObj, posicaoMandante > 0 ? posicaoMandante : 10)
+    : undefined;
+  const condicoes = estadoRef.current?.estatisticas;
+
   return (
     <ScreenContainer>
       <View style={styles.conteudo}>
         <View style={styles.topo}>
-          <Text style={styles.campLabel}>
-            {modoCopa
-              ? 'Copa do Brasil'
-              : `${clubeUsuario?.divisao ?? 'Brasileirão'} · Rodada ${fixture.rodada}`}
-          </Text>
           <Animated.View style={{transform: [{scale: pulsePlacar}]}}>
-            <Painel acento={cores.secundaria}>
-              <View style={styles.placarConteudo}>
+            <View style={styles.placarCard}>
+              <View style={styles.placarTimes}>
                 <Text
-                  style={styles.placarLinha}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit>
-                  {siglaCasa} <Text style={styles.placarNum}>{placar.casa}</Text>
-                  <Text style={styles.placarTraco}> — </Text>
-                  <Text style={styles.placarNum}>{placar.fora}</Text> {siglaFora}
+                  style={[styles.placarNome, styles.placarNomeEsq]}
+                  numberOfLines={1}>
+                  {nomeCasaRef.current}
                 </Text>
-                <Text style={styles.placarStatus}>
-                  {terminou
-                    ? 'FINAL'
-                    : intervalo
-                    ? 'INTERVALO'
-                    : `${minuto}' · AO VIVO`}
+                <Text style={styles.placarNumeros}>
+                  {placar.casa} <Text style={styles.placarTraco}>-</Text>{' '}
+                  {placar.fora}
                 </Text>
-                <View style={styles.posseRow}>
-                  <View style={styles.posseTrack}>
-                    <View
-                      style={[
-                        styles.posseFill,
-                        {flex: posseCasa, backgroundColor: corCasa},
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.posseFill,
-                        {flex: 100 - posseCasa, backgroundColor: corFora},
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.posseTexto}>
-                    Posse {posseCasa}% / {100 - posseCasa}%
-                  </Text>
-                </View>
+                <Text
+                  style={[styles.placarNome, styles.placarNomeDir]}
+                  numberOfLines={1}>
+                  {nomeForaRef.current}
+                </Text>
               </View>
-            </Painel>
+              <Text style={styles.placarMeta}>
+                {modoCopa
+                  ? 'Copa do Brasil'
+                  : `${clubeUsuario?.divisao ?? 'Brasileirão'} · Rodada ${fixture.rodada}`}
+                {' | '}
+                {terminou
+                  ? 'Fim de jogo'
+                  : intervalo
+                    ? 'Intervalo'
+                    : `${minuto}' ao vivo`}
+              </Text>
+              <View style={styles.metaChips}>
+                {estadioCasa ? (
+                  <View style={styles.metaChip}>
+                    <Icone
+                      nome="estadio"
+                      tamanho={12}
+                      cor={cores.textoSecundario}
+                    />
+                    <Text style={styles.metaChipTexto} numberOfLines={1}>
+                      {estadioCasa.nome}
+                    </Text>
+                  </View>
+                ) : null}
+                {publico !== undefined ? (
+                  <View style={styles.metaChip}>
+                    <Icone
+                      nome="publico"
+                      tamanho={12}
+                      cor={cores.textoSecundario}
+                    />
+                    <Text style={styles.metaChipTexto}>
+                      {publico.toLocaleString('pt-BR')}
+                    </Text>
+                  </View>
+                ) : null}
+                {condicoes ? (
+                  <View style={styles.metaChip}>
+                    <Icone
+                      nome={iconeClima(condicoes.clima)}
+                      tamanho={12}
+                      cor={cores.textoSecundario}
+                    />
+                    <Text style={styles.metaChipTexto}>
+                      {condicoes.clima} · {condicoes.temperatura}°C
+                    </Text>
+                  </View>
+                ) : null}
+                {estadioCasa ? (
+                  <View style={styles.metaChip}>
+                    <Icone
+                      nome="gramado"
+                      tamanho={12}
+                      cor={cores.textoSecundario}
+                    />
+                    <Text style={styles.metaChipTexto}>
+                      {rotuloGramado(estadioCasa.nivelInfraestrutura)}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <View style={styles.posseRow}>
+                <View style={styles.posseTrack}>
+                  <View
+                    style={[
+                      styles.posseFill,
+                      {flex: posseCasa, backgroundColor: corCasa},
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.posseFill,
+                      {flex: 100 - posseCasa, backgroundColor: corFora},
+                    ]}
+                  />
+                </View>
+                <Text style={styles.posseTexto}>
+                  Posse {posseCasa}% / {100 - posseCasa}%
+                </Text>
+              </View>
+            </View>
           </Animated.View>
         </View>
 
         <FlatList
-          ref={listaRef}
           style={styles.lista}
           contentContainerStyle={styles.listaConteudo}
-          data={eventosOrdenados}
+          data={eventosFeed}
           keyExtractor={(item, index) => `${item.minuto}_${item.tipo}_${index}`}
           renderItem={({item}) => (
-            <EventItem
+            <LanceLimpo
               minuto={item.minuto}
               tipo={item.tipo}
-              descricao={item.descricao}
               lado={item.lado}
-              sigla={item.sigla}
-              corTime={item.corTime}
-              clubeId={item.timeId}
+              autor={item.autor}
+              detalhe={item.detalhe}
+              placarPill={item.placarPill}
+              descricao={item.descricao}
             />
           )}
-          onContentSizeChange={() =>
-            listaRef.current?.scrollToEnd({animated: true})
-          }
         />
 
         <View style={styles.controles}>
@@ -903,34 +1021,67 @@ const styles = StyleSheet.create({
   topo: {
     gap: espaco.md,
   },
-  campLabel: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+  placarCard: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.sm,
+    padding: espaco.lg,
+    ...sombra.suave,
   },
-  placarConteudo: {
+  placarTimes: {
+    alignItems: 'center',
+    flexDirection: 'row',
     gap: espaco.sm,
   },
-  placarLinha: {
+  placarNome: {
     color: cores.texto,
-    fontSize: 34,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  placarNomeEsq: {
+    textAlign: 'right',
+  },
+  placarNomeDir: {
+    textAlign: 'left',
+  },
+  placarNumeros: {
+    color: cores.texto,
+    fontSize: 28,
     fontWeight: '900',
     letterSpacing: -0.5,
-  },
-  placarNum: {
-    color: cores.texto,
   },
   placarTraco: {
     color: cores.textoSecundario,
   },
-  placarStatus: {
-    color: cores.secundaria,
+  placarMeta: {
+    color: cores.textoSecundario,
     fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  metaChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espaco.xs,
+    justifyContent: 'center',
+  },
+  metaChip: {
+    alignItems: 'center',
+    backgroundColor: cores.fundo,
+    borderRadius: raio.pill,
+    flexDirection: 'row',
+    gap: 4,
+    maxWidth: 190,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 3,
+  },
+  metaChipTexto: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '700',
   },
   posseRow: {
     alignItems: 'center',
