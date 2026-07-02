@@ -498,11 +498,17 @@ export function calcularContextoMinuto(
   const titularesEmCampo = (clube: Clube, todos: Player[]): Player[] => {
     const porId = new Map(todos.map(jogador => [jogador.id, jogador]));
     const titulares = clube.formacaoAtual?.titulares ?? [];
+    // Exclui também lesionados/suspensos PRÉ-jogo (não só os que saíram durante
+    // a partida): clube da IA nunca troca a escalação, e um suspenso escalado
+    // não pode ganhar passes/finalizações nas estatísticas de quem jogou.
     return titulares
       .map(titular => porId.get(titular.jogadorId))
       .filter(
         (jogador): jogador is Player =>
-          jogador !== undefined && !indisponiveis?.has(jogador.id),
+          jogador !== undefined &&
+          !jogador.lesionado &&
+          !jogador.suspenso &&
+          !indisponiveis?.has(jogador.id),
       );
   };
   const emCampoCasa = titularesEmCampo(timeCasa, jogadoresCasa);
@@ -527,6 +533,21 @@ export function calcularContextoMinuto(
     fatorVermelhoCasa: fatorVermelhoTatica(timeCasa),
     fatorVermelhoFora: fatorVermelhoTatica(timeFora),
   };
+}
+
+/** Ids dos titulares DISPONÍVEIS no apito — vira o snapshot da súmula. */
+export function idsTitularesDisponiveis(
+  clube: Clube,
+  jogadores: Player[],
+): string[] {
+  const porId = new Map(jogadores.map(jogador => [jogador.id, jogador]));
+  return (clube.formacaoAtual?.titulares ?? [])
+    .map(titular => porId.get(titular.jogadorId))
+    .filter(
+      (jogador): jogador is Player =>
+        jogador !== undefined && !jogador.lesionado && !jogador.suspenso,
+    )
+    .map(jogador => jogador.id);
 }
 
 /** Reta final do jogo é mais aberta: mais gols nos últimos 20 minutos. */
@@ -870,6 +891,8 @@ export function simularPartida(input: SimularPartidaInput): Partida {
     posseCasa: posse.casa,
     posseFora: posse.fora,
     estatisticas: calcularEstatisticasFinais(estado),
+    titularesCasa: idsTitularesDisponiveis(input.timeCasa, input.jogadoresCasa),
+    titularesFora: idsTitularesDisponiveis(input.timeFora, input.jogadoresFora),
     vencedorPenaltis,
   };
 }

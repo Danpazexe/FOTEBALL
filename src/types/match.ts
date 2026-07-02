@@ -116,6 +116,13 @@ export interface Partida {
    */
   estatisticas?: EstatisticasPartida;
   /**
+   * Escalações titulares NO APITO INICIAL (ids, só quem estava disponível) —
+   * snapshot para a súmula histórica não depender da formação ATUAL do clube,
+   * que muda com trocas/transferências. Ausente em saves antigos.
+   */
+  titularesCasa?: string[];
+  titularesFora?: string[];
+  /**
    * Vencedor decidido nos pênaltis (só em mata-mata empatado após a
    * prorrogação). Ausente em jogos de liga e em jogos resolvidos no tempo.
    */

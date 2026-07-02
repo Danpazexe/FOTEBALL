@@ -59,7 +59,10 @@ import {
   type ConfrontoCopa,
   type EstadoCopa,
 } from '../engine/season/copaEngine';
-import {simularPartida} from '../engine/simulation/matchSimulator';
+import {
+  idsTitularesDisponiveis,
+  simularPartida,
+} from '../engine/simulation/matchSimulator';
 import {
   calcularNotaPartida,
   contarAssistencias,
@@ -467,6 +470,32 @@ function jogadoresDoClube(jogadores: Player[], clubeId: string): Player[] {
 function posicaoClube(tabela: TabelaClassificacao[], clubeId: string): number {
   const index = tabela.findIndex(linha => linha.clubeId === clubeId);
   return index === -1 ? tabela.length : index + 1;
+}
+
+/**
+ * Enxuga as estatísticas de partidas da IA para o save não inflar: mantém os
+ * agregados por time (xG, finalizações, zonas...) e descarta os detalhes
+ * pesados (mapas por jogador e momentum por minuto) — que a súmula degrada
+ * para "—" sem quebrar. A partida do USUÁRIO mantém tudo.
+ */
+function enxugarEstatisticasIA(partida: Partida): Partida {
+  if (!partida.estatisticas) {
+    return partida;
+  }
+  const enxugarTime = (time: EstatisticasPartida['casa']) => ({
+    ...time,
+    finalizacoesPorJogador: {},
+    passesPorJogador: {},
+  });
+  return {
+    ...partida,
+    estatisticas: {
+      ...partida.estatisticas,
+      casa: enxugarTime(partida.estatisticas.casa),
+      fora: enxugarTime(partida.estatisticas.fora),
+      momentumPorMinuto: [],
+    },
+  };
 }
 
 /**
@@ -1101,7 +1130,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         return partida;
       }
 
-      const resultado = simularPartida({
+      const simulada = simularPartida({
         timeCasa: clubeCasa,
         timeFora: clubeFora,
         jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
@@ -1111,6 +1140,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         rodada: jogo.rodada,
         data: jogo.data,
       });
+      // Jogo da IA guarda só os agregados (save enxuto); o do usuário, tudo.
+      const ehDoUsuario =
+        jogo.timeCasa === state.clubeUsuarioId ||
+        jogo.timeFora === state.clubeUsuarioId;
+      const resultado = ehDoUsuario ? simulada : enxugarEstatisticasIA(simulada);
 
       jogadoresAtualizados = aplicarResultadoNosJogadores(
         jogadoresAtualizados,
@@ -1225,14 +1259,27 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
 
+    // Escalações NO APITO INICIAL: durante o jogo ao vivo a formação do
+    // usuário no store é a de FIM de jogo (trocas aplicadas). Desgaste,
+    // minutagem e o snapshot da súmula devem partir de quem COMEÇOU —
+    // restaura o retrato pré-live para todos esses cálculos.
+    const preLive = state.formacaoPreLive;
+    const clubesNoApito = preLive
+      ? state.clubes.map(clube =>
+          clube.id === preLive.clubeId
+            ? {...clube, formacaoAtual: preLive.formacao, taticaAtual: preLive.tatica}
+            : clube,
+        )
+      : state.clubes;
+
     let jogadoresAtualizados = state.jogadores;
     const partidasAtualizadas = state.partidas.map(partida => {
       const jogo = jogosRodada.find(item => item.id === partida.id);
       if (!jogo) {
         return partida;
       }
-      const clubeCasa = state.clubes.find(clube => clube.id === jogo.timeCasa);
-      const clubeFora = state.clubes.find(clube => clube.id === jogo.timeFora);
+      const clubeCasa = clubesNoApito.find(clube => clube.id === jogo.timeCasa);
+      const clubeFora = clubesNoApito.find(clube => clube.id === jogo.timeFora);
       if (!clubeCasa || !clubeFora) {
         return partida;
       }
@@ -1249,17 +1296,27 @@ export const useGameStore = create<GameState>((set, get) => ({
               posseCasa: posse?.casa,
               posseFora: posse?.fora,
               estatisticas,
+              titularesCasa: idsTitularesDisponiveis(
+                clubeCasa,
+                jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
+              ),
+              titularesFora: idsTitularesDisponiveis(
+                clubeFora,
+                jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
+              ),
             }
-          : simularPartida({
-              timeCasa: clubeCasa,
-              timeFora: clubeFora,
-              jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
-              jogadoresFora: jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
-              seed: state.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
-              competicaoId: jogo.competicaoId,
-              rodada: jogo.rodada,
-              data: jogo.data,
-            });
+          : enxugarEstatisticasIA(
+              simularPartida({
+                timeCasa: clubeCasa,
+                timeFora: clubeFora,
+                jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
+                jogadoresFora: jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
+                seed: state.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
+                competicaoId: jogo.competicaoId,
+                rodada: jogo.rodada,
+                data: jogo.data,
+              }),
+            );
 
       jogadoresAtualizados = aplicarResultadoNosJogadores(
         jogadoresAtualizados,
@@ -1279,7 +1336,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     );
     const partidaUsuario =
       partidasComPublico.find(partida => partida.id === partidaId) ?? null;
-    const clubesComBilheteria = state.clubes.map(clube => {
+    // clubesNoApito já carrega a escalação/tática OFICIAL do usuário (as
+    // trocas do jogo ao vivo valeram só para ele) — daqui em diante ela é a
+    // formação persistida.
+    const clubesFinais = clubesNoApito.map(clube => {
       const mandouJogo = jogosRodada.some(partida => partida.timeCasa === clube.id);
       if (!mandouJogo) {
         return clube;
@@ -1290,17 +1350,6 @@ export const useGameStore = create<GameState>((set, get) => ({
         `${state.temporadaAtual}-rodada-${state.rodadaAtual}`,
       );
     });
-
-    // Restaura a escalação/tática oficial do usuário: as trocas feitas durante a
-    // partida ao vivo valeram só para este jogo, não viram a escalação padrão.
-    const preLive = state.formacaoPreLive;
-    const clubesFinais = preLive
-      ? clubesComBilheteria.map(clube =>
-          clube.id === preLive.clubeId
-            ? {...clube, formacaoAtual: preLive.formacao, taticaAtual: preLive.tatica}
-            : clube,
-        )
-      : clubesComBilheteria;
 
     const carreira = atualizarCarreiraPosRodada(
       state,

@@ -217,7 +217,7 @@ function linhasDoTime(
   partida: Partida,
   ehCasa: boolean,
 ): {emCampo: LinhaJogador[]; banco: LinhaJogador[]} {
-  if (!clube?.formacaoAtual) {
+  if (!clube) {
     return {emCampo: [], banco: []};
   }
   const placarCasa = partida.placarCasa ?? 0;
@@ -232,9 +232,12 @@ function linhasDoTime(
   const porId = new Map(jogadores.map(j => [j.id, j]));
   const doClube = jogadores.filter(j => j.clubeId === clube.id);
 
-  const titularesIds = new Set(
-    clube.formacaoAtual.titulares.map(t => t.jogadorId),
-  );
+  // Escalação do APITO persistida na partida (histórico correto mesmo após
+  // trocas/transferências); fallback: formação atual (saves antigos).
+  const snapshot = ehCasa ? partida.titularesCasa : partida.titularesFora;
+  const idsTitulares =
+    snapshot ?? clube.formacaoAtual?.titulares.map(t => t.jogadorId) ?? [];
+  const titularesIds = new Set(idsTitulares);
   const minutosPorId = calcularMinutos(partida.eventos, titularesIds);
 
   const montarLinha = (jogador: Player): LinhaJogador => {
@@ -259,8 +262,8 @@ function linhasDoTime(
     };
   };
 
-  const emCampo = clube.formacaoAtual.titulares
-    .map(t => porId.get(t.jogadorId))
+  const emCampo = idsTitulares
+    .map(id => porId.get(id))
     .filter((j): j is Player => j !== undefined)
     .map(montarLinha);
 
