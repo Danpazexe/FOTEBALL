@@ -89,6 +89,16 @@ export interface Player {
   id: string;
   nome: string;
   apelido?: string;
+  /**
+   * URL remota opcional para a face do jogador.
+   *
+   * Diretriz do FOTEBALL: não empacotar centenas de faces no APK. Quando existir,
+   * usar imagem WebP/PNG otimizada via CDN/storage; quando ausente ou falhar, a UI
+   * deve exibir fallback leve por iniciais/silhueta.
+   *
+   * Exemplo: `https://cdn.seusite.com/faces/player-001.webp`.
+   */
+  faceUrl?: string | null;
   idade: number;
   nacionalidade: string;
   posicaoPrincipal: Position;
