@@ -16,11 +16,10 @@ import {
 } from '../../components/ui';
 import BarrasForca from '../../components/BarrasForca';
 import Escudo from '../../components/Escudo';
-import Painel from '../../components/Painel';
 import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {selecionarProximoJogo, useGameStore} from '../../store/useGameStore';
-import {cores, corDoTime, espaco, gradientes} from '../../theme';
+import {cores, corDoTime, espaco, raio, sombra} from '../../theme';
 import {forcaDoClube} from '../../utils/forca';
 import {nomeClube} from '../../utils/formatters';
 
@@ -94,17 +93,14 @@ function PreJogo(): React.JSX.Element {
         onBack={() => nav.goBack()}
       />
 
-      {/* Versus — "Vestiário" */}
-      <Painel
-        gradiente={gradientes.craque}
-        acento={cores.secundaria}
-        style={styles.versusPainel}>
+      {/* Versus — card clean */}
+      <View style={styles.versusCard}>
         <View style={styles.confronto}>
           <View style={styles.time}>
             <Escudo
               clubeId={confronto.casa.id}
               sigla={confronto.casa.sigla}
-              tamanho={56}
+              tamanho={54}
             />
             <Text style={styles.timeNome} numberOfLines={1}>
               {confronto.casa.nome}
@@ -119,7 +115,7 @@ function PreJogo(): React.JSX.Element {
             <Escudo
               clubeId={confronto.fora.id}
               sigla={confronto.fora.sigla}
-              tamanho={56}
+              tamanho={54}
             />
             <Text style={styles.timeNome} numberOfLines={1}>
               {confronto.fora.nome}
@@ -130,27 +126,27 @@ function PreJogo(): React.JSX.Element {
             <Text style={styles.mando}>Fora</Text>
           </View>
         </View>
-        <Text style={styles.favoritismo}>{favoritismo}</Text>
-      </Painel>
+        <View style={styles.favoritismoChip}>
+          <Text style={styles.favoritismoTexto}>{favoritismo}</Text>
+        </View>
+      </View>
 
       <Section titulo="Comparativo de força">
-        <Painel>
-          <View style={styles.comparativo}>
-            <BarrasForca
-              casa={confronto.forcaCasa}
-              fora={confronto.forcaFora}
-              corCasa={corDoTime(confronto.casa.id)}
-              corFora={corDoTime(confronto.fora.id)}
-            />
-          </View>
-        </Painel>
+        <View style={styles.card}>
+          <BarrasForca
+            casa={confronto.forcaCasa}
+            fora={confronto.forcaFora}
+            corCasa={corDoTime(confronto.casa.id)}
+            corFora={corDoTime(confronto.fora.id)}
+          />
+        </View>
       </Section>
 
       <Section titulo="Histórico de confrontos">
         {historico.length === 0 ? (
           <TextoVazio>Sem confrontos anteriores.</TextoVazio>
         ) : (
-          <Painel>
+          <View style={styles.card}>
             <View style={styles.historico}>
               {historico.map(p => (
                 <View key={p.id} style={styles.histLinha}>
@@ -162,7 +158,7 @@ function PreJogo(): React.JSX.Element {
                 </View>
               ))}
             </View>
-          </Painel>
+          </View>
         )}
       </Section>
 
@@ -195,8 +191,23 @@ function PreJogo(): React.JSX.Element {
 export default PreJogo;
 
 const styles = StyleSheet.create({
-  versusPainel: {
+  card: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    padding: espaco.lg,
+    ...sombra.suave,
+  },
+  versusCard: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.md,
     marginBottom: espaco.md,
+    padding: espaco.lg,
+    ...sombra.suave,
   },
   confronto: {
     alignItems: 'flex-start',
@@ -228,24 +239,25 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   vs: {
-    color: cores.secundaria,
-    fontSize: 18,
+    color: cores.textoSecundario,
+    fontSize: 16,
     fontWeight: '900',
     paddingHorizontal: espaco.sm,
     paddingTop: espaco.xl,
   },
-  favoritismo: {
-    // Dourado padrão: a variante "clara" era para fundo escuro e some no claro.
-    color: cores.secundaria,
+  favoritismoChip: {
+    alignSelf: 'center',
+    backgroundColor: cores.fundo,
+    borderRadius: raio.pill,
+    paddingHorizontal: espaco.md,
+    paddingVertical: 5,
+  },
+  favoritismoTexto: {
+    color: cores.secundariaEscura,
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 0.5,
-    marginTop: espaco.md,
-    textAlign: 'center',
     textTransform: 'uppercase',
-  },
-  comparativo: {
-    alignItems: 'center',
   },
   historico: {
     gap: espaco.xs,
