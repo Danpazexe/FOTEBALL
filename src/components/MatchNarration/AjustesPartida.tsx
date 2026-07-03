@@ -31,7 +31,12 @@ import type {Formacao, FormacaoPreset, Player, Position, Tatica} from '../../typ
 import Icone from '../Icone';
 
 const {width: LARGURA_TELA, height: ALTURA_TELA} = Dimensions.get('window');
-const LARGURA = Math.min(LARGURA_TELA - 28, 400);
+// Largura útil do conteúdo = tela − padding do scroll (md×2) − padding do card
+// (lg×2). Sem descontar os dois, as seções ficavam mais largas que a área
+// interna do card e encostavam nas bordas (padding lateral inconsistente).
+const PAD_SCROLL = 12; // espaco.md
+const PAD_CARD = 16; // espaco.lg
+const LARGURA = Math.min(LARGURA_TELA - (PAD_SCROLL + PAD_CARD) * 2, 400);
 // Limita a altura do campo pela tela para o painel caber também em telas baixas.
 const ALTURA = Math.round(Math.min(LARGURA * 0.92, ALTURA_TELA * 0.42));
 const RAIO = Math.round(LARGURA * 0.056);
@@ -925,7 +930,7 @@ const styles = StyleSheet.create({
     borderColor: cores.borda,
     borderRadius: raio.lg,
     borderWidth: 1,
-    gap: espaco.md,
+    gap: espaco.lg,
     maxWidth: '100%',
     padding: espaco.lg,
   },
