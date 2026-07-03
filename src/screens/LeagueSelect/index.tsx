@@ -131,7 +131,7 @@ function LeagueSelect(): React.JSX.Element {
                   </Text>
                 </View>
                 {liga.ativa ? (
-                  <Icone nome="seta-baixo" tamanho={20} cor={cores.primaria} />
+                  <Icone nome="avancar" tamanho={22} cor={cores.primaria} />
                 ) : (
                   <View style={styles.tag}>
                     <Text style={styles.tagTexto}>Em breve</Text>
