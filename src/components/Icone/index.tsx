@@ -48,7 +48,13 @@ export type IconeNome =
   | 'jovem'
   | 'calendario'
   | 'conversa'
-  | 'moral';
+  | 'moral'
+  | 'estadio'
+  | 'publico'
+  | 'clima-sol'
+  | 'clima-nublado'
+  | 'clima-chuva'
+  | 'gramado';
 
 /** Nome semântico → glyph do MaterialCommunityIcons. */
 const GLYPHS: Record<IconeNome, string> = {
@@ -84,6 +90,12 @@ const GLYPHS: Record<IconeNome, string> = {
   calendario: 'calendar-month',
   conversa: 'bullhorn',
   moral: 'emoticon-happy-outline',
+  estadio: 'stadium-variant',
+  publico: 'account-group',
+  'clima-sol': 'weather-sunny',
+  'clima-nublado': 'weather-cloudy',
+  'clima-chuva': 'weather-rainy',
+  gramado: 'grass',
 };
 
 type IconeProps = {

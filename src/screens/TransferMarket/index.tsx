@@ -21,7 +21,7 @@ import {
   selecionarClubeUsuario,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {acentos, cores, espaco, raio, sombra, tipografia} from '../../theme';
 import {moeda, nomeClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
@@ -227,7 +227,10 @@ function TransferMarket(): React.JSX.Element {
                       <Text style={styles.propostaLegenda}>
                         {nomeClube(clubes, proposta.clubeOfertante)} oferece
                       </Text>
-                      <Text style={styles.propostaValor}>
+                      <Text
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        style={[styles.propostaValor, tipografia.numero]}>
                         {moeda(proposta.valorProposto)}
                       </Text>
                     </View>
@@ -288,7 +291,11 @@ function TransferMarket(): React.JSX.Element {
                 />
               </View>
               <View style={styles.flex1}>
-                <Botao titulo="Enviar proposta" onPress={enviarProposta} />
+                <Botao
+                  variante="ouro"
+                  titulo="Enviar proposta"
+                  onPress={enviarProposta}
+                />
               </View>
             </View>
           </View>
@@ -302,15 +309,18 @@ export default TransferMarket;
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     flexDirection: 'row',
     marginBottom: espaco.md,
     padding: 3,
+    ...sombra.card,
   },
   tab: {
     alignItems: 'center',
-    borderRadius: raio.sm - 2,
+    borderRadius: raio.md,
     flex: 1,
     paddingVertical: espaco.sm,
   },
@@ -333,7 +343,7 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderColor: cores.borda,
-    borderRadius: raio.sm,
+    borderRadius: raio.pill,
     borderWidth: 1,
     paddingHorizontal: espaco.sm,
     paddingVertical: espaco.xs,
@@ -358,13 +368,14 @@ const styles = StyleSheet.create({
   },
   proposta: {
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.md,
     padding: espaco.md,
+    ...sombra.card,
   },
   propostaNome: {
     color: cores.texto,
@@ -413,11 +424,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: cores.superficie,
-    borderTopLeftRadius: raio.lg,
-    borderTopRightRadius: raio.lg,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderWidth: 1,
+    borderTopLeftRadius: raio.xl,
+    borderTopRightRadius: raio.xl,
     gap: espaco.sm,
     padding: espaco.lg,
+    ...sombra.card,
   },
   modalTitulo: {
     color: cores.texto,
@@ -440,7 +454,8 @@ const styles = StyleSheet.create({
     paddingVertical: espaco.sm,
   },
   contra: {
-    color: cores.secundaria,
+    // Amarelo do acento (legível sobre card branco, ao contrário do dourado).
+    color: acentos.amarelo,
     fontSize: 13,
     fontWeight: '700',
   },

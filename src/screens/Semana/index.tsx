@@ -34,7 +34,16 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {cores, corCondicao, espaco, raio} from '../../theme';
+import {
+  acentos,
+  cores,
+  corCondicao,
+  espaco,
+  raio,
+  sombra,
+  suaves,
+  tipografia,
+} from '../../theme';
 
 const SECOES_POSICAO: SecaoPosicao[] = [
   'Goleiros',
@@ -62,7 +71,7 @@ function rotuloRisco(risco: number): {texto: string; cor: string} {
     return {texto: 'Baixo', cor: cores.primaria};
   }
   if (risco <= 0.035) {
-    return {texto: 'Médio', cor: cores.secundaria};
+    return {texto: 'Médio', cor: acentos.amarelo};
   }
   return {texto: 'Alto', cor: cores.perigo};
 }
@@ -80,7 +89,7 @@ function corMoral(moral: number): string {
     return cores.primaria;
   }
   if (moral >= 50) {
-    return cores.secundaria;
+    return acentos.amarelo;
   }
   return cores.perigo;
 }
@@ -346,7 +355,7 @@ function Semana(): React.JSX.Element {
         </View>
       ) : null}
 
-      <Botao titulo="Confirmar treino" onPress={confirmar} />
+      <Botao titulo="Confirmar treino" variante="ouro" onPress={confirmar} />
     </ScreenContainer>
   );
 }
@@ -376,11 +385,14 @@ export default Semana;
 
 const styles = StyleSheet.create({
   moralCard: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     gap: espaco.sm,
     marginBottom: espaco.lg,
     padding: espaco.md,
+    ...sombra.card,
   },
   moralTopo: {
     alignItems: 'center',
@@ -398,18 +410,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   moralValor: {
-    fontSize: 22,
-    fontWeight: '900',
+    ...tipografia.numero,
   },
   segment: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.pill,
+    borderWidth: 1,
     flexDirection: 'row',
     padding: 3,
+    ...sombra.card,
   },
   segmentBtn: {
     alignItems: 'center',
-    borderRadius: raio.sm,
+    borderRadius: raio.pill,
     flex: 1,
     paddingVertical: espaco.sm,
   },
@@ -431,7 +445,7 @@ const styles = StyleSheet.create({
   posPill: {
     alignItems: 'center',
     backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
+    borderRadius: raio.pill,
     flex: 1,
     paddingVertical: espaco.sm,
   },
@@ -453,7 +467,7 @@ const styles = StyleSheet.create({
   },
   chip: {
     borderColor: cores.borda,
-    borderRadius: raio.sm,
+    borderRadius: raio.pill,
     borderWidth: 1,
     justifyContent: 'center',
     minHeight: 38,
@@ -474,7 +488,7 @@ const styles = StyleSheet.create({
   intensChip: {
     alignItems: 'center',
     borderColor: cores.borda,
-    borderRadius: raio.md,
+    borderRadius: raio.pill,
     borderWidth: 1,
     flexGrow: 1,
     paddingHorizontal: espaco.md,
@@ -493,11 +507,14 @@ const styles = StyleSheet.create({
     color: cores.contrastePrimaria,
   },
   resumoCard: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     gap: espaco.sm,
     marginBottom: espaco.lg,
     padding: espaco.md,
+    ...sombra.card,
   },
   resumoHeader: {
     alignItems: 'center',
@@ -510,14 +527,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  // Badge padrão do tema claro: fundo suave + texto do acento (mesmo matiz).
   afinidadeBadge: {
-    backgroundColor: cores.superficie,
+    backgroundColor: suaves.amarelo,
     borderRadius: raio.sm,
     paddingHorizontal: espaco.sm,
     paddingVertical: 3,
   },
   afinidadeTexto: {
-    color: cores.secundaria,
+    color: acentos.amarelo,
     fontSize: 12,
     fontWeight: '800',
   },

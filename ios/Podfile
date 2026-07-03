@@ -30,5 +30,14 @@ target 'FOTEBALL' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # react-native-sound (RNSound 0.13) não declara AVFoundation no podspec;
+    # sem isto o link do app falha com "Undefined symbols: _AVAudioSession...".
+    installer.aggregate_targets.each do |aggregate_target|
+      aggregate_target.xcconfigs.each do |config_name, config_file|
+        config_file.frameworks.add('AVFoundation')
+        config_file.save_as(aggregate_target.xcconfig_path(config_name))
+      end
+    end
   end
 end

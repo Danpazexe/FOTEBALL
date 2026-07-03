@@ -20,7 +20,7 @@ import {
 } from '../../engine/season/copaEngine';
 import {useAppNavigation} from '../../navigation/types';
 import {selecionarCopaNaVez, useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra, tipografia} from '../../theme';
 import {formatarDataCurta} from '../../utils/datas';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {Clube} from '../../types';
@@ -99,7 +99,12 @@ function Copa(): React.JSX.Element {
           {copaNaVez ? (
             <View style={styles.acoes}>
               <View style={styles.acaoFlex}>
-                <Botao icone="jogar" titulo="Jogar ao vivo" onPress={jogarAoVivo} />
+                <Botao
+                  variante="ouro"
+                  icone="jogar"
+                  titulo="Jogar ao vivo"
+                  onPress={jogarAoVivo}
+                />
               </View>
               <View style={styles.acaoFlex}>
                 <Botao
@@ -231,9 +236,12 @@ const styles = StyleSheet.create({
     width: '70%',
   },
   campeaoCard: {
+    ...sombra.card,
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.sm,
     justifyContent: 'center',
@@ -259,9 +267,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   aguardando: {
+    ...sombra.card,
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.sm,
     padding: espaco.md,
@@ -280,8 +291,11 @@ const styles = StyleSheet.create({
     gap: espaco.sm,
   },
   confronto: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
+    ...sombra.card,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     gap: 4,
     padding: espaco.sm,
   },
@@ -301,10 +315,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   gols: {
+    ...tipografia.numero,
     color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-    minWidth: 18,
+    minWidth: 24,
     textAlign: 'right',
   },
   vencedor: {

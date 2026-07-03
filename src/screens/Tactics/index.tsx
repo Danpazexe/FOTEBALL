@@ -34,7 +34,7 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, suaves} from '../../theme';
 import type {Tatica} from '../../types';
 
 const OPCOES_ESTILO: Tatica['estiloOfensivo'][] = [
@@ -286,17 +286,18 @@ const styles = StyleSheet.create({
     gap: espaco.sm,
     padding: espaco.sm,
   },
+  // Fundos suaves do tema claro (badge/pill: fundo suave + acento do matiz).
   bannerErro: {
-    backgroundColor: 'rgba(255,59,92,0.1)',
+    backgroundColor: suaves.vermelho,
     borderColor: cores.perigo,
   },
   bannerAviso: {
-    backgroundColor: 'rgba(255,214,0,0.1)',
+    backgroundColor: suaves.amarelo,
     borderColor: cores.secundaria,
   },
   bannerOk: {
     alignItems: 'center',
-    backgroundColor: 'rgba(0,229,160,0.08)',
+    backgroundColor: suaves.verde,
     borderColor: cores.primaria,
   },
   bannerTextos: {

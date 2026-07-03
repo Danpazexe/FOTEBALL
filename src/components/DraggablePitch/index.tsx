@@ -28,7 +28,7 @@ import Animated, {
 import {moverTitular, trocarTitular} from '../../api/database/seed/defaults';
 import {nivelAdaptacao, type NivelAdaptacao} from '../../engine/tactics/adaptacao';
 import {preencherCoordenadas} from '../../engine/tactics/geometria';
-import {cores, corOverall, espaco, raio} from '../../theme';
+import {acentos, cores, corOverall, espaco, raio} from '../../theme';
 import type {Formacao, Player} from '../../types';
 
 type DraggablePitchProps = {
@@ -53,7 +53,7 @@ export function corAdaptacao(nivel: NivelAdaptacao): string {
     return cores.primaria;
   }
   if (nivel === 'similar') {
-    return '#6FD0FF';
+    return acentos.azul;
   }
   if (nivel === 'adaptado') {
     return cores.secundaria;
@@ -604,8 +604,9 @@ function PecaReserva({
 
 export default DraggablePitch;
 
-const VERDE_CAMPO = '#123524';
-const LINHA = 'rgba(240,244,255,0.5)';
+// Gramado claro do tema + marcações em véu azul-marinho (legíveis no claro).
+const VERDE_CAMPO = cores.gramado;
+const LINHA = cores.bordaTranslForte;
 
 const styles = StyleSheet.create({
   overlay: {
@@ -651,12 +652,14 @@ const styles = StyleSheet.create({
   },
   ficha: {
     alignItems: 'center',
-    backgroundColor: '#0A0E1A',
+    // Ficha em azul-marinho: as cores de tier (corOverall) são claras e só
+    // leem bem sobre fundo escuro — intencional mesmo no tema claro.
+    backgroundColor: cores.texto,
     borderWidth: 2.5,
     justifyContent: 'center',
   },
   fichaHover: {
-    backgroundColor: '#1d2c22',
+    backgroundColor: cores.primariaEscura,
   },
   fichaArrastando: {
     opacity: 0.35,
@@ -666,7 +669,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   fichaPos: {
-    color: 'rgba(240,244,255,0.85)',
+    color: cores.textoSecundario,
     fontSize: 9,
     fontWeight: '800',
     marginTop: 2,
@@ -752,7 +755,7 @@ const styles = StyleSheet.create({
   },
   ghostFicha: {
     alignItems: 'center',
-    backgroundColor: '#0A0E1A',
+    backgroundColor: cores.texto,
     borderRadius: 26,
     borderWidth: 3,
     height: 52,
@@ -760,7 +763,8 @@ const styles = StyleSheet.create({
     width: 52,
   },
   ghostOverall: {
-    color: cores.texto,
+    // Branco sobre a ficha azul-marinho (cores.texto virou navy no tema claro).
+    color: cores.contrastePrimaria,
     fontSize: 16,
     fontWeight: '900',
   },

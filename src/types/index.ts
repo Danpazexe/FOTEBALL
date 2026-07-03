@@ -26,6 +26,9 @@ export type {
   Transacao,
 } from './club';
 export type {
+  ClimaPartida,
+  EstatisticasPartida,
+  EstatisticasTimePartida,
   EventoPartida,
   EventoPartidaTipo,
   Partida,

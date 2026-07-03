@@ -1,12 +1,18 @@
 /**
  * Efeitos sonoros do FOTEBALL via react-native-sound.
  *
- * Os arquivos ficam empacotados como recursos nativos do Android
- * (android/app/src/main/res/raw/goal.mp3 e fim_de_jogo.mp3) e são carregados
- * pelo nome. No iOS precisariam ser adicionados ao bundle do app.
+ * Os arquivos-fonte vivem em `src/audio/*.mp3` e são empacotados como recursos
+ * nativos do Android (`android/app/src/main/res/raw/`) e do iOS (bundle do
+ * Xcode) — o carregamento é pelo NOME do arquivo.
  *
  * O carregamento é preguiçoso e tolerante a falhas: se um som não carregar,
  * as funções de tocar simplesmente não fazem nada (o jogo segue sem áudio).
+ *
+ * IMPORTANTE (bug corrigido): na lib 0.13, `stop()`/`play()` são no-op
+ * SILENCIOSOS enquanto o som não terminou de carregar — um gol nos primeiros
+ * segundos da primeira partida ficava mudo. Agora acompanhamos o load de cada
+ * efeito: pedido antes de carregar fica PENDENTE e toca assim que o load
+ * termina, em vez de se perder.
  */
 
 import Sound from 'react-native-sound';
@@ -14,15 +20,40 @@ import Sound from 'react-native-sound';
 // Permite tocar mesmo com o app em primeiro plano sem segurar a sessão de áudio.
 Sound.setCategory('Ambient', true);
 
-let somGol: Sound | null = null;
-let somFimDeJogo: Sound | null = null;
+/** Um efeito para cada momento da partida; sufixo `Adversario` = lance deles. */
+const ARQUIVOS = {
+  gol: 'gol1.mp3',
+  golAdversario: 'goladv.mp3',
+  expulsao: 'expulsao.mp3',
+  expulsaoAdversario: 'expulsaoadv.mp3',
+  penaltiPerdido: 'penalty.mp3',
+  penaltiPerdidoAdversario: 'penaltyadv.mp3',
+  contusao: 'contusao.mp3',
+  intervalo: 'intervalo.mp3',
+  fimDeJogo: 'fimjogo.mp3',
+  fimDeJogoAlt: 'fimjogo2.mp3',
+} as const;
+
+type NomeSom = keyof typeof ARQUIVOS;
+
+const sons = new Map<NomeSom, Sound>();
+/** Sons cujo load nativo já terminou com sucesso. */
+const prontos = new Set<NomeSom>();
+/** Pedidos feitos ANTES de o som carregar — tocam assim que ficarem prontos. */
+const pendentes = new Set<NomeSom>();
 let carregado = false;
 let habilitado = true;
 
-function carregar(nome: string): Sound {
-  // O segundo argumento (MAIN_BUNDLE) faz o Android procurar em res/raw.
-  return new Sound(nome, Sound.MAIN_BUNDLE, () => {
-    // Ignoramos o erro de propósito: sem áudio o jogo continua normal.
+function reproduzir(nome: NomeSom): void {
+  const som = sons.get(nome);
+  if (!habilitado || !som) {
+    return;
+  }
+  // Reinicia antes de tocar para permitir lances em sequência.
+  som.stop(() => {
+    som.play(() => {
+      // play concluído — nada a fazer.
+    });
   });
 }
 
@@ -32,36 +63,75 @@ export function inicializarSons(): void {
     return;
   }
   carregado = true;
-  try {
-    somGol = carregar('goal.mp3');
-    somFimDeJogo = carregar('fim_de_jogo.mp3');
-  } catch {
-    somGol = null;
-    somFimDeJogo = null;
+  for (const [nome, arquivo] of Object.entries(ARQUIVOS) as Array<
+    [NomeSom, string]
+  >) {
+    try {
+      // O segundo argumento (MAIN_BUNDLE) faz o Android procurar em res/raw.
+      sons.set(
+        nome,
+        new Sound(arquivo, Sound.MAIN_BUNDLE, erro => {
+          if (erro !== null) {
+            // Erro ignorado de propósito: sem áudio o jogo continua normal.
+            pendentes.delete(nome);
+            return;
+          }
+          prontos.add(nome);
+          // Lance aconteceu enquanto o som carregava? Toca agora (atraso de
+          // ~1s é melhor que um gol mudo).
+          if (pendentes.delete(nome)) {
+            reproduzir(nome);
+          }
+        }),
+      );
+    } catch {
+      // Idem: efeito indisponível não pode derrubar a partida.
+    }
   }
 }
 
 /** Liga/desliga os efeitos (controlado pela tela de Ajustes). */
 export function definirSomHabilitado(valor: boolean): void {
   habilitado = valor;
+  if (!valor) {
+    pendentes.clear();
+  }
 }
 
-function tocar(som: Sound | null): void {
-  if (!habilitado || !som) {
+function tocar(nome: NomeSom): void {
+  if (!habilitado || !sons.has(nome)) {
     return;
   }
-  // Reinicia antes de tocar para permitir gols em sequência.
-  som.stop(() => {
-    som.play(() => {
-      // play concluído — nada a fazer.
-    });
-  });
+  if (!prontos.has(nome)) {
+    pendentes.add(nome);
+    return;
+  }
+  reproduzir(nome);
 }
 
-export function tocarGol(): void {
-  tocar(somGol);
+/** Gol: festa quando é do time do usuário, lamento quando é do adversário. */
+export function tocarGol(doUsuario: boolean): void {
+  tocar(doUsuario ? 'gol' : 'golAdversario');
 }
 
+export function tocarExpulsao(doUsuario: boolean): void {
+  tocar(doUsuario ? 'expulsao' : 'expulsaoAdversario');
+}
+
+/** Pênalti desperdiçado/defendido (o convertido vira gol e toca como gol). */
+export function tocarPenaltiPerdido(doUsuario: boolean): void {
+  tocar(doUsuario ? 'penaltiPerdido' : 'penaltiPerdidoAdversario');
+}
+
+export function tocarContusao(): void {
+  tocar('contusao');
+}
+
+export function tocarIntervalo(): void {
+  tocar('intervalo');
+}
+
+/** Apito final: varia entre as duas gravações para não enjoar. */
 export function tocarFimDeJogo(): void {
-  tocar(somFimDeJogo);
+  tocar(Math.random() < 0.5 ? 'fimDeJogo' : 'fimDeJogoAlt');
 }

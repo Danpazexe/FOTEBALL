@@ -11,7 +11,7 @@ import {ClassificationTable} from '../../components/ClassificationTable';
 import {ScreenContainer, Section, TextoVazio} from '../../components/ui';
 import {calcularArtilheiros} from '../../engine/season/artilheiros';
 import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, tipografia} from '../../theme';
 import {siglaClube} from '../../utils/formatters';
 
 const DIVISAO_PADRAO = 'Série A';
@@ -151,9 +151,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   artGols: {
+    ...tipografia.numero,
     color: cores.primaria,
-    fontSize: 18,
-    fontWeight: '900',
   },
 });
 

@@ -21,7 +21,7 @@ import {LOGO_SERIE_A, LOGO_SERIE_B, LOGO_SERIE_C} from '../../assets/escudos';
 import {AppHeader, ScreenContainer} from '../../components/ui';
 import Icone from '../../components/Icone';
 import {useAppNavigation} from '../../navigation/types';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra} from '../../theme';
 
 type Liga = {
   id: string;
@@ -168,13 +168,14 @@ const styles = StyleSheet.create({
   },
   card: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.md,
     padding: espaco.md,
+    ...sombra.card,
   },
   cardInativo: {
     opacity: 0.55,
@@ -185,8 +186,10 @@ const styles = StyleSheet.create({
   },
   logoPlaceholder: {
     alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
     borderRadius: raio.sm,
+    borderWidth: 1,
     height: 48,
     justifyContent: 'center',
     width: 48,
@@ -209,9 +212,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   tag: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
+    backgroundColor: cores.glass,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.pill,
     borderWidth: 1,
     paddingHorizontal: espaco.sm,
     paddingVertical: espaco.xs,

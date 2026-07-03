@@ -6,6 +6,7 @@ import {
   aplicarAcertoFinanceiroAnual,
   aplicarBilheteria,
   aplicarCotaTV,
+  calcularPublicoJogo,
   cotaTV,
   PRECO_INGRESSO_FATOR_MAX,
   PRECO_INGRESSO_FATOR_MIN,
@@ -58,7 +59,10 @@ import {
   type ConfrontoCopa,
   type EstadoCopa,
 } from '../engine/season/copaEngine';
-import {simularPartida} from '../engine/simulation/matchSimulator';
+import {
+  idsTitularesDisponiveis,
+  simularPartida,
+} from '../engine/simulation/matchSimulator';
 import {
   calcularNotaPartida,
   contarAssistencias,
@@ -90,6 +94,7 @@ import {useAchievementsStore} from './useAchievementsStore';
 import type {
   Clube,
   EstadoFinanceiro,
+  EstatisticasPartida,
   EventoPartida,
   Formacao,
   MotivoDemissao,
@@ -233,6 +238,10 @@ export interface GameState {
     eventos: EventoPartida[],
     placarCasa: number,
     placarFora: number,
+    /** Posse final acumulada pela engine durante a partida ao vivo (%). */
+    posse?: {casa: number; fora: number},
+    /** Estatísticas avançadas acumuladas pela engine durante a partida. */
+    estatisticas?: EstatisticasPartida,
   ) => void;
   atualizarTaticaUsuario: (tatica: Tatica) => void;
   atualizarFormacaoUsuario: (formacao: Formacao) => void;
@@ -464,6 +473,61 @@ function posicaoClube(tabela: TabelaClassificacao[], clubeId: string): number {
 }
 
 /**
+ * Enxuga as estatísticas de partidas da IA para o save não inflar: mantém os
+ * agregados por time (xG, finalizações, zonas...) e descarta os detalhes
+ * pesados (mapas por jogador e momentum por minuto) — que a súmula degrada
+ * para "—" sem quebrar. A partida do USUÁRIO mantém tudo.
+ */
+function enxugarEstatisticasIA(partida: Partida): Partida {
+  if (!partida.estatisticas) {
+    return partida;
+  }
+  const enxugarTime = (time: EstatisticasPartida['casa']) => ({
+    ...time,
+    finalizacoesPorJogador: {},
+    passesPorJogador: {},
+  });
+  return {
+    ...partida,
+    estatisticas: {
+      ...partida.estatisticas,
+      casa: enxugarTime(partida.estatisticas.casa),
+      fora: enxugarTime(partida.estatisticas.fora),
+      momentumPorMinuto: [],
+    },
+  };
+}
+
+/**
+ * Estampa o público REAL (mesma conta da bilheteria) nas estatísticas das
+ * partidas recém-jogadas da rodada. Feito no store porque depende da posição
+ * do mandante na tabela — algo que a engine da partida não conhece.
+ */
+function estamparPublicoRodada(
+  partidas: Partida[],
+  jogosRodada: Partida[],
+  clubes: Clube[],
+  tabela: TabelaClassificacao[],
+): Partida[] {
+  return partidas.map(partida => {
+    if (!partida.estatisticas || !jogosRodada.some(j => j.id === partida.id)) {
+      return partida;
+    }
+    const mandante = clubes.find(clube => clube.id === partida.timeCasa);
+    if (!mandante) {
+      return partida;
+    }
+    return {
+      ...partida,
+      estatisticas: {
+        ...partida.estatisticas,
+        publico: calcularPublicoJogo(mandante, posicaoClube(tabela, mandante.id)),
+      },
+    };
+  });
+}
+
+/**
  * Dias de afastamento por gravidade da lesão (7 dias ≈ 1 jogo/rodada).
  * Determinístico: usa o RNG derivado da partida (mesma partida => mesma lesão).
  */
@@ -476,6 +540,44 @@ function sortearDuracaoLesao(rng: RandomGenerator): number {
     return inteiroEntre(rng, 21, 35); // média: 3-5 jogos
   }
   return inteiroEntre(rng, 42, 70); // grave: 6-10 jogos
+}
+
+/** Treino-base aplicado automaticamente entre as rodadas (estilo Brasfoot). */
+const TREINO_AUTO_ID = 'hab_fisico';
+const INTENSIDADE_AUTO: IntensidadeTreino = 'leve';
+
+/**
+ * Treino automático: aplica uma sessão LEVE (recupera condição, ganho lento,
+ * baixo risco de lesão) ao elenco do usuário entre as rodadas, mantendo a
+ * progressão sem ação manual. Determinístico (seed por temporada/rodada) e sem
+ * custo (é o treino-base do clube). Pulado quando o usuário treinou na mão.
+ */
+function treinarElencoAutomatico(
+  jogadores: Player[],
+  clubeUsuarioId: string,
+  nivelInfra: number,
+  temporada: string,
+  rodada: number,
+): Player[] {
+  const treino = buscarTreino(TREINO_AUTO_ID);
+  if (!treino) {
+    return jogadores;
+  }
+  const baseSeed = hashString(`${temporada}_${rodada}_auto_${INTENSIDADE_AUTO}`);
+  return jogadores.map(jogador => {
+    if (jogador.clubeId !== clubeUsuarioId) {
+      return jogador;
+    }
+    const rng = criarRNGComSeed(baseSeed + hashString(jogador.id));
+    const efeito = calcularEfeitoTreino(
+      jogador,
+      treino,
+      INTENSIDADE_AUTO,
+      {nivelInfra, jogosNaTemporada: jogador.estatisticasTemporada.jogos},
+      rng,
+    );
+    return aplicarEfeitoTreino(jogador, efeito);
+  });
 }
 
 /**
@@ -1028,7 +1130,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         return partida;
       }
 
-      const resultado = simularPartida({
+      const simulada = simularPartida({
         timeCasa: clubeCasa,
         timeFora: clubeFora,
         jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
@@ -1038,6 +1140,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         rodada: jogo.rodada,
         data: jogo.data,
       });
+      // Jogo da IA guarda só os agregados (save enxuto); o do usuário, tudo.
+      const ehDoUsuario =
+        jogo.timeCasa === state.clubeUsuarioId ||
+        jogo.timeFora === state.clubeUsuarioId;
+      const resultado = ehDoUsuario ? simulada : enxugarEstatisticasIA(simulada);
 
       jogadoresAtualizados = aplicarResultadoNosJogadores(
         jogadoresAtualizados,
@@ -1053,6 +1160,12 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
 
     const tabela = calcularTabela(state.clubes, partidasAtualizadas);
+    const partidasComPublico = estamparPublicoRodada(
+      partidasAtualizadas,
+      jogosRodada,
+      state.clubes,
+      tabela,
+    );
     const ultimaPartidaUsuario =
       jogosRodada.find(
         partida =>
@@ -1060,7 +1173,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           partida.timeFora === state.clubeUsuarioId,
       ) ?? null;
     const partidaUsuarioCompleta = ultimaPartidaUsuario
-      ? partidasAtualizadas.find(partida => partida.id === ultimaPartidaUsuario.id) ?? null
+      ? partidasComPublico.find(partida => partida.id === ultimaPartidaUsuario.id) ?? null
       : null;
     const clubesComBilheteria = state.clubes.map(clube => {
       const mandouJogo = jogosRodada.some(partida => partida.timeCasa === clube.id);
@@ -1080,15 +1193,30 @@ export const useGameStore = create<GameState>((set, get) => ({
       adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} simulada.`),
     );
 
+    // Treino automático do ciclo (pulado se o usuário treinou na mão).
+    const clubeUsuario = clubesComBilheteria.find(
+      clube => clube.id === state.clubeUsuarioId,
+    );
+    const jogadoresFinais =
+      state.treinouProximoJogo || !state.clubeUsuarioId || !clubeUsuario
+        ? carreira.jogadores
+        : treinarElencoAutomatico(
+            carreira.jogadores,
+            state.clubeUsuarioId,
+            clubeUsuario.estadio.nivelInfraestrutura,
+            state.temporadaAtual,
+            state.rodadaAtual,
+          );
+
     set({
-      jogadores: carreira.jogadores,
-      partidas: partidasAtualizadas,
+      jogadores: jogadoresFinais,
+      partidas: partidasComPublico,
       tabela,
       clubes: clubesComBilheteria,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
       ultimaPartidaUsuario: partidaUsuarioCompleta,
-      // Calendário: data passa a ser a do jogo disputado; zera o treino para
-      // o próximo ciclo (volta a exigir treino antes do próximo jogo).
+      // Calendário: data passa a ser a do jogo disputado. O treino do ciclo já
+      // foi aplicado automaticamente acima, então o próximo evento é o jogo.
       dataAtual: partidaUsuarioCompleta?.data ?? state.dataAtual,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -1103,8 +1231,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     checarConquistas({
       clubeUsuarioId: state.clubeUsuarioId,
-      jogadores: carreira.jogadores,
-      partidas: partidasAtualizadas,
+      jogadores: jogadoresFinais,
+      partidas: partidasComPublico,
       tabela,
       clubes: clubesComBilheteria,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
@@ -1115,7 +1243,14 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   // Fecha a partida do usuário jogada AO VIVO (decidida durante a narração) e
   // simula os demais jogos da rodada (IA), atualizando tabela/finanças/rodada.
-  concluirPartidaAoVivo: (partidaId, eventos, placarCasa, placarFora) => {
+  concluirPartidaAoVivo: (
+    partidaId,
+    eventos,
+    placarCasa,
+    placarFora,
+    posse,
+    estatisticas,
+  ) => {
     const state = get();
     const jogosRodada = state.partidas.filter(
       partida => partida.rodada === state.rodadaAtual && !partida.jogada,
@@ -1124,14 +1259,27 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
 
+    // Escalações NO APITO INICIAL: durante o jogo ao vivo a formação do
+    // usuário no store é a de FIM de jogo (trocas aplicadas). Desgaste,
+    // minutagem e o snapshot da súmula devem partir de quem COMEÇOU —
+    // restaura o retrato pré-live para todos esses cálculos.
+    const preLive = state.formacaoPreLive;
+    const clubesNoApito = preLive
+      ? state.clubes.map(clube =>
+          clube.id === preLive.clubeId
+            ? {...clube, formacaoAtual: preLive.formacao, taticaAtual: preLive.tatica}
+            : clube,
+        )
+      : state.clubes;
+
     let jogadoresAtualizados = state.jogadores;
     const partidasAtualizadas = state.partidas.map(partida => {
       const jogo = jogosRodada.find(item => item.id === partida.id);
       if (!jogo) {
         return partida;
       }
-      const clubeCasa = state.clubes.find(clube => clube.id === jogo.timeCasa);
-      const clubeFora = state.clubes.find(clube => clube.id === jogo.timeFora);
+      const clubeCasa = clubesNoApito.find(clube => clube.id === jogo.timeCasa);
+      const clubeFora = clubesNoApito.find(clube => clube.id === jogo.timeFora);
       if (!clubeCasa || !clubeFora) {
         return partida;
       }
@@ -1145,17 +1293,30 @@ export const useGameStore = create<GameState>((set, get) => ({
               eventos: [...eventos].sort((a, b) => a.minuto - b.minuto),
               jogada: true,
               modoJogado: 'interativo',
+              posseCasa: posse?.casa,
+              posseFora: posse?.fora,
+              estatisticas,
+              titularesCasa: idsTitularesDisponiveis(
+                clubeCasa,
+                jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
+              ),
+              titularesFora: idsTitularesDisponiveis(
+                clubeFora,
+                jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
+              ),
             }
-          : simularPartida({
-              timeCasa: clubeCasa,
-              timeFora: clubeFora,
-              jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
-              jogadoresFora: jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
-              seed: state.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
-              competicaoId: jogo.competicaoId,
-              rodada: jogo.rodada,
-              data: jogo.data,
-            });
+          : enxugarEstatisticasIA(
+              simularPartida({
+                timeCasa: clubeCasa,
+                timeFora: clubeFora,
+                jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
+                jogadoresFora: jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
+                seed: state.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
+                competicaoId: jogo.competicaoId,
+                rodada: jogo.rodada,
+                data: jogo.data,
+              }),
+            );
 
       jogadoresAtualizados = aplicarResultadoNosJogadores(
         jogadoresAtualizados,
@@ -1167,9 +1328,18 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
 
     const tabela = calcularTabela(state.clubes, partidasAtualizadas);
+    const partidasComPublico = estamparPublicoRodada(
+      partidasAtualizadas,
+      jogosRodada,
+      state.clubes,
+      tabela,
+    );
     const partidaUsuario =
-      partidasAtualizadas.find(partida => partida.id === partidaId) ?? null;
-    const clubesComBilheteria = state.clubes.map(clube => {
+      partidasComPublico.find(partida => partida.id === partidaId) ?? null;
+    // clubesNoApito já carrega a escalação/tática OFICIAL do usuário (as
+    // trocas do jogo ao vivo valeram só para ele) — daqui em diante ela é a
+    // formação persistida.
+    const clubesFinais = clubesNoApito.map(clube => {
       const mandouJogo = jogosRodada.some(partida => partida.timeCasa === clube.id);
       if (!mandouJogo) {
         return clube;
@@ -1181,17 +1351,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       );
     });
 
-    // Restaura a escalação/tática oficial do usuário: as trocas feitas durante a
-    // partida ao vivo valeram só para este jogo, não viram a escalação padrão.
-    const preLive = state.formacaoPreLive;
-    const clubesFinais = preLive
-      ? clubesComBilheteria.map(clube =>
-          clube.id === preLive.clubeId
-            ? {...clube, formacaoAtual: preLive.formacao, taticaAtual: preLive.tatica}
-            : clube,
-        )
-      : clubesComBilheteria;
-
     const carreira = atualizarCarreiraPosRodada(
       state,
       clubesFinais,
@@ -1200,9 +1359,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} disputada.`),
     );
 
+    // Treino automático do ciclo (pulado se o usuário treinou na mão).
+    const clubeUsuario = clubesFinais.find(
+      clube => clube.id === state.clubeUsuarioId,
+    );
+    const jogadoresFinais =
+      state.treinouProximoJogo || !state.clubeUsuarioId || !clubeUsuario
+        ? carreira.jogadores
+        : treinarElencoAutomatico(
+            carreira.jogadores,
+            state.clubeUsuarioId,
+            clubeUsuario.estadio.nivelInfraestrutura,
+            state.temporadaAtual,
+            state.rodadaAtual,
+          );
+
     set({
-      jogadores: carreira.jogadores,
-      partidas: partidasAtualizadas,
+      jogadores: jogadoresFinais,
+      partidas: partidasComPublico,
       tabela,
       clubes: clubesFinais,
       formacaoPreLive: null,
@@ -1222,8 +1396,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     checarConquistas({
       clubeUsuarioId: state.clubeUsuarioId,
-      jogadores: carreira.jogadores,
-      partidas: partidasAtualizadas,
+      jogadores: jogadoresFinais,
+      partidas: partidasComPublico,
       tabela,
       clubes: clubesFinais,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
@@ -2544,29 +2718,20 @@ export function selecionarClubeUsuario(state: GameState): Clube | null {
 }
 
 export type ProximoEvento =
-  | {tipo: 'treino'; data: string; partida: Partida}
   | {tipo: 'jogo'; data: string; partida: Partida}
   | {tipo: 'fim'};
 
 /**
- * Próximo evento do calendário (estilo FIFA). Enquanto não treinar, o evento é
- * o TREINO na véspera do jogo; depois de treinar, é o JOGO. Sem próxima partida
- * (fim das 38 rodadas) => fim de temporada. Não é seletor direto do zustand
- * (cria objeto novo); derive com useMemo a partir de fatias estáveis.
+ * Próximo evento do calendário. O treino é automático entre as rodadas (estilo
+ * Brasfoot), então o evento é sempre o JOGO. Sem próxima partida (fim das 38
+ * rodadas) => fim de temporada. Não é seletor direto do zustand (cria objeto
+ * novo); derive com useMemo a partir de fatias estáveis.
  */
 export function calcularProximoEvento(
   proximaPartida: Partida | null,
-  treinouProximoJogo: boolean,
 ): ProximoEvento {
   if (!proximaPartida) {
     return {tipo: 'fim'};
-  }
-  if (!treinouProximoJogo) {
-    return {
-      tipo: 'treino',
-      data: adicionarDias(proximaPartida.data, -1),
-      partida: proximaPartida,
-    };
   }
   return {tipo: 'jogo', data: proximaPartida.data, partida: proximaPartida};
 }

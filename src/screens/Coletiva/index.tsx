@@ -28,7 +28,7 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra} from '../../theme';
 import {nomeClube} from '../../utils/formatters';
 
 function Coletiva(): React.JSX.Element {
@@ -166,7 +166,7 @@ function Coletiva(): React.JSX.Element {
             </Text>
           </View>
 
-          <Botao titulo="Encerrar coletiva" icone="check" onPress={concluir} />
+          <Botao titulo="Encerrar coletiva" icone="check" variante="ouro" onPress={concluir} />
         </>
       )}
     </ScreenContainer>
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   categoriaChip: {
     alignSelf: 'flex-start',
     backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
+    borderRadius: raio.pill,
     marginBottom: espaco.sm,
     paddingHorizontal: espaco.sm,
     paddingVertical: 3,
@@ -259,11 +259,12 @@ const styles = StyleSheet.create({
     gap: espaco.sm,
   },
   opcao: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
     borderWidth: 1,
     padding: espaco.md,
+    ...sombra.card,
   },
   opcaoTexto: {
     color: cores.texto,
@@ -291,10 +292,13 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   veredito: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.md,
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     marginVertical: espaco.md,
     padding: espaco.md,
+    ...sombra.card,
   },
   vereditoTexto: {
     color: cores.texto,

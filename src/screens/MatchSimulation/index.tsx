@@ -25,15 +25,18 @@ import {trocarTitular} from '../../api/database/seed/defaults';
 import {
   definirSomHabilitado,
   inicializarSons,
+  tocarContusao,
+  tocarExpulsao,
   tocarFimDeJogo,
   tocarGol,
+  tocarIntervalo,
+  tocarPenaltiPerdido,
 } from '../../audio/sons';
 import {Botao, ScreenContainer} from '../../components/ui';
-import Icone from '../../components/Icone';
-import {EventItem, type LadoEvento} from '../../components/MatchNarration/EventItem';
-import Placar from '../../components/MatchNarration/Placar';
+import Icone, {type IconeNome} from '../../components/Icone';
+import {LanceLimpo, type LadoLance} from '../../components/MatchNarration/LanceLimpo';
 import AjustesPartida from '../../components/MatchNarration/AjustesPartida';
-import BarrasForca from '../../components/BarrasForca';
+import {calcularPublicoJogo} from '../../engine/finance/financeEngine';
 import {
   narrarEvento,
   narrarFim,
@@ -43,22 +46,23 @@ import {
 } from '../../engine/simulation/narrativeTemplates';
 import {
   calcularContextoMinuto,
+  calcularEstatisticasFinais,
+  calcularPossePartida,
   disputarPenaltis,
   iniciarPartidaAoVivo,
   simularMinuto,
+  simularPartida,
   type EstadoPartidaAoVivo,
 } from '../../engine/simulation/matchSimulator';
 import {confrontoDoClube} from '../../engine/season/copaEngine';
 import {criarRNGComSeed, hashString} from '../../engine/simulation/rng';
-import type {ForcaTime} from '../../engine/simulation/teamStrength';
-import {forcaDoClube} from '../../utils/forca';
 import {
   selecionarClubeUsuario,
   selecionarCopaNaVez,
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, corDoTime, espaco, raio} from '../../theme';
+import {cores, corDoTime, espaco, raio, sombra} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {Clube, EventoPartida, Formacao, Partida, Player} from '../../types';
 import {useAppNavigation, useAppRoute} from '../../navigation/types';
@@ -67,10 +71,14 @@ type ItemTimeline = {
   minuto: number;
   tipo: string;
   descricao: string;
-  lado: LadoEvento;
+  lado: LadoLance;
   sigla?: string;
   corTime?: string;
   timeId?: string;
+  /** Campos do lance "clean": nome principal, linha cinza e pill de placar. */
+  autor?: string;
+  detalhe?: string;
+  placarPill?: string;
 };
 
 const MINUTO_INTERVALO = 45;
@@ -84,13 +92,6 @@ const DURACAO_SEG = DURACAO * 60;
 const MULTIPLICADORES = [1, 2, 5, 10] as const;
 const TICK_MS = 90;
 const PASSO_BASE_SEG = 6;
-
-/** Formata segundos de jogo como MM:SS. */
-function formatarTempo(segundos: number): string {
-  const m = Math.floor(segundos / 60);
-  const s = Math.floor(segundos % 60);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
 
 function mediaOverall(jogadores: Player[]): number {
   if (jogadores.length === 0) {
@@ -107,12 +108,101 @@ function mapearNomesJogadores(jogadores: Player[]): Record<string, string> {
   return mapa;
 }
 
+type JogoDaRodada = {
+  id: string;
+  siglaCasa: string;
+  siglaFora: string;
+  corCasa: string;
+  corFora: string;
+  gols: Array<{minuto: number; ehCasa: boolean}>;
+};
+
+/**
+ * Rodada AO VIVO (estilo Brasfoot): pré-simula os OUTROS jogos da rodada com
+ * as MESMAS seeds/inputs que o store usará ao concluir a partida — o motor é
+ * determinístico, então os placares finais serão idênticos. A aba "Rodada"
+ * revela os gols conforme o relógio da partida do usuário avança.
+ */
+function jogosRodadaAoVivo(
+  st: {
+    partidas: Partida[];
+    clubes: Clube[];
+    jogadores: Player[];
+    rodadaAtual: number;
+  },
+  partidaUsuarioId: string,
+): JogoDaRodada[] {
+  const jogosRodada = st.partidas.filter(
+    p => p.rodada === st.rodadaAtual && !p.jogada,
+  );
+  const lista: JogoDaRodada[] = [];
+  for (const jogo of jogosRodada) {
+    if (jogo.id === partidaUsuarioId) {
+      continue;
+    }
+    const clubeCasa = st.clubes.find(c => c.id === jogo.timeCasa);
+    const clubeFora = st.clubes.find(c => c.id === jogo.timeFora);
+    if (!clubeCasa || !clubeFora) {
+      continue;
+    }
+    try {
+      const resultado = simularPartida({
+        timeCasa: clubeCasa,
+        timeFora: clubeFora,
+        jogadoresCasa: st.jogadores.filter(j => j.clubeId === clubeCasa.id),
+        jogadoresFora: st.jogadores.filter(j => j.clubeId === clubeFora.id),
+        seed: st.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
+        competicaoId: jogo.competicaoId,
+        rodada: jogo.rodada,
+        data: jogo.data,
+      });
+      lista.push({
+        id: jogo.id,
+        siglaCasa: siglaClube(st.clubes, jogo.timeCasa),
+        siglaFora: siglaClube(st.clubes, jogo.timeFora),
+        corCasa: corDoTime(jogo.timeCasa),
+        corFora: corDoTime(jogo.timeFora),
+        gols: resultado.eventos
+          .filter(e => e.tipo === 'gol')
+          .map(e => ({minuto: e.minuto, ehCasa: e.timeId === jogo.timeCasa})),
+      });
+    } catch {
+      // Clube da IA sem formação válida: este jogo fica fora da aba ao vivo.
+    }
+  }
+  return lista;
+}
+
+function rotuloGramado(nivelInfraestrutura: number): string {
+  if (nivelInfraestrutura >= 4) {
+    return 'Ótimo';
+  }
+  if (nivelInfraestrutura === 3) {
+    return 'Bom';
+  }
+  if (nivelInfraestrutura === 2) {
+    return 'Regular';
+  }
+  return 'Ruim';
+}
+
+function iconeClima(clima: string): IconeNome {
+  if (clima === 'Chuvoso') {
+    return 'clima-chuva';
+  }
+  if (clima === 'Nublado') {
+    return 'clima-nublado';
+  }
+  return 'clima-sol';
+}
+
 function MatchSimulation(): React.JSX.Element | null {
   const nav = useAppNavigation();
   const route = useAppRoute<'MatchSimulation'>();
   const modoCopa = route.params?.copa === true;
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const jogadores = useGameStore(state => state.jogadores);
+  const tabela = useGameStore(state => state.tabela);
   const atualizarFormacaoUsuario = useGameStore(
     state => state.atualizarFormacaoUsuario,
   );
@@ -136,14 +226,14 @@ function MatchSimulation(): React.JSX.Element | null {
   const nomeCasaRef = useRef('');
   const nomeForaRef = useRef('');
   const nomesRef = useRef<Record<string, string>>({});
-  const ladoUsuarioRef = useRef<LadoEvento>('casa');
+  const ladoUsuarioRef = useRef<LadoLance>('casa');
   const pausarNoIntervaloRef = useRef(true);
   const marcosRef = useRef({intervalo: false, segundoTempo: false, fim: false});
   const comitadoRef = useRef(false);
 
   const pulsePlacar = useRef(new Animated.Value(1)).current;
   const golsPulseRef = useRef(0);
-  const golsSomRef = useRef(0);
+  const golsSomRef = useRef({usuario: 0, adversario: 0});
 
   const [relogioSeg, setRelogioSeg] = useState(0);
   const [multiplicador, setMultiplicador] = useState<number>(() =>
@@ -155,12 +245,16 @@ function MatchSimulation(): React.JSX.Element | null {
 
   const [eventos, setEventos] = useState<ItemTimeline[]>([]);
   const [placar, setPlacar] = useState({casa: 0, fora: 0});
+  // Aba do feed: lances da partida ou placares ao vivo da rodada (Brasfoot).
+  const [abaFeed, setAbaFeed] = useState<'lances' | 'rodada'>('lances');
+  const outrosJogosRef = useRef<JogoDaRodada[]>([]);
+  // Posse REAL vinda da engine (acumulada minuto a minuto) — espelho de UI,
+  // como o placar; a fonte da verdade é o EstadoPartidaAoVivo.
+  const [posse, setPosse] = useState({casa: 50, fora: 50});
   const [subsFeitas, setSubsFeitas] = useState(0);
   const [ajustesVisivel, setAjustesVisivel] = useState(false);
   // Jogadores que já saíram não podem voltar (regra oficial).
   const [jaSairam, setJaSairam] = useState<Set<string>>(() => new Set());
-
-  const listaRef = useRef<FlatList<ItemTimeline>>(null);
 
   // Prepara a partida do usuário (sem simular nada ainda).
   useEffect(() => {
@@ -263,6 +357,7 @@ function MatchSimulation(): React.JSX.Element | null {
       );
       setSiglaCasa(siglaClube(estado.clubes, proximo.timeCasa));
       setSiglaFora(siglaClube(estado.clubes, proximo.timeFora));
+      outrosJogosRef.current = jogosRodadaAoVivo(estado, proximo.id);
       setCorCasa(corDoTime(proximo.timeCasa));
       setCorFora(corDoTime(proximo.timeFora));
       fixtureMontada = proximo;
@@ -357,14 +452,58 @@ function MatchSimulation(): React.JSX.Element | null {
     const jogadoresCasa = usuarioEhCasa ? jogadoresUsuario : jogadoresAdversario;
     const jogadoresFora = usuarioEhCasa ? jogadoresAdversario : jogadoresUsuario;
 
+    // Sons de lance: só no avanço normal (lotes de 1–2 minutos). Ao pular
+    // tempo, um lote de 45' viraria uma rajada de efeitos sobrepostos.
+    const comSomDeLance = alvo - minutoSimuladoRef.current <= 2;
+    const golsAntesDoLote = estado.placarCasa + estado.placarFora;
+    const lote: {som: (() => void) | null; prioridade: number} = {
+      som: null,
+      prioridade: 0,
+    };
+    const registrarSom = (prioridade: number, efeito: () => void) => {
+      if (comSomDeLance && prioridade > lote.prioridade) {
+        lote.prioridade = prioridade;
+        lote.som = efeito;
+      }
+    };
+
     const novosItens: ItemTimeline[] = [];
     const criarItem = (ev: EventoPartida): ItemTimeline => {
       const ehCasa = ev.timeId === fixture.timeCasa;
+      const nomeAutor = nomesRef.current[ev.jogadorId] ?? 'Jogador';
+
+      // Campos do lance "clean" (modelo SofaScore): nome + detalhe em cinza.
+      let autor: string | undefined = nomeAutor;
+      let detalhe: string | undefined;
+      let placarPill: string | undefined;
+      const nomeFalta = ev.jogadorFaltaId
+        ? nomesRef.current[ev.jogadorFaltaId]
+        : undefined;
+      if (ev.tipo === 'gol') {
+        placarPill = `${estado.placarCasa} - ${estado.placarFora}`;
+        detalhe = ev.jogadorAssistenciaId
+          ? `(${nomesRef.current[ev.jogadorAssistenciaId] ?? 'assistência'})`
+          : ev.penaltiData
+            ? nomeFalta
+              ? `(pênalti · falta de ${nomeFalta})`
+              : '(pênalti)'
+            : undefined;
+      } else if (ev.tipo === 'substituicao') {
+        autor = ev.jogadorEntraId
+          ? nomesRef.current[ev.jogadorEntraId] ?? 'Reserva'
+          : nomeAutor;
+        detalhe = `(${nomeAutor})`;
+      } else if (ev.tipo === 'penalti') {
+        detalhe = nomeFalta
+          ? `(pênalti desperdiçado · falta de ${nomeFalta})`
+          : '(pênalti desperdiçado)';
+      }
+
       return {
         minuto: ev.minuto,
         tipo: ev.tipo,
         descricao: narrarEvento(ev, {
-          nomeJogador: nomesRef.current[ev.jogadorId] ?? 'O jogador',
+          nomeJogador: nomeAutor,
           nomeJogadorEntra: ev.jogadorEntraId
             ? nomesRef.current[ev.jogadorEntraId] ?? 'o reserva'
             : undefined,
@@ -375,6 +514,9 @@ function MatchSimulation(): React.JSX.Element | null {
         sigla: ehCasa ? siglaCasa : siglaFora,
         corTime: ehCasa ? corCasa : corFora,
         timeId: ev.timeId,
+        autor,
+        detalhe,
+        placarPill,
       };
     };
 
@@ -407,9 +549,20 @@ function MatchSimulation(): React.JSX.Element | null {
       minutoSimuladoRef.current = proximoMinuto;
       for (const ev of novos) {
         novosItens.push(criarItem(ev));
+        const doUsuario =
+          (ev.timeId === fixture.timeCasa) ===
+          (ladoUsuarioRef.current === 'casa');
+        if (ev.tipo === 'cartao_vermelho') {
+          registrarSom(3, () => tocarExpulsao(doUsuario));
+        } else if (ev.tipo === 'penalti') {
+          registrarSom(2, () => tocarPenaltiPerdido(doUsuario));
+        } else if (ev.tipo === 'lesao') {
+          registrarSom(1, () => tocarContusao());
+        }
       }
       if (proximoMinuto === MINUTO_INTERVALO && !marcosRef.current.intervalo) {
         marcosRef.current.intervalo = true;
+        registrarSom(4, tocarIntervalo);
         novosItens.push({
           minuto: MINUTO_INTERVALO,
           tipo: 'intervalo',
@@ -420,6 +573,7 @@ function MatchSimulation(): React.JSX.Element | null {
             estado.placarFora,
           ),
           lado: 'neutro',
+          placarPill: `${estado.placarCasa} - ${estado.placarFora}`,
         });
       }
       if (proximoMinuto === DURACAO && !marcosRef.current.fim) {
@@ -434,22 +588,23 @@ function MatchSimulation(): React.JSX.Element | null {
             estado.placarFora,
           ),
           lado: 'neutro',
+          placarPill: `${estado.placarCasa} - ${estado.placarFora}`,
         });
       }
+    }
+
+    // O gol tem som próprio (efeito do placar) e vence os demais do lote.
+    const somDoLote = lote.som;
+    if (somDoLote && estado.placarCasa + estado.placarFora === golsAntesDoLote) {
+      somDoLote();
     }
 
     if (novosItens.length > 0) {
       setEventos(prev => [...prev, ...novosItens]);
     }
     setPlacar({casa: estado.placarCasa, fora: estado.placarFora});
+    setPosse(calcularPossePartida(estado));
   }, [minuto, fixture, siglaCasa, siglaFora, corCasa, corFora]);
-
-  // Rola a lista a cada novo lance.
-  useEffect(() => {
-    if (eventos.length > 0) {
-      listaRef.current?.scrollToEnd({animated: true});
-    }
-  }, [eventos.length]);
 
   // Pulso + som quando o placar aumenta.
   const totalGols = placar.casa + placar.fora;
@@ -463,12 +618,18 @@ function MatchSimulation(): React.JSX.Element | null {
     golsPulseRef.current = totalGols;
   }, [totalGols, pulsePlacar]);
 
+  // Som de gol por lado: a festa é do usuário, o lamento é do adversário.
   useEffect(() => {
-    if (totalGols > golsSomRef.current) {
-      tocarGol();
+    const usuarioEhCasa = ladoUsuarioRef.current === 'casa';
+    const golsUsuario = usuarioEhCasa ? placar.casa : placar.fora;
+    const golsAdversario = usuarioEhCasa ? placar.fora : placar.casa;
+    if (golsUsuario > golsSomRef.current.usuario) {
+      tocarGol(true);
+    } else if (golsAdversario > golsSomRef.current.adversario) {
+      tocarGol(false);
     }
-    golsSomRef.current = totalGols;
-  }, [totalGols]);
+    golsSomRef.current = {usuario: golsUsuario, adversario: golsAdversario};
+  }, [placar]);
 
   // Fecha a partida e simula o resto da rodada ao terminar.
   useEffect(() => {
@@ -502,7 +663,14 @@ function MatchSimulation(): React.JSX.Element | null {
     } else {
       useGameStore
         .getState()
-        .concluirPartidaAoVivo(fixture.id, e.eventos, e.placarCasa, e.placarFora);
+        .concluirPartidaAoVivo(
+          fixture.id,
+          e.eventos,
+          e.placarCasa,
+          e.placarFora,
+          calcularPossePartida(e),
+          calcularEstatisticasFinais(e),
+        );
     }
   }, [terminou, fixture, nav]);
 
@@ -554,6 +722,19 @@ function MatchSimulation(): React.JSX.Element | null {
       return proximo;
     });
 
+    // Registra a troca nos eventos PERSISTIDOS da partida: é o que permite à
+    // súmula calcular minutos jogados e mostrar a linha do tempo completa.
+    if (clubeUsuario) {
+      estadoRef.current?.eventos.push({
+        minuto,
+        tipo: 'substituicao',
+        timeId: clubeUsuario.id,
+        jogadorId: saiId,
+        jogadorEntraId: entranteId,
+        descricao: `Substituição: sai ${nomeSai}, entra ${nomeEntra}.`,
+      });
+    }
+
     setEventos(atuais => [
       ...atuais,
       {
@@ -564,31 +745,23 @@ function MatchSimulation(): React.JSX.Element | null {
         sigla: lado === 'casa' ? siglaCasa : siglaFora,
         corTime: corDoTime(clubeUsuario?.id ?? ''),
         timeId: clubeUsuario?.id,
+        autor: nomeEntra,
+        detalhe: `(${nomeSai})`,
       },
     ]);
     setSubsFeitas(n => n + 1);
   };
 
-  const eventosOrdenados = useMemo(
-    () => [...eventos].sort((a, b) => a.minuto - b.minuto),
+  // Feed "clean": lance mais RECENTE no topo (como o modelo) — o novo evento
+  // aparece sem auto-scroll. Empate de minuto mantém o mais novo acima.
+  const eventosFeed = useMemo(
+    () =>
+      eventos
+        .map((item, indice) => ({item, indice}))
+        .sort((a, b) => b.item.minuto - a.item.minuto || b.indice - a.indice)
+        .map(({item}) => item),
     [eventos],
   );
-
-  // Força em campo AO VIVO — recalculada quando a escalação muda (subs/tática),
-  // mostrando o efeito das decisões durante a partida.
-  const forcasAoVivo = useMemo<{casa: ForcaTime; fora: ForcaTime} | null>(() => {
-    const adversario = adversarioRef.current;
-    if (!clubeUsuario || !adversario) {
-      return null;
-    }
-    const forcaUsuario = forcaDoClube(clubeUsuario, jogadores);
-    const forcaAdversario = forcaDoClube(adversario, jogadores);
-    const usuarioEhCasa = ladoUsuarioRef.current === 'casa';
-    return {
-      casa: usuarioEhCasa ? forcaUsuario : forcaAdversario,
-      fora: usuarioEhCasa ? forcaAdversario : forcaUsuario,
-    };
-  }, [clubeUsuario, jogadores]);
 
   if (!fixture) {
     return null;
@@ -599,79 +772,219 @@ function MatchSimulation(): React.JSX.Element | null {
     ? jogadores.filter(jogador => jogador.clubeId === clubeUsuario.id)
     : [];
 
+  // Posse de bola REAL: acumulada pela engine a cada minuto simulado (domínio
+  // de meio-campo atual + tática + placar + lances do minuto). Substituições,
+  // expulsões e fadiga movem este número de verdade — nada é inventado na UI.
+  const posseCasa = posse.casa;
+
+  // Condições do jogo (modelo): estádio do mandante, público pela fórmula
+  // REAL da bilheteria (posição atual na tabela) e clima sorteado pela engine.
+  const clubeCasaObj =
+    ladoUsuarioRef.current === 'casa' ? clubeUsuario : adversarioRef.current;
+  const estadioCasa = clubeCasaObj?.estadio;
+  const posicaoMandante = clubeCasaObj
+    ? tabela.findIndex(linha => linha.clubeId === clubeCasaObj.id) + 1
+    : 0;
+  const publico = clubeCasaObj
+    ? calcularPublicoJogo(clubeCasaObj, posicaoMandante > 0 ? posicaoMandante : 10)
+    : undefined;
+  const condicoes = estadoRef.current?.estatisticas;
+
   return (
     <ScreenContainer>
       <View style={styles.conteudo}>
         <View style={styles.topo}>
-          <Animated.View
-            style={[styles.placarWrap, {transform: [{scale: pulsePlacar}]}]}>
-            <Placar
-              siglaCasa={siglaCasa}
-              siglaFora={siglaFora}
-              divisao={clubeUsuario?.divisao}
-              placarCasa={placar.casa}
-              placarFora={placar.fora}
-              tempo={
-                terminou
-                  ? 'FINAL'
+          <Animated.View style={{transform: [{scale: pulsePlacar}]}}>
+            <View style={styles.placarCard}>
+              <View style={styles.placarTimes}>
+                <Text
+                  style={[styles.placarNome, styles.placarNomeEsq]}
+                  numberOfLines={1}>
+                  {nomeCasaRef.current}
+                </Text>
+                <Text style={styles.placarNumeros}>
+                  {placar.casa} <Text style={styles.placarTraco}>-</Text>{' '}
+                  {placar.fora}
+                </Text>
+                <Text
+                  style={[styles.placarNome, styles.placarNomeDir]}
+                  numberOfLines={1}>
+                  {nomeForaRef.current}
+                </Text>
+              </View>
+              <Text style={styles.placarMeta}>
+                {modoCopa
+                  ? 'Copa do Brasil'
+                  : `${clubeUsuario?.divisao ?? 'Brasileirão'} · Rodada ${fixture.rodada}`}
+                {' | '}
+                {terminou
+                  ? 'Fim de jogo'
                   : intervalo
-                  ? 'INTERVALO'
-                  : formatarTempo(relogioSeg)
-              }
-            />
-          </Animated.View>
-          <View style={styles.arbitroLinha}>
-            <Icone nome="apito" tamanho={13} cor={cores.textoSecundario} />
-            <Text style={styles.arbitroTexto}>Árbitro no comando</Text>
-          </View>
-          {forcasAoVivo ? (
-            <View style={styles.forcasWrap}>
-              <Text style={styles.forcasLabel}>Força em campo</Text>
-              <BarrasForca
-                casa={forcasAoVivo.casa}
-                fora={forcasAoVivo.fora}
-                corCasa={corCasa}
-                corFora={corFora}
-              />
+                    ? 'Intervalo'
+                    : `${minuto}' ao vivo`}
+              </Text>
+              <View style={styles.metaChips}>
+                {estadioCasa ? (
+                  <View style={styles.metaChip}>
+                    <Icone
+                      nome="estadio"
+                      tamanho={12}
+                      cor={cores.textoSecundario}
+                    />
+                    <Text style={styles.metaChipTexto} numberOfLines={1}>
+                      {estadioCasa.nome}
+                    </Text>
+                  </View>
+                ) : null}
+                {publico !== undefined ? (
+                  <View style={styles.metaChip}>
+                    <Icone
+                      nome="publico"
+                      tamanho={12}
+                      cor={cores.textoSecundario}
+                    />
+                    <Text style={styles.metaChipTexto}>
+                      {publico.toLocaleString('pt-BR')}
+                    </Text>
+                  </View>
+                ) : null}
+                {condicoes ? (
+                  <View style={styles.metaChip}>
+                    <Icone
+                      nome={iconeClima(condicoes.clima)}
+                      tamanho={12}
+                      cor={cores.textoSecundario}
+                    />
+                    <Text style={styles.metaChipTexto}>
+                      {condicoes.clima} · {condicoes.temperatura}°C
+                    </Text>
+                  </View>
+                ) : null}
+                {estadioCasa ? (
+                  <View style={styles.metaChip}>
+                    <Icone
+                      nome="gramado"
+                      tamanho={12}
+                      cor={cores.textoSecundario}
+                    />
+                    <Text style={styles.metaChipTexto}>
+                      {rotuloGramado(estadioCasa.nivelInfraestrutura)}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+              <View style={styles.posseRow}>
+                <View style={styles.posseTrack}>
+                  <View
+                    style={[
+                      styles.posseFill,
+                      {flex: posseCasa, backgroundColor: corCasa},
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.posseFill,
+                      {flex: 100 - posseCasa, backgroundColor: corFora},
+                    ]}
+                  />
+                </View>
+                <Text style={styles.posseTexto}>
+                  Posse {posseCasa}% / {100 - posseCasa}%
+                </Text>
+              </View>
             </View>
-          ) : null}
+          </Animated.View>
         </View>
 
-        <FlatList
-          ref={listaRef}
-          style={styles.lista}
-          contentContainerStyle={styles.listaConteudo}
-          data={eventosOrdenados}
-          keyExtractor={(item, index) => `${item.minuto}_${item.tipo}_${index}`}
-          renderItem={({item}) => (
-            <EventItem
-              minuto={item.minuto}
-              tipo={item.tipo}
-              descricao={item.descricao}
-              lado={item.lado}
-              sigla={item.sigla}
-              corTime={item.corTime}
-              clubeId={item.timeId}
-            />
-          )}
-          onContentSizeChange={() =>
-            listaRef.current?.scrollToEnd({animated: true})
-          }
-        />
+        {outrosJogosRef.current.length > 0 ? (
+          <View style={styles.abasFeed}>
+            {(['lances', 'rodada'] as const).map(chave => (
+              <Pressable
+                key={chave}
+                style={[
+                  styles.abaFeed,
+                  abaFeed === chave && styles.abaFeedAtiva,
+                ]}
+                onPress={() => setAbaFeed(chave)}>
+                <Text
+                  style={[
+                    styles.abaFeedTexto,
+                    abaFeed === chave && styles.abaFeedTextoAtivo,
+                  ]}>
+                  {chave === 'lances' ? 'Lances' : 'Rodada'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+
+        {abaFeed === 'rodada' && outrosJogosRef.current.length > 0 ? (
+          <FlatList
+            style={styles.lista}
+            contentContainerStyle={styles.listaConteudo}
+            data={outrosJogosRef.current}
+            keyExtractor={item => item.id}
+            renderItem={({item}) => {
+              const golsCasa = item.gols.filter(
+                g => g.ehCasa && g.minuto <= minuto,
+              ).length;
+              const golsFora = item.gols.filter(
+                g => !g.ehCasa && g.minuto <= minuto,
+              ).length;
+              return (
+                <View style={styles.jogoRodada}>
+                  <View
+                    style={[styles.jogoFaixa, {backgroundColor: item.corCasa}]}
+                  />
+                  <Text style={[styles.jogoSigla, styles.jogoSiglaEsq]}>
+                    {item.siglaCasa}
+                  </Text>
+                  <Text style={styles.jogoPlacar}>
+                    {golsCasa} - {golsFora}
+                  </Text>
+                  <Text style={styles.jogoSigla}>{item.siglaFora}</Text>
+                  <View
+                    style={[styles.jogoFaixa, {backgroundColor: item.corFora}]}
+                  />
+                  <Text style={styles.jogoMinuto}>
+                    {minuto >= DURACAO ? 'Fim' : `${minuto}'`}
+                  </Text>
+                </View>
+              );
+            }}
+          />
+        ) : (
+          <FlatList
+            style={styles.lista}
+            contentContainerStyle={styles.listaConteudo}
+            data={eventosFeed}
+            keyExtractor={(item, index) => `${item.minuto}_${item.tipo}_${index}`}
+            renderItem={({item}) => (
+              <LanceLimpo
+                minuto={item.minuto}
+                tipo={item.tipo}
+                lado={item.lado}
+                autor={item.autor}
+                detalhe={item.detalhe}
+                placarPill={item.placarPill}
+                descricao={item.descricao}
+              />
+            )}
+          />
+        )}
 
         <View style={styles.controles}>
           {terminou ? (
-            <>
-              <Botao
-                titulo="Ver súmula"
-                onPress={() => nav.navigate('MatchResult', {partidaId: fixture.id})}
-              />
-              <Botao
-                variante="secundaria"
-                titulo="Continuar"
-                onPress={() => nav.navigate('MainTabs')}
-              />
-            </>
+            // UM botão só: liga → detalhes da partida (o "Continuar" vive lá);
+            // Copa → seguir direto (o confronto não persiste súmula).
+            <Botao
+              titulo={modoCopa ? 'Continuar' : 'Ver detalhes da partida'}
+              onPress={() =>
+                modoCopa
+                  ? nav.navigate('MainTabs')
+                  : nav.navigate('MatchResult', {partidaId: fixture.id})
+              }
+            />
           ) : intervalo ? (
             <>
               <Text style={styles.avisoIntervalo}>
@@ -837,18 +1150,90 @@ const styles = StyleSheet.create({
   topo: {
     gap: espaco.md,
   },
-  placarWrap: {
-    alignItems: 'center',
+  placarCard: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.sm,
+    padding: espaco.lg,
+    ...sombra.suave,
   },
-  forcasWrap: {
+  placarTimes: {
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  placarNome: {
+    color: cores.texto,
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  placarNomeEsq: {
+    textAlign: 'right',
+  },
+  placarNomeDir: {
+    textAlign: 'left',
+  },
+  placarNumeros: {
+    color: cores.texto,
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  placarTraco: {
+    color: cores.textoSecundario,
+  },
+  placarMeta: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  metaChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: espaco.xs,
+    justifyContent: 'center',
   },
-  forcasLabel: {
+  metaChip: {
+    alignItems: 'center',
+    backgroundColor: cores.fundo,
+    borderRadius: raio.pill,
+    flexDirection: 'row',
+    gap: 4,
+    maxWidth: 190,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 3,
+  },
+  metaChipTexto: {
     color: cores.textoSecundario,
     fontSize: 11,
     fontWeight: '700',
-    textTransform: 'uppercase',
+  },
+  posseRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.md,
+    marginTop: espaco.xs,
+  },
+  posseTrack: {
+    backgroundColor: cores.fundoBase,
+    borderRadius: raio.pill,
+    flex: 1,
+    flexDirection: 'row',
+    gap: 2,
+    height: 8,
+    overflow: 'hidden',
+  },
+  posseFill: {
+    height: '100%',
+  },
+  posseTexto: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '700',
   },
   lista: {
     flex: 1,
@@ -856,6 +1241,69 @@ const styles = StyleSheet.create({
   listaConteudo: {
     gap: espaco.sm,
     paddingVertical: espaco.sm,
+  },
+  abasFeed: {
+    backgroundColor: cores.fundoBase,
+    borderRadius: raio.pill,
+    flexDirection: 'row',
+    padding: 3,
+  },
+  abaFeed: {
+    alignItems: 'center',
+    borderRadius: raio.pill,
+    flex: 1,
+    paddingVertical: 7,
+  },
+  abaFeedAtiva: {
+    backgroundColor: cores.superficie,
+    ...sombra.suave,
+  },
+  abaFeedTexto: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  abaFeedTextoAtivo: {
+    color: cores.texto,
+  },
+  jogoRodada: {
+    alignItems: 'center',
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: espaco.sm,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.sm,
+  },
+  jogoFaixa: {
+    borderRadius: 2,
+    height: 18,
+    width: 3,
+  },
+  jogoSigla: {
+    color: cores.texto,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  jogoSiglaEsq: {
+    textAlign: 'right',
+  },
+  jogoPlacar: {
+    color: cores.texto,
+    fontSize: 15,
+    fontWeight: '900',
+    minWidth: 44,
+    textAlign: 'center',
+  },
+  jogoMinuto: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '800',
+    minWidth: 28,
+    textAlign: 'right',
   },
   controles: {
     gap: espaco.sm,
@@ -875,24 +1323,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: espaco.sm,
   },
-  arbitroLinha: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  arbitroTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-  },
   botaoFlex: {
     flex: 1,
   },
   chipVel: {
     alignItems: 'center',
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.pill,
     borderWidth: 1,
     flex: 1,
     justifyContent: 'center',
