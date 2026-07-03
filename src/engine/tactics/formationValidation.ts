@@ -23,9 +23,17 @@ import {nivelAdaptacao} from './adaptacao';
  *   AVISOS (não bloqueiam):
  *     - jogador improvisado na posição escalada (nível 'improvisado' de
  *       `nivelAdaptacao` — abaixo de natural/similar/adaptado)
+ *     - titular com condição física baixa (abaixo de LIMIAR_CONDICAO_BAIXA)
  *
  * Função pura: apenas inspeciona os dados recebidos, sem ler nem alterar estado.
  */
+
+/**
+ * Abaixo desta condição física, um titular rende bem menos e tem risco de lesão
+ * elevado — vira aviso (não bloqueio). Alinhado ao BRASFOOT_MASTER (§8): "jogador
+ * abaixo de 40 deve gerar alerta".
+ */
+const LIMIAR_CONDICAO_BAIXA = 40;
 
 export interface FormationValidationResult {
   /** true quando não há erros (avisos não invalidam). */
@@ -83,6 +91,14 @@ export function validarFormacao(args: {
     // improvisar de propósito), mas precisa ficar visível.
     if (nivelAdaptacao(jogador, titular.posicao).nivel === 'improvisado') {
       warnings.push(`${jogador.nome} está improvisado na posição ${titular.posicao}.`);
+    }
+    // Condição física baixa: titular desgastado — avisa, sem bloquear.
+    if (jogador.condicaoFisica < LIMIAR_CONDICAO_BAIXA) {
+      warnings.push(
+        `${jogador.nome} está com condição física baixa (${Math.round(
+          jogador.condicaoFisica,
+        )}%).`,
+      );
     }
   }
 

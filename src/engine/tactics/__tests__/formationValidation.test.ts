@@ -214,6 +214,17 @@ describe('validarFormacao', () => {
     expect(r.warnings.some(w => w.includes('improvisado'))).toBe(true);
   });
 
+  it('avisa quando um titular está com condição física baixa', () => {
+    const r = validarFormacao({
+      formacao: form(baseTitulares()),
+      jogadores: baseJogadores({5: {condicaoFisica: 25}}),
+      clubeId: CLUBE,
+    });
+    expect(r.valid).toBe(true);
+    expect(r.errors).toEqual([]);
+    expect(r.warnings.some(w => w.includes('condição física'))).toBe(true);
+  });
+
   it('acumula múltiplos erros de uma vez', () => {
     const r = validarFormacao({
       formacao: form(baseTitulares()),
