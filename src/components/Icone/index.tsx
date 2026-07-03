@@ -39,17 +39,13 @@ export type IconeNome =
   | 'penalti'
   | 'apito'
   | 'relogio'
-  | 'casa'
-  | 'aviao'
   | 'check'
   | 'fechar'
   | 'dinheiro'
   | 'troca'
   | 'trofeu'
-  | 'jovem'
   | 'calendario'
   | 'conversa'
-  | 'moral'
   | 'estadio'
   | 'publico'
   | 'clima-sol'
@@ -81,17 +77,13 @@ const GLYPHS: Record<IconeNome, string> = {
   penalti: 'bullseye-arrow',
   apito: 'whistle',
   relogio: 'clock-outline',
-  casa: 'home',
-  aviao: 'airplane',
   check: 'check',
   fechar: 'close',
   dinheiro: 'cash',
   troca: 'swap-horizontal',
   trofeu: 'trophy',
-  jovem: 'account-star-outline',
   calendario: 'calendar-month',
   conversa: 'bullhorn',
-  moral: 'emoticon-happy-outline',
   estadio: 'stadium-variant',
   publico: 'account-group',
   'clima-sol': 'weather-sunny',

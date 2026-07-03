@@ -314,39 +314,6 @@ export function corDoTime(clubeId: string): string {
   return CORES_TIME[hash % CORES_TIME.length];
 }
 
-/**
- * Paleta de cores (camisa) de cada clube da Série A, por sigla — usada nas
- * barras laterais do placar (faixas). 1 a 3 cores por time.
- */
-const PALETAS_TIME: Record<string, string[]> = {
-  FLA: ['#E30613', '#111111'],
-  PAL: ['#0E6B33', '#FFFFFF'],
-  CAM: ['#111111', '#FFFFFF'],
-  BOT: ['#111111', '#FFFFFF'],
-  SPF: ['#E30613', '#FFFFFF', '#111111'],
-  FLU: ['#7A0026', '#0E6B33', '#FFFFFF'],
-  COR: ['#111111', '#FFFFFF'],
-  CRU: ['#1B3A8B', '#FFFFFF'],
-  GRE: ['#0D80BF', '#111111', '#FFFFFF'],
-  VAS: ['#111111', '#FFFFFF', '#E30613'],
-  BAH: ['#0B5BA6', '#E30613', '#FFFFFF'],
-  INT: ['#E30613', '#FFFFFF'],
-  RBB: ['#E30613', '#FFFFFF'],
-  MIR: ['#F2C200', '#0E6B33'],
-  VIT: ['#E30613', '#111111'],
-  SAN: ['#111111', '#FFFFFF'],
-  CAP: ['#E30613', '#111111', '#FFFFFF'],
-  CFC: ['#0E6B33', '#FFFFFF'],
-  CHA: ['#0E6B33', '#FFFFFF'],
-  REM: ['#0B3A8B', '#FFFFFF'],
-};
-
-/** Faixas de cor (camisa) de um clube pela sigla. Fallback: cor única lime. */
-export function paletaDoTime(sigla: string): string[] {
-  const paleta = PALETAS_TIME[sigla.toUpperCase()];
-  return paleta && paleta.length > 0 ? paleta : ['#D6FF00'];
-}
-
 /** Texto legível (claro/escuro) sobre uma cor de fundo sólida. */
 export function contrasteTexto(corHex: string): string {
   const hex = corHex.replace('#', '');

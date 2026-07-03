@@ -80,7 +80,6 @@ import {
   respostaIAProposta,
   type PropostaTransferencia,
 } from '../engine/transfers/negociacaoEngine';
-import {avaliarPropostaTransferencia} from '../engine/transfers/transferAI';
 import {
   criarEmprestimo,
   custoEmprestimo,
@@ -255,9 +254,7 @@ export interface GameState {
   /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
   restaurarFormacaoPreLive: () => void;
   aplicarTreino: (treinoId: string, intensidade: IntensidadeTreino) => void;
-  aplicarMoralElenco: (delta: number) => void;
   renovarContrato: (jogadorId: string, anos: number, salario: number) => boolean;
-  comprarJogador: (jogadorId: string) => ResultadoTransacao;
   venderJogador: (jogadorId: string) => ResultadoTransacao;
   /** Empresta um jogador do usuário a outro clube até a próxima temporada (§9.3). */
   emprestarJogador: (jogadorId: string, clubeDestinoId: string) => void;
@@ -1538,20 +1535,6 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
-  aplicarMoralElenco: delta => {
-    const {clubeUsuarioId} = get();
-    if (!clubeUsuarioId || delta === 0) {
-      return;
-    }
-    set(state => ({
-      jogadores: state.jogadores.map(jogador =>
-        jogador.clubeId === clubeUsuarioId
-          ? {...jogador, moral: aplicarMoral(jogador.moral, delta)}
-          : jogador,
-      ),
-    }));
-  },
-
   conversarComGrupo: () => {
     const state = get();
     const {clubeUsuarioId} = state;
@@ -1724,94 +1707,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       ),
     }));
     return true;
-  },
-
-  comprarJogador: jogadorId => {
-    const state = get();
-    const clubeUsuarioId = state.clubeUsuarioId;
-
-    if (!clubeUsuarioId) {
-      return {ok: false, mensagem: 'Nenhuma carreira ativa.'};
-    }
-
-    const jogador = state.jogadores.find(item => item.id === jogadorId);
-    const clubeUsuario = state.clubes.find(clube => clube.id === clubeUsuarioId);
-    const clubeVendedor = state.clubes.find(clube => clube.id === jogador?.clubeId);
-
-    if (!jogador || !clubeUsuario || !clubeVendedor || jogador.clubeId === clubeUsuarioId) {
-      return {ok: false, mensagem: 'Jogador indisponível.'};
-    }
-
-    const oferta = precoCompra(jogador);
-
-    if (clubeUsuario.financas.saldo < oferta) {
-      return {
-        ok: false,
-        mensagem: `Saldo insuficiente para contratar ${jogador.nome}.`,
-      };
-    }
-
-    const decisao = avaliarPropostaTransferencia(jogador, clubeVendedor, oferta);
-
-    if (decisao === 'rejeitada') {
-      set(stateAtual => ({
-        mensagens: adicionarMensagem(
-          stateAtual.mensagens,
-          `Proposta por ${jogador.nome} recusada.`,
-        ),
-      }));
-      return {
-        ok: false,
-        mensagem: `${clubeVendedor.nome} recusou a proposta por ${jogador.nome}.`,
-      };
-    }
-
-    set(stateAtual => ({
-      jogadores: stateAtual.jogadores.map(item =>
-        item.id === jogadorId ? {...item, clubeId: clubeUsuarioId} : item,
-      ),
-      clubes: stateAtual.clubes.map(clube => {
-        if (clube.id === clubeUsuarioId) {
-          return registrarTransacao(
-            {...clube, elenco: [...clube.elenco, jogadorId]},
-            {
-              data: `${stateAtual.temporadaAtual}-mercado`,
-              tipo: 'despesa',
-              categoria: 'contratacoes',
-              valor: oferta,
-              descricao: `Compra de ${jogador.nome}`,
-            },
-          );
-        }
-
-        if (clube.id === clubeVendedor.id) {
-          return registrarTransacao(
-            {
-              ...clube,
-              elenco: clube.elenco.filter(id => id !== jogadorId),
-            },
-            {
-              data: `${stateAtual.temporadaAtual}-mercado`,
-              tipo: 'receita',
-              categoria: 'vendaJogadores',
-              valor: oferta,
-              descricao: `Venda de ${jogador.nome}`,
-            },
-          );
-        }
-
-        return clube;
-      }),
-      mensagens: adicionarMensagem(
-        stateAtual.mensagens,
-        `${jogador.nome} contratado por R$ ${oferta.toLocaleString('pt-BR')}.`,
-      ),
-    }));
-
-    return {
-      ok: true,
-      mensagem: `${jogador.nome} contratado por R$ ${oferta.toLocaleString('pt-BR')}.`,
-    };
   },
 
   venderJogador: jogadorId => {
@@ -2804,12 +2699,6 @@ export function useJogadoresUsuario(): Player[] {
       (a, b) => b.overall - a.overall,
     );
   }, [jogadores, clubeUsuarioId]);
-}
-
-export function useEventosUltimaPartida(): EventoPartida[] {
-  const ultima = useGameStore(state => state.ultimaPartidaUsuario);
-
-  return useMemo(() => ultima?.eventos ?? [], [ultima]);
 }
 
 export function useForcaUsuario(): ForcaTime | null {

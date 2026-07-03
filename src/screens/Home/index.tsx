@@ -239,7 +239,14 @@ function Home(): React.JSX.Element {
     {rotulo: 'Contrato', onPress: () => nav.navigate('Contratos')},
     {rotulo: 'Copa', onPress: () => nav.navigate('Copa')},
     {rotulo: 'Base', onPress: () => nav.navigate('Academia')},
+    {rotulo: 'Troféus', onPress: () => nav.navigate('Gabinete')},
   ];
+  // Índices de início de cada linha (2 colunas) — dinâmico para aceitar
+  // quantidade ímpar de atalhos (a última linha pode ter 1 botão).
+  const linhasCentral = Array.from(
+    {length: Math.ceil(central.length / 2)},
+    (_, linha) => linha * 2,
+  );
 
   return (
     <ScreenContainer>
@@ -370,9 +377,13 @@ function Home(): React.JSX.Element {
           <Text style={styles.blocoTitulo}>Central do Técnico</Text>
           <Painel acento={cores.primaria}>
             <View style={styles.central}>
-              {[0, 2, 4, 6].map(i => (
+              {linhasCentral.map(i => (
                 <View key={central[i].rotulo} style={styles.centralRow}>
-                  {[central[i], central[i + 1]].map(item => (
+                  {[central[i], central[i + 1]]
+                    .filter((item): item is (typeof central)[number] =>
+                      Boolean(item),
+                    )
+                    .map(item => (
                     <Pressable
                       key={item.rotulo}
                       accessibilityRole="button"

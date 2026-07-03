@@ -47,25 +47,6 @@ export function logoDaDivisao(divisao?: string): ImageSourcePropType {
   return (divisao && LOGO_POR_DIVISAO[divisao]) || LOGO_SERIE_A;
 }
 
-/** Paleta da identidade visual de cada divisão: as duas cores da própria logo. */
-export type CoresDivisao = {
-  /** Cor escura — estrutura/contornos da logo. */
-  escuro: string;
-  /** Cor de destaque — preenchimento vivo da logo. */
-  destaque: string;
-};
-
-const CORES_POR_DIVISAO: Record<string, CoresDivisao> = {
-  'Série A': {escuro: '#061431', destaque: '#D6FF00'}, // navy + lime
-  'Série B': {escuro: '#1A3DA8', destaque: '#FFC81E'}, // azul royal + amarelo-ouro
-  'Série C': {escuro: '#18452A', destaque: '#F5E000'}, // verde escuro + amarelo
-};
-
-/** Cores da divisão (cai para as da Série A se desconhecida). */
-export function coresDaDivisao(divisao?: string): CoresDivisao {
-  return (divisao && CORES_POR_DIVISAO[divisao]) || CORES_POR_DIVISAO['Série A'];
-}
-
 export function escudoDoTime(clubeId: string): ImageSourcePropType | undefined {
   return ESCUDOS[clubeId];
 }
