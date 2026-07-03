@@ -10,6 +10,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type StyleProp,
   type ViewStyle,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -171,6 +172,8 @@ type BotaoProps = {
   variante?: BotaoVariante;
   disabled?: boolean;
   icone?: IconeNome;
+  /** Ajuste pontual do container (ex.: igualar altura entre variantes). */
+  style?: StyleProp<ViewStyle>;
 };
 
 export function Botao({
@@ -178,6 +181,7 @@ export function Botao({
   onPress,
   variante = 'primaria',
   disabled,
+  style,
   icone,
 }: BotaoProps) {
   const ehGrande = variante === 'grande' || variante === 'ouro';
@@ -226,6 +230,7 @@ export function Botao({
         estiloContainer,
         disabled ? styles.botaoDisabledGlass : null,
         pressed && !disabled ? styles.botaoPressed : null,
+        style,
       ]}>
       <View style={styles.botaoConteudo}>
         {icone ? (
