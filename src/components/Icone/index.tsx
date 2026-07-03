@@ -46,6 +46,8 @@ export type IconeNome =
   | 'trofeu'
   | 'calendario'
   | 'conversa'
+  | 'base'
+  | 'medalha'
   | 'estadio'
   | 'publico'
   | 'clima-sol'
@@ -84,6 +86,8 @@ const GLYPHS: Record<IconeNome, string> = {
   trofeu: 'trophy',
   calendario: 'calendar-month',
   conversa: 'bullhorn',
+  base: 'school-outline',
+  medalha: 'medal-outline',
   estadio: 'stadium-variant',
   publico: 'account-group',
   'clima-sol': 'weather-sunny',
