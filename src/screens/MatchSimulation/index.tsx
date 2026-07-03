@@ -51,7 +51,6 @@ import {
   disputarPenaltis,
   iniciarPartidaAoVivo,
   simularMinuto,
-  simularPartida,
   type EstadoPartidaAoVivo,
 } from '../../engine/simulation/matchSimulator';
 import {confrontoDoClube} from '../../engine/season/copaEngine';
@@ -64,7 +63,14 @@ import {
 } from '../../store/useGameStore';
 import {cores, corDoTime, espaco, raio, sombra} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
-import type {Clube, EventoPartida, Formacao, Partida, Player} from '../../types';
+import type {
+  Clube,
+  EventoPartida,
+  Formacao,
+  Partida,
+  Player,
+  TabelaClassificacao,
+} from '../../types';
 import {useAppNavigation, useAppRoute} from '../../navigation/types';
 
 type ItemTimeline = {
@@ -108,22 +114,43 @@ function mapearNomesJogadores(jogadores: Player[]): Record<string, string> {
   return mapa;
 }
 
-type JogoDaRodada = {
+/** Um dos OUTROS jogos da rodada, simulado AO VIVO junto com o do usuário. */
+type JogoAoVivo = {
+  id: string;
+  timeCasa: string;
+  timeFora: string;
+  siglaCasa: string;
+  siglaFora: string;
+  corCasa: string;
+  corFora: string;
+  clubeCasa: Clube;
+  clubeFora: Clube;
+  jogadoresCasa: Player[];
+  jogadoresFora: Player[];
+  /** Estado vivo (placar/eventos evoluem minuto a minuto). */
+  estado: EstadoPartidaAoVivo;
+  minutoSimulado: number;
+};
+
+/** Placar de um jogo para render (derivado do estado vivo a cada minuto). */
+type PlacarAoVivo = {
   id: string;
   siglaCasa: string;
   siglaFora: string;
   corCasa: string;
   corFora: string;
-  gols: Array<{minuto: number; ehCasa: boolean}>;
+  golsCasa: number;
+  golsFora: number;
 };
 
 /**
- * Rodada AO VIVO (estilo Brasfoot): pré-simula os OUTROS jogos da rodada com
- * as MESMAS seeds/inputs que o store usará ao concluir a partida — o motor é
- * determinístico, então os placares finais serão idênticos. A aba "Rodada"
- * revela os gols conforme o relógio da partida do usuário avança.
+ * Cria os estados VIVOS dos outros jogos da rodada (minuto 0, nada simulado
+ * ainda). Cada jogo usa a MESMA seed que o store usará ao concluir a rodada,
+ * então — como o motor é determinístico — o que roda ao vivo aqui é
+ * bit-a-bit igual ao que fica persistido no fim. Nada é "setado": os placares
+ * nascem 0×0 e evoluem de verdade conforme o relógio anda.
  */
-function jogosRodadaAoVivo(
+function criarJogosAoVivo(
   st: {
     partidas: Partida[];
     clubes: Clube[];
@@ -131,46 +158,140 @@ function jogosRodadaAoVivo(
     rodadaAtual: number;
   },
   partidaUsuarioId: string,
-): JogoDaRodada[] {
+): JogoAoVivo[] {
   const jogosRodada = st.partidas.filter(
     p => p.rodada === st.rodadaAtual && !p.jogada,
   );
-  const lista: JogoDaRodada[] = [];
+  const lista: JogoAoVivo[] = [];
   for (const jogo of jogosRodada) {
     if (jogo.id === partidaUsuarioId) {
       continue;
     }
     const clubeCasa = st.clubes.find(c => c.id === jogo.timeCasa);
     const clubeFora = st.clubes.find(c => c.id === jogo.timeFora);
-    if (!clubeCasa || !clubeFora) {
-      continue;
+    if (
+      !clubeCasa?.formacaoAtual ||
+      !clubeCasa.taticaAtual ||
+      !clubeFora?.formacaoAtual ||
+      !clubeFora.taticaAtual
+    ) {
+      continue; // clube sem formação válida fica fora da rodada ao vivo.
     }
-    try {
-      const resultado = simularPartida({
-        timeCasa: clubeCasa,
-        timeFora: clubeFora,
-        jogadoresCasa: st.jogadores.filter(j => j.clubeId === clubeCasa.id),
-        jogadoresFora: st.jogadores.filter(j => j.clubeId === clubeFora.id),
-        seed: st.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
-        competicaoId: jogo.competicaoId,
-        rodada: jogo.rodada,
-        data: jogo.data,
-      });
-      lista.push({
-        id: jogo.id,
-        siglaCasa: siglaClube(st.clubes, jogo.timeCasa),
-        siglaFora: siglaClube(st.clubes, jogo.timeFora),
-        corCasa: corDoTime(jogo.timeCasa),
-        corFora: corDoTime(jogo.timeFora),
-        gols: resultado.eventos
-          .filter(e => e.tipo === 'gol')
-          .map(e => ({minuto: e.minuto, ehCasa: e.timeId === jogo.timeCasa})),
-      });
-    } catch {
-      // Clube da IA sem formação válida: este jogo fica fora da aba ao vivo.
-    }
+    lista.push({
+      id: jogo.id,
+      timeCasa: jogo.timeCasa,
+      timeFora: jogo.timeFora,
+      siglaCasa: siglaClube(st.clubes, jogo.timeCasa),
+      siglaFora: siglaClube(st.clubes, jogo.timeFora),
+      corCasa: corDoTime(jogo.timeCasa),
+      corFora: corDoTime(jogo.timeFora),
+      clubeCasa,
+      clubeFora,
+      jogadoresCasa: st.jogadores.filter(j => j.clubeId === clubeCasa.id),
+      jogadoresFora: st.jogadores.filter(j => j.clubeId === clubeFora.id),
+      estado: iniciarPartidaAoVivo(
+        st.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
+      ),
+      minutoSimulado: 0,
+    });
   }
   return lista;
+}
+
+/**
+ * Avança CADA jogo ao vivo da rodada até o minuto `alvo` (mesmo caminho da
+ * partida do usuário: recalcula o contexto por minuto → fadiga, expulsões e
+ * substituições da IA valem). Muta os estados; devolve nada.
+ */
+function avancarJogosAoVivo(jogos: JogoAoVivo[], alvo: number): void {
+  for (const jogo of jogos) {
+    while (jogo.minutoSimulado < alvo) {
+      let ctx;
+      try {
+        ctx = calcularContextoMinuto(
+          jogo.clubeCasa,
+          jogo.clubeFora,
+          jogo.jogadoresCasa,
+          jogo.jogadoresFora,
+          jogo.estado,
+        );
+      } catch {
+        break;
+      }
+      simularMinuto(jogo.estado, ctx);
+      jogo.minutoSimulado += 1;
+    }
+  }
+}
+
+/**
+ * Classificação AO VIVO: parte da tabela ANTES da rodada e soma os resultados
+ * PARCIAIS de todos os jogos da rodada (o do usuário incluso). Um time ganhando
+ * 1×0 aos 30' já aparece provisoriamente com 3 pontos.
+ */
+function projetarTabela(
+  base: TabelaClassificacao[],
+  resultados: Array<{
+    timeCasa: string;
+    timeFora: string;
+    golsCasa: number;
+    golsFora: number;
+  }>,
+): TabelaClassificacao[] {
+  const mapa = new Map<string, TabelaClassificacao>(
+    base.map(e => [e.clubeId, {...e}]),
+  );
+  const garantir = (id: string): TabelaClassificacao => {
+    const existente = mapa.get(id);
+    if (existente) {
+      return existente;
+    }
+    const nova: TabelaClassificacao = {
+      clubeId: id,
+      pontos: 0,
+      jogos: 0,
+      vitorias: 0,
+      empates: 0,
+      derrotas: 0,
+      golsPro: 0,
+      golsContra: 0,
+      saldoGols: 0,
+    };
+    mapa.set(id, nova);
+    return nova;
+  };
+  for (const r of resultados) {
+    const casa = garantir(r.timeCasa);
+    const fora = garantir(r.timeFora);
+    casa.jogos += 1;
+    fora.jogos += 1;
+    casa.golsPro += r.golsCasa;
+    casa.golsContra += r.golsFora;
+    fora.golsPro += r.golsFora;
+    fora.golsContra += r.golsCasa;
+    if (r.golsCasa > r.golsFora) {
+      casa.pontos += 3;
+      casa.vitorias += 1;
+      fora.derrotas += 1;
+    } else if (r.golsCasa < r.golsFora) {
+      fora.pontos += 3;
+      fora.vitorias += 1;
+      casa.derrotas += 1;
+    } else {
+      casa.pontos += 1;
+      fora.pontos += 1;
+      casa.empates += 1;
+      fora.empates += 1;
+    }
+  }
+  return [...mapa.values()]
+    .map(e => ({...e, saldoGols: e.golsPro - e.golsContra}))
+    .sort(
+      (a, b) =>
+        b.pontos - a.pontos ||
+        b.saldoGols - a.saldoGols ||
+        b.golsPro - a.golsPro,
+    );
 }
 
 function rotuloGramado(nivelInfraestrutura: number): string {
@@ -201,6 +322,7 @@ function MatchSimulation(): React.JSX.Element | null {
   const route = useAppRoute<'MatchSimulation'>();
   const modoCopa = route.params?.copa === true;
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
+  const clubes = useGameStore(state => state.clubes);
   const jogadores = useGameStore(state => state.jogadores);
   const tabela = useGameStore(state => state.tabela);
   const atualizarFormacaoUsuario = useGameStore(
@@ -245,9 +367,16 @@ function MatchSimulation(): React.JSX.Element | null {
 
   const [eventos, setEventos] = useState<ItemTimeline[]>([]);
   const [placar, setPlacar] = useState({casa: 0, fora: 0});
-  // Aba do feed: lances da partida ou placares ao vivo da rodada (Brasfoot).
-  const [abaFeed, setAbaFeed] = useState<'lances' | 'rodada'>('lances');
-  const outrosJogosRef = useRef<JogoDaRodada[]>([]);
+  // Aba do feed: lances da partida · placares da rodada · tabela ao vivo.
+  const [abaFeed, setAbaFeed] = useState<'lances' | 'rodada' | 'tabela'>(
+    'lances',
+  );
+  // Estados VIVOS dos outros jogos da rodada (avançam junto com o relógio) e os
+  // espelhos de UI (placares + classificação ao vivo).
+  const outrosJogosRef = useRef<JogoAoVivo[]>([]);
+  const tabelaBaseRef = useRef<TabelaClassificacao[]>([]);
+  const [placaresRodada, setPlacaresRodada] = useState<PlacarAoVivo[]>([]);
+  const [tabelaAoVivo, setTabelaAoVivo] = useState<TabelaClassificacao[]>([]);
   // Posse REAL vinda da engine (acumulada minuto a minuto) — espelho de UI,
   // como o placar; a fonte da verdade é o EstadoPartidaAoVivo.
   const [posse, setPosse] = useState({casa: 50, fora: 50});
@@ -357,7 +486,8 @@ function MatchSimulation(): React.JSX.Element | null {
       );
       setSiglaCasa(siglaClube(estado.clubes, proximo.timeCasa));
       setSiglaFora(siglaClube(estado.clubes, proximo.timeFora));
-      outrosJogosRef.current = jogosRodadaAoVivo(estado, proximo.id);
+      outrosJogosRef.current = criarJogosAoVivo(estado, proximo.id);
+      tabelaBaseRef.current = estado.tabela;
       setCorCasa(corDoTime(proximo.timeCasa));
       setCorFora(corDoTime(proximo.timeFora));
       fixtureMontada = proximo;
@@ -604,6 +734,38 @@ function MatchSimulation(): React.JSX.Element | null {
     }
     setPlacar({casa: estado.placarCasa, fora: estado.placarFora});
     setPosse(calcularPossePartida(estado));
+
+    // RODADA AO VIVO: os outros jogos avançam até o mesmo minuto que o seu.
+    // Nada pré-computado — cada placar evolui de verdade, minuto a minuto.
+    avancarJogosAoVivo(outrosJogosRef.current, alvo);
+    const placares: PlacarAoVivo[] = outrosJogosRef.current.map(jogo => ({
+      id: jogo.id,
+      siglaCasa: jogo.siglaCasa,
+      siglaFora: jogo.siglaFora,
+      corCasa: jogo.corCasa,
+      corFora: jogo.corFora,
+      golsCasa: jogo.estado.placarCasa,
+      golsFora: jogo.estado.placarFora,
+    }));
+    setPlacaresRodada(placares);
+
+    // Classificação ao vivo: tabela pré-rodada + resultados PARCIAIS de todos
+    // os jogos (o seu incluso), reordenada em tempo real.
+    const resultadosParciais = [
+      ...outrosJogosRef.current.map(jogo => ({
+        timeCasa: jogo.timeCasa,
+        timeFora: jogo.timeFora,
+        golsCasa: jogo.estado.placarCasa,
+        golsFora: jogo.estado.placarFora,
+      })),
+      {
+        timeCasa: fixture.timeCasa,
+        timeFora: fixture.timeFora,
+        golsCasa: estado.placarCasa,
+        golsFora: estado.placarFora,
+      },
+    ];
+    setTabelaAoVivo(projetarTabela(tabelaBaseRef.current, resultadosParciais));
   }, [minuto, fixture, siglaCasa, siglaFora, corCasa, corFora]);
 
   // Pulso + som quando o placar aumenta.
@@ -898,7 +1060,7 @@ function MatchSimulation(): React.JSX.Element | null {
 
         {outrosJogosRef.current.length > 0 ? (
           <View style={styles.abasFeed}>
-            {(['lances', 'rodada'] as const).map(chave => (
+            {(['lances', 'rodada', 'tabela'] as const).map(chave => (
               <Pressable
                 key={chave}
                 style={[
@@ -911,7 +1073,11 @@ function MatchSimulation(): React.JSX.Element | null {
                     styles.abaFeedTexto,
                     abaFeed === chave && styles.abaFeedTextoAtivo,
                   ]}>
-                  {chave === 'lances' ? 'Lances' : 'Rodada'}
+                  {chave === 'lances'
+                    ? 'Lances'
+                    : chave === 'rodada'
+                      ? 'Rodada'
+                      : 'Tabela'}
                 </Text>
               </Pressable>
             ))}
@@ -922,36 +1088,71 @@ function MatchSimulation(): React.JSX.Element | null {
           <FlatList
             style={styles.lista}
             contentContainerStyle={styles.listaConteudo}
-            data={outrosJogosRef.current}
+            data={placaresRodada}
             keyExtractor={item => item.id}
-            renderItem={({item}) => {
-              const golsCasa = item.gols.filter(
-                g => g.ehCasa && g.minuto <= minuto,
-              ).length;
-              const golsFora = item.gols.filter(
-                g => !g.ehCasa && g.minuto <= minuto,
-              ).length;
+            renderItem={({item}) => (
+              <View style={styles.jogoRodada}>
+                <View
+                  style={[styles.jogoFaixa, {backgroundColor: item.corCasa}]}
+                />
+                <Text style={[styles.jogoSigla, styles.jogoSiglaEsq]}>
+                  {item.siglaCasa}
+                </Text>
+                <Text style={styles.jogoPlacar}>
+                  {item.golsCasa} - {item.golsFora}
+                </Text>
+                <Text style={styles.jogoSigla}>{item.siglaFora}</Text>
+                <View
+                  style={[styles.jogoFaixa, {backgroundColor: item.corFora}]}
+                />
+                <Text style={styles.jogoMinuto}>
+                  {minuto >= DURACAO ? 'FIM' : `${minuto}'`}
+                </Text>
+              </View>
+            )}
+          />
+        ) : abaFeed === 'tabela' && outrosJogosRef.current.length > 0 ? (
+          <FlatList
+            style={styles.lista}
+            contentContainerStyle={styles.listaConteudo}
+            data={tabelaAoVivo}
+            keyExtractor={item => item.clubeId}
+            renderItem={({item, index}) => {
+              const ehUsuario = item.clubeId === clubeUsuario?.id;
               return (
-                <View style={styles.jogoRodada}>
+                <View
+                  style={[
+                    styles.tabelaLinha,
+                    ehUsuario && styles.tabelaLinhaUsuario,
+                  ]}>
+                  <Text style={styles.tabelaPos}>{index + 1}</Text>
                   <View
-                    style={[styles.jogoFaixa, {backgroundColor: item.corCasa}]}
+                    style={[
+                      styles.jogoFaixa,
+                      {backgroundColor: corDoTime(item.clubeId)},
+                    ]}
                   />
-                  <Text style={[styles.jogoSigla, styles.jogoSiglaEsq]}>
-                    {item.siglaCasa}
+                  <Text style={styles.tabelaSigla} numberOfLines={1}>
+                    {siglaClube(clubes, item.clubeId)}
                   </Text>
-                  <Text style={styles.jogoPlacar}>
-                    {golsCasa} - {golsFora}
+                  <Text style={styles.tabelaCol}>{item.jogos}</Text>
+                  <Text style={styles.tabelaCol}>
+                    {item.saldoGols > 0 ? `+${item.saldoGols}` : item.saldoGols}
                   </Text>
-                  <Text style={styles.jogoSigla}>{item.siglaFora}</Text>
-                  <View
-                    style={[styles.jogoFaixa, {backgroundColor: item.corFora}]}
-                  />
-                  <Text style={styles.jogoMinuto}>
-                    {minuto >= DURACAO ? 'Fim' : `${minuto}'`}
-                  </Text>
+                  <Text style={styles.tabelaPts}>{item.pontos}</Text>
                 </View>
               );
             }}
+            ListHeaderComponent={
+              <View style={[styles.tabelaLinha, styles.tabelaHeader]}>
+                <Text style={styles.tabelaPos}>#</Text>
+                <View style={styles.jogoFaixa} />
+                <Text style={styles.tabelaSigla}>CLUBE</Text>
+                <Text style={styles.tabelaCol}>J</Text>
+                <Text style={styles.tabelaCol}>SG</Text>
+                <Text style={styles.tabelaPts}>PTS</Text>
+              </View>
+            }
           />
         ) : (
           <FlatList
@@ -1299,10 +1500,57 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   jogoMinuto: {
-    color: cores.textoSecundario,
+    color: cores.primaria,
     fontSize: 11,
     fontWeight: '800',
-    minWidth: 28,
+    minWidth: 30,
+    textAlign: 'right',
+  },
+  tabelaLinha: {
+    alignItems: 'center',
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: espaco.sm,
+    paddingHorizontal: espaco.md,
+    paddingVertical: 7,
+  },
+  tabelaHeader: {
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    paddingVertical: 2,
+  },
+  tabelaLinhaUsuario: {
+    backgroundColor: cores.superficieAlt,
+    borderColor: cores.primaria,
+  },
+  tabelaPos: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '800',
+    minWidth: 20,
+    textAlign: 'center',
+  },
+  tabelaSigla: {
+    color: cores.texto,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  tabelaCol: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '700',
+    minWidth: 26,
+    textAlign: 'center',
+  },
+  tabelaPts: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '900',
+    minWidth: 30,
     textAlign: 'right',
   },
   controles: {
