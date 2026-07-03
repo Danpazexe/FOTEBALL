@@ -164,6 +164,27 @@ describe('simularPartida', () => {
     expect(simularPartida(input)).toEqual(simularPartida(input));
   });
 
+  it('produz resultados variados para seeds diferentes (não ignora a seed)', () => {
+    const jogadoresCasa = criarJogadores('casa', 75);
+    const jogadoresFora = criarJogadores('fora', 75);
+    const timeCasa = criarClube('casa', jogadoresCasa);
+    const timeFora = criarClube('fora', jogadoresFora);
+    const placares = new Set(
+      Array.from({length: 50}, (_, index) =>
+        simularPartida({
+          timeCasa,
+          timeFora,
+          jogadoresCasa,
+          jogadoresFora,
+          seed: index + 1,
+        }),
+      ).map(partida => `${partida.placarCasa}-${partida.placarFora}`),
+    );
+    // Determinismo NÃO pode virar "seed ignorada": seeds distintas têm de gerar
+    // mais de um placar ao longo de 50 jogos.
+    expect(placares.size).toBeGreaterThan(1);
+  });
+
   it('keeps equal teams near a home advantage distribution', () => {
     const partidas = simularSerie(75, 75);
     const casa = partidas.filter(
