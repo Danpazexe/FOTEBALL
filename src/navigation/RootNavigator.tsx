@@ -9,7 +9,6 @@ import TransferMarket from '../screens/TransferMarket';
 import MatchSimulation from '../screens/MatchSimulation';
 import MatchResult from '../screens/MatchResult';
 import PreJogo from '../screens/PreJogo';
-import Coletiva from '../screens/Coletiva';
 import Copa from '../screens/Copa';
 import Semana from '../screens/Semana';
 import Academia from '../screens/Academia';
@@ -44,7 +43,6 @@ export function RootNavigator() {
       />
       <Stack.Screen name="MatchResult" component={MatchResult} />
       <Stack.Screen name="PreJogo" component={PreJogo} />
-      <Stack.Screen name="Coletiva" component={Coletiva} />
       <Stack.Screen name="Copa" component={Copa} />
       <Stack.Screen name="Semana" component={Semana} />
       <Stack.Screen name="Academia" component={Academia} />
