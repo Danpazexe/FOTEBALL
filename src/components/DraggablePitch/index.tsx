@@ -715,6 +715,9 @@ const styles = StyleSheet.create({
   },
   reservaBadge: {
     alignItems: 'center',
+    // Fundo navy: as cores de tier (corOverall) são claras — sem fundo escuro,
+    // o overall sumia no card branco do banco. Igual à ficha do campo/AjustesPartida.
+    backgroundColor: cores.texto,
     borderRadius: 14,
     borderWidth: 2,
     height: 28,
