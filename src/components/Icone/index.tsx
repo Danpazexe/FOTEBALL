@@ -30,6 +30,7 @@ export type IconeNome =
   | 'voltar'
   | 'seta-baixo'
   | 'seta-cima'
+  | 'avancar'
   | 'bola'
   | 'cartao'
   | 'lesao'
@@ -71,6 +72,7 @@ const GLYPHS: Record<IconeNome, string> = {
   voltar: 'chevron-left',
   'seta-baixo': 'chevron-down',
   'seta-cima': 'chevron-up',
+  avancar: 'chevron-right',
   bola: 'soccer',
   cartao: 'card',
   lesao: 'bandage',

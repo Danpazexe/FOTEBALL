@@ -1,7 +1,11 @@
 /**
  * Tela de seleção de clube para iniciar uma nova carreira. Lista TODOS os clubes
- * do seed agrupados por divisão (Série A e Série B). Ao escolher um clube, a liga
+ * do seed agrupados por divisão (Série A, B e C). Ao escolher um clube, a liga
  * ativa é montada para a divisão dele (ver `iniciarNovaCarreira` na store).
+ *
+ * A escolha é por IDENTIDADE do clube (cidade, estádio, fundação) — de propósito
+ * NÃO expomos força do elenco, reputação ou saldo, para o técnico escolher pelo
+ * escudo e não min-maxar por números.
  */
 
 import React from 'react';
@@ -10,29 +14,21 @@ import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import {logoDaDivisao} from '../../assets/escudos';
 import {AppHeader, ScreenContainer} from '../../components/ui';
-import OverallBadge from '../../components/OverallBadge';
 import Escudo from '../../components/Escudo';
+import Icone from '../../components/Icone';
 import {useConfirm} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import type {RootStackParamList} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
 import {cores, espaco, raio, sombra} from '../../theme';
-import type {Clube, Player} from '../../types';
-import {moeda} from '../../utils/formatters';
+import type {Clube} from '../../types';
 
 const ORDEM_DIVISOES = ['Série A', 'Série B', 'Série C'];
 
-function mediaOverall(jogadores: Player[], clubeId: string): number {
-  const doClube = jogadores
-    .filter(j => j.clubeId === clubeId)
-    .sort((a, b) => b.overall - a.overall)
-    .slice(0, 11);
-  if (doClube.length === 0) {
-    return 0;
-  }
-  return Math.round(
-    doClube.reduce((t, j) => t + j.overall, 0) / doClube.length,
-  );
+/** Linha de identidade do clube: "Cidade, UF · desde ANO". */
+function identidadeClube(clube: Clube): string {
+  const local = [clube.cidade, clube.estado].filter(Boolean).join(', ');
+  return clube.fundacao ? `${local} · desde ${clube.fundacao}` : local;
 }
 
 function NewCareer(): React.JSX.Element {
@@ -40,7 +36,6 @@ function NewCareer(): React.JSX.Element {
   const route = useRoute<RouteProp<RootStackParamList, 'NewCareer'>>();
   const divisaoFiltro = route.params?.divisao;
   const todosClubes = useGameStore(state => state.todosClubes);
-  const jogadores = useGameStore(state => state.todosJogadores);
   const iniciarNovaCarreira = useGameStore(state => state.iniciarNovaCarreira);
   const confirm = useConfirm();
 
@@ -74,9 +69,8 @@ function NewCareer(): React.JSX.Element {
       mensagem: `Você assume este clube na ${divisao}; os outros 19 são controlados pela IA.`,
       detalhes: [
         {rotulo: 'Divisão', valor: divisao},
-        {rotulo: 'Força do elenco', valor: `${mediaOverall(jogadores, clube.id)} OVR`},
-        {rotulo: 'Reputação', valor: `${clube.reputacao}/100`},
-        {rotulo: 'Saldo', valor: moeda(clube.financas.saldo)},
+        {rotulo: 'Cidade', valor: [clube.cidade, clube.estado].filter(Boolean).join(', ') || '—'},
+        {rotulo: 'Estádio', valor: clube.estadio.nome},
       ],
       confirmarLabel: 'Iniciar carreira',
     });
@@ -110,17 +104,20 @@ function NewCareer(): React.JSX.Element {
             {secao.clubes.map(clube => (
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel={`Comandar o ${clube.nome}`}
                 key={clube.id}
                 onPress={() => selecionar(clube)}
-                style={styles.item}>
-                <Escudo clubeId={clube.id} sigla={clube.sigla} tamanho={44} />
+                style={({pressed}) => [styles.item, pressed && styles.itemPressed]}>
+                <Escudo clubeId={clube.id} sigla={clube.sigla} tamanho={46} />
                 <View style={styles.itemInfoWrap}>
-                  <Text style={styles.itemNome}>{clube.nome}</Text>
-                  <Text style={styles.itemInfo}>
-                    Rep. {clube.reputacao} · {moeda(clube.financas.saldo)}
+                  <Text style={styles.itemNome} numberOfLines={1}>
+                    {clube.nome}
+                  </Text>
+                  <Text style={styles.itemInfo} numberOfLines={1}>
+                    {identidadeClube(clube)}
                   </Text>
                 </View>
-                <OverallBadge overall={mediaOverall(jogadores, clube.id)} size={40} />
+                <Icone nome="avancar" tamanho={22} cor={cores.textoMuted} />
               </Pressable>
             ))}
           </View>
@@ -156,27 +153,32 @@ const styles = StyleSheet.create({
   },
   item: {
     alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
     borderRadius: raio.lg,
     borderWidth: 1,
     flexDirection: 'row',
     gap: espaco.md,
-    padding: espaco.md,
-    ...sombra.card,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.md,
+    ...sombra.suave,
+  },
+  itemPressed: {
+    backgroundColor: cores.superficieAlt,
+    transform: [{scale: 0.99}],
   },
   itemInfoWrap: {
     flex: 1,
-    gap: espaco.xs,
+    gap: 3,
   },
   itemNome: {
     color: cores.texto,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
   },
   itemInfo: {
     color: cores.textoSecundario,
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '600',
   },
 });
