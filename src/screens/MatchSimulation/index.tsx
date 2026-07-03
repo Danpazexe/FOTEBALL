@@ -61,7 +61,7 @@ import {
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, corDoTime, espaco, raio, sombra} from '../../theme';
+import {acentos, cores, corDoTime, espaco, raio, sombra, suaves} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {
   Clube,
@@ -119,8 +119,8 @@ type JogoAoVivo = {
   id: string;
   timeCasa: string;
   timeFora: string;
-  siglaCasa: string;
-  siglaFora: string;
+  nomeCasa: string;
+  nomeFora: string;
   corCasa: string;
   corFora: string;
   clubeCasa: Clube;
@@ -135,8 +135,8 @@ type JogoAoVivo = {
 /** Placar de um jogo para render (derivado do estado vivo a cada minuto). */
 type PlacarAoVivo = {
   id: string;
-  siglaCasa: string;
-  siglaFora: string;
+  nomeCasa: string;
+  nomeFora: string;
   corCasa: string;
   corFora: string;
   golsCasa: number;
@@ -181,8 +181,8 @@ function criarJogosAoVivo(
       id: jogo.id,
       timeCasa: jogo.timeCasa,
       timeFora: jogo.timeFora,
-      siglaCasa: siglaClube(st.clubes, jogo.timeCasa),
-      siglaFora: siglaClube(st.clubes, jogo.timeFora),
+      nomeCasa: nomeClube(st.clubes, jogo.timeCasa),
+      nomeFora: nomeClube(st.clubes, jogo.timeFora),
       corCasa: corDoTime(jogo.timeCasa),
       corFora: corDoTime(jogo.timeFora),
       clubeCasa,
@@ -740,8 +740,8 @@ function MatchSimulation(): React.JSX.Element | null {
     avancarJogosAoVivo(outrosJogosRef.current, alvo);
     const placares: PlacarAoVivo[] = outrosJogosRef.current.map(jogo => ({
       id: jogo.id,
-      siglaCasa: jogo.siglaCasa,
-      siglaFora: jogo.siglaFora,
+      nomeCasa: jogo.nomeCasa,
+      nomeFora: jogo.nomeFora,
       corCasa: jogo.corCasa,
       corFora: jogo.corFora,
       golsCasa: jogo.estado.placarCasa,
@@ -1095,13 +1095,17 @@ function MatchSimulation(): React.JSX.Element | null {
                 <View
                   style={[styles.jogoFaixa, {backgroundColor: item.corCasa}]}
                 />
-                <Text style={[styles.jogoSigla, styles.jogoSiglaEsq]}>
-                  {item.siglaCasa}
+                <Text
+                  style={[styles.jogoNome, styles.jogoNomeEsq]}
+                  numberOfLines={1}>
+                  {item.nomeCasa}
                 </Text>
                 <Text style={styles.jogoPlacar}>
                   {item.golsCasa} - {item.golsFora}
                 </Text>
-                <Text style={styles.jogoSigla}>{item.siglaFora}</Text>
+                <Text style={styles.jogoNome} numberOfLines={1}>
+                  {item.nomeFora}
+                </Text>
                 <View
                   style={[styles.jogoFaixa, {backgroundColor: item.corFora}]}
                 />
@@ -1119,21 +1123,48 @@ function MatchSimulation(): React.JSX.Element | null {
             keyExtractor={item => item.clubeId}
             renderItem={({item, index}) => {
               const ehUsuario = item.clubeId === clubeUsuario?.id;
+              // Zonas (BRASFOOT §): G4 = acesso/topo (verde), Z4 = rebaixamento
+              // (vermelho); o restante fica neutro.
+              const total = tabelaAoVivo.length;
+              const zona =
+                index < 4
+                  ? {faixa: acentos.verde, badge: suaves.verde, texto: acentos.verde}
+                  : index >= total - 4
+                    ? {faixa: acentos.vermelho, badge: suaves.vermelho, texto: acentos.vermelho}
+                    : null;
               return (
                 <View
                   style={[
                     styles.tabelaLinha,
                     ehUsuario && styles.tabelaLinhaUsuario,
                   ]}>
-                  <Text style={styles.tabelaPos}>{index + 1}</Text>
+                  <View
+                    style={[
+                      styles.tabelaZona,
+                      {backgroundColor: zona?.faixa ?? 'transparent'},
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.tabelaPosBadge,
+                      zona ? {backgroundColor: zona.badge} : null,
+                    ]}>
+                    <Text
+                      style={[
+                        styles.tabelaPos,
+                        zona ? {color: zona.texto} : null,
+                      ]}>
+                      {index + 1}
+                    </Text>
+                  </View>
                   <View
                     style={[
                       styles.jogoFaixa,
                       {backgroundColor: corDoTime(item.clubeId)},
                     ]}
                   />
-                  <Text style={styles.tabelaSigla} numberOfLines={1}>
-                    {siglaClube(clubes, item.clubeId)}
+                  <Text style={styles.tabelaNome} numberOfLines={1}>
+                    {nomeClube(clubes, item.clubeId)}
                   </Text>
                   <Text style={styles.tabelaCol}>{item.jogos}</Text>
                   <Text style={styles.tabelaCol}>
@@ -1145,12 +1176,23 @@ function MatchSimulation(): React.JSX.Element | null {
             }}
             ListHeaderComponent={
               <View style={[styles.tabelaLinha, styles.tabelaHeader]}>
-                <Text style={styles.tabelaPos}>#</Text>
+                <View style={styles.tabelaZona} />
+                <View style={styles.tabelaPosBadge}>
+                  <Text style={styles.tabelaPos}>#</Text>
+                </View>
                 <View style={styles.jogoFaixa} />
-                <Text style={styles.tabelaSigla}>CLUBE</Text>
+                <Text style={styles.tabelaNome}>CLUBE</Text>
                 <Text style={styles.tabelaCol}>J</Text>
                 <Text style={styles.tabelaCol}>SG</Text>
                 <Text style={styles.tabelaPts}>PTS</Text>
+              </View>
+            }
+            ListFooterComponent={
+              <View style={styles.tabelaLegenda}>
+                <View style={[styles.legendaPonto, {backgroundColor: acentos.verde}]} />
+                <Text style={styles.legendaTexto}>Acesso</Text>
+                <View style={[styles.legendaPonto, {backgroundColor: acentos.vermelho}]} />
+                <Text style={styles.legendaTexto}>Rebaixamento</Text>
               </View>
             }
           />
@@ -1483,13 +1525,13 @@ const styles = StyleSheet.create({
     height: 18,
     width: 3,
   },
-  jogoSigla: {
+  jogoNome: {
     color: cores.texto,
     flex: 1,
     fontSize: 13,
     fontWeight: '800',
   },
-  jogoSiglaEsq: {
+  jogoNomeEsq: {
     textAlign: 'right',
   },
   jogoPlacar: {
@@ -1526,14 +1568,25 @@ const styles = StyleSheet.create({
     backgroundColor: cores.superficieAlt,
     borderColor: cores.primaria,
   },
+  tabelaZona: {
+    borderRadius: 2,
+    height: 22,
+    width: 4,
+  },
+  tabelaPosBadge: {
+    alignItems: 'center',
+    borderRadius: raio.sm,
+    justifyContent: 'center',
+    minWidth: 24,
+    paddingVertical: 2,
+  },
   tabelaPos: {
     color: cores.textoSecundario,
     fontSize: 12,
     fontWeight: '800',
-    minWidth: 20,
     textAlign: 'center',
   },
-  tabelaSigla: {
+  tabelaNome: {
     color: cores.texto,
     flex: 1,
     fontSize: 13,
@@ -1552,6 +1605,24 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     minWidth: 30,
     textAlign: 'right',
+  },
+  tabelaLegenda: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+    justifyContent: 'center',
+    paddingTop: espaco.sm,
+  },
+  legendaPonto: {
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  legendaTexto: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '700',
+    marginRight: espaco.sm,
   },
   controles: {
     gap: espaco.sm,
