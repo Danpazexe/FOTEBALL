@@ -25,6 +25,7 @@ import Animated, {
 
 import {trocarEsquema, trocarTitular} from '../../api/database/seed/defaults';
 import {cores, corOverall, espaco, raio} from '../../theme';
+import {coordenadaDoTitular} from '../../engine/tactics/geometria';
 import type {Formacao, FormacaoPreset, Player, Position, Tatica} from '../../types';
 import Icone from '../Icone';
 
@@ -60,50 +61,25 @@ const OPCOES_RITMO: Tatica['ritmo'][] = ['Lento', 'Normal', 'Intenso'];
 
 type Descritor = {tipo: 'reserva' | 'titular'; valor: string};
 
-/** Linha vertical do campo por posição (0 = gol embaixo, 4 = ataque em cima). */
-function linhaDaPosicao(posicao: Position): number {
-  if (posicao === 'GOL') {
-    return 0;
-  }
-  if (posicao === 'ZAG' || posicao === 'LD' || posicao === 'LE') {
-    return 1;
-  }
-  if (posicao === 'VOL' || posicao === 'MC') {
-    return 2;
-  }
-  if (posicao === 'MEI' || posicao === 'PD' || posicao === 'PE') {
-    return 3;
-  }
-  return 4;
-}
-
-const Y_LINHA = [0.88, 0.7, 0.52, 0.34, 0.16];
-
 type SlotPos = {slotIndex: number; x: number; y: number; posicao: Position};
 
+/**
+ * Posição de tela de cada titular. Usa a MESMA fonte do DraggablePitch
+ * (`coordenadaDoTitular` → x/y explícitos ou coordenada padrão da posição), de
+ * modo que a escalação apareça IDÊNTICA aqui e na tela de tática/pré-jogo.
+ * Convenção: y 0..1 (defesa→ataque); na tela o ataque fica em cima, por isso
+ * `(1 - y)`.
+ */
 function posicoesDosSlots(formacao: Formacao): SlotPos[] {
-  const porLinha = new Map<number, number[]>();
-  formacao.titulares.forEach((titular, index) => {
-    const linha = linhaDaPosicao(titular.posicao);
-    const lista = porLinha.get(linha) ?? [];
-    lista.push(index);
-    porLinha.set(linha, lista);
+  return formacao.titulares.map((titular, slotIndex) => {
+    const {x, y} = coordenadaDoTitular(titular);
+    return {
+      slotIndex,
+      x: x * LARGURA,
+      y: (1 - y) * ALTURA,
+      posicao: titular.posicao,
+    };
   });
-
-  const resultado: SlotPos[] = [];
-  for (const [linha, indices] of porLinha) {
-    const y = Y_LINHA[linha] * ALTURA;
-    indices.forEach((slotIndex, k) => {
-      const x = ((k + 1) / (indices.length + 1)) * LARGURA;
-      resultado.push({
-        slotIndex,
-        x,
-        y,
-        posicao: formacao.titulares[slotIndex].posicao,
-      });
-    });
-  }
-  return resultado;
 }
 
 type SharedNum = SharedValue<number>;

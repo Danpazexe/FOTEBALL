@@ -27,7 +27,10 @@ import Animated, {
 
 import {moverTitular, trocarTitular} from '../../api/database/seed/defaults';
 import {nivelAdaptacao, type NivelAdaptacao} from '../../engine/tactics/adaptacao';
-import {preencherCoordenadas} from '../../engine/tactics/geometria';
+import {
+  coordenadaDoTitular,
+  preencherCoordenadas,
+} from '../../engine/tactics/geometria';
 import {acentos, cores, corOverall, espaco, raio} from '../../theme';
 import type {Formacao, Player} from '../../types';
 
@@ -173,15 +176,19 @@ function DraggablePitch({
     [jogadores, titularIds],
   );
 
-  // Posições de tela de cada slot (centro da ficha).
+  // Posições de tela de cada slot (centro da ficha). Coordenada vem da FONTE
+  // ÚNICA (coordenadaDoTitular), a mesma usada pelas outras telas de escalação.
   const slotsTela = useMemo<SlotTela[]>(
     () =>
-      titulares.map((titular, slotIndex) => ({
-        slotIndex,
-        jogadorId: titular.jogadorId,
-        cx: (titular.x ?? 0.5) * largura,
-        cy: (1 - (titular.y ?? 0.5)) * altura,
-      })),
+      titulares.map((titular, slotIndex) => {
+        const {x, y} = coordenadaDoTitular(titular);
+        return {
+          slotIndex,
+          jogadorId: titular.jogadorId,
+          cx: x * largura,
+          cy: (1 - y) * altura,
+        };
+      }),
     [titulares, largura, altura],
   );
 
