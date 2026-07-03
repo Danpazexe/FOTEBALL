@@ -162,8 +162,10 @@ function PreJogo(): React.JSX.Element {
         )}
       </Section>
 
+      {/* "Jogar ao vivo" é a ação principal → domina; "Simular" é o atalho
+          secundário. Proporção ~1:2 (dá destaque sem apertar o rótulo). */}
       <View style={styles.acoes}>
-        <View style={styles.acaoFlex}>
+        <View style={styles.acaoSimular}>
           <Botao
             variante="secundaria"
             icone="simular"
@@ -175,7 +177,7 @@ function PreJogo(): React.JSX.Element {
             }}
           />
         </View>
-        <View style={styles.acaoFlex}>
+        <View style={styles.acaoJogar}>
           <Botao
             variante="ouro"
             icone="jogar"
@@ -284,7 +286,10 @@ const styles = StyleSheet.create({
     gap: espaco.sm,
     marginTop: espaco.md,
   },
-  acaoFlex: {
+  acaoSimular: {
     flex: 1,
+  },
+  acaoJogar: {
+    flex: 2,
   },
 });
