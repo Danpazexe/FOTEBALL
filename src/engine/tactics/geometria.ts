@@ -106,9 +106,27 @@ const Y_LIMITE_DEFESA = 0.3;
 const Y_LIMITE_MEIO = 0.62;
 const Y_LIMITE_GOLEIRO = 0.12;
 
+/**
+ * Coordenada (x,y) normalizada de um titular no campo — FONTE ÚNICA usada por
+ * TODAS as telas de escalação (DraggablePitch, AjustesPartida...). Usa as
+ * coordenadas explícitas quando existem (escalação livre) e cai na coordenada
+ * padrão da posição quando ausentes. Garante que o mesmo time apareça igual em
+ * qualquer tela.
+ *
+ * Convenção: x 0..1 (esquerda→direita), y 0..1 (nossa defesa→ataque). A
+ * conversão para a tela (ataque em cima) é responsabilidade de quem desenha.
+ */
+export function coordenadaDoTitular(titular: TitularFormacao): Coordenada {
+  const padrao = coordenadaPadrao(titular.posicao);
+  return {
+    x: titular.x !== undefined ? titular.x : padrao.x,
+    y: titular.y !== undefined ? titular.y : padrao.y,
+  };
+}
+
 /** Coordenada y de cada titular: usa a explícita ou cai na coordenada padrão da posição. */
 function yDoTitular(titular: TitularFormacao): number {
-  return titular.y !== undefined ? titular.y : coordenadaPadrao(titular.posicao).y;
+  return coordenadaDoTitular(titular).y;
 }
 
 /**
