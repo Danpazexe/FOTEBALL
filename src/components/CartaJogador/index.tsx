@@ -10,16 +10,18 @@
 import React from 'react';
 import {Dimensions, StyleSheet, Text, View} from 'react-native';
 import Svg, {
+  Circle,
   Defs,
+  G,
   LinearGradient,
   Path,
+  Rect,
   Stop,
 } from 'react-native-svg';
 
 import Escudo from '../Escudo';
-import FaceJogador from '../FaceJogador';
 import Icone from '../Icone';
-import {corDoTime, nivelCarta} from '../../theme';
+import {nivelCarta} from '../../theme';
 import type {Player} from '../../types';
 
 /** Cor da moral: alta (verde), média (amarelo), baixa (vermelho). */
@@ -100,6 +102,10 @@ function CartaJogador({
             <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.26" />
             <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
           </LinearGradient>
+          <LinearGradient id="playerGradient" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={tema.player} stopOpacity="1" />
+            <Stop offset="1" stopColor={tema.playerShadow} stopOpacity="1" />
+          </LinearGradient>
         </Defs>
 
         <Path
@@ -134,7 +140,48 @@ function CartaJogador({
           opacity="0.35"
         />
 
-        {/* A face procedural (estilo figurinha) é sobreposta fora do SVG. */}
+        <G>
+          <Path
+            d="M150 116 C181 122 205 150 208 190 L214 250 C190 266 164 274 130 274 C96 274 70 266 46 250 L52 190 C55 150 79 122 110 116 C119 124 141 124 150 116 Z"
+            fill="#000000"
+            opacity="0.22"
+          />
+          <Circle
+            cx="130"
+            cy="92"
+            r="34"
+            fill="url(#playerGradient)"
+            stroke={tema.border}
+            strokeWidth="1.2"
+            opacity="0.95"
+          />
+          <Rect
+            x="115"
+            y="119"
+            width="30"
+            height="25"
+            rx="8"
+            fill="url(#playerGradient)"
+            opacity="0.95"
+          />
+          <Path
+            d="M91 145 C102 134 113 130 130 130 C147 130 158 134 169 145 C190 164 202 197 206 244 C186 258 160 266 130 266 C100 266 74 258 54 244 C58 197 70 164 91 145 Z"
+            fill="url(#playerGradient)"
+            stroke={tema.border}
+            strokeWidth="1.2"
+            opacity="0.94"
+          />
+          <Path
+            d="M91 146 C72 151 60 166 52 191 L47 235 C61 243 75 249 91 253 C88 219 88 179 91 146 Z"
+            fill={tema.playerShadow}
+            opacity="0.95"
+          />
+          <Path
+            d="M169 146 C188 151 200 166 208 191 L213 235 C199 243 185 249 169 253 C172 219 172 179 169 146 Z"
+            fill={tema.playerShadow}
+            opacity="0.95"
+          />
+        </G>
 
         {/* Faixa escura na metade inferior: dá contraste para o nome e os stats
             (texto dourado some sobre o boneco cinza). Recortada na forma da carta. */}
@@ -150,16 +197,6 @@ function CartaJogador({
           opacity="0.5"
         />
       </Svg>
-
-      {/* Face procedural do jogador (determinística pelo id) */}
-      <View style={[styles.faceArea, {top: 52 * escala, left: 76 * escala}]}>
-        <FaceJogador
-          seed={jogador.id}
-          tamanho={108 * escala}
-          corCamisa={jogador.clubeId ? corDoTime(jogador.clubeId) : undefined}
-          corFundo="rgba(255, 255, 255, 0.12)"
-        />
-      </View>
 
       {/* Overall + posição */}
       <View style={[styles.ratingArea, {top: 44 * escala, left: 34 * escala}]}>
@@ -271,10 +308,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     overflow: 'hidden',
     position: 'relative',
-  },
-  faceArea: {
-    position: 'absolute',
-    zIndex: 2,
   },
   ratingArea: {
     alignItems: 'center',

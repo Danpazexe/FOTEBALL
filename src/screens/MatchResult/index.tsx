@@ -21,7 +21,6 @@ import {
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import {TextoVazio} from '../../components/ui';
-import FaceJogador from '../../components/FaceJogador';
 import Icone, {type IconeNome} from '../../components/Icone';
 import {
   calcularNotaPartida,
@@ -645,10 +644,15 @@ function MatchResult(): React.JSX.Element {
       {melhorJogador && melhorJogador.nota !== null ? (
         <Card titulo="Craque do jogo">
           <View style={styles.craque}>
-            <FaceJogador
-              seed={melhorJogador.jogador.id}
-              tamanho={44}
-              corCamisa={corDoTime(melhorJogador.jogador.clubeId ?? '')}
+            <View
+              style={[
+                styles.craqueFaixa,
+                {
+                  backgroundColor: corDoTime(
+                    melhorJogador.jogador.clubeId ?? '',
+                  ),
+                },
+              ]}
             />
             <View style={styles.craqueInfo}>
               <Text style={styles.craqueNome} numberOfLines={1}>
@@ -1207,6 +1211,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: espaco.sm,
+  },
+  craqueFaixa: {
+    borderRadius: 3,
+    height: 36,
+    width: 5,
   },
   craqueInfo: {
     flex: 1,
