@@ -170,6 +170,7 @@ function PreJogo(): React.JSX.Element {
             variante="secundaria"
             icone="simular"
             titulo="Simular"
+            style={styles.botaoAltura}
             onPress={() => {
               avancarRodada();
               toast('Rodada simulada.', 'sucesso');
@@ -182,6 +183,7 @@ function PreJogo(): React.JSX.Element {
             variante="ouro"
             icone="jogar"
             titulo="Jogar ao vivo"
+            style={styles.botaoAltura}
             onPress={() => nav.navigate('MatchSimulation')}
           />
         </View>
@@ -291,5 +293,10 @@ const styles = StyleSheet.create({
   },
   acaoJogar: {
     flex: 2,
+  },
+  // Mesma altura para os dois botões (a variante 'ouro' é naturalmente mais
+  // alta que a 'secundaria'; fixa ambos no mesmo valor).
+  botaoAltura: {
+    minHeight: 54,
   },
 });
