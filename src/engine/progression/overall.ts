@@ -92,14 +92,3 @@ export function calcularOverall(
   }
   return Math.round(Math.min(99, Math.max(1, soma / total)));
 }
-
-/**
- * Atributos que mais pesam para a posição (em ordem de peso). Útil para a UI
- * destacar o que o jogador usa e para treinos por posição saberem o que evoluir.
- */
-export function atributosRelevantes(posicao: Position): AtributoChave[] {
-  const pesos = PERFIS[grupoDaPosicao(posicao)];
-  return (Object.entries(pesos) as [AtributoChave, number][])
-    .sort((a, b) => b[1] - a[1])
-    .map(([chave]) => chave);
-}

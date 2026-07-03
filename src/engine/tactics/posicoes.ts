@@ -16,8 +16,6 @@ import type {Position} from '../../types';
  * A conversão para a tela (onde o ataque costuma ficar em cima) é feita na UI.
  */
 
-export type Position_ = Position; // re-export conveniente para consumidores
-
 /** Linha tática "grossa" — usada na detecção de formação e na força do time. */
 export type LinhaTatica = 'GOL' | 'DEFESA' | 'MEIO' | 'ATAQUE';
 
@@ -60,10 +58,6 @@ export const META_POSICOES: Record<Position, MetaPosicao> = {
   SA: {grupo: 'ATACANTE', linha: 'ATAQUE', coordenada: {x: 0.5, y: 0.8}},
   CA: {grupo: 'ATACANTE', linha: 'ATAQUE', coordenada: {x: 0.5, y: 0.92}},
 };
-
-export const TODAS_POSICOES: Position[] = Object.keys(
-  META_POSICOES,
-) as Position[];
 
 export function grupoDaPosicao(posicao: Position): GrupoPosicao {
   return META_POSICOES[posicao].grupo;
