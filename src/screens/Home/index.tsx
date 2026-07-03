@@ -384,8 +384,9 @@ export default Home;
 
 const styles = StyleSheet.create({
   container: {
+    // Sem padding próprio: o ScreenContainer (scroll) já aplica o padding
+    // padrão — antes duplicava (32px de cada lado), deixando a tela apertada.
     gap: espaco.md,
-    padding: espaco.lg,
   },
   hero: {
     gap: espaco.xs,
