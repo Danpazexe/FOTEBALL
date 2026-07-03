@@ -673,3 +673,39 @@ describe('substituições da IA e falta do pênalti', () => {
     expect(penaltis).toBeGreaterThan(0);
   });
 });
+
+describe('rodada ao vivo — equivalência incremental × simularPartida', () => {
+  it('simular minuto-a-minuto dá o MESMO placar que simularPartida (mesma seed)', () => {
+    const jogadoresCasa = criarJogadores('casa', 78);
+    const jogadoresFora = criarJogadores('fora', 71);
+    const timeCasa = criarClube('casa', jogadoresCasa);
+    const timeFora = criarClube('fora', jogadoresFora);
+
+    for (let seed = 1; seed <= 40; seed += 1) {
+      // Caminho do store (partida inteira de uma vez).
+      const deUmaVez = simularPartida({
+        timeCasa,
+        timeFora,
+        jogadoresCasa,
+        jogadoresFora,
+        seed,
+      });
+
+      // Caminho AO VIVO (o que a tela faz: minuto a minuto, contexto por minuto).
+      const estado = iniciarPartidaAoVivo(seed);
+      for (let minuto = 1; minuto <= 90; minuto += 1) {
+        const ctx = calcularContextoMinuto(
+          timeCasa,
+          timeFora,
+          jogadoresCasa,
+          jogadoresFora,
+          estado,
+        );
+        simularMinuto(estado, ctx);
+      }
+
+      expect(estado.placarCasa).toBe(deUmaVez.placarCasa);
+      expect(estado.placarFora).toBe(deUmaVez.placarFora);
+    }
+  });
+});
