@@ -8,6 +8,8 @@ type ResultadoForma = 'V' | 'E' | 'D';
 type FormaRecenteProps = {
   resultados: ResultadoForma[];
   titulo?: string;
+  /** Só as pílulas, menores e sem rótulo — para linhas de status apertadas. */
+  compacto?: boolean;
 };
 
 function corResultado(resultado: ResultadoForma): string {
@@ -24,21 +26,25 @@ function corResultado(resultado: ResultadoForma): string {
 function FormaRecente({
   resultados,
   titulo = 'Forma recente',
+  compacto = false,
 }: FormaRecenteProps): React.JSX.Element | null {
   if (resultados.length === 0) {
     return null;
   }
   return (
     <View style={styles.wrap}>
-      <Text style={styles.label}>{titulo}</Text>
+      {compacto ? null : <Text style={styles.label}>{titulo}</Text>}
       <View style={styles.row}>
         {resultados.map((resultado, index) => (
           <View
             key={`${resultado}_${index}`}
-            style={[styles.pill, {backgroundColor: corResultado(resultado)}]}>
+            style={[
+              compacto ? styles.pillCompacta : styles.pill,
+              {backgroundColor: corResultado(resultado)},
+            ]}>
             <Text
               style={[
-                styles.pillTexto,
+                compacto ? styles.pillTextoCompacto : styles.pillTexto,
                 resultado === 'E' ? styles.pillTextoEmpate : null,
               ]}>
               {resultado}
@@ -77,6 +83,18 @@ const styles = StyleSheet.create({
   pillTexto: {
     color: cores.contrastePrimaria,
     fontSize: 13,
+    fontWeight: '900',
+  },
+  pillCompacta: {
+    alignItems: 'center',
+    borderRadius: raio.sm,
+    height: 20,
+    justifyContent: 'center',
+    width: 20,
+  },
+  pillTextoCompacto: {
+    color: cores.contrastePrimaria,
+    fontSize: 11,
     fontWeight: '900',
   },
   pillTextoEmpate: {

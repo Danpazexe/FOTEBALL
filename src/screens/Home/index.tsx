@@ -12,7 +12,7 @@ import {Botao, ScreenContainer, TextoVazio} from '../../components/ui';
 import AlertasCard, {type Alerta} from '../../components/AlertasCard';
 import {LOGO_COPA} from '../../assets/escudos';
 import FormaRecente from '../../components/FormaRecente';
-import Painel from '../../components/Painel';
+import Icone, {type IconeNome} from '../../components/Icone';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
@@ -24,7 +24,7 @@ import {
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, sombra} from '../../theme';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Clube, Partida} from '../../types';
 
@@ -229,29 +229,23 @@ function Home(): React.JSX.Element {
     }
   };
 
-  // Atalhos da "Central do Técnico" (grade 2 colunas, estilo do mockup).
-  const central: {rotulo: string; onPress: () => void}[] = [
-    {rotulo: 'Elenco', onPress: () => nav.navigate('MainTabs', {screen: 'Squad'})},
-    {rotulo: 'Mercado', onPress: () => nav.navigate('TransferMarket')},
-    {rotulo: 'Treino', onPress: () => nav.navigate('Semana')},
-    {rotulo: 'Tática', onPress: () => nav.navigate('MainTabs', {screen: 'Tactics'})},
-    {rotulo: 'Clube', onPress: () => nav.navigate('MainTabs', {screen: 'Club'})},
-    {rotulo: 'Contrato', onPress: () => nav.navigate('Contratos')},
-    {rotulo: 'Copa', onPress: () => nav.navigate('Copa')},
-    {rotulo: 'Base', onPress: () => nav.navigate('Academia')},
-    {rotulo: 'Troféus', onPress: () => nav.navigate('Gabinete')},
+  // Atalhos da "Central do Técnico" — chips compactos (ícone + rótulo), 3 colunas.
+  const central: {rotulo: string; icone: IconeNome; onPress: () => void}[] = [
+    {rotulo: 'Elenco', icone: 'elenco', onPress: () => nav.navigate('MainTabs', {screen: 'Squad'})},
+    {rotulo: 'Mercado', icone: 'mercado', onPress: () => nav.navigate('TransferMarket')},
+    {rotulo: 'Treino', icone: 'apito', onPress: () => nav.navigate('Semana')},
+    {rotulo: 'Tática', icone: 'tatica', onPress: () => nav.navigate('MainTabs', {screen: 'Tactics'})},
+    {rotulo: 'Clube', icone: 'clube', onPress: () => nav.navigate('MainTabs', {screen: 'Club'})},
+    {rotulo: 'Contrato', icone: 'dinheiro', onPress: () => nav.navigate('Contratos')},
+    {rotulo: 'Copa', icone: 'trofeu', onPress: () => nav.navigate('Copa')},
+    {rotulo: 'Base', icone: 'base', onPress: () => nav.navigate('Academia')},
+    {rotulo: 'Troféus', icone: 'medalha', onPress: () => nav.navigate('Gabinete')},
   ];
-  // Índices de início de cada linha (2 colunas) — dinâmico para aceitar
-  // quantidade ímpar de atalhos (a última linha pode ter 1 botão).
-  const linhasCentral = Array.from(
-    {length: Math.ceil(central.length / 2)},
-    (_, linha) => linha * 2,
-  );
 
   return (
-    <ScreenContainer>
+    <ScreenContainer scroll>
       <View style={styles.container}>
-        {/* Cabeçalho "Mesa do Técnico" */}
+        {/* Cabeçalho enxuto: clube + título + saldo, e a forma numa linha só. */}
         <View style={styles.hero}>
           <Text style={styles.eyebrow} numberOfLines={1}>
             {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
@@ -272,100 +266,87 @@ function Home(): React.JSX.Element {
               </Text>
             </View>
           </View>
-          <Text style={styles.subtitulo}>
-            {clubeUsuario?.divisao ?? 'Série A'} · {posicao} · {pontos} pts
-          </Text>
-        </View>
-
-        {forma.length > 0 ? (
-          <View style={styles.formaBox}>
-            <FormaRecente resultados={forma} titulo="Últimos jogos" />
-            <Text style={styles.formaPos}>
-              {posicao} · {jogos} jogos
+          <View style={styles.statusRow}>
+            <Text style={styles.subtitulo} numberOfLines={1}>
+              {clubeUsuario?.divisao ?? 'Série A'} · {posicao} · {jogos} jogos ·{' '}
+              {pontos} pts
             </Text>
+            {forma.length > 0 ? (
+              <FormaRecente resultados={forma} compacto />
+            ) : null}
           </View>
-        ) : null}
-
-        <View style={styles.bloco}>
-          <Text style={styles.blocoTitulo}>
-            {copaNaVez ? 'Compromisso da Copa' : 'Próximo Jogo'}
-          </Text>
-          {copaNaVez ? (
-            <View style={styles.copaJogo}>
-              <Image
-                source={LOGO_COPA}
-                style={styles.copaJogoLogo}
-                resizeMode="contain"
-              />
-              <Text style={styles.copaJogoFase}>
-                Copa do Brasil · {copaNaVez.faseNome}
-              </Text>
-              <Text style={styles.copaJogoConfronto} numberOfLines={1}>
-                {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
-              </Text>
-              <Botao
-                variante="ouro"
-                icone="jogar"
-                titulo="Jogar confronto da Copa"
-                onPress={() => {
-                  avancarParaData(copaNaVez.data);
-                  nav.navigate('MatchSimulation', {copa: true});
-                }}
-              />
-            </View>
-          ) : proximoEvento.tipo === 'fim' ? (
-            <View style={styles.acoes}>
-              <Botao
-                variante="ouro"
-                icone="trofeu"
-                titulo="Iniciar próxima temporada"
-                onPress={handleFinalizarTemporada}
-              />
-            </View>
-          ) : proximoJogo && confronto ? (
-            <ProximoJogoCard
-              partida={proximoJogo}
-              clubeCasa={confronto.casa}
-              clubeFora={confronto.fora}
-              forcaCasa={confronto.forcaCasa}
-              forcaFora={confronto.forcaFora}
-              mandoCasa={mandoCasa}
-              onJogar={handleJogarPartida}
-            />
-          ) : (
-            <TextoVazio>Nenhum jogo agendado.</TextoVazio>
-          )}
         </View>
 
-        {copa ? (
-          <View style={styles.bloco}>
-            <Text style={styles.blocoTitulo}>Copa do Brasil</Text>
-            <Painel>
-              <View style={styles.copaCard}>
-                <Image
-                  source={LOGO_COPA}
-                  style={styles.copaLogo}
-                  resizeMode="contain"
-                />
-                <View style={styles.copaInfo}>
-                  <Text style={styles.copaFase}>
-                    {copa.campeao
-                      ? '🏆 Campeão!'
-                      : copa.fases[copa.faseAtual].nome}
-                  </Text>
-                  <Text style={styles.copaDetalhe} numberOfLines={1}>
-                    {resumoCopa(copa, clubeUsuarioId, todosClubes)}
-                  </Text>
-                </View>
-                <Botao
-                  variante="secundaria"
-                  icone="trofeu"
-                  titulo="Ver chave"
-                  onPress={() => nav.navigate('Copa')}
-                />
-              </View>
-            </Painel>
+        {/* Próximo compromisso (sem header duplicado — o card já se rotula). */}
+        {copaNaVez ? (
+          <View style={styles.copaJogoCard}>
+            <Image
+              source={LOGO_COPA}
+              style={styles.copaJogoLogo}
+              resizeMode="contain"
+            />
+            <Text style={styles.copaJogoFase}>
+              Copa do Brasil · {copaNaVez.faseNome}
+            </Text>
+            <Text style={styles.copaJogoConfronto} numberOfLines={1}>
+              {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
+            </Text>
+            <Botao
+              variante="ouro"
+              icone="jogar"
+              titulo="Jogar confronto da Copa"
+              onPress={() => {
+                avancarParaData(copaNaVez.data);
+                nav.navigate('MatchSimulation', {copa: true});
+              }}
+            />
           </View>
+        ) : proximoEvento.tipo === 'fim' ? (
+          <Botao
+            variante="ouro"
+            icone="trofeu"
+            titulo="Iniciar próxima temporada"
+            onPress={handleFinalizarTemporada}
+          />
+        ) : proximoJogo && confronto ? (
+          <ProximoJogoCard
+            partida={proximoJogo}
+            clubeCasa={confronto.casa}
+            clubeFora={confronto.fora}
+            forcaCasa={confronto.forcaCasa}
+            forcaFora={confronto.forcaFora}
+            mandoCasa={mandoCasa}
+            onJogar={handleJogarPartida}
+          />
+        ) : (
+          <TextoVazio>Nenhum jogo agendado.</TextoVazio>
+        )}
+
+        {/* Copa do Brasil — card clean (linha única, sem gradiente). */}
+        {copa ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ver chave da Copa do Brasil"
+            onPress={() => nav.navigate('Copa')}
+            style={({pressed}) => [
+              styles.copaCard,
+              pressed ? styles.cardPressed : null,
+            ]}>
+            <Image
+              source={LOGO_COPA}
+              style={styles.copaLogo}
+              resizeMode="contain"
+            />
+            <View style={styles.copaInfo}>
+              <Text style={styles.copaFase} numberOfLines={1}>
+                {copa.campeao ? 'Campeão!' : copa.fases[copa.faseAtual].nome}
+              </Text>
+              <Text style={styles.copaDetalhe} numberOfLines={1}>
+                {resumoCopa(copa, clubeUsuarioId, todosClubes)}
+              </Text>
+            </View>
+            <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
+          </Pressable>
         ) : null}
 
         <AlertasCard
@@ -373,32 +354,26 @@ function Home(): React.JSX.Element {
           onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
         />
 
+        {/* Central do Técnico — chips compactos (ícone + rótulo), 3 colunas. */}
         <View style={styles.centralBloco}>
           <Text style={styles.blocoTitulo}>Central do Técnico</Text>
-          <Painel acento={cores.primaria}>
-            <View style={styles.central}>
-              {linhasCentral.map(i => (
-                <View key={central[i].rotulo} style={styles.centralRow}>
-                  {[central[i], central[i + 1]]
-                    .filter((item): item is (typeof central)[number] =>
-                      Boolean(item),
-                    )
-                    .map(item => (
-                    <Pressable
-                      key={item.rotulo}
-                      accessibilityRole="button"
-                      onPress={item.onPress}
-                      style={({pressed}) => [
-                        styles.centralBtn,
-                        pressed ? styles.centralBtnPressed : null,
-                      ]}>
-                      <Text style={styles.centralBtnTexto}>{item.rotulo}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ))}
-            </View>
-          </Painel>
+          <View style={styles.centralGrid}>
+            {central.map(item => (
+              <Pressable
+                key={item.rotulo}
+                accessibilityRole="button"
+                onPress={item.onPress}
+                style={({pressed}) => [
+                  styles.chip,
+                  pressed ? styles.cardPressed : null,
+                ]}>
+                <Icone nome={item.icone} tamanho={22} cor={cores.primaria} />
+                <Text style={styles.chipTexto} numberOfLines={1}>
+                  {item.rotulo}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       </View>
     </ScreenContainer>
@@ -409,26 +384,16 @@ export default Home;
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    gap: espaco.sm,
+    gap: espaco.md,
     padding: espaco.lg,
   },
   hero: {
+    gap: espaco.xs,
     paddingTop: espaco.xs,
-  },
-  bloco: {
-    gap: espaco.sm,
-  },
-  blocoTitulo: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
   },
   eyebrow: {
     color: cores.primaria,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '900',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
@@ -438,81 +403,101 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: espaco.md,
     justifyContent: 'space-between',
-    marginTop: espaco.xs,
   },
   titulo: {
     color: cores.texto,
     flexShrink: 1,
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '900',
-    letterSpacing: -0.8,
+    letterSpacing: -0.6,
   },
   saldoPill: {
     backgroundColor: cores.glass,
-    borderColor: cores.primariaGlow,
+    borderColor: cores.bordaTransl,
     borderRadius: raio.pill,
     borderWidth: 1,
     paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
+    paddingVertical: 6,
   },
   saldoPillTexto: {
     color: cores.texto,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.3,
-  },
-  subtitulo: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    marginTop: espaco.xs,
   },
   saldoNegativo: {
     color: cores.perigo,
   },
-  formaBox: {
+  statusRow: {
     alignItems: 'center',
     flexDirection: 'row',
+    gap: espaco.sm,
     justifyContent: 'space-between',
   },
-  formaPos: {
+  subtitulo: {
     color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '700',
+    flexShrink: 1,
+    fontSize: 13,
+    fontWeight: '600',
   },
-  acoes: {
-    gap: espaco.sm,
-    marginTop: espaco.sm,
+  blocoTitulo: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
   },
-  copaCard: {
+  cardPressed: {
+    backgroundColor: cores.superficieAlt,
+    transform: [{scale: 0.99}],
+  },
+  // Copa "na vez" — card de destaque clean.
+  copaJogoCard: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.md,
-  },
-  copaLogo: {
-    height: 40,
-    width: 40,
-  },
-  copaInfo: {
-    flex: 1,
-  },
-  copaJogo: {
-    alignItems: 'center',
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
     gap: espaco.sm,
+    padding: espaco.lg,
+    ...sombra.suave,
   },
   copaJogoLogo: {
-    height: 70,
-    width: '60%',
+    height: 56,
+    width: '55%',
   },
   copaJogoFase: {
     color: cores.secundaria,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
   },
   copaJogoConfronto: {
     color: cores.texto,
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '900',
+  },
+  // Copa do Brasil — card em linha (clean, tocável).
+  copaCard: {
+    alignItems: 'center',
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: espaco.md,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.md,
+    ...sombra.suave,
+  },
+  copaLogo: {
+    height: 36,
+    width: 36,
+  },
+  copaInfo: {
+    flex: 1,
+    gap: 2,
   },
   copaFase: {
     color: cores.texto,
@@ -521,36 +506,32 @@ const styles = StyleSheet.create({
   },
   copaDetalhe: {
     color: cores.textoSecundario,
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: 12.5,
   },
+  // Central do Técnico — grid de chips (ícone + rótulo), 3 colunas.
   centralBloco: {
     gap: espaco.sm,
   },
-  central: {
-    gap: espaco.sm,
-  },
-  centralRow: {
+  centralGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: espaco.sm,
   },
-  centralBtn: {
+  chip: {
     alignItems: 'center',
-    backgroundColor: cores.glass,
-    borderColor: cores.bordaTransl,
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
     borderRadius: raio.lg,
     borderWidth: 1,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 52,
+    flexBasis: '31.5%',
+    flexGrow: 1,
+    gap: espaco.xs,
+    paddingVertical: espaco.md,
+    ...sombra.suave,
   },
-  centralBtnPressed: {
-    opacity: 0.85,
-    transform: [{scale: 0.98}],
-  },
-  centralBtnTexto: {
+  chipTexto: {
     color: cores.texto,
-    fontSize: 15,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
