@@ -50,6 +50,14 @@ function jogadorCompatibilidade(
   return 0;
 }
 
+// Penalidade forte para lesionado/suspenso no auto-preenchimento: o escalador
+// automático joga os indisponíveis para o fim da fila, então eles só entram se
+// NÃO houver aptos suficientes para fechar os 11 (evita montar um XI ilegal e,
+// ao mesmo tempo, nunca lança "elenco insuficiente" a mais que antes).
+function penalidadeIndisponivel(jogador: Player): number {
+  return jogador.lesionado || jogador.suspenso ? -1000 : 0;
+}
+
 function escolherTitulares(
   jogadores: Player[],
   template: Position[] = formacao433,
@@ -60,8 +68,9 @@ function escolherTitulares(
     disponiveis.sort(
       (a, b) =>
         b.overall +
-        jogadorCompatibilidade(b, posicao) -
-        (a.overall + jogadorCompatibilidade(a, posicao)),
+        jogadorCompatibilidade(b, posicao) +
+        penalidadeIndisponivel(b) -
+        (a.overall + jogadorCompatibilidade(a, posicao) + penalidadeIndisponivel(a)),
     );
 
     const escolhido = disponiveis.shift();
