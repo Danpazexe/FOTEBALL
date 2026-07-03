@@ -38,6 +38,10 @@ const RAIO = Math.round(LARGURA * 0.056);
 const DIAM = RAIO * 2;
 const LIMIAR_DROP = RAIO + 30;
 const SLOT_W = 74;
+// Margem vertical dentro do campo: deixa espaço para a ficha (topo) e para os
+// rótulos posição+nome (embaixo de cada peça), senão o GOL/atacantes cortam.
+const PAD_TOPO = RAIO + 6;
+const PAD_BASE = RAIO + 32;
 const GHOST_W = 78;
 const GHOST_H = 90;
 
@@ -72,12 +76,15 @@ type SlotPos = {slotIndex: number; x: number; y: number; posicao: Position};
  * `(1 - y)`.
  */
 function posicoesDosSlots(formacao: Formacao): SlotPos[] {
+  const banda = ALTURA - PAD_TOPO - PAD_BASE;
   return formacao.titulares.map((titular, slotIndex) => {
     const {x, y} = coordenadaDoTitular(titular);
     return {
       slotIndex,
       x: x * LARGURA,
-      y: (1 - y) * ALTURA,
+      // y invertido (ataque em cima) e comprimido na banda com margens, para
+      // os rótulos caberem dentro do gramado.
+      y: PAD_TOPO + (1 - y) * banda,
       posicao: titular.posicao,
     };
   });
@@ -906,8 +913,10 @@ const styles = StyleSheet.create({
   },
   scrollConteudo: {
     alignItems: 'center',
+    // flex-start (não center): com conteúdo mais alto que a tela, centralizar
+    // cortava o banco na parte de baixo. Assim rola do topo naturalmente.
     flexGrow: 1,
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     paddingHorizontal: espaco.md,
   },
   card: {
@@ -916,9 +925,9 @@ const styles = StyleSheet.create({
     borderColor: cores.borda,
     borderRadius: raio.lg,
     borderWidth: 1,
-    gap: espaco.sm,
+    gap: espaco.md,
     maxWidth: '100%',
-    padding: espaco.md,
+    padding: espaco.lg,
   },
   header: {
     alignItems: 'center',
@@ -1123,7 +1132,8 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     marginTop: 1,
-    maxWidth: SLOT_W,
+    // Menor que o slot para os nomes das 4 linhas de trás não se tocarem.
+    maxWidth: SLOT_W - 12,
     textAlign: 'center',
   },
   bancoTitulo: {

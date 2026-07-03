@@ -124,6 +124,10 @@ function DraggablePitch({
 }: DraggablePitchProps): React.JSX.Element {
   const altura = Math.round(largura * 1.42);
   const raioFicha = Math.round(largura * 0.062);
+  // Margens verticais para as fichas e seus rótulos (pos+nome) caberem dentro
+  // do gramado — evita o GOL/atacantes cortarem nas bordas.
+  const padTopo = raioFicha + 6;
+  const padBase = raioFicha + 32;
   const limiarDrop = raioFicha + 26;
 
   const overlayRef = useRef<View>(null);
@@ -172,10 +176,10 @@ function DraggablePitch({
           slotIndex,
           jogadorId: titular.jogadorId,
           cx: x * largura,
-          cy: (1 - y) * altura,
+          cy: padTopo + (1 - y) * (altura - padTopo - padBase),
         };
       }),
-    [titulares, largura, altura],
+    [titulares, largura, altura, padTopo, padBase],
   );
 
   const medirOverlay = useCallback(() => {
@@ -273,8 +277,16 @@ function DraggablePitch({
       }
 
       // Área livre: move o jogador (recalcula a posição pela coordenada).
+      // Inverso EXATO do render (que usa a banda com margens padTopo/padBase),
+      // para o jogador cair onde o dedo soltou, sem drift.
       const nx = Math.min(1, Math.max(0, (ax - origem.x) / largura));
-      const ny = Math.min(1, Math.max(0, 1 - (ay - origem.y) / altura));
+      const ny = Math.min(
+        1,
+        Math.max(
+          0,
+          1 - (ay - origem.y - padTopo) / (altura - padTopo - padBase),
+        ),
+      );
       onAtualizarFormacao(moverTitular(formacao, slotOrigem, nx, ny));
     },
     [
@@ -285,6 +297,8 @@ function DraggablePitch({
       titulares,
       largura,
       altura,
+      padTopo,
+      padBase,
     ],
   );
 
