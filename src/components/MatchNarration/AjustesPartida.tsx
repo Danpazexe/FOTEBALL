@@ -24,8 +24,19 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import {trocarEsquema, trocarTitular} from '../../api/database/seed/defaults';
-import {corAdaptacao, cores, corOverall, espaco, raio} from '../../theme';
-import {nivelAdaptacao} from '../../engine/tactics/adaptacao';
+import {
+  corAdaptacao,
+  corCondicao,
+  cores,
+  corOverall,
+  espaco,
+  raio,
+} from '../../theme';
+import {
+  nivelAdaptacao,
+  type NivelAdaptacao,
+  type ResultadoAdaptacao,
+} from '../../engine/tactics/adaptacao';
 import {coordenadaDoTitular} from '../../engine/tactics/geometria';
 import type {Formacao, FormacaoPreset, Player, Position, Tatica} from '../../types';
 import Icone from '../Icone';
@@ -70,6 +81,24 @@ const OPCOES_LINHA: Tatica['linhaDefensiva'][] = ['Recuada', 'Normal', 'Adiantad
 const OPCOES_RITMO: Tatica['ritmo'][] = ['Lento', 'Normal', 'Intenso'];
 
 type Descritor = {tipo: 'reserva' | 'titular'; valor: string};
+
+// Ordena os candidatos à substituição pelo ENCAIXE na posição do slot (natural
+// primeiro) e, dentro do mesmo nível, pelo overall — quem melhor cobre a vaga
+// aparece no topo da lista.
+const RANK_ADAPTACAO: Record<NivelAdaptacao, number> = {
+  natural: 0,
+  similar: 1,
+  adaptado: 2,
+  improvisado: 3,
+};
+
+/** Rótulo curto do encaixe (o `rotulo` do engine é longo demais para o chip). */
+const ROTULO_FIT: Record<NivelAdaptacao, string> = {
+  natural: 'Natural',
+  similar: 'Similar',
+  adaptado: 'Adaptado',
+  improvisado: 'Improviso',
+};
 
 type SlotPos = {slotIndex: number; x: number; y: number; posicao: Position};
 
@@ -197,6 +226,9 @@ function AjustesPartida({
   // por padrão (a substituição é a ação principal da tela).
   const [mostrarFormacoes, setMostrarFormacoes] = useState(false);
   const [mostrarAvancado, setMostrarAvancado] = useState(false);
+  // Painel "quem entra": slot do titular tocado, para escolher o substituto numa
+  // lista já filtrada/ordenada por encaixe — sem caçar no banco.
+  const [slotTroca, setSlotTroca] = useState<number | null>(null);
 
   const semSubs = subsRestantes <= 0;
 
@@ -216,6 +248,30 @@ function AjustesPartida({
         .sort((a, b) => b.overall - a.overall),
     [elenco, titularIds, jaSairamIds],
   );
+
+  // Contexto do painel "quem entra": posição da vaga, jogador que sai e a lista
+  // de reservas APTOS (sem lesão/suspensão) ordenados por encaixe → overall.
+  const posicaoTroca =
+    slotTroca !== null
+      ? formacao.titulares[slotTroca]?.posicao ?? null
+      : null;
+  const saindoTroca =
+    slotTroca !== null
+      ? porId.get(formacao.titulares[slotTroca]?.jogadorId)
+      : undefined;
+  const candidatosTroca = useMemo(() => {
+    if (slotTroca === null || !posicaoTroca) {
+      return [];
+    }
+    return banco
+      .filter(j => !j.lesionado && !j.suspenso)
+      .map(j => ({jogador: j, adaptacao: nivelAdaptacao(j, posicaoTroca)}))
+      .sort((a, b) => {
+        const r =
+          RANK_ADAPTACAO[a.adaptacao.nivel] - RANK_ADAPTACAO[b.adaptacao.nivel];
+        return r !== 0 ? r : b.jogador.overall - a.jogador.overall;
+      });
+  }, [slotTroca, posicaoTroca, banco]);
 
   const nomeDe = useCallback(
     (id: string) => nomes[id] ?? porId.get(id)?.nome ?? 'Jogador',
@@ -333,14 +389,38 @@ function AjustesPartida({
   const aoTocar = useCallback(
     (tipo: string, valor: string) => {
       const alvo: Descritor = {tipo: tipo as Descritor['tipo'], valor};
-      if (!selecao) {
-        setSelecao(alvo);
+      // Seleção pendente (fluxo reserva-primeiro): completa a ação. aplicarAcao
+      // já limpa a seleção e executa a troca/substituição.
+      if (selecao) {
+        aplicarAcao(selecao, alvo);
         return;
       }
-      // aplicarAcao já limpa a seleção (e executa a troca/substituição).
-      aplicarAcao(selecao, alvo);
+      // Toque num TITULAR abre o painel "quem entra" (lista pronta, sem caçar no
+      // banco). Sem substituições restantes, cai no modo seleção para ainda
+      // permitir a troca de posição por toque (titular↔titular não gasta sub).
+      if (tipo === 'titular') {
+        if (semSubs) {
+          setSelecao(alvo);
+          return;
+        }
+        setSlotTroca(Number(valor));
+        return;
+      }
+      // Toque num reserva inicia o fluxo reserva-primeiro (alternativa ao painel).
+      setSelecao(alvo);
     },
-    [selecao, aplicarAcao],
+    [selecao, aplicarAcao, semSubs],
+  );
+
+  const escolherEntrante = useCallback(
+    (entranteId: string) => {
+      if (slotTroca === null) {
+        return;
+      }
+      executarSub(slotTroca, entranteId);
+      setSlotTroca(null);
+    },
+    [slotTroca, executarSub],
   );
 
   const aoIniciar = useCallback(
@@ -437,7 +517,7 @@ function AjustesPartida({
             <Text style={styles.titulo}>Ajustes</Text>
             <Text style={styles.subtitulo}>
               {aba === 'escalacao'
-                ? 'Toque ou arraste para substituir'
+                ? 'Toque no titular para ver quem pode entrar'
                 : 'Vale para o restante da partida'}
             </Text>
           </View>
@@ -692,6 +772,157 @@ function AjustesPartida({
           </>
         ) : null}
       </Animated.View>
+
+      {slotTroca !== null && posicaoTroca ? (
+        <PainelTroca
+          posicao={posicaoTroca}
+          saindo={saindoTroca}
+          nomeSaindo={saindoTroca ? nomeDe(saindoTroca.id) : posicaoTroca}
+          candidatos={candidatosTroca}
+          nomeDe={nomeDe}
+          onEscolher={escolherEntrante}
+          onFechar={() => setSlotTroca(null)}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+type CandidatoTroca = {jogador: Player; adaptacao: ResultadoAdaptacao};
+
+type PainelTrocaProps = {
+  posicao: Position;
+  saindo: Player | undefined;
+  nomeSaindo: string;
+  candidatos: CandidatoTroca[];
+  nomeDe: (id: string) => string;
+  onEscolher: (id: string) => void;
+  onFechar: () => void;
+};
+
+/**
+ * Painel "quem entra": ao tocar num titular, mostra os reservas APTOS numa lista
+ * já ordenada por encaixe na vaga (natural → improviso) e overall, com condição
+ * física visível. Um toque na linha confirma a substituição — sem arraste, sem
+ * procurar o jogador certo no banco.
+ */
+function PainelTroca({
+  posicao,
+  saindo,
+  nomeSaindo,
+  candidatos,
+  nomeDe,
+  onEscolher,
+  onFechar,
+}: PainelTrocaProps): React.JSX.Element {
+  return (
+    <View style={styles.trocaOverlay}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Fechar"
+        style={styles.trocaScrim}
+        onPress={onFechar}
+      />
+      <View style={styles.trocaCard}>
+        <View style={styles.trocaHeader}>
+          <View style={styles.flex1}>
+            <Text style={styles.trocaLabel}>Entra no lugar de</Text>
+            <Text style={styles.trocaSaindo} numberOfLines={1}>
+              {nomeSaindo}
+            </Text>
+          </View>
+          <View style={styles.trocaPosChip}>
+            <Text style={styles.trocaPosChipTexto}>{posicao}</Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar"
+            onPress={onFechar}
+            style={styles.trocaFechar}>
+            <Icone nome="fechar" tamanho={18} cor={cores.textoSecundario} />
+          </Pressable>
+        </View>
+
+        {saindo ? (
+          <View style={styles.trocaSaiLinha}>
+            <View
+              style={[
+                styles.condDot,
+                {backgroundColor: corCondicao(saindo.condicaoFisica)},
+              ]}
+            />
+            <Text style={styles.trocaSaiInfo}>
+              Sai com {Math.round(saindo.condicaoFisica)}% de condição
+            </Text>
+          </View>
+        ) : null}
+
+        <View style={styles.trocaDivisor} />
+
+        {candidatos.length === 0 ? (
+          <Text style={styles.trocaVazio}>
+            Nenhum reserva disponível para entrar.
+          </Text>
+        ) : (
+          <ScrollView
+            style={styles.trocaLista}
+            showsVerticalScrollIndicator={false}>
+            {candidatos.map(({jogador, adaptacao}) => {
+              const cor = corOverall(jogador.overall);
+              const corFit = corAdaptacao(adaptacao.nivel);
+              const rotulo =
+                adaptacao.nivel === 'natural'
+                  ? ROTULO_FIT.natural
+                  : `${ROTULO_FIT[adaptacao.nivel]} ${Math.round(
+                      adaptacao.fator * 100,
+                    )}%`;
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={jogador.id}
+                  onPress={() => onEscolher(jogador.id)}
+                  style={styles.trocaLinha}>
+                  <View style={[styles.trocaBadge, {borderColor: cor}]}>
+                    <Text style={[styles.trocaBadgeTexto, {color: cor}]}>
+                      {jogador.overall}
+                    </Text>
+                  </View>
+                  <View style={styles.flex1}>
+                    <Text style={styles.trocaNome} numberOfLines={1}>
+                      {nomeDe(jogador.id)}
+                    </Text>
+                    <View style={styles.trocaMeta}>
+                      <Text style={styles.trocaMetaPos}>
+                        {jogador.posicaoPrincipal}
+                      </Text>
+                      <View
+                        style={[
+                          styles.condDot,
+                          {
+                            backgroundColor: corCondicao(jogador.condicaoFisica),
+                          },
+                        ]}
+                      />
+                      <Text style={styles.trocaMetaCond}>
+                        {Math.round(jogador.condicaoFisica)}%
+                      </Text>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.trocaFit,
+                      {borderColor: corFit, backgroundColor: `${corFit}1A`},
+                    ]}>
+                    <Text style={[styles.trocaFitTexto, {color: corFit}]}>
+                      {rotulo}
+                    </Text>
+                  </View>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
+      </View>
     </View>
   );
 }
@@ -1291,5 +1522,149 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     paddingVertical: 1,
     textAlign: 'center',
+  },
+
+  // Painel "quem entra" (toque no titular) — modal sobre o modal de ajustes.
+  trocaOverlay: {
+    alignItems: 'center',
+    bottom: 0,
+    justifyContent: 'flex-end',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    zIndex: 60,
+  },
+  trocaScrim: {
+    backgroundColor: 'rgba(23,35,59,0.45)',
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  trocaCard: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderTopLeftRadius: raio.xl,
+    borderTopRightRadius: raio.xl,
+    borderWidth: 1,
+    maxHeight: '72%',
+    paddingBottom: espaco.lg,
+    paddingHorizontal: espaco.lg,
+    paddingTop: espaco.md,
+    width: '100%',
+  },
+  trocaHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.sm,
+    paddingBottom: espaco.sm,
+  },
+  trocaLabel: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  trocaSaindo: {
+    color: cores.texto,
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  trocaPosChip: {
+    backgroundColor: cores.superficieAlt,
+    borderRadius: raio.sm,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 3,
+  },
+  trocaPosChipTexto: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  trocaFechar: {
+    padding: espaco.xs,
+  },
+  trocaSaiLinha: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingBottom: espaco.sm,
+  },
+  trocaSaiInfo: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  condDot: {
+    borderRadius: 4,
+    height: 8,
+    width: 8,
+  },
+  trocaDivisor: {
+    backgroundColor: cores.borda,
+    height: 1,
+    marginBottom: espaco.xs,
+  },
+  trocaVazio: {
+    color: cores.textoSecundario,
+    fontSize: 13,
+    paddingVertical: espaco.lg,
+    textAlign: 'center',
+  },
+  trocaLista: {
+    flexGrow: 0,
+  },
+  trocaLinha: {
+    alignItems: 'center',
+    borderBottomColor: cores.borda,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    gap: espaco.md,
+    paddingVertical: espaco.sm,
+  },
+  trocaBadge: {
+    alignItems: 'center',
+    borderRadius: raio.sm,
+    borderWidth: 2,
+    height: 40,
+    justifyContent: 'center',
+    width: 40,
+  },
+  trocaBadgeTexto: {
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  trocaNome: {
+    color: cores.texto,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  trocaMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 2,
+  },
+  trocaMetaPos: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  trocaMetaCond: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  trocaFit: {
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 4,
+  },
+  trocaFitTexto: {
+    fontSize: 11,
+    fontWeight: '900',
   },
 });
