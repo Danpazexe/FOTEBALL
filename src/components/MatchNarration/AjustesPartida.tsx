@@ -24,7 +24,8 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import {trocarEsquema, trocarTitular} from '../../api/database/seed/defaults';
-import {cores, corOverall, espaco, raio} from '../../theme';
+import {corAdaptacao, cores, corOverall, espaco, raio} from '../../theme';
+import {nivelAdaptacao} from '../../engine/tactics/adaptacao';
 import {coordenadaDoTitular} from '../../engine/tactics/geometria';
 import type {Formacao, FormacaoPreset, Player, Position, Tatica} from '../../types';
 import Icone from '../Icone';
@@ -732,34 +733,43 @@ function PecaTitular({
     aoTocar,
     aoFinalizar,
   );
-  const cor = jogador ? corOverall(jogador.overall) : cores.textoSecundario;
+  // Anel por ENCAIXE de posição (verde natural → vermelho improviso), a mesma
+  // semântica/cor do DraggablePitch — as telas de escalação seguem um padrão só.
+  const adaptacao = jogador ? nivelAdaptacao(jogador, slot.posicao) : null;
+  const corEncaixe = adaptacao
+    ? corAdaptacao(adaptacao.nivel)
+    : cores.textoSecundario;
   const corBorda = hover
     ? cores.secundaria
     : selecionado
-    ? cores.primaria
-    : cor;
+      ? cores.primaria
+      : corEncaixe;
+  const pct = adaptacao ? Math.round(adaptacao.fator * 100) : 100;
   return (
     <GestureDetector gesture={gesto}>
       <View
         style={[
           styles.slotWrap,
-          {left: slot.x - SLOT_W / 2, top: slot.y - DIAM / 2 - 13},
+          {left: slot.x - SLOT_W / 2, top: slot.y - DIAM / 2 - 6},
           arrastandoEste ? styles.arrastandoEste : null,
         ]}>
-        <Text style={styles.slotPos}>{slot.posicao}</Text>
         <View
           style={[
             styles.ficha,
             {borderColor: corBorda, borderWidth: hover || selecionado ? 3 : 2},
             hover ? styles.fichaHover : null,
           ]}>
-          <Text style={[styles.fichaOverall, {color: cor}]}>
+          <Text style={[styles.fichaOverall, {color: corBorda}]}>
             {jogador ? jogador.overall : '--'}
           </Text>
         </View>
+        <Text style={styles.slotPos}>{slot.posicao}</Text>
         <Text numberOfLines={1} style={styles.slotNome}>
           {nome}
         </Text>
+        {adaptacao && adaptacao.nivel !== 'natural' ? (
+          <Text style={[styles.slotPct, {color: corBorda}]}>{pct}%</Text>
+        ) : null}
       </View>
     </GestureDetector>
   );
@@ -1084,8 +1094,12 @@ const styles = StyleSheet.create({
   slotPos: {
     color: cores.textoSecundario,
     fontSize: 9,
-    fontWeight: '700',
-    marginBottom: 1,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  slotPct: {
+    fontSize: 9,
+    fontWeight: '900',
   },
   ficha: {
     alignItems: 'center',

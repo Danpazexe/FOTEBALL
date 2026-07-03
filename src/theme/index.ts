@@ -269,6 +269,27 @@ export function glowDoTier(overall: number) {
   };
 }
 
+/**
+ * Cor que comunica o encaixe do jogador na posição escalada (verde = natural,
+ * azul = similar, dourado = adaptado, vermelho = improviso). FONTE ÚNICA usada
+ * por TODAS as telas de escalação (DraggablePitch, AjustesPartida) para o anel
+ * das fichas. Import type-only do nível — sem acoplamento de runtime.
+ */
+export function corAdaptacao(
+  nivel: 'natural' | 'similar' | 'adaptado' | 'improvisado',
+): string {
+  if (nivel === 'natural') {
+    return cores.primaria;
+  }
+  if (nivel === 'similar') {
+    return acentos.azul;
+  }
+  if (nivel === 'adaptado') {
+    return cores.secundaria;
+  }
+  return cores.perigo;
+}
+
 /** Cor da barra de condição física (verde→amarelo→vermelho). */
 export function corCondicao(valor: number): string {
   if (valor >= 75) {

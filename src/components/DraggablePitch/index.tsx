@@ -26,12 +26,12 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import {moverTitular, trocarTitular} from '../../api/database/seed/defaults';
-import {nivelAdaptacao, type NivelAdaptacao} from '../../engine/tactics/adaptacao';
+import {nivelAdaptacao} from '../../engine/tactics/adaptacao';
 import {
   coordenadaDoTitular,
   preencherCoordenadas,
 } from '../../engine/tactics/geometria';
-import {acentos, cores, corOverall, espaco, raio} from '../../theme';
+import {corAdaptacao, cores, corOverall, espaco, raio} from '../../theme';
 import type {Formacao, Player} from '../../types';
 
 type DraggablePitchProps = {
@@ -49,20 +49,6 @@ type Descritor = {tipo: 'titular' | 'reserva'; valor: string};
 type SlotTela = {slotIndex: number; jogadorId: string; cx: number; cy: number};
 
 const GHOST = 80;
-
-/** Cor que comunica o rendimento na posição (verde = natural, vermelho = improviso). */
-export function corAdaptacao(nivel: NivelAdaptacao): string {
-  if (nivel === 'natural') {
-    return cores.primaria;
-  }
-  if (nivel === 'similar') {
-    return acentos.azul;
-  }
-  if (nivel === 'adaptado') {
-    return cores.secundaria;
-  }
-  return cores.perigo;
-}
 
 function primeiroNome(jogador: Player): string {
   if (jogador.apelido) {
