@@ -25,7 +25,6 @@ export type RootStackParamList = {
   MatchSimulation: {copa?: boolean} | undefined;
   MatchResult: {partidaId: string};
   PreJogo: undefined;
-  Coletiva: undefined;
   Copa: undefined;
   Semana: undefined;
   Academia: undefined;

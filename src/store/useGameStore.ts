@@ -213,8 +213,6 @@ export interface GameState {
   treinouProximoJogo: boolean;
   /** O usuário já conversou com o grupo nesta semana? (libera 1x por ciclo). */
   conversouComGrupo: boolean;
-  /** O usuário já concedeu a coletiva desta rodada? (libera 1x por jogo). */
-  coletivaConcedida: boolean;
   /** Copa do Brasil da temporada (mata-mata em paralelo à liga). */
   copa: EstadoCopa | null;
   /** Reputação do técnico (0-100), cresce com resultados (§12). */
@@ -247,8 +245,6 @@ export interface GameState {
   atualizarFormacaoUsuario: (formacao: Formacao) => void;
   /** Conversa com o grupo: +5 de moral a todo o elenco (1x por semana). */
   conversarComGrupo: () => boolean;
-  /** Concede a coletiva: aplica o efeito de moral acumulado (1x por rodada). */
-  concederColetiva: (deltaTotal: number) => boolean;
   /**
    * Joga a fase atual da Copa: resolve o confronto do usuário (pelo resultado
    * informado ou simulando) e simula os demais, avança a chave e paga premiação.
@@ -984,7 +980,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   dataAtual: inicial.dataAtual,
   treinouProximoJogo: false,
   conversouComGrupo: false,
-  coletivaConcedida: false,
   copa: null,
   reputacaoTecnico: REPUTACAO_INICIAL,
   derrotasConsecutivas: 0,
@@ -1015,7 +1010,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
-      coletivaConcedida: false,
       reputacaoTecnico: REPUTACAO_INICIAL,
       derrotasConsecutivas: 0,
       rodadasNoVermelho: 0,
@@ -1070,7 +1064,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
-      coletivaConcedida: false,
       // reputacaoTecnico PERSISTE (carreira continua); zera o resto do eixo.
       derrotasConsecutivas: 0,
       rodadasNoVermelho: 0,
@@ -1220,7 +1213,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       dataAtual: partidaUsuarioCompleta?.data ?? state.dataAtual,
       treinouProximoJogo: false,
       conversouComGrupo: false,
-      coletivaConcedida: false,
       reputacaoTecnico: carreira.reputacaoTecnico,
       derrotasConsecutivas: carreira.derrotasConsecutivas,
       rodadasNoVermelho: carreira.rodadasNoVermelho,
@@ -1385,7 +1377,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       dataAtual: partidaUsuario?.data ?? state.dataAtual,
       treinouProximoJogo: false,
       conversouComGrupo: false,
-      coletivaConcedida: false,
       reputacaoTecnico: carreira.reputacaoTecnico,
       derrotasConsecutivas: carreira.derrotasConsecutivas,
       rodadasNoVermelho: carreira.rodadasNoVermelho,
@@ -1584,30 +1575,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       mensagens: adicionarMensagem(
         state.mensagens,
         'Você conversou com o grupo. A moral do elenco subiu.',
-      ),
-    });
-    return true;
-  },
-
-  concederColetiva: deltaTotal => {
-    const state = get();
-    const {clubeUsuarioId} = state;
-    if (!clubeUsuarioId || state.coletivaConcedida) {
-      return false; // sem carreira ou coletiva já concedida nesta rodada.
-    }
-    set({
-      jogadores:
-        deltaTotal === 0
-          ? state.jogadores
-          : state.jogadores.map(jogador =>
-              jogador.clubeId === clubeUsuarioId
-                ? {...jogador, moral: aplicarMoral(jogador.moral, deltaTotal)}
-                : jogador,
-            ),
-      coletivaConcedida: true,
-      mensagens: adicionarMensagem(
-        state.mensagens,
-        'Você concedeu a coletiva de imprensa.',
       ),
     });
     return true;
@@ -2538,7 +2505,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       dataAtual: liga.dataAtual,
       treinouProximoJogo: false,
       conversouComGrupo: false,
-      coletivaConcedida: false,
       reputacaoTecnico,
       derrotasConsecutivas: 0,
       demissao,
@@ -2697,7 +2663,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       dataAtual: novo.dataAtual,
       treinouProximoJogo: false,
       conversouComGrupo: false,
-      coletivaConcedida: false,
       jovensDisponiveis: [],
       propostasRecebidas: [],
       formacaoPreLive: null,

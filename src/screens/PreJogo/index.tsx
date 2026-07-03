@@ -1,7 +1,7 @@
 /**
  * Tela pré-jogo (Módulo 5). Mostra o confronto (força como "favoritismo"),
- * forma e posição, histórico de confrontos diretos e o acesso à coletiva de
- * imprensa. Daqui o usuário simula ou joga ao vivo.
+ * forma e posição e o histórico de confrontos diretos. Daqui o usuário simula
+ * ou joga ao vivo.
  */
 
 import React, {useMemo} from 'react';
@@ -33,7 +33,6 @@ function PreJogo(): React.JSX.Element {
   const partidas = useGameStore(state => state.partidas);
   const proximo = useGameStore(selecionarProximoJogo);
   const avancarRodada = useGameStore(state => state.avancarRodada);
-  const coletivaConcedida = useGameStore(state => state.coletivaConcedida);
 
   const confronto = useMemo(() => {
     if (!proximo) {
@@ -167,24 +166,6 @@ function PreJogo(): React.JSX.Element {
         )}
       </Section>
 
-      <Section titulo="Coletiva de imprensa">
-        <Painel>
-          <View style={styles.coletivaConteudo}>
-            <Text style={styles.coletivaTexto}>
-              {coletivaConcedida
-                ? 'Você já falou com a imprensa antes deste jogo.'
-                : 'Enfrente os jornalistas: 3 perguntas sobre escalação, um jogador e o adversário. Suas respostas mexem com a moral do elenco.'}
-            </Text>
-            <Botao
-              variante="secundaria"
-              icone="conversa"
-              titulo={coletivaConcedida ? 'Ver coletiva' : 'Ir à coletiva'}
-              onPress={() => nav.navigate('Coletiva')}
-            />
-          </View>
-        </Painel>
-      </Section>
-
       <View style={styles.acoes}>
         <View style={styles.acaoFlex}>
           <Botao
@@ -285,14 +266,6 @@ const styles = StyleSheet.create({
     color: cores.texto,
     flex: 1,
     fontSize: 13,
-  },
-  coletivaConteudo: {
-    gap: espaco.md,
-  },
-  coletivaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    lineHeight: 19,
   },
   acoes: {
     flexDirection: 'row',

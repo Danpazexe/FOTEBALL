@@ -37,7 +37,6 @@ export interface SnapshotJogo {
   dataAtual?: string;
   treinouProximoJogo?: boolean;
   conversouComGrupo?: boolean;
-  coletivaConcedida?: boolean;
   clubes: Clube[];
   jogadores: Player[];
   partidas: Partida[];
@@ -73,7 +72,6 @@ export function montarSnapshot(
     dataAtual: state.dataAtual,
     treinouProximoJogo: state.treinouProximoJogo,
     conversouComGrupo: state.conversouComGrupo,
-    coletivaConcedida: state.coletivaConcedida,
     clubes: state.clubes,
     jogadores: state.jogadores,
     partidas: state.partidas,
@@ -100,7 +98,6 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     dataAtual: snapshot.dataAtual ?? `${snapshot.temporadaAtual}-04-04`,
     treinouProximoJogo: snapshot.treinouProximoJogo ?? false,
     conversouComGrupo: snapshot.conversouComGrupo ?? false,
-    coletivaConcedida: snapshot.coletivaConcedida ?? false,
     clubes: snapshot.clubes,
     // Migração: saves anteriores ao sistema de habilidades/tipo não têm esses
     // campos — deriva no load (no-op para quem já tem).
