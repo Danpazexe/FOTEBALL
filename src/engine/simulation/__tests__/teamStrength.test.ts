@@ -72,4 +72,50 @@ describe('calcularForcaTime', () => {
     expect(forca.ataque).toBeLessThan(85);
     expect(forca.meio).toBeCloseTo(forca.defesa, 5);
   });
+
+  it('moral alta rende mais que moral baixa, mas de forma leve (±~10%)', () => {
+    const base = POSICOES.map((posicao, i) =>
+      criarPlayer({id: `j${i}`, posicaoPrincipal: posicao}),
+    );
+    const moralAlta = base.map(j => ({...j, moral: 90}));
+    const moralBaixa = base.map(j => ({...j, moral: 20}));
+    const fAlta = calcularForcaTime(formacao(moralAlta), moralAlta, TATICA);
+    const fBaixa = calcularForcaTime(formacao(moralBaixa), moralBaixa, TATICA);
+    expect(fAlta.overall).toBeGreaterThan(fBaixa.overall);
+    // "leve": o fator de moral vive em ~[0.9, 1.1]; a razão não pode explodir.
+    expect(fAlta.overall / fBaixa.overall).toBeLessThan(1.3);
+  });
+
+  it('forma positiva rende mais que forma negativa', () => {
+    const base = POSICOES.map((posicao, i) =>
+      criarPlayer({id: `j${i}`, posicaoPrincipal: posicao}),
+    );
+    const emAlta = base.map(j => ({...j, forma: 5}));
+    const emBaixa = base.map(j => ({...j, forma: -5}));
+    const fAlta = calcularForcaTime(formacao(emAlta), emAlta, TATICA);
+    const fBaixa = calcularForcaTime(formacao(emBaixa), emBaixa, TATICA);
+    expect(fAlta.overall).toBeGreaterThan(fBaixa.overall);
+  });
+
+  it('jogador improvisado (fora de posição) reduz a força de ataque', () => {
+    const jogadores = elenco(); // todos naturais em suas posições
+    const natural = formacao(jogadores);
+    // Troca o CA (slot 9) pelo ZAG (slot 2): ambos passam a jogar no terço
+    // oposto (fator de adaptação 0.6), enfraquecendo as pontas do campo.
+    const improvisada: Formacao = {
+      ...natural,
+      titulares: natural.titulares.map((titular, i) => {
+        if (i === 9) {
+          return {...titular, jogadorId: jogadores[2]!.id};
+        }
+        if (i === 2) {
+          return {...titular, jogadorId: jogadores[9]!.id};
+        }
+        return titular;
+      }),
+    };
+    const fNatural = calcularForcaTime(natural, jogadores, TATICA);
+    const fImprov = calcularForcaTime(improvisada, jogadores, TATICA);
+    expect(fImprov.ataque).toBeLessThan(fNatural.ataque);
+  });
 });
