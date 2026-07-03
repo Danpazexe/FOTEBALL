@@ -1,715 +1,766 @@
 # BRASFOOT_MASTER.md
-> Briefing completo de mecânicas, regras, lógica e sistemas do Brasfoot
-> para implementação no projeto FOTEBALL (React Native CLI · TypeScript · Zustand · op-sqlite)
+> Documento-mestre de domínio do FOTEBALL. Use como referência principal de regras, mecânicas, balanceamento e comportamento esperado do jogo.
 
 ---
 
-## 1. IDENTIDADE DO GÊNERO
+## 1. Identidade do jogo
 
-| Atributo | Valor |
+**FOTEBALL** é um jogo mobile de gerenciamento de futebol brasileiro, inspirado em Brasfoot/Soccer Manager, com foco em decisões rápidas, temporada longa e sensação de carreira.
+
+O jogador assume um clube, escala o time, ajusta tática, treina o elenco, negocia jogadores, administra finanças, disputa liga e copa, tenta conquistar títulos, subir de divisão ou evitar rebaixamento.
+
+### Objetivo de design
+
+O jogo deve ser simples de entender, mas profundo o suficiente para gerar decisões reais.
+
+O jogador precisa sentir que:
+
+- escalação importa;
+- condição física importa;
+- moral importa;
+- dinheiro importa;
+- tática importa;
+- mercado importa;
+- planejamento de temporada importa;
+- uma zebra pode acontecer, mas qualidade ainda pesa.
+
+---
+
+## 2. Loop principal
+
+```txt
+Escolher clube
+↓
+Ver elenco, tabela, calendário e finanças
+↓
+Treinar / ajustar escalação / mexer na tática
+↓
+Jogar ou simular partida
+↓
+Atualizar tabela, estatísticas, moral, condição, caixa e reputação
+↓
+Receber notícias, propostas e eventos
+↓
+Avançar rodada
+↓
+Fim da temporada: evolução, acesso/rebaixamento, premiações, contratos e nova temporada
+```
+
+O loop precisa ser rápido, mas com decisões suficientes para gerar apego ao save.
+
+---
+
+## 3. Divisões e competições
+
+### Liga nacional
+
+- Série A: 20 clubes, pontos corridos, 38 rodadas.
+- Série B: 20 clubes, pontos corridos, 38 rodadas.
+- Série C: pode iniciar simplificada com 20 clubes, estrutura adaptada conforme dados disponíveis.
+
+### Acesso e rebaixamento
+
+- Top 4 sobem de divisão.
+- Últimos 4 descem de divisão.
+- Se a divisão inferior ou superior não existir no banco, o sistema deve degradar com segurança, sem quebrar a temporada.
+
+### Copa do Brasil
+
+Competição mata-mata paralela à liga.
+
+Fases mínimas:
+
+```txt
+Oitavas
+Quartas
+Semifinal
+Final
+```
+
+Critérios:
+
+- jogo eliminatório;
+- empate pode ir para pênaltis quando configurado;
+- premiação por avanço;
+- título gera moral, reputação e dinheiro.
+
+---
+
+## 4. Clubes
+
+Cada clube deve possuir:
+
+```txt
+id
+nome
+sigla
+divisao
+reputacao
+estadio
+financas
+elenco
+formacaoAtual
+taticaAtual
+controladoPorIA
+```
+
+### Reputação do clube
+
+A reputação influencia:
+
+- exigência da diretoria;
+- capacidade de atrair jogadores;
+- cota financeira;
+- pressão por resultado;
+- vantagem simbólica de mando;
+- expectativa de temporada.
+
+### Objetivos da diretoria
+
+Cada clube deve ter expectativa compatível com seu tamanho.
+
+| Perfil do clube | Objetivo típico |
 |---|---|
-| Gênero | Football Manager / Soccer Manager |
-| Referência original | Elifoot (Portugal, 1993) |
-| Referência brasileira | Brasfoot (2003 – presente) |
-| Perspectiva | Você é o **técnico E o dirigente** simultaneamente |
-| Interface | Primariamente **textual** — sem animação de campo |
-| Core fantasy | Controle total. Toda decisão tem consequência financeira, tática e moral |
+| Gigante Série A | título / G4 |
+| Grande Série A | Libertadores / título possível |
+| Médio Série A | meio de tabela / Sul-Americana |
+| Pequeno Série A | evitar rebaixamento |
+| Forte Série B | acesso |
+| Médio Série B | brigar por acesso |
+| Pequeno Série B/C | permanência |
+
+O objetivo deve impactar reputação e risco de demissão.
 
 ---
 
-## 2. CORE LOOP — CICLO FUNDAMENTAL
+## 5. Jogadores
 
-```
-╔══════════════════════════════════════════════════╗
-║  PRÉ-JOGO                                        ║
-║  → Escalar 11 titulares + 7 reservas             ║
-║  → Definir formação + estilo ataque/defesa       ║
-║  → Verificar preparo físico de cada jogador      ║
-╠══════════════════════════════════════════════════╣
-║  SIMULAÇÃO DA PARTIDA                            ║
-║  → Força efetiva calculada minuto a minuto       ║
-║  → Eventos sorteados via seed determinístico     ║
-║  → Substituições alteram força em tempo real     ║
-╠══════════════════════════════════════════════════╣
-║  PÓS-JOGO                                        ║
-║  → Atualizar moral do elenco                     ║
-║  → Drenar preparo físico dos escalados           ║
-║  → Receber/pagar finanças da rodada              ║
-║  → Processar propostas de transferência          ║
-╠══════════════════════════════════════════════════╣
-║  ENTRE RODADAS                                   ║
-║  → Treinar jogadores (custo + melhora atributo)  ║
-║  → Negociar no mercado (compra/venda/empréstimo) ║
-║  → Ajustar preço de ingresso + ampliar estádio   ║
-║  → Avançar para próxima rodada                   ║
-╚══════════════════════════════════════════════════╝
-         ↓ (ao fim da temporada)
-╔══════════════════════════════════════════════════╗
-║  FIM DE TEMPORADA                                ║
-║  → Acesso / Rebaixamento processado              ║
-║  → Cota TV distribuída por posição final         ║
-║  → Contratos expiram / renovações                ║
-║  → Reputação do técnico atualizada               ║
-╚══════════════════════════════════════════════════╝
+Cada jogador deve possuir, no mínimo:
+
+```txt
+id
+nome
+idade
+nacionalidade
+clubeId
+posicaoPrincipal
+posicoesSecundarias
+perna
+overall
+potencial
+atributos
+condicaoFisica
+moral
+forma
+valorMercado
+salario
+contratoAte
+lesionado
+suspenso
+estatisticasTemporada
+historicoTemporadas
+habilidades
+tipo
 ```
 
----
+### Posições
 
-## 3. ATRIBUTOS DOS JOGADORES
-
-### 3.1 Atributos Base
-
-```typescript
-interface Jogador {
-  // Identidade
-  id: string;
-  nome: string;
-  apelido?: string;
-  posicao: Posicao;
-  tipo: TipoJogador;
-
-  // Desempenho
-  forca: number;          // 1–100 · núcleo da simulação
-  tecnica: number;        // 1–100 · qualidade de passe/toque
-  velocidade: number;     // 1–100 · impacta contragolpe
-  habilidades: Habilidade[]; // max 2
-
-  // Físico / carreira
-  idade: number;          // 16–40
-  preparo: number;        // 0–100 · stamina da rodada
-  moral: number;          // 0–100 · bônus individual
-  salario: number;        // BRL/semana
-
-  // Mercado
-  valor: number;          // BRL · calculado dinamicamente
-  contrato: number;       // rodadas restantes
-  emProposta: boolean;
-}
-
-type Posicao = 'GOL' | 'ZAG' | 'LAT' | 'VOL' | 'MEI' | 'PUN' | 'ATA';
-
-type TipoJogador = 'NORMAL' | 'NOVATO' | 'VETERANO';
+```txt
+GOL  = goleiro
+ZAG  = zagueiro
+LD   = lateral direito
+LE   = lateral esquerdo
+VOL  = volante
+MC   = meio-campista central
+MEI  = meia ofensivo
+PD   = ponta direita
+PE   = ponta esquerda
+SA   = segundo atacante
+CA   = centroavante
 ```
 
-### 3.2 Habilidades Especiais (máx. 2 por jogador)
+### Linhas do campo
 
-| Habilidade | Efeito na simulação |
-|---|---|
-| `ARTILHEIRO` | +15% chance de gol quando finaliza |
-| `ASSISTENCIAS` | +10% chance de evento "assistência" |
-| `LIDERANCA` | +5 moral para todos do elenco após vitória |
-| `DEFENSOR` | -10% chance de gol sofrido quando na zaga |
-| `VELOCISTA` | +15% eficácia em tática CONTRAGOLPE |
-| `FINALIZADOR` | +10% conversão dentro da área |
-| `CHUTE_LONGO` | Gera evento GOL de fora da área (15% dos chutes) |
-| `FALTA` | +20% conversão de faltas diretas |
-| `CABECEADOR` | +20% conversão de escanteios/cruzamentos |
-| `GOLEIRO_PENALTI` | +25% defesa de pênaltis |
-
-### 3.3 Curva de Força por Idade
-
-```
-Idade   Multiplicador de crescimento
-16–18   +3 a +5 por temporada (promessa)
-19–22   +2 a +4 por temporada (desenvolvimento)
-23–26   +1 a +2 por temporada (maturação)
-27–29   +0 a +1 por temporada (pico — plateau)
-30–32   -1 a -2 por temporada (declínio leve)
-33–35   -2 a -4 por temporada (declínio moderado)
-36+     -4 a -6 por temporada (fim de carreira)
-```
-
-### 3.4 Tipos de Jogador
-
-**NORMAL** — comportamento padrão, força visível, treino previsível.
-
-**NOVATO** — força oculta até completar primeiro treino. Pode ser revelação ou decepção. Salário baixo. Risco calculado.
-
-**VETERANO** — força conhecida e alta, mas **treino reduz** a força em vez de aumentar. Valioso agora, peso no futuro.
-
----
-
-## 4. SISTEMA DE PREPARO FÍSICO
-
-```
-Preparo: 0–100 por jogador
-
-Consumo por partida:
-  Titular 90min     → -20 preparo
-  Titular substituído → -12 preparo
-  Reserva que entrou → -8 preparo
-  Reserva na bancada → -2 preparo (desgaste mental)
-
-Recuperação:
-  Rodada sem jogar  → +25 preparo
-  Treino LEVE       → +10 preparo (sem melhora de atributo)
-  Treino NORMAL     → +0 preparo (neutro no preparo)
-  Treino INTENSO    → -15 preparo (melhora atributo, drena físico)
-
-Efeito na força efetiva:
-  preparo >= 80  → força × 1.00 (100%)
-  preparo 60–79  → força × 0.90 (90%)
-  preparo 40–59  → força × 0.75 (75%)
-  preparo 20–39  → força × 0.55 (55%)
-  preparo < 20   → força × 0.35 (35%) + risco lesão +30%
-```
-
-**Regra de ouro:** com elenco de 18 jogadores e 38 rodadas, é impossível escalar sempre os mesmos 11. Rotação é obrigatória.
-
----
-
-## 5. SISTEMA DE MORAL
-
-```
-Moral do ELENCO: 0–100 (afeta força coletiva ±10%)
-Moral INDIVIDUAL: 0–100 (afeta força individual ±5%)
-
-Eventos que alteram moral do ELENCO:
-  Vitória               → +10
-  Vitória por goleada   → +18
-  Empate                → +2
-  Derrota               → -8
-  Goleada sofrida       → -18
-  Classificação em copa → +12
-  Eliminação em copa    → -10
-  Rebaixamento iminente → -25  (últimas 5 rodadas, zona)
-  Acesso confirmado     → +30
-  Título confirmado     → +40
-  Salário atrasado      → -20  (por rodada de atraso)
-  Artilheiro no elenco  → +5   (por rodada que lidera artilharia)
-
-Eventos que alteram moral INDIVIDUAL:
-  Titular recorrente     → +5/rodada
-  Reserva constante      → -3/rodada
-  Vendido contra vontade → -15 (não afeta mais, sai do elenco)
-  Renovação de contrato  → +10
+```txt
+Defesa: GOL, ZAG, LD, LE
+Meio: VOL, MC, MEI
+Ataque: PD, PE, SA, CA
 ```
 
 ---
 
-## 6. TÁTICAS
+## 6. Escalação e formação
 
-### 6.1 Formações Disponíveis
+A escalação é uma regra central do jogo. Não pode depender apenas da UI.
 
+### Regras obrigatórias
+
+Uma formação válida deve ter:
+
+- exatamente 11 titulares;
+- exatamente 1 goleiro;
+- nenhum jogador repetido;
+- todos os jogadores pertencentes ao clube;
+- nenhum titular lesionado;
+- nenhum titular suspenso;
+- mínimo de 3 defensores de linha;
+- mínimo de 2 meio-campistas;
+- mínimo de 1 atacante.
+
+### Warnings permitidos
+
+A formação pode ser válida, mas gerar aviso:
+
+- jogador improvisado;
+- jogador com condição física baixa;
+- jogador com moral muito baixa;
+- falta de profundidade no banco;
+- muitos jogadores cansados.
+
+### Improviso
+
+Jogador fora da posição principal pode atuar, mas deve perder rendimento conforme adaptação:
+
+```txt
+Posição principal: fator 1.00
+Posição secundária: fator 0.92 a 0.96
+Mesma linha: fator 0.82 a 0.90
+Linha próxima: fator 0.70 a 0.80
+Linha oposta: fator 0.55 a 0.65
 ```
-4-4-2   (clássico, equilibrado)
-4-3-3   (ofensivo, vulnerável ao contra)
-3-5-2   (pressão no meio, laterais expostos)
-4-5-1   (defensivo, contragolpe)
-5-3-2   (ultra-defensivo, sufoca ataque)
-3-4-3   (ultra-ofensivo, alto risco)
-4-2-3-1 (moderno, dois pivôs)
-```
 
-### 6.2 Estilos de Jogo
+Exemplo:
 
-```typescript
-interface Tatica {
-  formacao: Formacao;
-  estiloAtaque: 'DIRETO' | 'TOQUE' | 'CONTRAGOLPE' | 'PRESSAO_ALTA';
-  estiloDefesa: 'RECUADA' | 'LINHA_ALTA' | 'PRESSAO' | 'MARCACAO_ZONA';
-  ritmo: 'LENTO' | 'NORMAL' | 'RAPIDO';
-  foco: 'ATAQUE' | 'EQUILIBRADO' | 'DEFESA';
-}
-```
-
-### 6.3 Tabela de Confronto Tático (pedra-papel-tesoura)
-
-| Ataque \ Defesa adversária | RECUADA | LINHA_ALTA | PRESSAO | ZONA |
-|---|---|---|---|---|
-| DIRETO | +5 | -5 | 0 | 0 |
-| TOQUE | 0 | +8 | -8 | +3 |
-| CONTRAGOLPE | +10 | 0 | -3 | 0 |
-| PRESSAO_ALTA | -5 | +5 | +5 | -3 |
-
-Valores = bônus de força efetiva aplicado ao atacante.
+- LD jogando LE: penalidade leve.
+- MC jogando MEI: penalidade baixa/moderada.
+- ZAG jogando CA: penalidade pesada.
+- GOL fora do gol: deve ser bloqueado ou tratado como improviso extremo, conforme regra implementada.
 
 ---
 
-## 7. ENGINE DE SIMULAÇÃO
+## 7. Tática
 
-### 7.1 Fórmula de Força Efetiva
+A tática deve criar escolhas com vantagens e riscos.
 
-```typescript
-function calcularForcaEfetiva(
-  time: TimeEscalado,
-  tatica: Tatica,
-  adversario: TimeEscalado,
-  seed: number
-): number {
-  // 1. Média dos 11 titulares ponderada por preparo
-  const mediaBase = time.titulares.reduce((acc, j) => {
-    const fatorPreparo = calcularFatorPreparo(j.preparo);
-    return acc + (j.forca * fatorPreparo);
-  }, 0) / 11;
+### Estilo ofensivo
 
-  // 2. Bônus de moral coletiva
-  const bonusMoral = (time.moral - 50) * 0.10; // ±10%
-
-  // 3. Bônus de mando de campo
-  const bonusCasa = time.mandante ? 5 : 0;
-
-  // 4. Bônus/penalidade tática
-  const bonusTatica = avaliarConfrontoTatico(tatica, adversario.tatica);
-
-  // 5. Bônus de habilidades especiais
-  const bonusHabilidades = calcularBonusHabilidades(time.titulares, tatica);
-
-  return mediaBase + bonusMoral + bonusCasa + bonusTatica + bonusHabilidades;
-}
+```txt
+Equilibrado
+Posse de bola
+Contra-ataque
+Ataque direto
 ```
 
-### 7.2 Simulação Minuto a Minuto
+### Marcação
 
-```typescript
-function simularPartida(
-  casa: TimeEscalado,
-  visitante: TimeEscalado,
-  seed: number
-): ResultadoPartida {
-  const eventos: EventoPartida[] = [];
-  let golsCasa = 0;
-  let golsVisitante = 0;
-
-  // RNG determinístico via seed
-  const rng = criarRNG(seed);
-
-  for (let minuto = 1; minuto <= 90; minuto++) {
-    // Recalcular força a cada minuto (substitutos alteram em tempo real)
-    const forcaCasa = calcularForcaEfetiva(casa, casa.tatica, visitante, seed);
-    const forcaVisitante = calcularForcaEfetiva(visitante, visitante.tatica, casa, seed);
-    const total = forcaCasa + forcaVisitante;
-
-    // Probabilidade de gol por minuto (~2.5 gols/jogo média)
-    const probEvento = 0.028; // 2.8% por minuto
-    if (rng() < probEvento) {
-      const probCasa = forcaCasa / total;
-      if (rng() < probCasa) {
-        golsCasa++;
-        const autor = sortearAutorGol(casa.titulares, rng);
-        eventos.push({ tipo: 'GOL', minuto, time: 'CASA', jogadorId: autor.id });
-      } else {
-        golsVisitante++;
-        const autor = sortearAutorGol(visitante.titulares, rng);
-        eventos.push({ tipo: 'GOL', minuto, time: 'VISITANTE', jogadorId: autor.id });
-      }
-    }
-
-    // Eventos secundários
-    if (rng() < 0.015) eventos.push(sortearEventoSecundario(minuto, rng));
-  }
-
-  return { golsCasa, golsVisitante, eventos };
-}
+```txt
+Zona
+Individual
+Pressão alta
 ```
 
-### 7.3 Tipos de Evento
+### Ritmo
 
-```typescript
-type EventoPartida =
-  | { tipo: 'GOL';             minuto: number; time: 'CASA' | 'VISITANTE'; jogadorId: string; assistenciaId?: string }
-  | { tipo: 'GOL_CONTRA';      minuto: number; time: 'CASA' | 'VISITANTE'; jogadorId: string }
-  | { tipo: 'PENALTI_MARCADO'; minuto: number; time: 'CASA' | 'VISITANTE'; jogadorId: string; convertido: boolean }
-  | { tipo: 'FALTA_PERIGOSA';  minuto: number; time: 'CASA' | 'VISITANTE' }
-  | { tipo: 'CARTAO_AMARELO';  minuto: number; time: 'CASA' | 'VISITANTE'; jogadorId: string }
-  | { tipo: 'CARTAO_VERMELHO'; minuto: number; time: 'CASA' | 'VISITANTE'; jogadorId: string }
-  | { tipo: 'SUBSTITUICAO';    minuto: number; time: 'CASA' | 'VISITANTE'; saiId: string; entraId: string }
-  | { tipo: 'IMPEDIMENTO';     minuto: number; time: 'CASA' | 'VISITANTE' }
-  | { tipo: 'DEFESA_DIFICIL';  minuto: number; goleiiroId: string }
-  | { tipo: 'TRAVE';           minuto: number; time: 'CASA' | 'VISITANTE'; jogadorId: string };
+```txt
+Lento
+Normal
+Intenso
 ```
 
-### 7.4 Regra do Cartão Vermelho
+### Linha defensiva
 
+```txt
+Recuada
+Normal
+Adiantada
 ```
-Cartão vermelho → time joga com 10
-Força efetiva reduzida em 12% por jogador a menos
-Se houver 2 vermelhos → -24% (raridade alta)
-Substituição não pode ser usada para repor expulso se já usou as 3
-```
+
+### Princípio de design
+
+Nenhuma tática deve ser sempre melhor. Toda escolha forte deve ter custo.
+
+Exemplos:
+
+- Pressão alta aumenta recuperação e intensidade, mas aumenta cartões, pênaltis, fadiga e lesões.
+- Linha adiantada aumenta pressão e ataque, mas abre espaço para contra-ataque.
+- Posse controla o meio, mas pode sofrer contra pressão alta.
+- Contra-ataque pune time exposto, mas sofre se o adversário jogar recuado.
 
 ---
 
-## 8. SISTEMA FINANCEIRO
+## 8. Força do time
 
-### 8.1 Estrutura
+A força do time não deve ser apenas média de overall.
 
-```typescript
-interface FinancasClube {
-  saldo: number;              // BRL disponível
-  folhaSalarial: number;      // débito automático por rodada
-  receitaIngresso: number;    // por jogo em casa
-  receitaTV: number;          // por rodada (por divisão)
-  receitaPatrocinador: number;// por temporada (pago no início)
-  premiacao: number;          // copas e torneios
-  dividaAtiva: number;        // se saldo negativo persistir
-  estadio: Estadio;
-}
+Ela deve considerar:
 
-interface Estadio {
-  nome: string;
-  capacidade: number;         // torcedores
-  ocupacaoMedia: number;      // 0.0–1.0
-  precoIngresso: number;      // BRL
-  nivelAmpliacaoAtual: number;// 0–5
-  custoProximaAmpliacaoao: number;
-}
+- overall dos titulares;
+- posição escalada;
+- adaptação à posição;
+- condição física;
+- moral;
+- forma;
+- atributos específicos;
+- habilidades especiais;
+- tática;
+- força do goleiro separada;
+- expulsões/lesões durante a partida.
+
+### Linhas de força
+
+```txt
+ataque
+defesa
+meio
+forcaGoleiro
+overallEfetivo
 ```
 
-### 8.2 Receita por Ingresso
+### Condição física
 
-```
-receitaIngresso = capacidade × ocupacaoMedia × precoIngresso
+Referência de fator físico:
 
-ocupacaoMedia é afetada por:
-  Performance recente (+/-)
-  Fase da temporada (clássicos = 100%)
-  Divisão (Série A > B > C)
-  Sequência de vitórias em casa
-
-Preço muito alto → ocupacao cai
-Preço muito baixo → lucro cai
-Ponto ideal: calculado pelo engine a cada jogo
+```txt
+80–100: 1.00
+60–79 : 0.90
+40–59 : 0.75
+20–39 : 0.55
+0–19  : 0.35
 ```
 
-### 8.3 Cota TV por Divisão e Posição
+Jogador abaixo de 40 deve gerar alerta.
+Jogador abaixo de 20 deve render muito menos e ter risco maior de lesão.
 
+---
+
+## 9. Simulação da partida
+
+A partida deve ser determinística quando recebe a mesma seed.
+
+### Princípios obrigatórios
+
+- Mesma seed + mesmo estado = mesmo resultado.
+- Não usar `Math.random()` na engine.
+- RNG deve ser injetado ou criado a partir de seed.
+- Partidas devem gerar eventos coerentes.
+- O resultado deve refletir força, tática e contexto, mas manter incerteza.
+
+### Eventos mínimos
+
+```txt
+gol
+assistência
+cartão amarelo
+cartão vermelho
+lesão
+pênalti
+substituição
+chance narrativa
+fim de jogo
 ```
-Série A:
-  Campeão       → R$ 120.000.000
-  2°–4°         → R$  80.000.000
-  5°–8°         → R$  55.000.000
-  9°–12°        → R$  38.000.000
-  13°–16°       → R$  25.000.000
-  17°–20° (Z4)  → R$  18.000.000
 
-Série B:
-  Campeão       → R$  18.000.000
-  2°–4°(acesso) → R$  14.000.000
-  5°–12°        → R$   8.000.000
-  13°–20° (Z4)  → R$   4.000.000
+### Métricas-alvo de balanceamento
 
-Série C:
-  Campeão       → R$   5.000.000
-  2°–4°(acesso) → R$   3.500.000
-  Demais        → R$   1.500.000
+Para partidas entre times parelhos:
+
+```txt
+Gols por jogo: 2.4 a 3.1
+Empates: 22% a 30%
+Vitória mandante: 42% a 50%
+Goleadas: raras, mas possíveis
+Pênaltis: ocasionais, não frequentes demais
+Cartões: presentes, mas sem excesso
+Lesões: raras, mas relevantes
 ```
 
-### 8.4 Estado Crítico — Dívida
+### Time forte x fraco
 
-```
-saldo < 0 por 1 rodada  → aviso ao técnico
-saldo < 0 por 3 rodadas → salários atrasam → moral -20
-saldo < 0 por 6 rodadas → clube em crise   → técnico pode ser demitido
-saldo < 0 por 10 rodadas→ rebaixamento administrativo (independente de campo)
+O time forte deve vencer mais, mas não automaticamente.
+
+```txt
+Time +10 overall: vantagem clara
+Time +20 overall: domínio frequente
+Zebra: possível
+Massacre: raro
 ```
 
 ---
 
-## 9. MERCADO DE TRANSFERÊNCIAS
+## 10. Moral
 
-### 9.1 Janelas
+A moral afeta rendimento e narrativa.
 
-```
-Janela de verão: rodadas 1–5 da temporada (aberta)
-Meio de temporada: rodadas 18–20 (aberta por 3 rodadas)
-Fora de janela: apenas empréstimos emergenciais (taxa extra 20%)
-```
+### Eventos de moral
 
-### 9.2 Valuation de Jogador
-
-```typescript
-function calcularValor(jogador: Jogador): number {
-  const multiplicadorPosicao: Record<Posicao, number> = {
-    GOL: 0.8,
-    ZAG: 1.0,
-    LAT: 0.9,
-    VOL: 1.0,
-    MEI: 1.1,
-    PUN: 1.0,
-    ATA: 1.3,
-  };
-
-  const fatorIdade = calcularFatorIdade(jogador.idade);
-  // pico em 25–29 (1.0), declínio exponencial após 32
-  // novato: -40% (risco) | veterano: -20% (fim de carreira)
-
-  const bonusHabilidades = jogador.habilidades.length * 0.10;
-
-  return (
-    jogador.forca *
-    multiplicadorPosicao[jogador.posicao] *
-    fatorIdade *
-    (1 + bonusHabilidades) *
-    100_000 // escala BRL
-  );
-}
+```txt
+Vitória: sobe
+Derrota: cai
+Empate contra favorito: pode subir
+Empate contra fraco: pode cair
+Título: sobe muito
+Rebaixamento: cai muito
+Salário atrasado: cai forte
+Conversa com o grupo: sobe moderado
+Jogador sem jogar: pode cair
+Proposta recusada: pode cair
 ```
 
-### 9.3 Tipos de Negociação
+### Faixas
 
-```typescript
-type TipoNegociacao = 'COMPRA' | 'VENDA' | 'EMPRESTIMO' | 'TROCA';
-
-interface Proposta {
-  id: string;
-  jogadorId: string;
-  clubeOfertanteId: string;
-  tipo: TipoNegociacao;
-  valor: number;
-  prazoResposta: number; // rodadas
-  salarioOferecido?: number;
-  contratoOferecido?: number; // rodadas
-}
+```txt
+0–25   crise
+26–45  baixa
+46–65  normal
+66–85  boa
+86–100 excelente
 ```
 
-### 9.4 IA de Mercado (clubes adversários)
+Impacto recomendado:
 
-```
-Clubes da Série A buscam jogadores forca > 75
-Clubes da Série B buscam jogadores forca 55–75
-Clubes da Série C buscam jogadores forca 40–60
-
-A cada 3 rodadas o engine roda calcularPropostasIA()
-Probabilidade de proposta = (forca / 100) × fatorDivisaoClube × 0.4
+```txt
+moral 0   ≈ -10% rendimento
+moral 50  ≈ neutro
+moral 100 ≈ +10% rendimento
 ```
 
 ---
 
-## 10. SISTEMA DE TREINO
+## 11. Condição física, lesões e suspensão
 
-```typescript
-type TipoTreino = 'FORCA' | 'TECNICA' | 'VELOCIDADE' | 'PREPARO_FISICO';
-type IntensidadeTreino = 'LEVE' | 'NORMAL' | 'INTENSO';
+### Condição física
 
-interface SessaoDeTreino {
-  jogadorId: string;
-  tipo: TipoTreino;
-  intensidade: IntensidadeTreino;
-}
+A condição deve cair com jogos e treinos intensos, e subir com descanso/treino leve.
 
-// Resultados por intensidade:
-const efeitoTreino: Record<IntensidadeTreino, EfeitoTreino> = {
-  LEVE:    { ganhoAtributo: 0,      ganhoPreparo: +10, custo: 5_000   },
-  NORMAL:  { ganhoAtributo: +1,     ganhoPreparo:   0, custo: 15_000  },
-  INTENSO: { ganhoAtributo: [+2,+3],ganhoPreparo: -15, custo: 35_000  },
-};
+Referência:
 
-// NOVATO: ganho dobrado (potencial de crescimento)
-// VETERANO: ganho invertido (treino INTENSO → -1 força)
-// Limite: cada atributo pode crescer no máximo +5 por temporada via treino
+```txt
+Titular 90 min: queda relevante
+Substituto: queda leve
+Treino leve: recupera ou pouco impacta
+Treino normal: equilíbrio
+Treino intenso: melhora treino, mas cansa e aumenta risco
+```
+
+### Lesões
+
+Lesão pode acontecer por:
+
+- partida;
+- treino intenso;
+- condição física muito baixa;
+- ritmo intenso;
+- excesso de sequência.
+
+### Suspensão
+
+Suspensão deve considerar:
+
+- cartão vermelho;
+- acúmulo de amarelos;
+- retorno após cumprir jogos.
+
+---
+
+## 12. Treino
+
+Treino deve ter impacto real, mas sem permitir exploração infinita.
+
+### Tipos sugeridos
+
+```txt
+Físico
+Finalização
+Defesa
+Passe
+Tático
+Goleiros
+Bola parada
+```
+
+### Intensidade
+
+```txt
+Leve: baixo risco, ajuda condição
+Normal: equilíbrio
+Intenso: maior ganho, maior custo, maior risco
+```
+
+Treino deve impactar:
+
+- atributos;
+- condição física;
+- risco de lesão;
+- moral em alguns casos;
+- custo financeiro.
+
+---
+
+## 13. Evolução e envelhecimento
+
+A progressão deve ser anual e/ou por desempenho.
+
+### Jovens
+
+Jogadores jovens evoluem mais quando:
+
+- têm potencial alto;
+- jogam partidas;
+- têm boa nota média;
+- estão em clube com boa infraestrutura;
+- treinam bem.
+
+### Auge
+
+Faixa ideal:
+
+```txt
+25–29 anos: auge
+30–32 anos: início de declínio leve
+33+: declínio mais forte, salvo bom desempenho
+```
+
+### Valor de mercado
+
+O valor deve considerar:
+
+- overall;
+- idade;
+- posição;
+- potencial;
+- habilidades;
+- forma;
+- contrato;
+- moral/situação;
+- clube interessado.
+
+---
+
+## 14. Mercado
+
+O mercado deve ser simples no MVP, mas parecer lógico.
+
+### Proposta do usuário
+
+A IA deve avaliar:
+
+- valor proposto vs valor de mercado;
+- saúde financeira do vendedor;
+- importância do jogador;
+- idade;
+- contrato;
+- posição;
+- necessidade do clube;
+- tamanho do clube comprador.
+
+### Mercado IA↔IA
+
+Clubes controlados pela IA podem negociar entre si.
+
+Regras mínimas:
+
+- comprador precisa ter dinheiro;
+- jogador deve melhorar o elenco ou cobrir carência;
+- clubes endividados vendem mais;
+- clubes grandes seguram craques;
+- transação deve movimentar caixa dos dois clubes;
+- elenco deve atualizar corretamente.
+
+---
+
+## 15. Finanças
+
+Finanças devem afetar decisões.
+
+### Receitas
+
+```txt
+bilheteria
+patrocínio
+cota de TV
+premiação
+venda de jogadores
+títulos/acesso
+```
+
+### Despesas
+
+```txt
+salários
+contratações
+treino
+estádio
+manutenção
+juros/dívidas
+renovações
+```
+
+### Estados financeiros
+
+```txt
+SAUDAVEL
+ATENCAO
+CRITICO
+FALENCIA
+```
+
+Se o clube ficar rodadas seguidas no vermelho:
+
+- moral cai;
+- salários atrasam;
+- diretoria pressiona;
+- clube pode vender jogadores;
+- técnico pode ser demitido por falência.
+
+---
+
+## 16. Reputação e demissão
+
+O técnico tem reputação.
+
+Sobe com:
+
+- vitórias;
+- títulos;
+- acesso;
+- cumprir objetivo;
+- boa campanha com clube pequeno.
+
+Cai com:
+
+- sequência de derrotas;
+- rebaixamento;
+- fracasso no objetivo;
+- crise financeira;
+- campanha abaixo da expectativa.
+
+### Demissão
+
+Pode ocorrer por:
+
+- derrotas consecutivas;
+- rebaixamento;
+- falência;
+- campanha muito abaixo do objetivo.
+
+A demissão precisa ser justa e explicável.
+
+---
+
+## 17. Academia/base
+
+A base deve gerar jovens por temporada.
+
+Jovens devem ter:
+
+- nome;
+- idade;
+- posição;
+- overall inicial;
+- potencial;
+- custo/salário baixo;
+- risco de não evoluir;
+- valor de mercado compatível.
+
+A infraestrutura do clube deve melhorar a qualidade média dos jovens.
+
+---
+
+## 18. Save/load
+
+O save precisa ser robusto.
+
+Regras:
+
+- salvar estado completo da carreira;
+- manter versão de save;
+- permitir migração;
+- ter backup;
+- nunca apagar save corrompido automaticamente sem fallback;
+- carregar com segurança.
+
+O jogador deve conseguir jogar várias temporadas sem perder a carreira.
+
+---
+
+## 19. UX essencial
+
+O jogo precisa informar o que importa.
+
+### Home/Gabinete
+
+Mostrar:
+
+- próximo jogo;
+- posição na tabela;
+- saldo;
+- moral média;
+- reputação;
+- objetivo;
+- alertas;
+- propostas;
+- lesionados/suspensos.
+
+### Pré-jogo
+
+Mostrar:
+
+- força do adversário;
+- melhor jogador adversário;
+- ponto fraco adversário;
+- alerta de escalação;
+- sugestão tática;
+- condição do elenco;
+- risco de improviso.
+
+### Partida
+
+Mostrar:
+
+- placar;
+- minuto;
+- timeline;
+- eventos;
+- estatísticas;
+- momentum;
+- substituições;
+- alerta de cansaço.
+
+---
+
+## 20. Definição de jogo 10/10
+
+O FOTEBALL só será considerado 10/10 quando:
+
+```txt
+✅ uma temporada completa roda sem crash
+✅ cinco temporadas seguidas não quebram save
+✅ escalação inválida nunca entra em campo
+✅ time forte tem vantagem, mas zebra acontece
+✅ tática influencia sem dominar tudo
+✅ mercado parece lógico
+✅ finanças afetam decisões
+✅ demissão faz sentido
+✅ evolução/envelhecimento é convincente
+✅ UI explica decisões e eventos
+✅ testes cobrem core crítica
+✅ CI bloqueia código quebrado
 ```
 
 ---
 
-## 11. COMPETIÇÕES
+## 21. Prioridade de implementação
 
-### 11.1 Campeonato Nacional (Pontos Corridos)
-
-```
-Série A: 20 clubes · 38 rodadas · turno + returno
-  Classificação: pontos → saldo de gols → gols pró → confronto direto
-  Acesso: top 4 (para Série A, se B) ou título (se C)
-  Rebaixamento: últimos 4
-  Copa do Brasil: vaga para campeão + vice
-
-Série B: 20 clubes · mesmas regras
-Série C: 20 clubes · fase de grupos (2 grupos de 10) + mata-mata
-```
-
-### 11.2 Copa do Brasil
-
-```
-Formato: mata-mata do 1° ao último round
-Rounds: 1ª fase / Oitavas / Quartas / Semis / Final
-Mando: sorteio + critério de divisão (Série C joga 1° jogo em casa)
-Premiação por fase eliminada:
-  1ª fase   → R$ 787.500
-  Oitavas   → R$ 1.575.000
-  Quartas   → R$ 3.150.000
-  Semis     → R$ 5.250.000
-  Vice      → R$ 15.750.000
-  Campeão   → R$ 73.500.000
-```
-
-### 11.3 Rebaixamento com Playoffs (opcional — versão avançada)
-
-```
-17° e 18° → rebaixamento direto
-19° e 20° → playoff contra 3° e 4° da divisão inferior
-Melhor campanha tem mando no 2° jogo
-Golsaldo desempata; pênaltis se persistir empate
+```txt
+1. Validação de escalação na core
+2. Testes de escalação
+3. Laboratório de balanceamento de partidas
+4. Teste de temporada completa
+5. Save/load em temporada longa
+6. Mercado IA mais lógico
+7. Refatoração segura do store
+8. UX de pré-jogo, gabinete e partida
 ```
 
 ---
 
-## 12. CARREIRA DO TÉCNICO
-
-```typescript
-interface Tecnico {
-  id: string;
-  nome: string;
-  reputacao: number;       // 0–100 · cresce com resultados
-  historicoClubs: HistoricoClube[];
-  titulos: Titulo[];
-  estatisticas: EstatisticasTecnico;
-}
-
-// Reputação afeta:
-// - Quais clubes te contratam (forca do clube ≥ reputacao × 0.8)
-// - Salário como técnico
-// - Capacidade de convencer jogadores a aceitar contratos menores
-
-// Demissão ocorre se:
-//  → 5 derrotas consecutivas na Série A
-//  → Rebaixamento após temporada inteira no Z4
-//  → Saldo < 0 por 8 rodadas (falência)
-
-// Demitido → você escolhe novo clube disponível na divisão compatível com reputação
-```
-
----
-
-## 13. SISTEMA DE SEED DETERMINÍSTICO
-
-```typescript
-// Mulberry32 — PRNG rápido, seed-based, sem crypto
-function criarRNG(seed: number): () => number {
-  let s = seed;
-  return function () {
-    s += 0x6d2b79f5;
-    let t = s;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// Seed da partida = temporada × 10000 + rodada × 100 + indexPartida
-// Garante: mesma seed → mesmo resultado (testabilidade, replay, fairness)
-// NUNCA usar Math.random() na engine
-```
-
----
-
-## 14. ESTRUTURA DE TIPOS — DOMÍNIO COMPLETO
-
-```typescript
-// ─── JOGADOR ───────────────────────────────────────────
-type Posicao = 'GOL' | 'ZAG' | 'LAT' | 'VOL' | 'MEI' | 'PUN' | 'ATA';
-type TipoJogador = 'NORMAL' | 'NOVATO' | 'VETERANO';
-type Habilidade =
-  | 'ARTILHEIRO' | 'ASSISTENCIAS' | 'LIDERANCA' | 'DEFENSOR'
-  | 'VELOCISTA' | 'FINALIZADOR' | 'CHUTE_LONGO' | 'FALTA'
-  | 'CABECEADOR' | 'GOLEIRO_PENALTI';
-
-// ─── TIME ───────────────────────────────────────────────
-type Formacao =
-  | '4-4-2' | '4-3-3' | '3-5-2' | '4-5-1'
-  | '5-3-2' | '3-4-3' | '4-2-3-1';
-
-type EstiloAtaque = 'DIRETO' | 'TOQUE' | 'CONTRAGOLPE' | 'PRESSAO_ALTA';
-type EstiloDefesa = 'RECUADA' | 'LINHA_ALTA' | 'PRESSAO' | 'MARCACAO_ZONA';
-type Ritmo = 'LENTO' | 'NORMAL' | 'RAPIDO';
-type FocoJogo = 'ATAQUE' | 'EQUILIBRADO' | 'DEFESA';
-
-// ─── COMPETIÇÃO ─────────────────────────────────────────
-type TipoCompeticao =
-  | 'SERIE_A' | 'SERIE_B' | 'SERIE_C'
-  | 'COPA_DO_BRASIL' | 'ESTADUAL';
-
-type FormatoCompeticao =
-  | 'PONTOS_CORRIDOS' | 'COPA' | 'GRUPOS_MATA_MATA';
-
-// ─── FINANCEIRO ─────────────────────────────────────────
-type TipoNegociacao = 'COMPRA' | 'VENDA' | 'EMPRESTIMO' | 'TROCA';
-type EstadoFinanceiro = 'SAUDAVEL' | 'ATENCAO' | 'CRITICO' | 'FALENCIA';
-
-// ─── TREINO ─────────────────────────────────────────────
-type TipoTreino = 'FORCA' | 'TECNICA' | 'VELOCIDADE' | 'PREPARO_FISICO';
-type IntensidadeTreino = 'LEVE' | 'NORMAL' | 'INTENSO';
-```
-
----
-
-## 15. CONSTANTES DO JOGO
-
-```typescript
-export const GAME_CONSTANTS = {
-  // Elenco
-  MIN_JOGADORES_ELENCO: 14,
-  MAX_JOGADORES_ELENCO: 28,
-  TITULARES: 11,
-  MAX_RESERVAS_BANCO: 7,
-  MAX_SUBSTITUICOES: 3,
-
-  // Preparo
-  PREPARO_INICIAL: 100,
-  CONSUMO_TITULAR_90MIN: 20,
-  CONSUMO_SUBSTITUTO: 8,
-  RECUPERACAO_DESCANSO: 25,
-  RISCO_LESAO_THRESHOLD: 20, // preparo abaixo disso → risco
-
-  // Moral
-  MORAL_INICIAL: 60,
-  MORAL_MIN: 0,
-  MORAL_MAX: 100,
-  IMPACTO_MORAL_FORCA: 0.10, // ±10%
-
-  // Simulação
-  PROB_EVENTO_GOL_POR_MINUTO: 0.028,
-  BONUS_MANDO_CAMPO: 5,
-
-  // Carreira
-  DERROTAS_CONSECUTIVAS_DEMISSAO_A: 5,
-  DERROTAS_CONSECUTIVAS_DEMISSAO_B: 7,
-  DERROTAS_CONSECUTIVAS_DEMISSAO_C: 9,
-
-  // Temporada
-  RODADAS_SERIE_A: 38,
-  RODADAS_SERIE_B: 38,
-  TIMES_REBAIXAM: 4,
-  TIMES_SOBEM: 4,
-} as const;
-```
-
----
-
-## 16. CHECKLIST DE IMPLEMENTAÇÃO
-
-### FASE 1 — Engine Core (sem isso nada funciona)
-- [ ] `criarRNG(seed)` — PRNG determinístico
-- [ ] `calcularFatorPreparo(preparo)` — tabela de fator
-- [ ] `calcularForcaEfetiva(time, tatica, adversario, seed)` — fórmula principal
-- [ ] `simularPartida(casa, visitante, seed)` — loop 90 minutos
-- [ ] `sortearAutorGol(titulares, rng)` — peso por posição + habilidade ARTILHEIRO
-- [ ] `avaliarConfrontoTatico(t1, t2)` — tabela de bônus cruzados
-- [ ] `calcularBonusHabilidades(titulares, tatica)` — habilidades especiais
-
-### FASE 2 — Jogadores & Mercado
-- [ ] `calcularValor(jogador)` — fórmula de valuation
-- [ ] `processarEnvelhecimento(temporada)` — força cai/cresce por idade
-- [ ] `calcularPropostasIA()` — geração automática de propostas
-- [ ] `processarTreino(sessao)` — ganho por tipo + intensidade
-- [ ] `revelarNovato(jogador)` — força oculta revelada no 1° treino
-
-### FASE 3 — Financeiro
-- [ ] `calcularReceitaIngresso(estadio, time)` — ocupação × preço
-- [ ] `processarFinancasRodada(clube)` — débito folha + receita
-- [ ] `distribuirCotaTV(tabela, divisao)` — por posição final
-- [ ] `verificarEstadoFinanceiro(clube)` — SAUDAVEL → FALENCIA
-
-### FASE 4 — Competições
-- [ ] `gerarCalendario(times, seed)` — round-robin turno+returno
-- [ ] `processarResultadoRodada(partidas)` — pontos, saldo, artilharia
-- [ ] `processarFimTemporada(tabela)` — acesso, rebaixamento, cota TV
-- [ ] `gerarChavesCopa(times)` — mata-mata Copa do Brasil
-
-### FASE 5 — Carreira
-- [ ] `atualizarReputacaoTecnico(resultados)` — crescimento/declínio
-- [ ] `verificarCondicoesDemissao(clube)` — triggers de demissão
-- [ ] `processarContratos(temporada)` — expiração, renovação
-
----
-
-*BRASFOOT_MASTER.md · Referência para FOTEBALL · Danpazexe/FOTEBALL*
+*BRASFOOT_MASTER.md · FOTEBALL · Documento de domínio*
