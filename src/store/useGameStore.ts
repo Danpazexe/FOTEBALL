@@ -76,6 +76,7 @@ import {
   type RandomGenerator,
 } from '../engine/simulation/rng';
 import {calcularForcaTime, type ForcaTime} from '../engine/simulation/teamStrength';
+import {validarFormacao} from '../engine/tactics/formationValidation';
 import {
   respostaIAProposta,
   type PropostaTransferencia,
@@ -1410,10 +1411,45 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   atualizarFormacaoUsuario: formacao => {
-    const {clubeUsuarioId} = get();
+    const {clubeUsuarioId, jogadores, clubes} = get();
 
     if (!clubeUsuarioId) {
       return;
+    }
+
+    // Portão central: a regra de escalação válida vive na engine
+    // (formationValidation), não na UI. Mas o bloqueio é NÃO-REGRESSIVO: só
+    // rejeita erros que ESTA edição introduz. Erros que já existiam na formação
+    // atual (ex.: um titular que ficou lesionado/suspenso e ainda não foi
+    // trocado — o jogo não os remove do XI sozinho) não podem travar
+    // substituições e ajustes legítimos, senão o usuário fica preso sem nem
+    // conseguir corrigir a própria escalação (inclusive durante a partida).
+    const validacao = validarFormacao({
+      formacao,
+      jogadores,
+      clubeId: clubeUsuarioId,
+    });
+    if (!validacao.valid) {
+      const atual = clubes.find(c => c.id === clubeUsuarioId)?.formacaoAtual;
+      const errosAntigos = atual
+        ? new Set(
+            validarFormacao({
+              formacao: atual,
+              jogadores,
+              clubeId: clubeUsuarioId,
+            }).errors,
+          )
+        : new Set<string>();
+      const errosNovos = validacao.errors.filter(e => !errosAntigos.has(e));
+      if (errosNovos.length > 0) {
+        set(state => ({
+          mensagens: adicionarMensagem(
+            state.mensagens,
+            `Escalação inválida: ${errosNovos[0]}`,
+          ),
+        }));
+        return;
+      }
     }
 
     set(state => ({
