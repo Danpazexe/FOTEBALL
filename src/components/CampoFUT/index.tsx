@@ -51,6 +51,7 @@ import {
   suaves,
 } from '../../theme';
 import type {Clube, Formacao, Player, Position} from '../../types';
+import CartaJogador from '../CartaJogador';
 import Escudo from '../Escudo';
 import Icone from '../Icone';
 
@@ -72,8 +73,6 @@ type Descritor = {tipo: 'titular' | 'reserva'; valor: string};
 type SlotTela = {slotIndex: number; jogadorId: string; cx: number; cy: number};
 
 type SharedNum = SharedValue<number>;
-
-const GHOST = 80;
 
 function primeiroNome(jogador: Player): string {
   if (jogador.apelido) {
@@ -163,6 +162,10 @@ function CampoFUT({
   const cardW = Math.round(largura * 0.172);
   const cardH = Math.round(cardW * 1.34);
   const cardBancoW = Math.round(largura * 0.2);
+  // Card "fantasma" que segue o dedo no arraste: a CARTA FUT completa, num
+  // tamanho médio, para mostrar o jogador sendo puxado (não uma bolinha).
+  const ghostW = Math.min(Math.round(largura * 0.5), 190);
+  const ghostH = Math.round(ghostW * 1.42);
   // Margens verticais pra as cartas caberem dentro do gramado sem cortar.
   const padTopo = Math.round(cardH / 2) + 4;
   const padBase = Math.round(cardH / 2) + 6;
@@ -365,11 +368,14 @@ function CampoFUT({
     [titulares, onAbrirJogador],
   );
 
+  // Centraliza o card no dedo na horizontal e o LEVANTA (dedo perto da base do
+  // card), pra o polegar não cobrir o jogador que está sendo arrastado.
   const ghostStyle = useAnimatedStyle(() => ({
     opacity: ghostAtivo.value,
     transform: [
-      {translateX: ghostX.value - overlayOX.value - GHOST / 2},
-      {translateY: ghostY.value - overlayOY.value - GHOST / 2},
+      {translateX: ghostX.value - overlayOX.value - ghostW / 2},
+      {translateY: ghostY.value - overlayOY.value - ghostH * 0.78},
+      {scale: 1.03},
     ],
   }));
 
@@ -494,16 +500,12 @@ function CampoFUT({
         </ScrollView>
       )}
 
-      {/* Fantasma que segue o dedo durante o arraste. */}
-      <Animated.View pointerEvents="none" style={[styles.ghost, ghostStyle]}>
+      {/* Card FUT completo que segue o dedo durante o arraste. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.ghost, {width: ghostW, height: ghostH}, ghostStyle]}>
         {jogadorArrastado ? (
-          <View
-            style={[
-              styles.ghostFicha,
-              {borderColor: corOverall(jogadorArrastado.overall)},
-            ]}>
-            <Text style={styles.ghostOverall}>{jogadorArrastado.overall}</Text>
-          </View>
+          <CartaJogador jogador={jogadorArrastado} largura={ghostW} />
         ) : null}
       </Animated.View>
     </View>
@@ -1081,26 +1083,13 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   ghost: {
-    alignItems: 'center',
-    height: GHOST,
-    justifyContent: 'center',
+    elevation: 14,
     left: 0,
     position: 'absolute',
+    shadowColor: '#0B1E3F',
+    shadowOffset: {width: 0, height: 10},
+    shadowOpacity: 0.4,
+    shadowRadius: 18,
     top: 0,
-    width: GHOST,
-  },
-  ghostFicha: {
-    alignItems: 'center',
-    backgroundColor: cores.texto,
-    borderRadius: 26,
-    borderWidth: 3,
-    height: 52,
-    justifyContent: 'center',
-    width: 52,
-  },
-  ghostOverall: {
-    color: cores.contrastePrimaria,
-    fontSize: 16,
-    fontWeight: '900',
   },
 });
