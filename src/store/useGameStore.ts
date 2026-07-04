@@ -72,6 +72,7 @@ import {
   inteiroEntre,
 } from '../engine/simulation/rng';
 import {calcularForcaTime, type ForcaTime} from '../engine/simulation/teamStrength';
+import {mesmaTatica} from '../engine/tactics/estrategias';
 import {validarFormacao} from '../engine/tactics/formationValidation';
 import {
   respostaIAProposta,
@@ -256,6 +257,8 @@ export interface GameState {
     estatisticas?: EstatisticasPartida,
   ) => void;
   atualizarTaticaUsuario: (tatica: Tatica) => void;
+  /** Define a tática do adversário (IA) no jogo do usuário — preview honesto. */
+  definirTaticaAdversario: (clubeId: string, tatica: Tatica) => void;
   atualizarFormacaoUsuario: (formacao: Formacao) => void;
   /** Conversa com o grupo: +5 de moral a todo o elenco (1x por semana). */
   conversarComGrupo: () => boolean;
@@ -1190,6 +1193,19 @@ export const useGameStore = create<GameState>((set, get) => ({
         clube.id === clubeUsuarioId ? {...clube, taticaAtual: tatica} : clube,
       ),
       mensagens: adicionarMensagem(state.mensagens, 'Tática atualizada.'),
+    }));
+  },
+
+  definirTaticaAdversario: (clubeId, tatica) => {
+    const alvo = get().clubes.find(clube => clube.id === clubeId);
+    // Só grava se realmente mudou (evita re-render/save à toa e loop no efeito).
+    if (!alvo || (alvo.taticaAtual && mesmaTatica(alvo.taticaAtual, tatica))) {
+      return;
+    }
+    set(state => ({
+      clubes: state.clubes.map(clube =>
+        clube.id === clubeId ? {...clube, taticaAtual: tatica} : clube,
+      ),
     }));
   },
 
