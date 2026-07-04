@@ -10,7 +10,7 @@
 
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
-import Svg, {Path, Rect} from 'react-native-svg';
+import Svg, {G, Path} from 'react-native-svg';
 
 import {nivelAdaptacao} from '../../engine/tactics/adaptacao';
 import {contrasteTexto, corAdaptacao, cores, corDoTime} from '../../theme';
@@ -29,32 +29,47 @@ function ultimoNome(jogador: Player): string {
   return partes[partes.length - 1] ?? jogador.nome;
 }
 
-/** Pé dominante em 1 letra: D = direito, E = esquerdo, A = ambidestro. */
-function rotuloPerna(perna: PernaDominante): string {
-  return perna === 'Ambidestro' ? 'A' : perna;
-}
+// Chuteira lateral (bico à direita): corpo + 5 travas na sola, num só path.
+// viewBox base ~ 6..95 x 11..40. O par usa transform pra espelhar a esquerda.
+const CHUTEIRA_D =
+  'M12 34 C7 34 5.5 30 5.5 25 C5.5 17 8 12 14 11 C24 9.5 40 10 56 13 C72 16 84 20 92 27 C94.5 29 95 31.5 92.5 33 C92 33.6 91 34 90 34 L15 34 C13 34 12.5 34 12 34 Z M13 34 L18 34 L17 39.8 L14 39.8 Z M25 34 L30 34 L29 39.8 L26 39.8 Z M52 34 L57 34 L56 39.8 L53 39.8 Z M66 34 L71 34 L70 39.8 L67 39.8 Z M80 34 L85 34 L84 39.8 L81 39.8 Z';
 
 /**
- * Ícone de chuteira — silhueta lateral (bico à esquerda, cano baixo, sola com
- * travas), recriada da referência. Colorida pelo pé dominante.
+ * Par de chuteiras estilo EA FC: a do PÉ DOMINANTE fica PREENCHIDA, a outra em
+ * CONTORNO (ambidestro = as duas preenchidas). A esquerda é espelhada (bico p/
+ * a esquerda). Recriada a partir da referência do usuário.
  */
-function Chuteira({
-  cor,
+function ParChuteiras({
+  perna,
   tamanho,
 }: {
-  cor: string;
+  perna: PernaDominante;
   tamanho: number;
 }): React.JSX.Element {
+  const cor = cores.primariaEscura;
+  const esqCheia = perna === 'E' || perna === 'Ambidestro';
+  const dirCheia = perna === 'D' || perna === 'Ambidestro';
+  const altura = Math.round((tamanho * 44) / 196);
   return (
-    <Svg width={tamanho} height={Math.round(tamanho * 0.5)} viewBox="0 0 30 15">
-      <Path
-        d="M2 9 C2 7.6 3 7.1 4.6 7.5 L9 8.3 C14 6 21 5.7 26 7.7 C28.2 8.6 28.6 9.7 27.4 10.4 C26.4 11 24 11.1 22 11.1 L4.6 11.1 C3 11.1 2 10.4 2 9 Z"
-        fill={cor}
-      />
-      <Rect x="4.5" y="11" width="2.3" height="2.2" rx="0.6" fill={cor} />
-      <Rect x="9.5" y="11" width="2.3" height="2.2" rx="0.6" fill={cor} />
-      <Rect x="14.5" y="11" width="2.3" height="2.2" rx="0.6" fill={cor} />
-      <Rect x="19.5" y="11" width="2.3" height="2.2" rx="0.6" fill={cor} />
+    <Svg width={tamanho} height={altura} viewBox="0 0 196 44">
+      <G transform="translate(96,2) scale(-1,1)">
+        <Path
+          d={CHUTEIRA_D}
+          fill={esqCheia ? cor : 'none'}
+          stroke={cor}
+          strokeWidth={2.4}
+          strokeLinejoin="round"
+        />
+      </G>
+      <G transform="translate(100,2)">
+        <Path
+          d={CHUTEIRA_D}
+          fill={dirCheia ? cor : 'none'}
+          stroke={cor}
+          strokeWidth={2.4}
+          strokeLinejoin="round"
+        />
+      </G>
     </Svg>
   );
 }
@@ -77,8 +92,6 @@ function FichaCamisa({
   const rendimento = Math.round(adaptacao.fator * 100);
   const naoNatural = adaptacao.nivel !== 'natural';
   const indisponivel = jogador.lesionado || jogador.suspenso;
-  const corPe =
-    jogador.pernaDominante === 'Ambidestro' ? cores.primaria : cores.secundaria;
 
   const ladoCamisa = Math.round(largura * 0.82);
   const fonteOverall = Math.round(ladoCamisa * 0.4);
@@ -118,10 +131,10 @@ function FichaCamisa({
       <View style={styles.linhaInfo}>
         <Text style={[styles.pos, {fontSize: fonteInfo}]}>{posicaoEscalada}</Text>
         <Text style={[styles.sep, {fontSize: fonteInfo}]}>·</Text>
-        <Chuteira cor={corPe} tamanho={Math.round(fonteInfo * 1.9)} />
-        <Text style={[styles.pe, {color: corPe, fontSize: fonteInfo}]}>
-          {rotuloPerna(jogador.pernaDominante)}
-        </Text>
+        <ParChuteiras
+          perna={jogador.pernaDominante}
+          tamanho={Math.round(fonteInfo * 3.4)}
+        />
         {naoNatural ? (
           <>
             <Text style={[styles.sep, {fontSize: fonteInfo}]}>·</Text>
@@ -176,9 +189,6 @@ const styles = StyleSheet.create({
   },
   sep: {
     color: cores.textoMuted,
-  },
-  pe: {
-    fontWeight: '900',
   },
   rend: {
     fontWeight: '900',
