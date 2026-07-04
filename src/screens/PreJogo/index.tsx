@@ -42,6 +42,7 @@ import {
   type NivelConfronto,
 } from '../../engine/tactics/preview';
 import {validarEscalacao} from '../../engine/tactics/validacao';
+import {analisarAdversario, type Setor} from '../../engine/simulation/scout';
 import {useAppNavigation} from '../../navigation/types';
 import {
   selecionarClubeUsuario,
@@ -99,6 +100,12 @@ const NIVEL_TEXTO: Record<NivelConfronto, string> = {
   favoravel: 'Confronto favorável a você',
   neutro: 'Confronto equilibrado',
   arriscado: 'Confronto arriscado',
+};
+
+const SETOR_LABEL: Record<Setor, string> = {
+  ataque: 'o ataque',
+  meio: 'o meio-campo',
+  defesa: 'a defesa',
 };
 
 function nivelCor(n: NivelConfronto): string {
@@ -189,6 +196,15 @@ function PreJogo(): React.JSX.Element {
       definirTaticaAdversario(advInfo.id, advInfo.tatica);
     }
   }, [advInfo, definirTaticaAdversario]);
+
+  // Scout do adversário — força por setor + craque + ponto fraco do elenco dele.
+  const scout = useMemo(() => {
+    if (!advInfo) {
+      return null;
+    }
+    const elenco = jogadores.filter(j => j.clubeId === advInfo.id);
+    return elenco.length > 0 ? analisarAdversario(elenco) : null;
+  }, [advInfo, jogadores]);
 
   const formacao = clubeUsuario?.formacaoAtual ?? null;
   const taticaAtual = clubeUsuario?.taticaAtual ?? null;
@@ -340,6 +356,39 @@ function PreJogo(): React.JSX.Element {
                 Sugestão: {leitura.sugestao}
               </Text>
             ) : null}
+          </View>
+        ) : null}
+
+        {/* SCOUT DO ADVERSÁRIO (força por setor + craque + ponto fraco) */}
+        {scout ? (
+          <View style={styles.leituraCard}>
+            <View style={styles.leituraHeader}>
+              <Icone nome="olho" tamanho={15} cor={cores.primaria} />
+              <Text style={styles.leituraTitulo}>Scout do adversário</Text>
+            </View>
+            <View style={styles.scoutSetores}>
+              <View style={styles.scoutSetor}>
+                <Text style={styles.scoutSetorRotulo}>ATA</Text>
+                <Text style={styles.scoutSetorForca}>{scout.forcaAtaque}</Text>
+              </View>
+              <View style={styles.scoutSetor}>
+                <Text style={styles.scoutSetorRotulo}>MEI</Text>
+                <Text style={styles.scoutSetorForca}>{scout.forcaMeio}</Text>
+              </View>
+              <View style={styles.scoutSetor}>
+                <Text style={styles.scoutSetorRotulo}>DEF</Text>
+                <Text style={styles.scoutSetorForca}>{scout.forcaDefesa}</Text>
+              </View>
+            </View>
+            {scout.melhorJogador ? (
+              <Text style={styles.linhaLeitura}>
+                Craque: {scout.melhorJogador.nome} (
+                {scout.melhorJogador.posicao} · {scout.melhorJogador.overall})
+              </Text>
+            ) : null}
+            <Text style={[styles.linhaLeitura, styles.vantagem]}>
+              Ponto fraco: {SETOR_LABEL[scout.setorFraco]}
+            </Text>
           </View>
         ) : null}
 
@@ -609,6 +658,30 @@ const styles = StyleSheet.create({
     marginBottom: espaco.md,
     padding: espaco.lg,
     ...sombra.suave,
+  },
+  scoutSetores: {
+    flexDirection: 'row',
+    gap: espaco.sm,
+    marginVertical: espaco.xs,
+  },
+  scoutSetor: {
+    alignItems: 'center',
+    backgroundColor: cores.superficieAlt,
+    borderRadius: raio.md,
+    flex: 1,
+    gap: 2,
+    paddingVertical: espaco.sm,
+  },
+  scoutSetorRotulo: {
+    color: cores.textoMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  scoutSetorForca: {
+    color: cores.texto,
+    fontSize: 18,
+    fontWeight: '900',
   },
   leituraHeader: {
     alignItems: 'center',
