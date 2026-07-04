@@ -29,6 +29,7 @@ import {
   calcularEfeitoTreino,
   aplicarEfeitoTreino,
 } from '../engine/progression/treinoAtributos';
+import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
   CONDICAO_MAX,
@@ -114,6 +115,7 @@ import {
   TEMPORADA_INICIAL,
 } from './setup';
 import type {
+  AtributoChave,
   Clube,
   EstadoFinanceiro,
   EstatisticasPartida,
@@ -281,6 +283,8 @@ export interface GameState {
   /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
   restaurarFormacaoPreLive: () => void;
   aplicarTreino: (treinoId: string, intensidade: IntensidadeTreino) => void;
+  /** Define (ou limpa, com null) o atributo em foco no treino individual de um jogador. */
+  definirFocoTreino: (jogadorId: string, foco: AtributoChave | null) => void;
   renovarContrato: (jogadorId: string, anos: number, salario: number) => boolean;
   venderJogador: (jogadorId: string) => ResultadoTransacao;
   /** Empresta um jogador do usuário a outro clube até a próxima temporada (§9.3). */
@@ -1328,7 +1332,12 @@ export const useGameStore = create<GameState>((set, get) => ({
         if (efeito.lesionou) {
           lesoes += 1;
         }
-        return aplicarEfeitoTreino(jogador, efeito);
+        const treinado = aplicarEfeitoTreino(jogador, efeito);
+        // Treino individual: quem tem foco tende a desenvolver o atributo focado.
+        return desenvolverFoco(
+          treinado,
+          criarRNGComSeed(baseSeed + hashString(`${jogador.id}_foco`)),
+        );
       });
 
       const custoTreino = INTENSIDADES[intensidade].custo;
@@ -1363,6 +1372,16 @@ export const useGameStore = create<GameState>((set, get) => ({
         mensagens: adicionarMensagem(state.mensagens, partes.join(' ')),
       };
     });
+  },
+
+  definirFocoTreino: (jogadorId, foco) => {
+    set(state => ({
+      jogadores: state.jogadores.map(jogador =>
+        jogador.id === jogadorId
+          ? {...jogador, focoTreino: foco ?? undefined}
+          : jogador,
+      ),
+    }));
   },
 
   conversarComGrupo: () => {
