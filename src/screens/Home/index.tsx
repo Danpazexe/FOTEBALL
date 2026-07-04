@@ -39,6 +39,10 @@ import {
   gerarManchetes,
   type TomManchete,
 } from '../../engine/carreira/imprensa';
+import {
+  calcularSequencias,
+  type JogoResultado,
+} from '../../engine/season/sequencias';
 import {useAppNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
@@ -303,6 +307,37 @@ function Home(): React.JSX.Element {
     };
   }, [partidas, clubeUsuarioId, clubes]);
 
+  // Sequências (streaks) atuais do clube — derivadas do histórico da temporada.
+  const sequencias = useMemo(() => {
+    if (!clubeUsuarioId) {
+      return [];
+    }
+    const ordenadas = partidas
+      .filter(
+        partida =>
+          partida.jogada &&
+          (partida.timeCasa === clubeUsuarioId ||
+            partida.timeFora === clubeUsuarioId),
+      )
+      .sort((a, b) => a.rodada - b.rodada);
+    const jogosSeq: JogoResultado[] = [];
+    for (const partida of ordenadas) {
+      if (partida.placarCasa == null || partida.placarFora == null) {
+        continue;
+      }
+      const mandante = partida.timeCasa === clubeUsuarioId;
+      const golsFavor = mandante ? partida.placarCasa : partida.placarFora;
+      const golsContra = mandante ? partida.placarFora : partida.placarCasa;
+      jogosSeq.push({
+        resultado:
+          golsFavor > golsContra ? 'V' : golsFavor < golsContra ? 'D' : 'E',
+        golsFavor,
+        golsContra,
+      });
+    }
+    return calcularSequencias(jogosSeq);
+  }, [partidas, clubeUsuarioId]);
+
   const proximoAdversario =
     proximoJogo && clubeUsuarioId
       ? nomeClube(
@@ -527,6 +562,32 @@ function Home(): React.JSX.Element {
                 ? pressao.fatores[0]
                 : 'Diretoria tranquila com o trabalho.'}
             </Text>
+          </View>
+        ) : null}
+
+        {/* Sequências (streaks) atuais — forma + defesa. */}
+        {sequencias.length > 0 ? (
+          <View style={styles.sequenciasRow}>
+            {sequencias.map(seq => (
+              <View
+                key={seq.tipo}
+                style={[
+                  styles.seqChip,
+                  seq.destaque === 'bom'
+                    ? styles.seqChipBom
+                    : styles.seqChipRuim,
+                ]}>
+                <Text
+                  style={[
+                    styles.seqChipTexto,
+                    seq.destaque === 'bom'
+                      ? styles.seqTextoBom
+                      : styles.seqTextoRuim,
+                  ]}>
+                  {seq.rotulo}
+                </Text>
+              </View>
+            ))}
           </View>
         ) : null}
 
@@ -850,6 +911,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 19,
+  },
+  // Sequências (streaks) — chips de forma/defesa.
+  sequenciasRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espaco.sm,
+  },
+  seqChip: {
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 6,
+  },
+  seqChipBom: {
+    backgroundColor: 'rgba(18, 183, 106, 0.10)',
+    borderColor: 'rgba(18, 183, 106, 0.35)',
+  },
+  seqChipRuim: {
+    backgroundColor: 'rgba(229, 72, 77, 0.10)',
+    borderColor: 'rgba(229, 72, 77, 0.35)',
+  },
+  seqChipTexto: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  seqTextoBom: {
+    color: cores.sucesso,
+  },
+  seqTextoRuim: {
+    color: cores.perigo,
   },
   // Imprensa — painel de manchetes editoriais.
   imprensaBloco: {
