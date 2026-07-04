@@ -1,9 +1,11 @@
 name: Android APK
 
 # Builda um APK instalável e o publica.
-#   • Push na main → APK de teste (debug) publicado no Release "nightly":
+#   • Push na main → APK de teste (release) publicado no Release "nightly":
 #     github.com/Danpazexe/FOTEBALL/releases/tag/nightly (baixe direto no celular).
-#   • Disparo manual: Actions → "Android APK" → Run workflow (escolha debug/release).
+#     Release empacota o JS no APK, então roda offline sem precisar do Metro.
+#   • Disparo manual: Actions → "Android APK" → Run workflow (escolha debug/release;
+#     debug NÃO empacota o JS — só serve pra rodar ligado no Metro em dev).
 #   • Por tag de versão: `git tag v0.1.0 && git push origin v0.1.0` (sempre release).
 #
 # Assinatura: debug e release usam a debug key do projeto (android/app/debug.keystore),
@@ -49,12 +51,17 @@ jobs:
         id: vars
         run: |
           set -euo pipefail
-          # Tags sempre geram release; disparo manual usa a escolha (default debug).
+          # Tags e push na main geram release (empacota o JS no APK, instala e roda
+          # no celular sem Metro). Disparo manual respeita a escolha (default debug,
+          # útil pra rodar ligado no Metro em dev).
           if [ "${{ github.ref_type }}" = "tag" ]; then
             BUILD_TYPE="release"
             VERSION="${{ github.ref_name }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BUILD_TYPE="${{ github.event.inputs.build_type }}"
+            VERSION="${BUILD_TYPE}-${GITHUB_SHA::7}"
           else
-            BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
+            BUILD_TYPE="release"
             VERSION="${BUILD_TYPE}-${GITHUB_SHA::7}"
           fi
           echo "build_type=$BUILD_TYPE"                 >> "$GITHUB_OUTPUT"
