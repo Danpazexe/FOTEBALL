@@ -47,6 +47,11 @@ import {
   salariosAtrasados,
   verificarDemissao,
 } from '../engine/carreira/carreiraEngine';
+import {
+  definirObjetivoTemporada,
+  deltaReputacaoMeta,
+  metaCumprida,
+} from '../engine/carreira/objetivo';
 import {calcularTabela} from '../engine/season/classification';
 import {
   avancarCopa,
@@ -2195,10 +2200,34 @@ export const useGameStore = create<GameState>((set, get) => ({
           : idxNova >= 0 && idxNova < idxAntiga
             ? 'acesso'
             : 'meio';
-    const reputacaoTecnico = reputacaoFimTemporada(
+    const reputacaoBase = reputacaoFimTemporada(
       state.reputacaoTecnico,
       eventoTemporada,
     );
+    // Meta da diretoria: cumpriu a meta contratada? ajusta reputação + manchete.
+    let reputacaoTecnico = reputacaoBase;
+    const clubeUsuarioFim = state.clubes.find(
+      clube => clube.id === state.clubeUsuarioId,
+    );
+    if (clubeUsuarioFim && state.clubeUsuarioId) {
+      // divisaoAtiva = divisão em que a temporada foi disputada (state.tabela),
+      // NÃO a nova divisão pós acesso/rebaixamento (divisaoUsuario).
+      const objetivo = definirObjetivoTemporada(
+        clubeUsuarioFim.reputacao,
+        divisaoAtiva,
+      );
+      const posFinal = posicaoClube(state.tabela, state.clubeUsuarioId);
+      reputacaoTecnico = Math.max(
+        0,
+        Math.min(100, reputacaoBase + deltaReputacaoMeta(objetivo, posFinal)),
+      );
+      mensagens = adicionarMensagem(
+        mensagens,
+        metaCumprida(objetivo, posFinal)
+          ? `Objetivo cumprido: ${objetivo.descricao}! A diretoria está satisfeita.`
+          : `Objetivo não alcançado (${objetivo.descricao}). A diretoria cobra melhora.`,
+      );
+    }
     let demissao = state.demissao;
     if (!demissao && eventoTemporada === 'rebaixamento' && state.clubeUsuarioId) {
       demissao = 'REBAIXAMENTO';
