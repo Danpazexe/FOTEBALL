@@ -22,7 +22,7 @@ import Svg, {
 import Escudo from '../Escudo';
 import Icone from '../Icone';
 import {nivelCarta} from '../../theme';
-import type {Player} from '../../types';
+import type {Player, Position} from '../../types';
 
 /** Cor da moral: alta (verde), média (amarelo), baixa (vermelho). */
 function corMoral(moral: number): string {
@@ -38,6 +38,18 @@ function corMoral(moral: number): string {
 type CartaJogadorProps = {
   jogador: Player;
   largura?: number;
+  /**
+   * Modo compacto (campo/banco da escalação): esconde os 6 stats, o tipo e a
+   * moral — que ficam ilegíveis no tamanho pequeno — mantendo moldura, tier,
+   * silhueta, overall, posição e nome. Assim é a MESMA carta, só enxuta.
+   */
+  compacto?: boolean;
+  /** Posição em que o jogador está ESCALADO (pode diferir da principal). */
+  posicaoEscalada?: Position;
+  /** % de rendimento na posição escalada (adaptação) — badge no modo compacto. */
+  rendimento?: number;
+  /** Cor do badge de rendimento (verde natural → vermelho improviso). */
+  corRendimento?: string;
 };
 
 type StatCarta = {value: number; label: string};
@@ -71,14 +83,24 @@ function statsDoJogador(jogador: Player): StatCarta[] {
 function CartaJogador({
   jogador,
   largura = LARGURA_PADRAO,
+  compacto = false,
+  posicaoEscalada,
+  rendimento,
+  corRendimento,
 }: CartaJogadorProps): React.JSX.Element {
   const tema = nivelCarta(jogador.overall);
   const altura = largura * 1.42;
   const nome = (jogador.apelido ?? jogador.nome).toUpperCase();
+  const posicao = posicaoEscalada ?? jogador.posicaoPrincipal;
   const stats = statsDoJogador(jogador);
   const esquerda = stats.slice(0, 3);
   const direita = stats.slice(3, 6);
   const escala = largura / 260;
+  // No modo compacto o nome desce (sem stats embaixo) e cresce, virando o foco.
+  const nomeTop = compacto ? 248 : 207;
+  const nomeFonte = compacto ? 27 : 23;
+  const mostrarRendimento =
+    compacto && rendimento != null && rendimento < 100;
   const statusIndisponivel = jogador.lesionado
     ? {icone: 'lesao' as const, rotulo: 'LESIONADO'}
     : jogador.suspenso
@@ -204,7 +226,7 @@ function CartaJogador({
           {jogador.overall}
         </Text>
         <Text style={[styles.position, {color: tema.text, fontSize: 18 * escala}]}>
-          {jogador.posicaoPrincipal}
+          {posicao}
         </Text>
         {jogador.clubeId ? (
           <View style={{marginTop: 4 * escala}}>
@@ -217,69 +239,103 @@ function CartaJogador({
         ) : null}
       </View>
 
-      {/* Moral + status (lesão/suspensão) no canto superior direito */}
-      <View style={[styles.statusArea, {top: 46 * escala, right: 30 * escala}]}>
-        <View style={styles.moralBadge}>
-          <View
-            style={[
-              styles.moralPonto,
-              {backgroundColor: corMoral(jogador.moral)},
-            ]}
-          />
-          <Text style={[styles.moralValor, {color: tema.text, fontSize: 15 * escala}]}>
-            {jogador.moral}
-          </Text>
-        </View>
-        {statusIndisponivel ? (
-          <View style={[styles.statusBadge, {marginTop: 5 * escala}]}>
-            <Icone
-              nome={statusIndisponivel.icone}
-              tamanho={Math.round(12 * escala)}
-              cor="#EF4444"
+      {/* Moral + status (lesão/suspensão) no canto superior direito.
+          Escondido no compacto (texto minúsculo ilegível no card pequeno). */}
+      {!compacto ? (
+        <View style={[styles.statusArea, {top: 46 * escala, right: 30 * escala}]}>
+          <View style={styles.moralBadge}>
+            <View
+              style={[
+                styles.moralPonto,
+                {backgroundColor: corMoral(jogador.moral)},
+              ]}
             />
-            <Text style={[styles.statusTexto, {fontSize: 9 * escala}]}>
-              {statusIndisponivel.rotulo}
+            <Text
+              style={[styles.moralValor, {color: tema.text, fontSize: 15 * escala}]}>
+              {jogador.moral}
             </Text>
           </View>
-        ) : null}
-      </View>
+          {statusIndisponivel ? (
+            <View style={[styles.statusBadge, {marginTop: 5 * escala}]}>
+              <Icone
+                nome={statusIndisponivel.icone}
+                tamanho={Math.round(12 * escala)}
+                cor="#EF4444"
+              />
+              <Text style={[styles.statusTexto, {fontSize: 9 * escala}]}>
+                {statusIndisponivel.rotulo}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
-      <Text
-        style={[
-          styles.cardType,
-          {color: tema.mutedText, top: 192 * escala, fontSize: 11 * escala},
-        ]}>
-        {tema.tipo}
-      </Text>
+      {!compacto ? (
+        <Text
+          style={[
+            styles.cardType,
+            {color: tema.mutedText, top: 192 * escala, fontSize: 11 * escala},
+          ]}>
+          {tema.tipo}
+        </Text>
+      ) : null}
 
       <Text
         numberOfLines={1}
         adjustsFontSizeToFit
         style={[
           styles.name,
-          {color: tema.text, top: 207 * escala, fontSize: 23 * escala},
+          {color: tema.text, top: nomeTop * escala, fontSize: nomeFonte * escala},
         ]}>
         {nome}
       </Text>
 
-      <View style={[styles.statsArea, {top: 238 * escala}]}>
-        <View style={styles.statsColumn}>
-          {esquerda.map(s => (
-            <Stat key={s.label} value={s.value} label={s.label} color={tema.text} escala={escala} />
-          ))}
-        </View>
-        <View
+      {mostrarRendimento ? (
+        <Text
           style={[
-            styles.divider,
-            {backgroundColor: tema.border, height: 66 * escala},
-          ]}
-        />
-        <View style={styles.statsColumn}>
-          {direita.map(s => (
-            <Stat key={s.label} value={s.value} label={s.label} color={tema.text} escala={escala} />
-          ))}
+            styles.rendimento,
+            {
+              color: corRendimento ?? tema.text,
+              top: 288 * escala,
+              fontSize: 15 * escala,
+            },
+          ]}>
+          {rendimento}%
+        </Text>
+      ) : null}
+
+      {!compacto ? (
+        <View style={[styles.statsArea, {top: 238 * escala}]}>
+          <View style={styles.statsColumn}>
+            {esquerda.map(s => (
+              <Stat
+                key={s.label}
+                value={s.value}
+                label={s.label}
+                color={tema.text}
+                escala={escala}
+              />
+            ))}
+          </View>
+          <View
+            style={[
+              styles.divider,
+              {backgroundColor: tema.border, height: 66 * escala},
+            ]}
+          />
+          <View style={styles.statsColumn}>
+            {direita.map(s => (
+              <Stat
+                key={s.label}
+                value={s.value}
+                label={s.label}
+                color={tema.text}
+                escala={escala}
+              />
+            ))}
+          </View>
         </View>
-      </View>
+      ) : null}
     </View>
   );
 }
@@ -368,6 +424,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     textAlign: 'center',
     width: '72%',
+    zIndex: 4,
+  },
+  rendimento: {
+    fontWeight: '900',
+    position: 'absolute',
+    textAlign: 'center',
+    width: '100%',
     zIndex: 4,
   },
   statsArea: {
