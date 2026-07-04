@@ -73,6 +73,12 @@ type SlotTela = {slotIndex: number; jogadorId: string; cx: number; cy: number};
 
 type SharedNum = SharedValue<number>;
 
+// O card-fantasma é "levantado" acima do dedo: seu TOPO fica a ghostH*LEVANTA
+// acima do toque, então o CENTRO visual fica a ghostH*(LEVANTA-0.5) acima. O
+// hit-test do drop compensa esse offset para capturar o slot SOB a carta (e não
+// sob o dedo) — senão, mirando pela carta, o drop cai fora do alvo.
+const GHOST_LEVANTA = 0.78;
+
 /**
  * Gesto reaproveitável por card: arraste (fantasma segue o dedo) + toque.
  * `restringirVertical` liga o `activeOffsetY`: no banco (dentro de um ScrollView
@@ -157,10 +163,14 @@ function CampoFUT({
   // tamanho médio, para mostrar o jogador sendo puxado (não uma bolinha).
   const ghostW = Math.min(Math.round(largura * 0.5), 190);
   const ghostH = Math.round(ghostW * 1.42);
+  // Quanto o centro visual do fantasma fica ACIMA do dedo (compensado no drop).
+  const ghostOffset = Math.round(ghostH * (GHOST_LEVANTA - 0.5));
   // Margens verticais pra as cartas caberem dentro do gramado sem cortar.
   const padTopo = Math.round(cardH / 2) + 6;
   const padBase = Math.round(cardH / 2) + 10;
-  const limiarDrop = Math.round(cardW * 0.7);
+  // Raio de captura do drop: >= metade da distância vertical entre slots
+  // vizinhos, pra não existir "zona morta" entre as cartas maiores.
+  const limiarDrop = Math.round(cardH * 0.75);
 
   const overlayRef = useRef<View>(null);
   const pitchRef = useRef<View>(null);
@@ -277,20 +287,20 @@ function CampoFUT({
     (ax: number, ay: number) => {
       const atual = arrastandoRef.current;
       const ignorar = atual?.tipo === 'titular' ? Number(atual.valor) : null;
-      const alvo = slotMaisProximo(ax, ay, ignorar);
+      const alvo = slotMaisProximo(ax, ay - ghostOffset, ignorar);
       if (alvo !== hoverRef.current) {
         hoverRef.current = alvo;
         setHover(alvo);
       }
     },
-    [slotMaisProximo],
+    [slotMaisProximo, ghostOffset],
   );
 
   const aoSoltar = useCallback(
     (ax: number, ay: number, tipo: string, valor: string) => {
       if (tipo === 'reserva') {
         // Reserva só entra caindo sobre um titular (substituição).
-        const alvo = slotMaisProximo(ax, ay, null);
+        const alvo = slotMaisProximo(ax, ay - ghostOffset, null);
         if (alvo === null) {
           return;
         }
@@ -305,7 +315,7 @@ function CampoFUT({
       // Titular: SÓ troca ao soltar sobre outro slot. Fora de um slot não faz
       // nada (posições travadas na formação, estilo EA FC — sem arraste livre).
       const slotOrigem = Number(valor);
-      const alvo = slotMaisProximo(ax, ay, slotOrigem);
+      const alvo = slotMaisProximo(ax, ay - ghostOffset, slotOrigem);
       if (alvo !== null) {
         const outroId = titulares[alvo]?.jogadorId;
         if (outroId) {
@@ -313,7 +323,7 @@ function CampoFUT({
         }
       }
     },
-    [slotMaisProximo, porId, onAtualizarFormacao, formacao, titulares],
+    [slotMaisProximo, porId, onAtualizarFormacao, formacao, titulares, ghostOffset],
   );
 
   const aoFinalizar = useCallback(() => {
@@ -341,7 +351,7 @@ function CampoFUT({
     opacity: ghostAtivo.value,
     transform: [
       {translateX: ghostX.value - overlayOX.value - ghostW / 2},
-      {translateY: ghostY.value - overlayOY.value - ghostH * 0.78},
+      {translateY: ghostY.value - overlayOY.value - ghostH * GHOST_LEVANTA},
       {scale: 1.03},
     ],
   }));
