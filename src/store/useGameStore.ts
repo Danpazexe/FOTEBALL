@@ -285,6 +285,8 @@ export interface GameState {
   aplicarTreino: (treinoId: string, intensidade: IntensidadeTreino) => void;
   /** Define (ou limpa, com null) o atributo em foco no treino individual de um jogador. */
   definirFocoTreino: (jogadorId: string, foco: AtributoChave | null) => void;
+  /** Define o capitão do time do usuário (id do jogador). */
+  definirCapitao: (jogadorId: string) => void;
   renovarContrato: (jogadorId: string, anos: number, salario: number) => boolean;
   venderJogador: (jogadorId: string) => ResultadoTransacao;
   /** Empresta um jogador do usuário a outro clube até a próxima temporada (§9.3). */
@@ -1380,6 +1382,20 @@ export const useGameStore = create<GameState>((set, get) => ({
         jogador.id === jogadorId
           ? {...jogador, focoTreino: foco ?? undefined}
           : jogador,
+      ),
+    }));
+  },
+
+  definirCapitao: jogadorId => {
+    const {clubeUsuarioId} = get();
+    if (!clubeUsuarioId) {
+      return;
+    }
+    set(state => ({
+      clubes: state.clubes.map(clube =>
+        clube.id === clubeUsuarioId
+          ? {...clube, capitaoId: jogadorId}
+          : clube,
       ),
     }));
   },

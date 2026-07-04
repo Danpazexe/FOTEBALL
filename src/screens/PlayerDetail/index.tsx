@@ -101,6 +101,7 @@ function PlayerDetail(): React.JSX.Element {
   const venderJogador = useGameStore(state => state.venderJogador);
   const emprestarJogador = useGameStore(state => state.emprestarJogador);
   const definirFocoTreino = useGameStore(state => state.definirFocoTreino);
+  const definirCapitao = useGameStore(state => state.definirCapitao);
   const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
   const confirm = useConfirm();
   const toast = useToast();
@@ -120,6 +121,8 @@ function PlayerDetail(): React.JSX.Element {
   const tipoInfo = jogador.tipo ? TIPO_LABEL[jogador.tipo] : undefined;
   const doClubeUsuario =
     clubeUsuarioId !== null && jogador.clubeId === clubeUsuarioId;
+  const clubeDoUsuario = clubes.find(clube => clube.id === clubeUsuarioId);
+  const ehCapitao = clubeDoUsuario?.capitaoId === jogador.id;
 
   const handleVender = async () => {
     const ok = !confirmarAcoes
@@ -332,6 +335,32 @@ function PlayerDetail(): React.JSX.Element {
           </Text>
         </Painel>
       </Section>
+
+      {doClubeUsuario ? (
+        <Section titulo="Liderança">
+          <Painel>
+            {ehCapitao ? (
+              <View style={styles.capitaoRow}>
+                <Icone nome="medalha" tamanho={18} cor={cores.secundaria} />
+                <Text style={styles.capitaoTxt}>Capitão do time</Text>
+              </View>
+            ) : (
+              <Botao
+                variante="secundaria"
+                icone="medalha"
+                titulo="Tornar capitão"
+                onPress={() => {
+                  definirCapitao(jogador.id);
+                  toast(
+                    `${jogador.apelido ?? jogador.nome} é o novo capitão.`,
+                    'sucesso',
+                  );
+                }}
+              />
+            )}
+          </Painel>
+        </Section>
+      ) : null}
 
       {doClubeUsuario ? (
         <Section titulo="Foco de treino">
@@ -585,6 +614,16 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 11,
     marginTop: espaco.xs,
+  },
+  capitaoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  capitaoTxt: {
+    color: cores.texto,
+    fontSize: 15,
+    fontWeight: '800',
   },
   focoChips: {
     flexDirection: 'row',
