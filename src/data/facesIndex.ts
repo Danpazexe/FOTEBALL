@@ -1,5 +1,5 @@
 /**
- * Índice ESTÁTICO de faces de jogador — AUTO-GERADO por scripts/baixarFaces.mjs.
+ * Índice ESTÁTICO de faces de jogador — AUTO-GERADO por scripts/baixarFacesWiki.mjs.
  * NÃO edite à mão. Ver README_FACES.md.
  */
 
