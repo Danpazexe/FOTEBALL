@@ -34,6 +34,7 @@ import {
   calcularPressaoDiretoria,
   type NivelPressao,
 } from '../../engine/carreira/pressao';
+import {avaliarUltimato} from '../../engine/carreira/ultimato';
 import {useAppNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
@@ -150,6 +151,18 @@ function Home(): React.JSX.Element {
   const posicaoReal = jogos > 0 && indiceTabela !== -1 ? indiceTabela + 1 : null;
   const metaNoRumo =
     objetivo && posicaoReal != null ? metaCumprida(objetivo, posicaoReal) : true;
+
+  // Ultimato — a diretoria dá a exigência concreta quando um gatilho de demissão
+  // está a um passo. Deriva do estado; resolve pela própria lógica de demissão.
+  const ultimato = clubeUsuario
+    ? avaliarUltimato({
+        derrotasConsecutivas,
+        limiteDerrotas: limiteDerrotasPorDivisao(
+          clubeUsuario.divisao ?? 'Série A',
+        ),
+        rodadasNoVermelho,
+      })
+    : null;
 
   // Termômetro de pressão da diretoria — espelha os gatilhos de demissão + meta.
   const pressao = useMemo(
@@ -357,6 +370,17 @@ function Home(): React.JSX.Element {
             ) : null}
           </View>
         </ImageBackground>
+
+        {/* Ultimato — exigência concreta da diretoria no fio da navalha. */}
+        {ultimato ? (
+          <View style={styles.ultimatoBanner}>
+            <View style={styles.ultimatoTopo}>
+              <Icone nome="apito" tamanho={16} cor={cores.perigo} />
+              <Text style={styles.ultimatoTitulo}>{ultimato.titulo}</Text>
+            </View>
+            <Text style={styles.ultimatoMensagem}>{ultimato.mensagem}</Text>
+          </View>
+        ) : null}
 
         {/* Meta da diretoria — objetivo contratado da temporada + progresso. */}
         {objetivo ? (
@@ -697,6 +721,34 @@ const styles = StyleSheet.create({
   pressaoBarra: {
     borderRadius: 999,
     height: '100%',
+  },
+  // Ultimato — banner urgente (vermelho) no fio da navalha.
+  ultimatoBanner: {
+    backgroundColor: 'rgba(229, 72, 77, 0.10)',
+    borderColor: cores.perigo,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: 4,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.md,
+  },
+  ultimatoTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  ultimatoTitulo: {
+    color: cores.perigo,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  ultimatoMensagem: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 19,
   },
   // Copa "na vez" — card de destaque clean.
   copaJogoCard: {
