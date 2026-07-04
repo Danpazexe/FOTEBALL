@@ -8,7 +8,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "faces": "node scripts/baixarFaces.mjs"
   },
   "dependencies": {
     "@op-engineering/op-sqlite": "^16.2.1",
