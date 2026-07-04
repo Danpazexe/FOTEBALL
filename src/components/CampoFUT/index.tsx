@@ -8,11 +8,11 @@
  *  • Banco de reservas com SCROLL HORIZONTAL.
  *  • Banner de validação da escalação.
  *
- * Interação (drag-and-drop, item 9 da spec):
- *  • Arrastar um TITULAR sobre outro   -> troca os dois de lugar.
- *  • Arrastar um TITULAR para área livre-> move (recalcula a posição pela coord.).
+ * Interação (drag-and-drop, estilo EA FC — posições TRAVADAS na formação):
+ *  • Arrastar um TITULAR sobre outro    -> troca os dois de lugar.
  *  • Arrastar um RESERVA sobre um titular-> substitui (reserva entra).
  *  • Tocar num card                     -> abre o detalhe (opcional).
+ * O campo é desenhado em PERSPECTIVA (gramado em trapézio; cards menores ao fundo).
  *
  * Toda a REGRA vem dos módulos puros já existentes (nada é reimplementado aqui):
  * geometria (coordenadas), adaptacao (penalidade fora de posição, item 12),
@@ -30,8 +30,16 @@ import Animated, {
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated';
+import Svg, {
+  Defs,
+  Ellipse,
+  Line,
+  LinearGradient,
+  Polygon,
+  Stop,
+} from 'react-native-svg';
 
-import {moverTitular, trocarTitular} from '../../api/database/seed/defaults';
+import {trocarTitular} from '../../api/database/seed/defaults';
 import {nivelAdaptacao} from '../../engine/tactics/adaptacao';
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
 import {
@@ -61,9 +69,22 @@ type CampoFUTProps = {
 
 type Descritor = {tipo: 'titular' | 'reserva'; valor: string};
 
-type SlotTela = {slotIndex: number; jogadorId: string; cx: number; cy: number};
+type SlotTela = {
+  slotIndex: number;
+  jogadorId: string;
+  cx: number;
+  cy: number;
+  escala: number;
+};
 
 type SharedNum = SharedValue<number>;
+
+// Perspectiva do gramado (trapézio): largura relativa no FUNDO (linha do gol
+// adversário) vs. na FRENTE (=1). EXP = foreshortening vertical (fundo mais
+// comprimido). ESCALA = tamanho do card no fundo (perto = 1.0).
+const PERSP_FUNDO = 0.56;
+const PERSP_EXP = 1.32;
+const PERSP_ESCALA = 0.82;
 
 /**
  * Gesto reaproveitável por card: arraste (fantasma segue o dedo) + toque.
@@ -140,19 +161,19 @@ function CampoFUT({
   onArrastandoChange,
   largura,
 }: CampoFUTProps): React.JSX.Element {
-  const altura = Math.round(largura * 1.42);
-  // Cartas do campo (11 no gramado) e do banco (um pouco maiores, com folga).
-  const cardW = Math.round(largura * 0.172);
+  const altura = Math.round(largura * 1.52);
+  // Cartas do campo (11 no gramado) e do banco — maiores pra leitura no celular.
+  const cardW = Math.round(largura * 0.212);
   const cardH = Math.round(cardW * 1.42);
-  const cardBancoW = Math.round(largura * 0.2);
+  const cardBancoW = Math.round(largura * 0.24);
   // Card "fantasma" que segue o dedo no arraste: a CARTA FUT completa, num
   // tamanho médio, para mostrar o jogador sendo puxado (não uma bolinha).
   const ghostW = Math.min(Math.round(largura * 0.5), 190);
   const ghostH = Math.round(ghostW * 1.42);
-  // Margens verticais pra as cartas caberem dentro do gramado sem cortar.
-  const padTopo = Math.round(cardH / 2) + 4;
-  const padBase = Math.round(cardH / 2) + 6;
-  const limiarDrop = cardW * 0.75 + 18;
+  // Margens verticais: no topo (fundo) os cards são menores (escala da perspectiva).
+  const padTopo = Math.round((cardH * PERSP_ESCALA) / 2) + 8;
+  const padBase = Math.round(cardH / 2) + 10;
+  const limiarDrop = Math.round(cardW * 0.7);
 
   const overlayRef = useRef<View>(null);
   const pitchRef = useRef<View>(null);
@@ -199,20 +220,31 @@ function CampoFUT({
     [formacao.titulares],
   );
 
+  // Mapeia a coordenada de campo (x,y ∈ 0..1) para a tela EM PERSPECTIVA: o eixo
+  // X encolhe em direção ao fundo (trapézio) e o card fica menor lá.
+  const mapear = useCallback(
+    (x: number, y: number) => {
+      const f = Math.pow(1 - y, PERSP_EXP); // 0 = fundo (topo), 1 = frente (base)
+      const wf = PERSP_FUNDO + (1 - PERSP_FUNDO) * f;
+      return {
+        cx: largura / 2 + (x - 0.5) * largura * wf,
+        cy: padTopo + f * (altura - padTopo - padBase),
+        escala: PERSP_ESCALA + (1 - PERSP_ESCALA) * f,
+      };
+    },
+    [largura, altura, padTopo, padBase],
+  );
+
   // Posições de tela de cada slot (centro da carta). Coordenada vem da FONTE
   // ÚNICA (coordenadaDoTitular), a mesma usada pelas outras telas de escalação.
   const slotsTela = useMemo<SlotTela[]>(
     () =>
       titulares.map((titular, slotIndex) => {
         const {x, y} = coordenadaDoTitular(titular);
-        return {
-          slotIndex,
-          jogadorId: titular.jogadorId,
-          cx: x * largura,
-          cy: padTopo + (1 - y) * (altura - padTopo - padBase),
-        };
+        const {cx, cy, escala} = mapear(x, y);
+        return {slotIndex, jogadorId: titular.jogadorId, cx, cy, escala};
       }),
-    [titulares, largura, altura, padTopo, padBase],
+    [titulares, mapear],
   );
 
   const medirOverlay = useCallback(() => {
@@ -280,8 +312,6 @@ function CampoFUT({
 
   const aoSoltar = useCallback(
     (ax: number, ay: number, tipo: string, valor: string) => {
-      const origem = pitchOrigemRef.current;
-
       if (tipo === 'reserva') {
         // Reserva só entra caindo sobre um titular (substituição).
         const alvo = slotMaisProximo(ax, ay, null);
@@ -296,40 +326,18 @@ function CampoFUT({
         return;
       }
 
-      // Titular sendo arrastado.
+      // Titular: SÓ troca ao soltar sobre outro slot. Fora de um slot não faz
+      // nada (posições travadas na formação, estilo EA FC — sem arraste livre).
       const slotOrigem = Number(valor);
       const alvo = slotMaisProximo(ax, ay, slotOrigem);
       if (alvo !== null) {
-        // Soltou sobre outro titular: troca os dois de lugar.
         const outroId = titulares[alvo]?.jogadorId;
         if (outroId) {
           onAtualizarFormacao(trocarTitular(formacao, slotOrigem, outroId));
         }
-        return;
       }
-
-      // Área livre: move o jogador (recalcula a posição pela coordenada).
-      const nx = Math.min(1, Math.max(0, (ax - origem.x) / largura));
-      const ny = Math.min(
-        1,
-        Math.max(
-          0,
-          1 - (ay - origem.y - padTopo) / (altura - padTopo - padBase),
-        ),
-      );
-      onAtualizarFormacao(moverTitular(formacao, slotOrigem, nx, ny));
     },
-    [
-      slotMaisProximo,
-      porId,
-      onAtualizarFormacao,
-      formacao,
-      titulares,
-      largura,
-      altura,
-      padTopo,
-      padBase,
-    ],
+    [slotMaisProximo, porId, onAtualizarFormacao, formacao, titulares],
   );
 
   const aoFinalizar = useCallback(() => {
@@ -385,34 +393,7 @@ function CampoFUT({
         ref={pitchRef}
         onLayout={medirPitch}
         style={[styles.pitch, {width: largura, height: altura}]}>
-        {/* Marcações do campo */}
-        <View style={styles.linhaCentral} />
-        <View
-          style={[
-            styles.circuloCentral,
-            {
-              width: largura * 0.26,
-              height: largura * 0.26,
-              borderRadius: largura * 0.13,
-              left: largura * 0.37,
-              top: altura / 2 - largura * 0.13,
-            },
-          ]}
-        />
-        <View
-          style={[
-            styles.area,
-            styles.areaTopo,
-            {width: largura * 0.6, left: largura * 0.2},
-          ]}
-        />
-        <View
-          style={[
-            styles.area,
-            styles.areaBase,
-            {width: largura * 0.6, left: largura * 0.2},
-          ]}
-        />
+        <PitchPerspectiva largura={largura} altura={altura} />
 
         {slotsTela.map(slot => {
           const titular = titulares[slot.slotIndex];
@@ -426,6 +407,7 @@ function CampoFUT({
               cy={slot.cy}
               cardW={cardW}
               cardH={cardH}
+              escala={slot.escala}
               hover={hover === slot.slotIndex}
               arrastandoEste={
                 arrastando?.tipo === 'titular' &&
@@ -661,6 +643,7 @@ type PecaCampoProps = {
   cy: number;
   cardW: number;
   cardH: number;
+  escala: number;
   hover: boolean;
   arrastandoEste: boolean;
   ghostX: SharedNum;
@@ -681,6 +664,7 @@ function PecaCampo({
   cy,
   cardW,
   cardH,
+  escala,
   hover,
   arrastandoEste,
   ghostX,
@@ -707,17 +691,21 @@ function PecaCampo({
     aoFinalizar,
   );
 
+  const w = Math.round(cardW * escala);
+  const h = Math.round(cardH * escala);
+
   return (
     <GestureDetector gesture={gesto}>
       <View
         style={[
           styles.slotWrap,
-          {left: cx - cardW / 2, top: cy - cardH / 2, width: cardW},
+          // zIndex por profundidade: cards da FRENTE (cy maior) ficam por cima.
+          {left: cx - w / 2, top: cy - h / 2, width: w, zIndex: Math.round(cy)},
         ]}>
         <CartaFUT
           jogador={jogador}
           posicaoEscalada={posicaoEscalada}
-          largura={cardW}
+          largura={w}
           destaque={hover}
           esmaecer={arrastandoEste}
         />
@@ -785,9 +773,92 @@ function PecaReserva({
   );
 }
 
+/**
+ * Gramado desenhado em PERSPECTIVA (trapézio): o fundo (linha do gol adversário)
+ * é mais estreito no topo e a frente mais larga na base. Linha central, círculo
+ * (elipse achatada) e áreas seguem a mesma profundidade. SVG puro.
+ */
+function PitchPerspectiva({
+  largura,
+  altura,
+}: {
+  largura: number;
+  altura: number;
+}): React.JSX.Element {
+  const wf = (f: number): number => PERSP_FUNDO + (1 - PERSP_FUNDO) * f;
+  const py = (f: number): number => 6 + f * (altura - 12);
+  const px = (f: number, lado: number): number =>
+    largura / 2 + (lado * wf(f) * largura) / 2;
+  // Meia-largura (px) a uma profundidade f, para uma fração da largura local.
+  const meia = (f: number, frac: number): number => (frac * wf(f) * largura) / 2;
+
+  const fMeio = Math.pow(0.5, PERSP_EXP);
+  const cyMeio = py(fMeio);
+  const rxMeio = meia(fMeio, 0.28);
+
+  const gramado = `${px(0, -1)},${py(0)} ${px(0, 1)},${py(0)} ${px(1, 1)},${py(
+    1,
+  )} ${px(1, -1)},${py(1)}`;
+  // Área do gol adversário (fundo/topo) e do nosso gol (frente/base).
+  const areaFundo = `${largura / 2 - meia(0.02, 0.5)},${py(0.02)} ${
+    largura / 2 + meia(0.02, 0.5)
+  },${py(0.02)} ${largura / 2 + meia(0.16, 0.5)},${py(0.16)} ${
+    largura / 2 - meia(0.16, 0.5)
+  },${py(0.16)}`;
+  const areaFrente = `${largura / 2 - meia(0.84, 0.5)},${py(0.84)} ${
+    largura / 2 + meia(0.84, 0.5)
+  },${py(0.84)} ${largura / 2 + meia(0.99, 0.5)},${py(0.99)} ${
+    largura / 2 - meia(0.99, 0.5)
+  },${py(0.99)}`;
+
+  return (
+    <Svg
+      width={largura}
+      height={altura}
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}>
+      <Defs>
+        <LinearGradient id="grama" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor="#D3ECDC" />
+          <Stop offset="1" stopColor="#ECF7F0" />
+        </LinearGradient>
+      </Defs>
+      <Polygon
+        points={gramado}
+        fill="url(#grama)"
+        stroke={LINHA}
+        strokeWidth={2}
+      />
+      <Line
+        x1={px(fMeio, -1)}
+        y1={cyMeio}
+        x2={px(fMeio, 1)}
+        y2={cyMeio}
+        stroke={LINHA}
+        strokeWidth={1.5}
+      />
+      <Ellipse
+        cx={largura / 2}
+        cy={cyMeio}
+        rx={rxMeio}
+        ry={rxMeio * 0.4}
+        fill="none"
+        stroke={LINHA}
+        strokeWidth={1.5}
+      />
+      <Polygon points={areaFundo} fill="none" stroke={LINHA} strokeWidth={1.5} />
+      <Polygon
+        points={areaFrente}
+        fill="none"
+        stroke={LINHA}
+        strokeWidth={1.5}
+      />
+    </Svg>
+  );
+}
+
 export default CampoFUT;
 
-const VERDE_CAMPO = cores.gramado;
 const LINHA = cores.bordaTranslForte;
 
 const styles = StyleSheet.create({
@@ -906,37 +977,7 @@ const styles = StyleSheet.create({
   },
   pitch: {
     alignSelf: 'center',
-    backgroundColor: VERDE_CAMPO,
-    borderColor: LINHA,
-    borderRadius: raio.md,
-    borderWidth: 2,
-    overflow: 'hidden',
     position: 'relative',
-  },
-  linhaCentral: {
-    backgroundColor: LINHA,
-    height: 1.5,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: '50%',
-  },
-  circuloCentral: {
-    borderColor: LINHA,
-    borderWidth: 1.5,
-    position: 'absolute',
-  },
-  area: {
-    borderColor: LINHA,
-    borderWidth: 1.5,
-    height: 44,
-    position: 'absolute',
-  },
-  areaTopo: {
-    top: 0,
-  },
-  areaBase: {
-    bottom: 0,
   },
   slotWrap: {
     position: 'absolute',
