@@ -26,6 +26,10 @@ import ProximoJogoCard from '../../components/ProximoJogoCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
 import {confrontoDoClube, type EstadoCopa} from '../../engine/season/copaEngine';
+import {
+  definirObjetivoTemporada,
+  metaCumprida,
+} from '../../engine/carreira/objetivo';
 import {useAppNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
@@ -107,6 +111,19 @@ function Home(): React.JSX.Element {
   const posicao = indiceTabela === -1 ? '-' : `${indiceTabela + 1}º`;
   const jogos = indiceTabela === -1 ? 0 : tabela[indiceTabela].jogos;
   const pontos = indiceTabela === -1 ? 0 : tabela[indiceTabela].pontos;
+
+  // Meta da diretoria (mesma regra do fim de temporada): reputação + divisão do
+  // clube definem a meta; a posição atual diz se está no rumo.
+  const objetivo = clubeUsuario
+    ? definirObjetivoTemporada(
+        clubeUsuario.reputacao,
+        clubeUsuario.divisao ?? 'Série A',
+      )
+    : null;
+  const metaNoRumo =
+    objetivo && indiceTabela !== -1
+      ? metaCumprida(objetivo, indiceTabela + 1)
+      : true;
 
   const forma = useMemo<ResultadoForma[]>(() => {
     if (!clubeUsuarioId) {
@@ -287,6 +304,37 @@ function Home(): React.JSX.Element {
             ) : null}
           </View>
         </ImageBackground>
+
+        {/* Meta da diretoria — objetivo contratado da temporada + progresso. */}
+        {objetivo ? (
+          <View style={styles.objetivoCard}>
+            <View style={styles.objetivoTopo}>
+              <Icone nome="trofeu" tamanho={15} cor={cores.aviso} />
+              <Text style={styles.objetivoRotulo}>Objetivo da temporada</Text>
+              <View
+                style={[
+                  styles.objetivoTag,
+                  metaNoRumo ? styles.objetivoTagOk : styles.objetivoTagRisco,
+                ]}>
+                <Text
+                  style={[
+                    styles.objetivoTagTexto,
+                    metaNoRumo
+                      ? styles.objetivoTagTextoOk
+                      : styles.objetivoTagTextoRisco,
+                  ]}>
+                  {metaNoRumo ? 'No rumo' : 'Fora da meta'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.objetivoMeta} numberOfLines={1}>
+              {objetivo.descricao}
+            </Text>
+            <Text style={styles.objetivoAlvo} numberOfLines={1}>
+              Meta: terminar até {objetivo.posicaoAlvo}º · Você está em {posicao}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Próximo compromisso (sem header duplicado — o card já se rotula). */}
         {copaNaVez ? (
@@ -486,6 +534,61 @@ const styles = StyleSheet.create({
   cardPressed: {
     backgroundColor: cores.superficieAlt,
     transform: [{scale: 0.99}],
+  },
+  // Meta da diretoria — objetivo da temporada + progresso.
+  objetivoCard: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: 4,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.md,
+    ...sombra.suave,
+  },
+  objetivoTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  objetivoRotulo: {
+    color: cores.textoSecundario,
+    flex: 1,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  objetivoMeta: {
+    color: cores.texto,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  objetivoAlvo: {
+    color: cores.textoSecundario,
+    fontSize: 12.5,
+  },
+  objetivoTag: {
+    borderRadius: raio.sm,
+    paddingHorizontal: espaco.xs,
+    paddingVertical: 2,
+  },
+  objetivoTagOk: {
+    backgroundColor: 'rgba(18, 183, 106, 0.12)',
+  },
+  objetivoTagRisco: {
+    backgroundColor: 'rgba(229, 72, 77, 0.12)',
+  },
+  objetivoTagTexto: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  objetivoTagTextoOk: {
+    color: cores.sucesso,
+  },
+  objetivoTagTextoRisco: {
+    color: cores.perigo,
   },
   // Copa "na vez" — card de destaque clean.
   copaJogoCard: {
