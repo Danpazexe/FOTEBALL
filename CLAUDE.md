@@ -154,7 +154,7 @@ Isso é essencial para testes, replay, balanceamento e depuração.
 | Persistência | @op-engineering/op-sqlite | Não trocar por AsyncStorage/MMKV |
 | Navegação | React Navigation | Preservar padrão atual |
 | Animações | react-native-reanimated | Não usar Animated API para novas animações |
-| Ícones | react-native-vector-icons / MaterialCommunityIcons | Não adicionar nova lib de ícones |
+| Ícones | lucide-react-native (sobre react-native-svg) | Migrado do MaterialCommunityIcons; renderiza SVG, sem fonte nativa. Não adicionar OUTRA lib de ícones |
 | Testes | Jest | Testar engine e fluxos críticos |
 | CI | GitHub Actions | Não alterar workflow sem pedido explícito |
 

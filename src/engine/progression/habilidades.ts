@@ -19,7 +19,7 @@ export interface MetaHabilidade {
   rotulo: string;
   /** Efeito resumido (BRASFOOT_MASTER §3.2). */
   descricao: string;
-  /** Ícone MaterialCommunityIcons. */
+  /** Nome-string do ícone, resolvido por `IconeGlifo` (Lucide). */
   icone: string;
 }
 

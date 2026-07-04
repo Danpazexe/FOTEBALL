@@ -1,18 +1,69 @@
 /**
- * Ícones do FOTEBALL via react-native-vector-icons (MaterialCommunityIcons).
+ * Ícones do FOTEBALL via lucide-react-native (renderiza SVG sobre
+ * react-native-svg — não precisa de fonte nativa).
  *
- * Mantemos a API por nome semântico (`IconeNome`) para não mexer nas dezenas de
- * usos pelo app; internamente cada nome mapeia para um glyph do
- * MaterialCommunityIcons. A cor vem por prop.
- *
- * Requer a fonte nativa empacotada (android/app/build.gradle aplica
- * `fonts.gradle`) — após o setup é preciso um rebuild (`npm run android`).
+ * Duas APIs:
+ *  • `Icone` — por nome SEMÂNTICO tipado (`IconeNome`), usado nas dezenas de
+ *    telas/componentes. Cada nome mapeia para um ícone do Lucide.
+ *  • `IconeGlifo` — por nome-string DINÂMICO, para ícones que vêm de dados
+ *    (conquistas, status), com fallback seguro quando o nome é desconhecido.
  *
  * Uso: <Icone nome="inicio" tamanho={20} cor={cores.primaria} />
  */
 
 import React from 'react';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import {
+  ArrowRightLeft,
+  Bandage,
+  Banknote,
+  Building2,
+  CalendarCheck,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  CircleHelp,
+  CircleX,
+  ClipboardList,
+  Clock,
+  Cloud,
+  CloudRain,
+  Crosshair,
+  Crown,
+  FastForward,
+  Flag,
+  Gauge,
+  Goal,
+  GraduationCap,
+  Hand,
+  Handshake,
+  Home,
+  Landmark,
+  ListOrdered,
+  Lock,
+  type LucideIcon,
+  Medal,
+  Megaphone,
+  Pause,
+  Play,
+  Rocket,
+  Settings,
+  Shield,
+  ShieldHalf,
+  ShieldPlus,
+  Smile,
+  Sprout,
+  Square,
+  Sun,
+  Target,
+  Trophy,
+  Users,
+  UserStar,
+  X,
+  Zap,
+} from 'lucide-react-native';
 
 import {cores} from '../../theme';
 
@@ -55,45 +106,73 @@ export type IconeNome =
   | 'clima-chuva'
   | 'gramado';
 
-/** Nome semântico → glyph do MaterialCommunityIcons. */
-const GLYPHS: Record<IconeNome, string> = {
-  inicio: 'home-variant',
-  elenco: 'account-group',
-  tatica: 'strategy',
-  tabela: 'format-list-numbered',
-  clube: 'shield-outline',
-  ajustes: 'cog-outline',
-  jogar: 'play',
-  simular: 'fast-forward',
-  pausar: 'pause',
-  mercado: 'swap-horizontal',
-  voltar: 'chevron-left',
-  'seta-baixo': 'chevron-down',
-  'seta-cima': 'chevron-up',
-  avancar: 'chevron-right',
-  bola: 'soccer',
-  cartao: 'card',
-  lesao: 'bandage',
-  substituicao: 'swap-horizontal',
-  chance: 'close-circle-outline',
-  penalti: 'bullseye-arrow',
-  apito: 'whistle',
-  relogio: 'clock-outline',
-  check: 'check',
-  fechar: 'close',
-  dinheiro: 'cash',
-  troca: 'swap-horizontal',
-  trofeu: 'trophy',
-  calendario: 'calendar-month',
-  conversa: 'bullhorn',
-  base: 'school-outline',
-  medalha: 'medal-outline',
-  estadio: 'stadium-variant',
-  publico: 'account-group',
-  'clima-sol': 'weather-sunny',
-  'clima-nublado': 'weather-cloudy',
-  'clima-chuva': 'weather-rainy',
-  gramado: 'grass',
+/** Nome semântico → componente do Lucide. */
+const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
+  inicio: Home,
+  elenco: Users,
+  tatica: ClipboardList,
+  tabela: ListOrdered,
+  clube: Shield,
+  ajustes: Settings,
+  jogar: Play,
+  simular: FastForward,
+  pausar: Pause,
+  mercado: ArrowRightLeft,
+  voltar: ChevronLeft,
+  'seta-baixo': ChevronDown,
+  'seta-cima': ChevronUp,
+  avancar: ChevronRight,
+  bola: Goal,
+  cartao: Square,
+  lesao: Bandage,
+  substituicao: ArrowRightLeft,
+  chance: CircleX,
+  penalti: Target,
+  apito: Flag,
+  relogio: Clock,
+  check: Check,
+  fechar: X,
+  dinheiro: Banknote,
+  troca: ArrowRightLeft,
+  trofeu: Trophy,
+  calendario: CalendarDays,
+  conversa: Megaphone,
+  base: GraduationCap,
+  medalha: Medal,
+  estadio: Building2,
+  publico: Users,
+  'clima-sol': Sun,
+  'clima-nublado': Cloud,
+  'clima-chuva': CloudRain,
+  gramado: Sprout,
+};
+
+/**
+ * Nome-string dinâmico (vindo de dados: conquistas, habilidades, status) →
+ * componente do Lucide. Mantém os nomes históricos para não mexer nos dados.
+ */
+const ICONES_GLIFO: Record<string, LucideIcon> = {
+  // Conquistas (src/data/conquistas.ts)
+  trophy: Trophy,
+  soccer: Goal,
+  'lightning-bolt': Zap,
+  'account-star': UserStar,
+  bank: Landmark,
+  'shield-star': ShieldPlus,
+  'emoticon-happy': Smile,
+  'run-fast': Gauge,
+  'calendar-check': CalendarCheck,
+  'shield-half-full': ShieldHalf,
+  'lock-outline': Lock,
+  // Escudo placeholder / habilidades (src/engine/progression/habilidades.ts)
+  shield: Shield,
+  target: Target,
+  handshake: Handshake,
+  crown: Crown,
+  'bullseye-arrow': Crosshair,
+  'rocket-launch': Rocket,
+  whistle: Flag,
+  'hand-back-right': Hand,
 };
 
 type IconeProps = {
@@ -103,13 +182,27 @@ type IconeProps = {
 };
 
 function Icone({nome, tamanho = 20, cor}: IconeProps): React.JSX.Element {
-  return (
-    <MaterialCommunityIcons
-      name={GLYPHS[nome]}
-      size={tamanho}
-      color={cor ?? cores.texto}
-    />
-  );
+  const Componente = ICONES_SEMANTICOS[nome];
+  return <Componente size={tamanho} color={cor ?? cores.texto} />;
 }
 
 export default Icone;
+
+type IconeGlifoProps = {
+  nome: string;
+  tamanho?: number;
+  cor?: string;
+};
+
+/**
+ * Ícone por nome-string dinâmico (dados). Cai em um ponto de interrogação
+ * quando o nome não está mapeado — nunca quebra a renderização.
+ */
+export function IconeGlifo({
+  nome,
+  tamanho = 20,
+  cor,
+}: IconeGlifoProps): React.JSX.Element {
+  const Componente = ICONES_GLIFO[nome] ?? CircleHelp;
+  return <Componente size={tamanho} color={cor ?? cores.texto} />;
+}
