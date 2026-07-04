@@ -8,42 +8,52 @@
 
 ## ⚠️ Exceção às regras (autorizada pelo dono)
 
-Esta feature abre exceção a duas regras do projeto, **com autorização explícita**:
+Esta feature abre exceção a regras do projeto, **com autorização explícita**:
 
-- **100% offline:** as fotos são baixadas **uma vez, no build** (pelo script
+- **100% offline:** as fotos são baixadas **uma vez, no build** (pelos scripts
   abaixo) e empacotadas — o app **não** faz chamadas de rede em runtime. A regra
   "sem backend/online em runtime" segue valendo.
-- **Licenciamento:** as imagens vêm da API-Football e, pelos termos dela, são
-  "para identificação" e podem exigir permissões extras conforme o uso. O risco
-  jurídico foi **assumido pelo dono do projeto**.
+- **Licenciamento:** a via recomendada usa a **Wikipedia/Wikimedia Commons**
+  (imagens em geral sob licença livre CC BY-SA). A via alternativa (API-Football)
+  tem termos mais restritos — risco assumido pelo dono.
 
 ---
 
-## Como popular as faces
+## Como popular as faces — via RECOMENDADA (Wikipedia, grátis, SEM key)
 
-1. Crie uma conta na **API-Football** (api-sports.io) e pegue sua chave.
-2. Rode o script com a chave na env (Node 18+):
+Roda **na sua máquina** (Node 18+), sem cadastro nem chave:
 
-   ```bash
-   APIFOOTBALL_KEY=suachave node scripts/baixarFaces.mjs
-   # teste com poucos:      ... node scripts/baixarFaces.mjs --limite 20
-   # só regenerar o índice: node scripts/baixarFaces.mjs --somente-indice
-   ```
+```bash
+node scripts/baixarFacesWiki.mjs             # todos
+node scripts/baixarFacesWiki.mjs --limite 40 # teste rápido
+# depois: rebuild nativo (npm run android / ios) p/ empacotar as imagens
+```
 
-3. Rebuild nativo (`npm run android` / `npm run ios`) para o Metro empacotar as
-   novas imagens.
+- **Sem API key.** Busca cada jogador na Wikipedia (pt) e só baixa se o TÍTULO da
+  página **casar com o nome** (evita foto de outra pessoa). Quem não casa cai no
+  fallback de iniciais.
+- **Resumível** (pula quem já tem foto) e **gentil** (delay p/ não tomar 429).
+  Nomes muito comuns podem casar errado — **confira as faces baixadas** e, se
+  alguma estiver errada, apague o `src/assets/faces/<id>.jpg` e rode de novo.
 
-O script é **resumível**: pula quem já tem foto (a API gratuita limita ~100
-requisições/dia), então rode várias vezes até completar. Casos sem
-correspondência ficam em `scripts/faces_pendentes.json` para você resolver à mão.
+> ⚠️ Nota: num **IP de nuvem** (como o ambiente do Claude) a Wikipedia bloqueia
+> (429) rápido — por isso quem roda é você, na sua conexão normal.
+
+## Via ALTERNATIVA (API-Football, precisa de key)
+
+```bash
+APIFOOTBALL_KEY=suachave node scripts/baixarFaces.mjs
+```
+Precisa de conta na api-sports.io (free ~100 req/dia). Mesmo resultado; use se
+preferir a base da API-Football à da Wikipedia.
 
 ---
 
 ## Como funciona
 
-- `scripts/baixarFaces.mjs` — lê `src/data/seed/jogadores/*.json`, busca cada
-  jogador na API-Football (por nome), baixa a melhor correspondência para
-  `src/assets/faces/<id>.png` e **gera** `src/data/facesIndex.ts`.
+- `scripts/baixarFacesWiki.mjs` / `scripts/baixarFaces.mjs` — leem
+  `src/data/seed/jogadores/*.json`, baixam a foto de cada jogador para
+  `src/assets/faces/<id>.<ext>` e **geram** `src/data/facesIndex.ts`.
 - `src/data/facesIndex.ts` — índice **estático** `jogadorId → require(foto)`.
   Auto-gerado; não editar à mão. (O Metro só empacota `require()` literal, por
   isso o índice em vez de caminho dinâmico.)

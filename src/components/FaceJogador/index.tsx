@@ -2,7 +2,7 @@ import React from 'react';
 import {Image, StyleSheet, Text, View} from 'react-native';
 
 import {FACES} from '../../data/facesIndex';
-import {corOverall, nivelCarta} from '../../theme';
+import {cores, corOverall} from '../../theme';
 
 /**
  * Face do jogador: mostra a FOTO REAL empacotada (quando existe no índice gerado
@@ -55,13 +55,15 @@ function FaceJogador({
     );
   }
 
-  const nivel = nivelCarta(overall);
+  // Fallback: círculo PREENCHIDO com a cor viva do tier (corOverall) + iniciais
+  // em azul-marinho. Alto contraste sobre a carta escura (antes o fundo do
+  // círculo era igual ao da carta e "sumia").
   return (
     <View
       accessibilityLabel={nome}
-      style={[styles.face, styles.fallback, dimensao, {backgroundColor: nivel.background}]}>
+      style={[styles.face, styles.fallback, dimensao, {backgroundColor: anel}]}>
       <Text
-        style={[styles.iniciais, {color: nivel.text, fontSize: Math.round(tamanho * 0.36)}]}>
+        style={[styles.iniciais, {color: cores.texto, fontSize: Math.round(tamanho * 0.36)}]}>
         {iniciaisDoNome(nome)}
       </Text>
     </View>
