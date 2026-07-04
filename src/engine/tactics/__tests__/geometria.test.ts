@@ -173,6 +173,30 @@ describe('layoutPorLinhas', () => {
     expect(layout[0].y).toBe(0.5); // MEIO
     expect(layout[1].y).toBe(0.82); // ATAQUE
   });
+
+  it('ordena a linha por posição canônica, não pela ordem do array (LE à esquerda)', () => {
+    // Ordem "invertida" (direita antes da esquerda), como nos templates antigos.
+    const titulares: TitularFormacao[] = [
+      tit('GOL'),
+      tit('LD'),
+      tit('ZAG'),
+      tit('ZAG'),
+      tit('LE'),
+    ];
+    const layout = layoutPorLinhas(titulares);
+    // Index-alinhado à entrada: layout[1] é o LD (vai pra DIREITA) e layout[4] é
+    // o LE (vai pra ESQUERDA), independentemente da ordem no array.
+    expect(layout[1].x).toBe(4 / 5); // LD -> direita
+    expect(layout[4].x).toBe(1 / 5); // LE -> esquerda
+  });
+
+  it('coloca PE à esquerda e PD à direita no ataque', () => {
+    const titulares: TitularFormacao[] = [tit('PD'), tit('CA'), tit('PE')];
+    const layout = layoutPorLinhas(titulares);
+    expect(layout[0].x).toBe(3 / 4); // PD -> direita
+    expect(layout[1].x).toBe(2 / 4); // CA -> centro
+    expect(layout[2].x).toBe(1 / 4); // PE -> esquerda
+  });
 });
 
 describe('preencherCoordenadas', () => {

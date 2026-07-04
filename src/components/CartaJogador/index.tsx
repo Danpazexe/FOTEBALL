@@ -22,7 +22,7 @@ import Svg, {
 import Escudo from '../Escudo';
 import Icone from '../Icone';
 import {nivelCarta} from '../../theme';
-import type {Player, Position} from '../../types';
+import type {PernaDominante, Player, Position} from '../../types';
 
 /** Cor da moral: alta (verde), média (amarelo), baixa (vermelho). */
 function corMoral(moral: number): string {
@@ -33,6 +33,11 @@ function corMoral(moral: number): string {
     return '#F59E0B';
   }
   return '#EF4444';
+}
+
+/** Rótulo curto do pé dominante (D = direito, E = esquerdo, A = ambidestro). */
+function rotuloPerna(perna: PernaDominante): string {
+  return perna === 'Ambidestro' ? 'A' : perna;
 }
 
 type CartaJogadorProps = {
@@ -101,6 +106,8 @@ function CartaJogador({
   const nomeFonte = compacto ? 27 : 23;
   const mostrarRendimento =
     compacto && rendimento != null && rendimento < 100;
+  const corPerna =
+    jogador.pernaDominante === 'Ambidestro' ? '#12B76A' : tema.mutedText;
   const statusIndisponivel = jogador.lesionado
     ? {icone: 'lesao' as const, rotulo: 'LESIONADO'}
     : jogador.suspenso
@@ -130,12 +137,27 @@ function CartaJogador({
           </LinearGradient>
         </Defs>
 
-        <Path
-          d="M34 16 Q130 -4 226 16 L240 300 Q234 340 130 356 Q26 340 20 300 L34 16 Z"
-          fill="url(#cardGradient)"
-          stroke={tema.border}
-          strokeWidth="5"
-        />
+        {compacto ? (
+          // Modo campo: carta PLANA (1 retângulo por tier + borda) — sem moldura
+          // dupla, silhueta, gradiente, shine nem faixa escura. Leve e legível.
+          <Rect
+            x={8}
+            y={8}
+            width={244}
+            height={354}
+            rx={26}
+            fill={tema.background2}
+            stroke={tema.border}
+            strokeWidth={5}
+          />
+        ) : (
+          <>
+            <Path
+              d="M34 16 Q130 -4 226 16 L240 300 Q234 340 130 356 Q26 340 20 300 L34 16 Z"
+              fill="url(#cardGradient)"
+              stroke={tema.border}
+              strokeWidth="5"
+            />
         <Path
           d="M44 28 Q130 9 216 28 L228 298 Q222 332 130 344 Q38 332 32 298 L44 28 Z"
           fill="none"
@@ -218,6 +240,8 @@ function CartaJogador({
           strokeWidth="1.2"
           opacity="0.5"
         />
+          </>
+        )}
       </Svg>
 
       {/* Overall + posição */}
@@ -228,6 +252,11 @@ function CartaJogador({
         <Text style={[styles.position, {color: tema.text, fontSize: 18 * escala}]}>
           {posicao}
         </Text>
+        {!compacto ? (
+          <Text style={[styles.perna, {color: corPerna, fontSize: 12 * escala}]}>
+            Pé {rotuloPerna(jogador.pernaDominante)}
+          </Text>
+        ) : null}
         {jogador.clubeId ? (
           <View style={{marginTop: 4 * escala}}>
             <Escudo
@@ -407,6 +436,11 @@ const styles = StyleSheet.create({
   },
   position: {
     fontWeight: '900',
+    marginTop: 2,
+  },
+  perna: {
+    fontWeight: '800',
+    letterSpacing: 0.3,
     marginTop: 2,
   },
   cardType: {

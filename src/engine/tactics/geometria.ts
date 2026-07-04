@@ -178,8 +178,12 @@ const Y_POR_LINHA: Record<LinhaTatica, number> = {
 /**
  * Dado os titulares, devolve coordenadas index-alinhadas (mesma ordem da
  * entrada) espalhando cada LINHA tática horizontalmente. Para n jogadores numa
- * linha, o k-ésimo (0-based) recebe x = (k + 1) / (n + 1); o goleiro fica
- * sempre centralizado em x = 0.5.
+ * linha, o k-ésimo (0-based, da ESQUERDA para a DIREITA) recebe
+ * x = (k + 1) / (n + 1); o goleiro fica sempre centralizado em x = 0.5.
+ *
+ * A ordem lateral é definida pelo x CANÔNICO de cada posição (META_POSICOES via
+ * `coordenadaPadrao`), não pela ordem do array — assim LE/PE ficam sempre à
+ * esquerda e LD/PD à direita, independentemente de como o template os lista.
  */
 export function layoutPorLinhas(titulares: TitularFormacao[]): Coordenada[] {
   // Índices originais agrupados por linha, preservando a ordem de entrada.
@@ -199,7 +203,13 @@ export function layoutPorLinhas(titulares: TitularFormacao[]): Coordenada[] {
   for (const [linha, indices] of indicesPorLinha) {
     const y = Y_POR_LINHA[linha];
     const total = indices.length;
-    indices.forEach((indiceOriginal, k) => {
+    // Ordena a linha da esquerda para a direita pelo x canônico da posição.
+    const ordenados = [...indices].sort(
+      (a, b) =>
+        coordenadaPadrao(titulares[a].posicao).x -
+        coordenadaPadrao(titulares[b].posicao).x,
+    );
+    ordenados.forEach((indiceOriginal, k) => {
       const x = linha === 'GOL' ? 0.5 : (k + 1) / (total + 1);
       resultado[indiceOriginal] = {x, y};
     });
