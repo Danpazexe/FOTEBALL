@@ -33,6 +33,7 @@ import {
   CloudRain,
   Crosshair,
   Crown,
+  Eye,
   FastForward,
   Flag,
   Gauge,
@@ -105,7 +106,8 @@ export type IconeNome =
   | 'clima-sol'
   | 'clima-nublado'
   | 'clima-chuva'
-  | 'gramado';
+  | 'gramado'
+  | 'olho';
 
 /** Nome semântico → componente do Lucide. */
 const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
@@ -148,6 +150,7 @@ const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
   'clima-nublado': Cloud,
   'clima-chuva': CloudRain,
   gramado: Sprout,
+  olho: Eye,
 };
 
 /**
