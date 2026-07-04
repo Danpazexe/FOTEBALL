@@ -148,30 +148,31 @@ export function calcularProbabilidades(
   const vantagemAtaqueCasa = (casa.ataque - fora.defesa) * 0.01;
   const vantagemAtaqueFora = (fora.ataque - casa.defesa) * 0.01;
 
-  // Base de gols esperados (por 90') elevada para um jogo mais movimentado —
-  // média de ~3.4 gols por partida entre times parelhos, com tetos maiores para
-  // permitir goleadas. Ajuste de balanceamento: "mais gols".
+  // Base de gols esperados (por 90'). Calibrada (FASE 4) para a faixa-alvo do
+  // laboratório: ~2.4–3.1 gols/partida entre times parelhos (antes ~3.6, gols
+  // demais). A razão casa/fora é preservada (mando dentro de 42–50%) e os tetos
+  // foram reduzidos para deixar as goleadas raras (<10%). Ver matchBalance.test.
   const golsEsperadosCasa = limitar(
-    (1.78 +
-      diferencaCasa * 0.025 +
+    (1.35 +
+      diferencaCasa * 0.022 +
       vantagemAtaqueCasa +
       modMatchupAtaque(taticaCasa, taticaFora)) *
       mando *
       fatorRitmoGols(taticaCasa.ritmo) *
       fatorGoleiro(fora.forcaGoleiro),
-    0.45,
-    4.0,
+    0.35,
+    3.2,
   );
   const golsEsperadosFora = limitar(
-    (1.54 -
-      diferencaCasa * 0.018 +
+    (1.17 -
+      diferencaCasa * 0.016 +
       vantagemAtaqueFora +
       modMatchupAtaque(taticaFora, taticaCasa)) *
       (1 - (mando - 1) * 0.55) *
       fatorRitmoGols(taticaFora.ritmo) *
       fatorGoleiro(casa.forcaGoleiro),
-    0.38,
-    3.5,
+    0.3,
+    2.9,
   );
 
   const ritmoChance =
