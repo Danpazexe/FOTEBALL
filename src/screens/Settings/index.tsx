@@ -12,6 +12,7 @@ import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, type VelocidadeNarracao} from '../../store/useGameStore';
 import {cores, espaco, raio, sombra} from '../../theme';
+import {VERSAO_APP} from '../../version';
 
 function Settings(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -103,6 +104,7 @@ function Settings(): React.JSX.Element {
       </Section>
 
       <Section titulo="Sobre">
+        <Text style={styles.versao}>Versão {VERSAO_APP}</Text>
         <Text style={styles.descricao}>FOTEBALL · protótipo jogável</Text>
         <Text style={styles.descricao}>
           Liga de 20 clubes, 38 rodadas, simulação determinística.
@@ -153,6 +155,12 @@ const styles = StyleSheet.create({
   descricao: {
     color: cores.textoSecundario,
     fontSize: 13,
+  },
+  versao: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 2,
   },
   chipRow: {
     flexDirection: 'row',
