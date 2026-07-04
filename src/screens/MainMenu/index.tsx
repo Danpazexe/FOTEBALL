@@ -14,6 +14,7 @@ import LogoFoteball from '../../components/LogoFoteball';
 import {cores, espaco, raio} from '../../theme';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation} from '../../navigation/types';
+import {VERSAO_APP} from '../../version';
 
 function MainMenu(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -98,8 +99,41 @@ function MainMenu(): React.JSX.Element {
         )}
       </View>
 
-      <Text style={styles.rodape}>Feito no Brasil · v0.0.1</Text>
+      {!clubeUsuarioId ? (
+        <View style={styles.teaser}>
+          <Text style={styles.teaserTitulo}>O que te espera</Text>
+          <TeaserItem
+            icone="calendario"
+            texto="Temporada completa: 38 rodadas + Copa do Brasil"
+          />
+          <TeaserItem
+            icone="mercado"
+            texto="Mercado, contratos e negociações com a IA"
+          />
+          <TeaserItem
+            icone="medalha"
+            texto="Reputação, propostas e sua jornada rumo à lenda"
+          />
+        </View>
+      ) : null}
+
+      <Text style={styles.rodape}>Feito no Brasil · v{VERSAO_APP}</Text>
     </ScreenContainer>
+  );
+}
+
+function TeaserItem({
+  icone,
+  texto,
+}: {
+  icone: IconeNome;
+  texto: string;
+}): React.JSX.Element {
+  return (
+    <View style={styles.teaserItem}>
+      <Icone nome={icone} tamanho={16} cor={cores.primaria} />
+      <Text style={styles.teaserTexto}>{texto}</Text>
+    </View>
   );
 }
 
@@ -197,6 +231,34 @@ const styles = StyleSheet.create({
   acoes: {
     gap: espaco.md,
     marginTop: espaco.xl,
+  },
+  teaser: {
+    backgroundColor: cores.superficieAlt,
+    borderColor: cores.bordaClara,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.sm,
+    marginTop: espaco.xl,
+    padding: espaco.lg,
+  },
+  teaserTitulo: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: espaco.xs,
+    textTransform: 'uppercase',
+  },
+  teaserItem: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  teaserTexto: {
+    color: cores.texto,
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
   },
   rodape: {
     color: cores.textoSecundario,
