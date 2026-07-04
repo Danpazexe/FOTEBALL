@@ -214,7 +214,7 @@ describe('simularPartida', () => {
     expect(vitoriasForte / partidas.length).toBeGreaterThanOrEqual(0.65);
   });
 
-  it('mantém média de gols de um jogo movimentado (entre 3.2 e 4.2)', () => {
+  it('mantém média de gols na faixa-alvo de balanceamento (2.4 a 3.1)', () => {
     const partidas = simularSerie(75, 75);
     const mediaGols =
       partidas.reduce(
@@ -223,8 +223,8 @@ describe('simularPartida', () => {
         0,
       ) / partidas.length;
 
-    expect(mediaGols).toBeGreaterThanOrEqual(3.2);
-    expect(mediaGols).toBeLessThanOrEqual(4.2);
+    expect(mediaGols).toBeGreaterThanOrEqual(2.4);
+    expect(mediaGols).toBeLessThanOrEqual(3.1);
   });
 
   it('creates cards in 30 to 70 percent of matches', () => {
