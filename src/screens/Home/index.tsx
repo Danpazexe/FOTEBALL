@@ -35,6 +35,10 @@ import {
   type NivelPressao,
 } from '../../engine/carreira/pressao';
 import {avaliarUltimato} from '../../engine/carreira/ultimato';
+import {
+  gerarManchetes,
+  type TomManchete,
+} from '../../engine/carreira/imprensa';
 import {useAppNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
@@ -59,6 +63,17 @@ function corDaPressao(nivel: NivelPressao): string {
     return cores.aviso;
   }
   return cores.perigo;
+}
+
+/** Cor do marcador da manchete pelo tom editorial. */
+function corDoTom(tom: TomManchete): string {
+  if (tom === 'positivo') {
+    return cores.sucesso;
+  }
+  if (tom === 'negativo') {
+    return cores.perigo;
+  }
+  return cores.textoMuted;
 }
 
 type ResultadoForma = 'V' | 'E' | 'D';
@@ -258,6 +273,71 @@ function Home(): React.JSX.Element {
   }, [proximoJogo, clubes, jogadores]);
 
   const mandoCasa = proximoJogo?.timeCasa === clubeUsuarioId;
+
+  // Última partida disputada pelo clube — base editorial do feed de imprensa.
+  const ultimaJogada = useMemo(() => {
+    if (!clubeUsuarioId) {
+      return null;
+    }
+    const jogadas = partidas
+      .filter(
+        partida =>
+          partida.jogada &&
+          (partida.timeCasa === clubeUsuarioId ||
+            partida.timeFora === clubeUsuarioId),
+      )
+      .sort((a, b) => a.rodada - b.rodada);
+    const ultima = jogadas[jogadas.length - 1];
+    if (!ultima || ultima.placarCasa == null || ultima.placarFora == null) {
+      return null;
+    }
+    const mandante = ultima.timeCasa === clubeUsuarioId;
+    return {
+      golsFavor: mandante ? ultima.placarCasa : ultima.placarFora,
+      golsContra: mandante ? ultima.placarFora : ultima.placarCasa,
+      adversario: nomeClube(
+        clubes,
+        mandante ? ultima.timeFora : ultima.timeCasa,
+      ),
+      mandante,
+    };
+  }, [partidas, clubeUsuarioId, clubes]);
+
+  const proximoAdversario =
+    proximoJogo && clubeUsuarioId
+      ? nomeClube(
+          clubes,
+          proximoJogo.timeCasa === clubeUsuarioId
+            ? proximoJogo.timeFora
+            : proximoJogo.timeCasa,
+        )
+      : null;
+
+  // Feed de imprensa — manchetes editoriais derivadas do estado atual.
+  const manchetes = useMemo(
+    () =>
+      clubeUsuario && objetivo
+        ? gerarManchetes({
+            nomeClube: clubeUsuario.nome,
+            ultima: ultimaJogada,
+            nivelPressao: pressao?.nivel ?? 'Tranquilo',
+            temUltimato: ultimato != null,
+            posicaoAtual: posicaoReal,
+            posicaoAlvo: objetivo.posicaoAlvo,
+            objetivoDescricao: objetivo.descricao,
+            proximoAdversario,
+          })
+        : [],
+    [
+      clubeUsuario,
+      objetivo,
+      ultimaJogada,
+      pressao,
+      ultimato,
+      posicaoReal,
+      proximoAdversario,
+    ],
+  );
 
   // Próximo evento do calendário (treino → jogo → fim de temporada).
   const proximoEvento = useMemo(
@@ -527,6 +607,27 @@ function Home(): React.JSX.Element {
           onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
         />
 
+        {/* Imprensa — manchetes editoriais derivadas do momento do clube. */}
+        {manchetes.length > 0 ? (
+          <View style={styles.imprensaBloco}>
+            <View style={styles.imprensaTopo}>
+              <Icone nome="conversa" tamanho={15} cor={cores.secundaria} />
+              <Text style={styles.blocoTitulo}>Imprensa</Text>
+            </View>
+            {manchetes.map(manchete => (
+              <View key={manchete.id} style={styles.mancheteLinha}>
+                <View
+                  style={[
+                    styles.mancheteDot,
+                    {backgroundColor: corDoTom(manchete.tom)},
+                  ]}
+                />
+                <Text style={styles.mancheteTexto}>{manchete.texto}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         {/* Central do Técnico — chips compactos (ícone + rótulo), 3 colunas. */}
         <View style={styles.centralBloco}>
           <Text style={styles.blocoTitulo}>Central do Técnico</Text>
@@ -749,6 +850,39 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 19,
+  },
+  // Imprensa — painel de manchetes editoriais.
+  imprensaBloco: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.sm,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.md,
+    ...sombra.suave,
+  },
+  imprensaTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  mancheteLinha: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  mancheteDot: {
+    borderRadius: 999,
+    height: 7,
+    marginTop: 6,
+    width: 7,
+  },
+  mancheteTexto: {
+    color: cores.textoSecundario,
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
   },
   // Copa "na vez" — card de destaque clean.
   copaJogoCard: {
