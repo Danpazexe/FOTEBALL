@@ -80,16 +80,15 @@ type SharedNum = SharedValue<number>;
 const GHOST_LEVANTA = 0.78;
 
 /**
- * Gesto reaproveitável por card: arraste (fantasma segue o dedo) + toque.
- * `restringirVertical` liga o `activeOffsetY`: no banco (dentro de um ScrollView
- * horizontal), o arraste só ativa num movimento VERTICAL (puxar pro campo),
- * deixando o gesto horizontal rolar o banco — chave pra fluidez no celular.
+ * Gesto reaproveitável por card: SEGURAR-e-arrastar (fantasma segue o dedo) +
+ * toque. O arraste ativa por LONG-PRESS (segurar ~0,2s) para NÃO competir com o
+ * scroll: um deslize simples rola a página/banco; segurar levanta a carta e aí
+ * o arraste vence a rolagem. `arrastavel` liga/desliga o arraste (modo edição).
  */
 function useGestoPeca(
   tipo: Descritor['tipo'],
   valor: string,
   arrastavel: boolean,
-  restringirVertical: boolean,
   ghostX: SharedNum,
   ghostY: SharedNum,
   ghostAtivo: SharedNum,
@@ -104,8 +103,10 @@ function useGestoPeca(
     const toque = Gesture.Tap().onStart(() => {
       runOnJS(aoTocar)(tipo, valor);
     });
-    let arraste = Gesture.Pan()
+    const arraste = Gesture.Pan()
       .enabled(arrastavel)
+      // Segurar ~0,2s para pegar — desempata do scroll (vertical e do banco).
+      .activateAfterLongPress(200)
       .onStart(evento => {
         ghostAtivo.value = 1;
         ghostX.value = evento.absoluteX;
@@ -122,15 +123,11 @@ function useGestoPeca(
         runOnJS(aoSoltar)(evento.absoluteX, evento.absoluteY, tipo, valor);
         runOnJS(aoFinalizar)();
       });
-    if (restringirVertical) {
-      arraste = arraste.activeOffsetY([-14, 14]);
-    }
     return Gesture.Race(arraste, toque);
   }, [
     tipo,
     valor,
     arrastavel,
-    restringirVertical,
     ghostX,
     ghostY,
     ghostAtivo,
@@ -431,8 +428,8 @@ function CampoFUT({
       ) : (
         <>
           <Text style={styles.dica}>
-            Arraste um card sobre outro para trocar · reserva sobre titular
-            substitui
+            Segure e arraste para trocar · segure um reserva e solte sobre um
+            titular
           </Text>
 
           {/* Banco de reservas — SCROLL HORIZONTAL (prioridade mobile). */}
@@ -688,7 +685,6 @@ function PecaCampo({
     'titular',
     String(slotIndex),
     arrastavel,
-    false,
     ghostX,
     ghostY,
     ghostAtivo,
@@ -751,7 +747,6 @@ function PecaReserva({
     'reserva',
     jogador.id,
     habilitado,
-    true,
     ghostX,
     ghostY,
     ghostAtivo,
