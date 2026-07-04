@@ -30,6 +30,10 @@ import {
   definirObjetivoTemporada,
   metaCumprida,
 } from '../../engine/carreira/objetivo';
+import {
+  calcularPressaoDiretoria,
+  type NivelPressao,
+} from '../../engine/carreira/pressao';
 import {useAppNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
@@ -37,12 +41,24 @@ import {
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
+import {limiteDerrotasPorDivisao} from '../../store/helpers';
 import {cores, espaco, raio, sombra} from '../../theme';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Clube, Partida} from '../../types';
 
 const MAX_FORMA = 5;
 const MAX_ALERTAS = 5;
+
+/** Cor do termômetro da diretoria por nível de pressão (verde → laranja → vermelho). */
+function corDaPressao(nivel: NivelPressao): string {
+  if (nivel === 'Tranquilo' || nivel === 'Estável') {
+    return cores.sucesso;
+  }
+  if (nivel === 'Pressionado') {
+    return cores.aviso;
+  }
+  return cores.perigo;
+}
 
 type ResultadoForma = 'V' | 'E' | 'D';
 
@@ -99,6 +115,11 @@ function Home(): React.JSX.Element {
   const finalizarTemporada = useGameStore(state => state.finalizarTemporada);
   const avancarParaData = useGameStore(state => state.avancarParaData);
   const demissao = useGameStore(state => state.demissao);
+  const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
+  const derrotasConsecutivas = useGameStore(
+    state => state.derrotasConsecutivas,
+  );
+  const rodadasNoVermelho = useGameStore(state => state.rodadasNoVermelho);
 
   // Demissão: assim que a diretoria demite, leva o técnico à tela de recontratação.
   React.useEffect(() => {
@@ -114,16 +135,48 @@ function Home(): React.JSX.Element {
 
   // Meta da diretoria (mesma regra do fim de temporada): reputação + divisão do
   // clube definem a meta; a posição atual diz se está no rumo.
-  const objetivo = clubeUsuario
-    ? definirObjetivoTemporada(
-        clubeUsuario.reputacao,
-        clubeUsuario.divisao ?? 'Série A',
-      )
-    : null;
+  const objetivo = useMemo(
+    () =>
+      clubeUsuario
+        ? definirObjetivoTemporada(
+            clubeUsuario.reputacao,
+            clubeUsuario.divisao ?? 'Série A',
+          )
+        : null,
+    [clubeUsuario],
+  );
+  // Antes da 1ª rodada a posição é desempate arbitrário (localeCompare do clubeId);
+  // só há "posição real" com jogos disputados — senão a meta cobraria sem jogo.
+  const posicaoReal = jogos > 0 && indiceTabela !== -1 ? indiceTabela + 1 : null;
   const metaNoRumo =
-    objetivo && indiceTabela !== -1
-      ? metaCumprida(objetivo, indiceTabela + 1)
-      : true;
+    objetivo && posicaoReal != null ? metaCumprida(objetivo, posicaoReal) : true;
+
+  // Termômetro de pressão da diretoria — espelha os gatilhos de demissão + meta.
+  const pressao = useMemo(
+    () =>
+      clubeUsuario && objetivo
+        ? calcularPressaoDiretoria({
+            derrotasConsecutivas,
+            limiteDerrotas: limiteDerrotasPorDivisao(
+              clubeUsuario.divisao ?? 'Série A',
+            ),
+            rodadasNoVermelho,
+            reputacaoTecnico,
+            posicaoAtual: posicaoReal,
+            posicaoAlvo: objetivo.posicaoAlvo,
+            totalClubes: tabela.length,
+          })
+        : null,
+    [
+      clubeUsuario,
+      objetivo,
+      derrotasConsecutivas,
+      rodadasNoVermelho,
+      reputacaoTecnico,
+      posicaoReal,
+      tabela.length,
+    ],
+  );
 
   const forma = useMemo<ResultadoForma[]>(() => {
     if (!clubeUsuarioId) {
@@ -332,6 +385,43 @@ function Home(): React.JSX.Element {
             </Text>
             <Text style={styles.objetivoAlvo} numberOfLines={1}>
               Meta: terminar até {objetivo.posicaoAlvo}º · Você está em {posicao}
+            </Text>
+          </View>
+        ) : null}
+
+        {/* Termômetro da diretoria — pressão sobre o cargo (0-100 + nível). */}
+        {pressao ? (
+          <View style={styles.objetivoCard}>
+            <View style={styles.objetivoTopo}>
+              <Icone
+                nome="conversa"
+                tamanho={15}
+                cor={corDaPressao(pressao.nivel)}
+              />
+              <Text style={styles.objetivoRotulo}>Termômetro da diretoria</Text>
+              <Text
+                style={[
+                  styles.pressaoNivel,
+                  {color: corDaPressao(pressao.nivel)},
+                ]}>
+                {pressao.nivel}
+              </Text>
+            </View>
+            <View style={styles.pressaoTrilha}>
+              <View
+                style={[
+                  styles.pressaoBarra,
+                  {
+                    width: `${pressao.pontuacao}%`,
+                    backgroundColor: corDaPressao(pressao.nivel),
+                  },
+                ]}
+              />
+            </View>
+            <Text style={styles.objetivoAlvo} numberOfLines={1}>
+              {pressao.fatores.length > 0
+                ? pressao.fatores[0]
+                : 'Diretoria tranquila com o trabalho.'}
             </Text>
           </View>
         ) : null}
@@ -589,6 +679,24 @@ const styles = StyleSheet.create({
   },
   objetivoTagTextoRisco: {
     color: cores.perigo,
+  },
+  // Termômetro da diretoria — nível + barra de pressão.
+  pressaoNivel: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.2,
+  },
+  pressaoTrilha: {
+    backgroundColor: cores.superficieAlt,
+    borderRadius: 999,
+    height: 8,
+    marginVertical: 2,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  pressaoBarra: {
+    borderRadius: 999,
+    height: '100%',
   },
   // Copa "na vez" — card de destaque clean.
   copaJogoCard: {
