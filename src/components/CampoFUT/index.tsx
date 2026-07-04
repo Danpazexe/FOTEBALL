@@ -31,11 +31,11 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import Svg, {
+  Circle,
   Defs,
-  Ellipse,
   Line,
   LinearGradient,
-  Polygon,
+  Rect,
   Stop,
 } from 'react-native-svg';
 
@@ -69,22 +69,9 @@ type CampoFUTProps = {
 
 type Descritor = {tipo: 'titular' | 'reserva'; valor: string};
 
-type SlotTela = {
-  slotIndex: number;
-  jogadorId: string;
-  cx: number;
-  cy: number;
-  escala: number;
-};
+type SlotTela = {slotIndex: number; jogadorId: string; cx: number; cy: number};
 
 type SharedNum = SharedValue<number>;
-
-// Perspectiva do gramado (trapézio): largura relativa no FUNDO (linha do gol
-// adversário) vs. na FRENTE (=1). EXP = foreshortening vertical (fundo mais
-// comprimido). ESCALA = tamanho do card no fundo (perto = 1.0).
-const PERSP_FUNDO = 0.56;
-const PERSP_EXP = 1.32;
-const PERSP_ESCALA = 0.82;
 
 /**
  * Gesto reaproveitável por card: arraste (fantasma segue o dedo) + toque.
@@ -170,8 +157,8 @@ function CampoFUT({
   // tamanho médio, para mostrar o jogador sendo puxado (não uma bolinha).
   const ghostW = Math.min(Math.round(largura * 0.5), 190);
   const ghostH = Math.round(ghostW * 1.42);
-  // Margens verticais: no topo (fundo) os cards são menores (escala da perspectiva).
-  const padTopo = Math.round((cardH * PERSP_ESCALA) / 2) + 8;
+  // Margens verticais pra as cartas caberem dentro do gramado sem cortar.
+  const padTopo = Math.round(cardH / 2) + 6;
   const padBase = Math.round(cardH / 2) + 10;
   const limiarDrop = Math.round(cardW * 0.7);
 
@@ -220,31 +207,20 @@ function CampoFUT({
     [formacao.titulares],
   );
 
-  // Mapeia a coordenada de campo (x,y ∈ 0..1) para a tela EM PERSPECTIVA: o eixo
-  // X encolhe em direção ao fundo (trapézio) e o card fica menor lá.
-  const mapear = useCallback(
-    (x: number, y: number) => {
-      const f = Math.pow(1 - y, PERSP_EXP); // 0 = fundo (topo), 1 = frente (base)
-      const wf = PERSP_FUNDO + (1 - PERSP_FUNDO) * f;
-      return {
-        cx: largura / 2 + (x - 0.5) * largura * wf,
-        cy: padTopo + f * (altura - padTopo - padBase),
-        escala: PERSP_ESCALA + (1 - PERSP_ESCALA) * f,
-      };
-    },
-    [largura, altura, padTopo, padBase],
-  );
-
-  // Posições de tela de cada slot (centro da carta). Coordenada vem da FONTE
-  // ÚNICA (coordenadaDoTitular), a mesma usada pelas outras telas de escalação.
+  // Posições de tela de cada slot (centro da carta), top-down. Coordenada vem da
+  // FONTE ÚNICA (coordenadaDoTitular), a mesma das outras telas de escalação.
   const slotsTela = useMemo<SlotTela[]>(
     () =>
       titulares.map((titular, slotIndex) => {
         const {x, y} = coordenadaDoTitular(titular);
-        const {cx, cy, escala} = mapear(x, y);
-        return {slotIndex, jogadorId: titular.jogadorId, cx, cy, escala};
+        return {
+          slotIndex,
+          jogadorId: titular.jogadorId,
+          cx: x * largura,
+          cy: padTopo + (1 - y) * (altura - padTopo - padBase),
+        };
       }),
-    [titulares, mapear],
+    [titulares, largura, altura, padTopo, padBase],
   );
 
   const medirOverlay = useCallback(() => {
@@ -393,7 +369,7 @@ function CampoFUT({
         ref={pitchRef}
         onLayout={medirPitch}
         style={[styles.pitch, {width: largura, height: altura}]}>
-        <PitchPerspectiva largura={largura} altura={altura} />
+        <PitchTopDown largura={largura} altura={altura} />
 
         {slotsTela.map(slot => {
           const titular = titulares[slot.slotIndex];
@@ -407,7 +383,6 @@ function CampoFUT({
               cy={slot.cy}
               cardW={cardW}
               cardH={cardH}
-              escala={slot.escala}
               hover={hover === slot.slotIndex}
               arrastandoEste={
                 arrastando?.tipo === 'titular' &&
@@ -643,7 +618,6 @@ type PecaCampoProps = {
   cy: number;
   cardW: number;
   cardH: number;
-  escala: number;
   hover: boolean;
   arrastandoEste: boolean;
   ghostX: SharedNum;
@@ -664,7 +638,6 @@ function PecaCampo({
   cy,
   cardW,
   cardH,
-  escala,
   hover,
   arrastandoEste,
   ghostX,
@@ -691,21 +664,17 @@ function PecaCampo({
     aoFinalizar,
   );
 
-  const w = Math.round(cardW * escala);
-  const h = Math.round(cardH * escala);
-
   return (
     <GestureDetector gesture={gesto}>
       <View
         style={[
           styles.slotWrap,
-          // zIndex por profundidade: cards da FRENTE (cy maior) ficam por cima.
-          {left: cx - w / 2, top: cy - h / 2, width: w, zIndex: Math.round(cy)},
+          {left: cx - cardW / 2, top: cy - cardH / 2, width: cardW},
         ]}>
         <CartaFUT
           jogador={jogador}
           posicaoEscalada={posicaoEscalada}
-          largura={w}
+          largura={cardW}
           destaque={hover}
           esmaecer={arrastandoEste}
         />
@@ -774,42 +743,26 @@ function PecaReserva({
 }
 
 /**
- * Gramado desenhado em PERSPECTIVA (trapézio): o fundo (linha do gol adversário)
- * é mais estreito no topo e a frente mais larga na base. Linha central, círculo
- * (elipse achatada) e áreas seguem a mesma profundidade. SVG puro.
+ * Gramado top-down (visão de cima): retângulo arredondado com gradiente sutil,
+ * linha e círculo central, grandes e pequenas áreas nos dois gols. SVG puro.
  */
-function PitchPerspectiva({
+function PitchTopDown({
   largura,
   altura,
 }: {
   largura: number;
   altura: number;
 }): React.JSX.Element {
-  const wf = (f: number): number => PERSP_FUNDO + (1 - PERSP_FUNDO) * f;
-  const py = (f: number): number => 6 + f * (altura - 12);
-  const px = (f: number, lado: number): number =>
-    largura / 2 + (lado * wf(f) * largura) / 2;
-  // Meia-largura (px) a uma profundidade f, para uma fração da largura local.
-  const meia = (f: number, frac: number): number => (frac * wf(f) * largura) / 2;
-
-  const fMeio = Math.pow(0.5, PERSP_EXP);
-  const cyMeio = py(fMeio);
-  const rxMeio = meia(fMeio, 0.28);
-
-  const gramado = `${px(0, -1)},${py(0)} ${px(0, 1)},${py(0)} ${px(1, 1)},${py(
-    1,
-  )} ${px(1, -1)},${py(1)}`;
-  // Área do gol adversário (fundo/topo) e do nosso gol (frente/base).
-  const areaFundo = `${largura / 2 - meia(0.02, 0.5)},${py(0.02)} ${
-    largura / 2 + meia(0.02, 0.5)
-  },${py(0.02)} ${largura / 2 + meia(0.16, 0.5)},${py(0.16)} ${
-    largura / 2 - meia(0.16, 0.5)
-  },${py(0.16)}`;
-  const areaFrente = `${largura / 2 - meia(0.84, 0.5)},${py(0.84)} ${
-    largura / 2 + meia(0.84, 0.5)
-  },${py(0.84)} ${largura / 2 + meia(0.99, 0.5)},${py(0.99)} ${
-    largura / 2 - meia(0.99, 0.5)
-  },${py(0.99)}`;
+  const m = 8; // margem do gramado dentro do container
+  const w = largura - m * 2;
+  const h = altura - m * 2;
+  const cx = largura / 2;
+  const cyMeio = altura / 2;
+  const areaW = w * 0.62;
+  const areaH = h * 0.15;
+  const golW = w * 0.34;
+  const golH = h * 0.06;
+  const raioCirculo = w * 0.15;
 
   return (
     <Svg
@@ -819,39 +772,73 @@ function PitchPerspectiva({
       style={StyleSheet.absoluteFill}>
       <Defs>
         <LinearGradient id="grama" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#D3ECDC" />
+          <Stop offset="0" stopColor="#DFF2E5" />
           <Stop offset="1" stopColor="#ECF7F0" />
         </LinearGradient>
       </Defs>
-      <Polygon
-        points={gramado}
+      <Rect
+        x={m}
+        y={m}
+        width={w}
+        height={h}
+        rx={14}
         fill="url(#grama)"
         stroke={LINHA}
         strokeWidth={2}
       />
       <Line
-        x1={px(fMeio, -1)}
+        x1={m}
         y1={cyMeio}
-        x2={px(fMeio, 1)}
+        x2={largura - m}
         y2={cyMeio}
         stroke={LINHA}
         strokeWidth={1.5}
       />
-      <Ellipse
-        cx={largura / 2}
+      <Circle
+        cx={cx}
         cy={cyMeio}
-        rx={rxMeio}
-        ry={rxMeio * 0.4}
+        r={raioCirculo}
         fill="none"
         stroke={LINHA}
         strokeWidth={1.5}
       />
-      <Polygon points={areaFundo} fill="none" stroke={LINHA} strokeWidth={1.5} />
-      <Polygon
-        points={areaFrente}
+      {/* Grandes áreas (topo e base) */}
+      <Rect
+        x={cx - areaW / 2}
+        y={m}
+        width={areaW}
+        height={areaH}
         fill="none"
         stroke={LINHA}
         strokeWidth={1.5}
+      />
+      <Rect
+        x={cx - areaW / 2}
+        y={altura - m - areaH}
+        width={areaW}
+        height={areaH}
+        fill="none"
+        stroke={LINHA}
+        strokeWidth={1.5}
+      />
+      {/* Pequenas áreas (topo e base) */}
+      <Rect
+        x={cx - golW / 2}
+        y={m}
+        width={golW}
+        height={golH}
+        fill="none"
+        stroke={LINHA}
+        strokeWidth={1.2}
+      />
+      <Rect
+        x={cx - golW / 2}
+        y={altura - m - golH}
+        width={golW}
+        height={golH}
+        fill="none"
+        stroke={LINHA}
+        strokeWidth={1.2}
       />
     </Svg>
   );
