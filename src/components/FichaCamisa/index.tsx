@@ -13,7 +13,7 @@ import {StyleSheet, Text, View} from 'react-native';
 import Svg, {G, Path} from 'react-native-svg';
 
 import {nivelAdaptacao} from '../../engine/tactics/adaptacao';
-import {contrasteTexto, corAdaptacao, cores, corDoTime} from '../../theme';
+import {contrasteTexto, corAdaptacao, cores, corDoClube} from '../../theme';
 import type {PernaDominante, Player, Position} from '../../types';
 
 // Silhueta de camisa (viewBox 100x100): gola no topo, mangas nas laterais,
@@ -85,7 +85,7 @@ function FichaCamisa({
   posicaoEscalada,
   largura,
 }: FichaCamisaProps): React.JSX.Element {
-  const cor = corDoTime(jogador.clubeId ?? jogador.id);
+  const cor = corDoClube(jogador.clubeId ?? jogador.id);
   const corTexto = contrasteTexto(cor);
   const adaptacao = nivelAdaptacao(jogador, posicaoEscalada);
   const corRend = corAdaptacao(adaptacao.nivel);

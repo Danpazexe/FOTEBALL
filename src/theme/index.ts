@@ -335,6 +335,40 @@ export function corDoTime(clubeId: string): string {
   return CORES_TIME[hash % CORES_TIME.length];
 }
 
+/**
+ * Cor de camisa/identidade REAL dos clubes (aprox. da cor predominante do
+ * escudo/uniforme), usada nas camisas dos cards. Times de uniforme branco usam
+ * a cor escura da identidade (senão sumiriam no gramado claro). Fallback:
+ * corDoTime (hash) para clubes fora do mapa (ex.: Série B/C).
+ */
+const CORES_CLUBE: Record<string, string> = {
+  club_flamengo: '#C8102E',
+  club_corinthians: '#151515',
+  club_palmeiras: '#016436',
+  club_sao_paulo: '#E4002B',
+  club_santos: '#151515',
+  club_vasco: '#151515',
+  club_fluminense: '#7A1C2E',
+  club_botafogo: '#151515',
+  club_gremio: '#0D80BF',
+  club_cruzeiro: '#1D4A9E',
+  club_internacional: '#D6001C',
+  club_atletico_mg: '#1A1A1A',
+  club_bahia: '#1B54A4',
+  club_vitoria: '#D6001C',
+  club_bragantino: '#E30613',
+  club_mirassol: '#0A8A3F',
+  club_athletico_pr: '#C4122E',
+  club_chapecoense: '#0A8B4C',
+  club_coritiba: '#0A6B3B',
+  club_remo: '#003DA5',
+};
+
+/** Cor real da camisa do clube (fallback: hash de corDoTime). */
+export function corDoClube(clubeId: string): string {
+  return CORES_CLUBE[clubeId] ?? corDoTime(clubeId);
+}
+
 /** Texto legível (claro/escuro) sobre uma cor de fundo sólida. */
 export function contrasteTexto(corHex: string): string {
   const hex = corHex.replace('#', '');

@@ -28,7 +28,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {AppHeader, Botao, OptionGroup, Section} from '../../components/ui';
 import BarrasForca from '../../components/BarrasForca';
-import DraggablePitch from '../../components/DraggablePitch';
+import CampoFUT from '../../components/CampoFUT';
 import Escudo from '../../components/Escudo';
 import Icone from '../../components/Icone';
 import {useToast} from '../../components/feedback';
@@ -36,7 +36,6 @@ import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
 } from '../../api/database/seed/defaults';
-import {detectarFormacao} from '../../engine/tactics/geometria';
 import {validarEscalacao} from '../../engine/tactics/validacao';
 import {useAppNavigation} from '../../navigation/types';
 import {
@@ -49,7 +48,7 @@ import {
   acentos,
   cores,
   corCondicao,
-  corDoTime,
+  corDoClube,
   espaco,
   raio,
   sombra,
@@ -107,6 +106,7 @@ function PreJogo(): React.JSX.Element {
   const atualizarTaticaUsuario = useGameStore(
     state => state.atualizarTaticaUsuario,
   );
+  const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
 
   const [arrastando, setArrastando] = useState(false);
 
@@ -136,11 +136,6 @@ function PreJogo(): React.JSX.Element {
     () => (formacao ? validarEscalacao(formacao, jogadoresUsuario) : null),
     [formacao, jogadoresUsuario],
   );
-  const formacaoDetectada = useMemo(
-    () => (formacao ? detectarFormacao(formacao.titulares) : '—'),
-    [formacao],
-  );
-
   // Titulares (na ordem da formação) com o Player resolvido — condição/moral.
   const titulares = useMemo(() => {
     if (!formacao) {
@@ -226,29 +221,21 @@ function PreJogo(): React.JSX.Element {
             <BarrasForca
               casa={confronto.forcaCasa}
               fora={confronto.forcaFora}
-              corCasa={corDoTime(confronto.casa.id)}
-              corFora={corDoTime(confronto.fora.id)}
+              corCasa={corDoClube(confronto.casa.id)}
+              corFora={corDoClube(confronto.fora.id)}
             />
           </View>
         </View>
 
         {/* ESCALAÇÃO */}
         <Section titulo="Escalação">
-          <View style={styles.detectada}>
-            <View style={styles.detectadaChip}>
-              <Icone nome="tatica" tamanho={14} cor={cores.primaria} />
-              <Text style={styles.detectadaTexto}>
-                Formação:{' '}
-                <Text style={styles.detectadaForte}>{formacaoDetectada}</Text>
-              </Text>
-            </View>
-          </View>
-
-          {validacao ? <BannerValidacao validacao={validacao} /> : null}
-
-          <DraggablePitch
+          <CampoFUT
+            clube={clubeUsuario}
             formacao={formacao}
             jogadores={jogadoresUsuario}
+            tatica={taticaAtual}
+            forca={forcaMinha}
+            reputacaoTecnico={reputacaoTecnico}
             largura={largura}
             onAtualizarFormacao={atualizarFormacaoUsuario}
             onArrastandoChange={setArrastando}
@@ -407,57 +394,6 @@ function PreJogo(): React.JSX.Element {
   );
 }
 
-function BannerValidacao({
-  validacao,
-}: {
-  validacao: ReturnType<typeof validarEscalacao>;
-}): React.JSX.Element {
-  if (!validacao.valido) {
-    return (
-      <View style={[styles.banner, styles.bannerErro]}>
-        <Icone nome="fechar" tamanho={15} cor={cores.perigo} />
-        <View style={styles.bannerTextos}>
-          <Text style={[styles.bannerTitulo, {color: cores.perigo}]}>
-            Escalação inválida
-          </Text>
-          {validacao.erros.map(erro => (
-            <Text key={erro} style={styles.bannerLinha}>
-              • {erro}
-            </Text>
-          ))}
-        </View>
-      </View>
-    );
-  }
-
-  if (validacao.avisos.length > 0) {
-    return (
-      <View style={[styles.banner, styles.bannerAviso]}>
-        <Icone nome="lesao" tamanho={15} cor={cores.secundaria} />
-        <View style={styles.bannerTextos}>
-          <Text style={[styles.bannerTitulo, {color: cores.secundariaEscura}]}>
-            Atenção
-          </Text>
-          {validacao.avisos.map(aviso => (
-            <Text key={aviso} style={styles.bannerLinha}>
-              • {aviso}
-            </Text>
-          ))}
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.banner, styles.bannerOk]}>
-      <Icone nome="check" tamanho={15} cor={cores.primaria} />
-      <Text style={[styles.bannerTitulo, {color: cores.primariaEscura}]}>
-        Escalação válida
-      </Text>
-    </View>
-  );
-}
-
 export default PreJogo;
 
 const styles = StyleSheet.create({
@@ -548,28 +484,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   // ESCALAÇÃO
-  detectada: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  detectadaChip: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
-    flexDirection: 'row',
-    gap: espaco.xs,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-  },
-  detectadaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-  },
-  detectadaForte: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '900',
-  },
   subTitulo: {
     color: cores.texto,
     fontSize: 13,
@@ -657,40 +571,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     marginRight: espaco.sm,
-  },
-  // VALIDAÇÃO
-  banner: {
-    alignItems: 'flex-start',
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.sm,
-    padding: espaco.sm,
-  },
-  bannerErro: {
-    backgroundColor: suaves.vermelho,
-    borderColor: cores.perigo,
-  },
-  bannerAviso: {
-    backgroundColor: suaves.amarelo,
-    borderColor: cores.secundaria,
-  },
-  bannerOk: {
-    alignItems: 'center',
-    backgroundColor: suaves.verde,
-    borderColor: cores.primaria,
-  },
-  bannerTextos: {
-    flex: 1,
-    gap: 2,
-  },
-  bannerTitulo: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  bannerLinha: {
-    color: cores.textoSecundario,
-    fontSize: 12,
   },
   // CONFIRMAR
   avisoJogar: {
