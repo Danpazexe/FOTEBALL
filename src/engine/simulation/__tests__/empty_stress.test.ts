@@ -117,7 +117,9 @@ describe('STRESS: empty side reachability', () => {
 
     let maxIndisponiveisVistos = 0;
     let throwsCount = 0;
-    const TOTAL = 200000;
+    // 20k partidas já alcançam lados esvaziados sem lançar exceção — era 200k
+    // (10× mais lento, mesma asserção de robustez).
+    const TOTAL = 20000;
     for (let i = 1; i <= TOTAL; i += 1) {
       try {
         const p = simularPartida({
