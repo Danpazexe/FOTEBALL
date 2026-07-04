@@ -34,7 +34,10 @@ function rotuloPerna(perna: PernaDominante): string {
   return perna === 'Ambidestro' ? 'A' : perna;
 }
 
-/** Ícone de chuteira preenchido na cor dada — marca o pé dominante (estilo FC). */
+/**
+ * Ícone de chuteira (cleat) — silhueta lateral com o bico à direita, cano baixo
+ * e 2 travas na sola. Preenchido na cor do pé dominante (estilo EA FC).
+ */
 function Chuteira({
   cor,
   tamanho,
@@ -43,15 +46,13 @@ function Chuteira({
   tamanho: number;
 }): React.JSX.Element {
   return (
-    <Svg width={tamanho} height={Math.round(tamanho * 0.66)} viewBox="0 0 28 18">
+    <Svg width={tamanho} height={Math.round(tamanho * 0.6)} viewBox="0 0 24 15">
       <Path
-        d="M4 4 Q4 2 7 2 L16 2 Q26 2 26 9 Q26 12 23 12 L6 12 Q4 12 4 10 Z"
+        d="M3 5 C3 3.8 4 3.5 5.2 3.9 C6 4.1 6.4 4.8 6.6 5.8 L7 8 C11 6.9 15 7.4 19 9.2 C21 10 22.6 10.8 23 12 C23.2 12.7 22.6 13 21.6 13 L5 13 C3.6 13 3 12 3 10 Z"
         fill={cor}
       />
-      <Rect x="4" y="12" width="21" height="2.6" rx="1.2" fill={cor} />
-      <Rect x="7.5" y="14.6" width="2.6" height="2.2" rx="0.6" fill={cor} />
-      <Rect x="13" y="14.6" width="2.6" height="2.2" rx="0.6" fill={cor} />
-      <Rect x="18.5" y="14.6" width="2.6" height="2.2" rx="0.6" fill={cor} />
+      <Rect x="6.5" y="13" width="2.4" height="1.7" rx="0.6" fill={cor} />
+      <Rect x="13" y="13" width="2.4" height="1.7" rx="0.6" fill={cor} />
     </Svg>
   );
 }
@@ -115,7 +116,7 @@ function FichaCamisa({
       <View style={styles.linhaInfo}>
         <Text style={[styles.pos, {fontSize: fonteInfo}]}>{posicaoEscalada}</Text>
         <Text style={[styles.sep, {fontSize: fonteInfo}]}>·</Text>
-        <Chuteira cor={corPe} tamanho={Math.round(fonteInfo * 1.5)} />
+        <Chuteira cor={corPe} tamanho={Math.round(fonteInfo * 1.9)} />
         <Text style={[styles.pe, {color: corPe, fontSize: fonteInfo}]}>
           {rotuloPerna(jogador.pernaDominante)}
         </Text>
