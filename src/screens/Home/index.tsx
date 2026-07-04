@@ -6,11 +6,20 @@
  */
 
 import React, {useMemo} from 'react';
-import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {
+  Image,
+  ImageBackground,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import {Botao, ScreenContainer, TextoVazio} from '../../components/ui';
 import AlertasCard, {type Alerta} from '../../components/AlertasCard';
 import {LOGO_COPA} from '../../assets/escudos';
+// Papel de parede do "hero" do Gabinete: estádio noturno (empacotado).
+const FUNDO_ESTADIO = require('../../assets/planodefundo.jpg');
 import FormaRecente from '../../components/FormaRecente';
 import Icone, {type IconeNome} from '../../components/Icone';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
@@ -245,19 +254,21 @@ function Home(): React.JSX.Element {
   return (
     <ScreenContainer scroll>
       <View style={styles.container}>
-        {/* Cabeçalho enxuto: clube + título + saldo, e a forma numa linha só. */}
-        <View style={styles.hero}>
+        {/* Cabeçalho "hero" cinematográfico: estádio ao fundo + véu + texto claro. */}
+        <ImageBackground source={FUNDO_ESTADIO} style={styles.hero}>
+          <View style={styles.heroVeu} />
           <Text style={styles.eyebrow} numberOfLines={1}>
             {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
           </Text>
           <View style={styles.tituloRow}>
-            <Text style={styles.titulo} numberOfLines={1}>
+            <Text style={[styles.titulo, styles.heroTexto]} numberOfLines={1}>
               Mesa do Técnico
             </Text>
-            <View style={styles.saldoPill}>
+            <View style={[styles.saldoPill, styles.heroPill]}>
               <Text
                 style={[
                   styles.saldoPillTexto,
+                  styles.heroTexto,
                   (clubeUsuario?.financas.saldo ?? 0) < 0
                     ? styles.saldoNegativo
                     : null,
@@ -267,7 +278,7 @@ function Home(): React.JSX.Element {
             </View>
           </View>
           <View style={styles.statusRow}>
-            <Text style={styles.subtitulo} numberOfLines={1}>
+            <Text style={[styles.subtitulo, styles.heroSub]} numberOfLines={1}>
               {clubeUsuario?.divisao ?? 'Série A'} · {posicao} · {jogos} jogos ·{' '}
               {pontos} pts
             </Text>
@@ -275,7 +286,7 @@ function Home(): React.JSX.Element {
               <FormaRecente resultados={forma} compacto />
             ) : null}
           </View>
-        </View>
+        </ImageBackground>
 
         {/* Próximo compromisso (sem header duplicado — o card já se rotula). */}
         {copaNaVez ? (
@@ -389,8 +400,32 @@ const styles = StyleSheet.create({
     gap: espaco.md,
   },
   hero: {
+    borderRadius: raio.lg,
     gap: espaco.xs,
-    paddingTop: espaco.xs,
+    // Conteúdo ancorado na base, como legenda sobre a foto do estádio.
+    justifyContent: 'flex-end',
+    minHeight: 132,
+    overflow: 'hidden',
+    padding: espaco.lg,
+  },
+  // Véu navy sobre o estádio: garante legibilidade do texto claro por cima.
+  heroVeu: {
+    backgroundColor: 'rgba(11, 30, 63, 0.5)',
+    bottom: 0,
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: 0,
+  },
+  heroTexto: {
+    color: '#FFFFFF',
+  },
+  heroSub: {
+    color: 'rgba(233, 240, 251, 0.9)',
+  },
+  heroPill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   eyebrow: {
     color: cores.primaria,
