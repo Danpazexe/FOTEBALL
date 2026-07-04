@@ -90,6 +90,7 @@ function Tactics(): React.JSX.Element {
           clube={clubeUsuario}
           formacao={formacao}
           jogadores={jogadores}
+          tatica={taticaAtual}
           forca={forca}
           reputacaoTecnico={reputacaoTecnico}
           largura={largura}
