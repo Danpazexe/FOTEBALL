@@ -40,7 +40,6 @@ import Svg, {
 } from 'react-native-svg';
 
 import {trocarTitular} from '../../api/database/seed/defaults';
-import {nivelAdaptacao} from '../../engine/tactics/adaptacao';
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
 import {
   coordenadaDoTitular,
@@ -48,10 +47,10 @@ import {
   preencherCoordenadas,
 } from '../../engine/tactics/geometria';
 import {validarEscalacao} from '../../engine/tactics/validacao';
-import {corAdaptacao, cores, corOverall, espaco, raio, suaves} from '../../theme';
+import {cores, corOverall, espaco, raio, suaves} from '../../theme';
 import type {Clube, Formacao, Player, Position, Tatica} from '../../types';
-import CartaJogador from '../CartaJogador';
 import Escudo from '../Escudo';
+import FichaCamisa from '../FichaCamisa';
 import Icone from '../Icone';
 
 type CampoFUTProps = {
@@ -155,12 +154,12 @@ function CampoFUT({
   const altura = Math.round(largura * 1.52);
   // Cartas do campo (11 no gramado) e do banco — maiores pra leitura no celular.
   const cardW = Math.round(largura * 0.212);
-  const cardH = Math.round(cardW * 1.42);
+  const cardH = Math.round(cardW * 1.2);
   const cardBancoW = Math.round(largura * 0.24);
   // Card "fantasma" que segue o dedo no arraste: a CARTA FUT completa, num
   // tamanho médio, para mostrar o jogador sendo puxado (não uma bolinha).
   const ghostW = Math.min(Math.round(largura * 0.5), 190);
-  const ghostH = Math.round(ghostW * 1.42);
+  const ghostH = Math.round(ghostW * 1.2);
   // Quanto o centro visual do fantasma fica ACIMA do dedo (compensado no drop).
   const ghostOffset = Math.round(ghostH * (GHOST_LEVANTA - 0.5));
   // Margens verticais pra as cartas caberem dentro do gramado sem cortar.
@@ -483,7 +482,11 @@ function CampoFUT({
         pointerEvents="none"
         style={[styles.ghost, {width: ghostW, height: ghostH}, ghostStyle]}>
         {jogadorArrastado ? (
-          <CartaJogador jogador={jogadorArrastado} largura={ghostW} />
+          <FichaCamisa
+            jogador={jogadorArrastado}
+            posicaoEscalada={jogadorArrastado.posicaoPrincipal}
+            largura={ghostW}
+          />
         ) : null}
       </Animated.View>
     </View>
@@ -606,7 +609,7 @@ function CartaFUT({
   destaque: boolean;
   esmaecer: boolean;
 }): React.JSX.Element {
-  const altura = Math.round(largura * 1.42);
+  const altura = Math.round(largura * 1.2);
   if (!jogador) {
     return (
       <View style={[styles.cartaVazia, {width: largura, height: altura}]}>
@@ -615,25 +618,20 @@ function CartaFUT({
     );
   }
 
-  const adaptacao = nivelAdaptacao(jogador, posicaoEscalada);
   const indisponivel = jogador.lesionado || jogador.suspenso;
 
-  // Mesma carta do jogo (CartaJogador), em modo compacto: mostra a POSIÇÃO
-  // escalada e o % de adaptação (penalidade fora de posição). Destaque = alvo
-  // de drop (brilho verde); esmaecer = card sendo arrastado.
+  // Camisa na cor viva do time (FichaCamisa): destaque = alvo de drop (brilho
+  // verde); esmaecer = card sendo arrastado.
   return (
     <View
       style={[
         destaque ? styles.cartaDestaque : null,
         esmaecer ? styles.cartaEsmaecida : null,
       ]}>
-      <CartaJogador
+      <FichaCamisa
         jogador={jogador}
-        largura={largura}
-        compacto
         posicaoEscalada={posicaoEscalada}
-        rendimento={Math.round(adaptacao.fator * 100)}
-        corRendimento={corAdaptacao(adaptacao.nivel)}
+        largura={largura}
       />
       {indisponivel ? (
         <View style={styles.cartaStatus}>
@@ -914,9 +912,8 @@ function PitchTopDown({
         x2={largura - m - 8}
         y2={yLinha}
         stroke={cores.primaria}
-        strokeWidth={2}
-        strokeDasharray="7 6"
-        opacity={0.85}
+        strokeWidth={3.5}
+        strokeDasharray="10 7"
       />
     </Svg>
   );
