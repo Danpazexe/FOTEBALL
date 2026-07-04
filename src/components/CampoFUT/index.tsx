@@ -22,7 +22,7 @@
  */
 
 import React, {useCallback, useMemo, useRef, useState} from 'react';
-import {ScrollView, StyleSheet, Text, View} from 'react-native';
+import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {
   runOnJS,
@@ -88,7 +88,7 @@ const GHOST_LEVANTA = 0.78;
 function useGestoPeca(
   tipo: Descritor['tipo'],
   valor: string,
-  habilitado: boolean,
+  arrastavel: boolean,
   restringirVertical: boolean,
   ghostX: SharedNum,
   ghostY: SharedNum,
@@ -100,13 +100,12 @@ function useGestoPeca(
   aoFinalizar: () => void,
 ) {
   return useMemo(() => {
-    const toque = Gesture.Tap()
-      .enabled(habilitado)
-      .onStart(() => {
-        runOnJS(aoTocar)(tipo, valor);
-      });
+    // O TOQUE (abrir detalhe) fica SEMPRE ativo; só o ARRASTE depende do modo.
+    const toque = Gesture.Tap().onStart(() => {
+      runOnJS(aoTocar)(tipo, valor);
+    });
     let arraste = Gesture.Pan()
-      .enabled(habilitado)
+      .enabled(arrastavel)
       .onStart(evento => {
         ghostAtivo.value = 1;
         ghostX.value = evento.absoluteX;
@@ -130,7 +129,7 @@ function useGestoPeca(
   }, [
     tipo,
     valor,
-    habilitado,
+    arrastavel,
     restringirVertical,
     ghostX,
     ghostY,
@@ -186,6 +185,9 @@ function CampoFUT({
 
   const [arrastando, setArrastando] = useState<Descritor | null>(null);
   const [hover, setHover] = useState<number | null>(null);
+  // Modo treinador: campo abre em VER (só toque/detalhe); o olho entra em EDITAR
+  // (arraste/troca liberados e banco visível).
+  const [modoEdicao, setModoEdicao] = useState(false);
 
   const porId = useMemo(
     () => new Map(jogadores.map(j => [j.id, j])),
@@ -381,6 +383,18 @@ function CampoFUT({
         style={[styles.pitch, {width: largura, height: altura}]}>
         <PitchTopDown largura={largura} altura={altura} />
 
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={modoEdicao ? 'Concluir edição' : 'Editar escalação'}
+          onPress={() => setModoEdicao(m => !m)}
+          style={[styles.botaoOlho, modoEdicao ? styles.botaoOlhoAtivo : null]}>
+          <Icone
+            nome={modoEdicao ? 'check' : 'olho'}
+            tamanho={18}
+            cor={modoEdicao ? cores.contrastePrimaria : cores.primaria}
+          />
+        </Pressable>
+
         {slotsTela.map(slot => {
           const titular = titulares[slot.slotIndex];
           return (
@@ -393,6 +407,7 @@ function CampoFUT({
               cy={slot.cy}
               cardW={cardW}
               cardH={cardH}
+              arrastavel={modoEdicao}
               hover={hover === slot.slotIndex}
               arrastandoEste={
                 arrastando?.tipo === 'titular' &&
@@ -411,43 +426,51 @@ function CampoFUT({
         })}
       </View>
 
-      <Text style={styles.dica}>
-        Arraste um card sobre outro para trocar · reserva sobre titular substitui
-      </Text>
-
-      {/* Banco de reservas — SCROLL HORIZONTAL (prioridade mobile). */}
-      <View style={styles.bancoHeader}>
-        <Text style={styles.bancoTitulo}>Banco de reservas</Text>
-        <Text style={styles.bancoContagem}>{banco.length}</Text>
-      </View>
-      {banco.length === 0 ? (
-        <Text style={styles.bancoVazio}>Sem reservas disponíveis.</Text>
+      {!modoEdicao ? (
+        <Text style={styles.dica}>Toque no olho para editar a escalação.</Text>
       ) : (
-        <ScrollView
-          horizontal
-          scrollEnabled={!arrastandoAtivo}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.bancoConteudo}>
-          {banco.map(jogador => (
-            <PecaReserva
-              key={jogador.id}
-              jogador={jogador}
-              cardW={cardBancoW}
-              habilitado={!jogador.lesionado && !jogador.suspenso}
-              arrastandoEste={
-                arrastando?.tipo === 'reserva' && arrastando.valor === jogador.id
-              }
-              ghostX={ghostX}
-              ghostY={ghostY}
-              ghostAtivo={ghostAtivo}
-              aoIniciar={aoIniciar}
-              aoArrastar={aoArrastar}
-              aoSoltar={aoSoltar}
-              aoTocar={aoTocar}
-              aoFinalizar={aoFinalizar}
-            />
-          ))}
-        </ScrollView>
+        <>
+          <Text style={styles.dica}>
+            Arraste um card sobre outro para trocar · reserva sobre titular
+            substitui
+          </Text>
+
+          {/* Banco de reservas — SCROLL HORIZONTAL (prioridade mobile). */}
+          <View style={styles.bancoHeader}>
+            <Text style={styles.bancoTitulo}>Banco de reservas</Text>
+            <Text style={styles.bancoContagem}>{banco.length}</Text>
+          </View>
+          {banco.length === 0 ? (
+            <Text style={styles.bancoVazio}>Sem reservas disponíveis.</Text>
+          ) : (
+            <ScrollView
+              horizontal
+              scrollEnabled={!arrastandoAtivo}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.bancoConteudo}>
+              {banco.map(jogador => (
+                <PecaReserva
+                  key={jogador.id}
+                  jogador={jogador}
+                  cardW={cardBancoW}
+                  habilitado={!jogador.lesionado && !jogador.suspenso}
+                  arrastandoEste={
+                    arrastando?.tipo === 'reserva' &&
+                    arrastando.valor === jogador.id
+                  }
+                  ghostX={ghostX}
+                  ghostY={ghostY}
+                  ghostAtivo={ghostAtivo}
+                  aoIniciar={aoIniciar}
+                  aoArrastar={aoArrastar}
+                  aoSoltar={aoSoltar}
+                  aoTocar={aoTocar}
+                  aoFinalizar={aoFinalizar}
+                />
+              ))}
+            </ScrollView>
+          )}
+        </>
       )}
 
       {/* Card FUT completo que segue o dedo durante o arraste. */}
@@ -628,6 +651,7 @@ type PecaCampoProps = {
   cy: number;
   cardW: number;
   cardH: number;
+  arrastavel: boolean;
   hover: boolean;
   arrastandoEste: boolean;
   ghostX: SharedNum;
@@ -648,6 +672,7 @@ function PecaCampo({
   cy,
   cardW,
   cardH,
+  arrastavel,
   hover,
   arrastandoEste,
   ghostX,
@@ -662,7 +687,7 @@ function PecaCampo({
   const gesto = useGestoPeca(
     'titular',
     String(slotIndex),
-    true,
+    arrastavel,
     false,
     ghostX,
     ghostY,
@@ -975,6 +1000,29 @@ const styles = StyleSheet.create({
   pitch: {
     alignSelf: 'center',
     position: 'relative',
+  },
+  botaoOlho: {
+    alignItems: 'center',
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: 999,
+    borderWidth: 1,
+    elevation: 3,
+    height: 38,
+    justifyContent: 'center',
+    left: 6,
+    position: 'absolute',
+    shadowColor: '#0F1E3D',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.12,
+    shadowRadius: 5,
+    top: 6,
+    width: 38,
+    zIndex: 999,
+  },
+  botaoOlhoAtivo: {
+    backgroundColor: cores.primaria,
+    borderColor: cores.primaria,
   },
   slotWrap: {
     position: 'absolute',
