@@ -43,6 +43,7 @@ import {
   calcularSequencias,
   type JogoResultado,
 } from '../../engine/season/sequencias';
+import {classicoEntre} from '../../engine/season/classicos';
 import {useAppNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
@@ -277,6 +278,11 @@ function Home(): React.JSX.Element {
   }, [proximoJogo, clubes, jogadores]);
 
   const mandoCasa = proximoJogo?.timeCasa === clubeUsuarioId;
+
+  // Clássico: o próximo jogo é uma rivalidade reconhecida?
+  const classico = proximoJogo
+    ? classicoEntre(proximoJogo.timeCasa, proximoJogo.timeFora)
+    : null;
 
   // Última partida disputada pelo clube — base editorial do feed de imprensa.
   const ultimaJogada = useMemo(() => {
@@ -588,6 +594,16 @@ function Home(): React.JSX.Element {
                 </Text>
               </View>
             ))}
+          </View>
+        ) : null}
+
+        {/* Clássico à vista — realça a rivalidade do próximo jogo. */}
+        {classico ? (
+          <View style={styles.classicoBanner}>
+            <Icone nome="apito" tamanho={15} cor={cores.aviso} />
+            <Text style={styles.classicoTexto}>
+              CLÁSSICO · {classico.nome}
+            </Text>
           </View>
         ) : null}
 
@@ -911,6 +927,24 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     lineHeight: 19,
+  },
+  // Clássico — banner de rivalidade do próximo jogo.
+  classicoBanner: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(224, 135, 0, 0.10)',
+    borderColor: 'rgba(224, 135, 0, 0.35)',
+    borderRadius: raio.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: espaco.xs,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.sm,
+  },
+  classicoTexto: {
+    color: cores.aviso,
+    fontSize: 12.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   // Sequências (streaks) — chips de forma/defesa.
   sequenciasRow: {
