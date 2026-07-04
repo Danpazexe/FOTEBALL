@@ -40,16 +40,7 @@ import {
   preencherCoordenadas,
 } from '../../engine/tactics/geometria';
 import {validarEscalacao} from '../../engine/tactics/validacao';
-import {
-  corAdaptacao,
-  cores,
-  corOverall,
-  espaco,
-  glowDoTier,
-  nivelCarta,
-  raio,
-  suaves,
-} from '../../theme';
+import {corAdaptacao, cores, corOverall, espaco, raio, suaves} from '../../theme';
 import type {Clube, Formacao, Player, Position} from '../../types';
 import CartaJogador from '../CartaJogador';
 import Escudo from '../Escudo';
@@ -73,14 +64,6 @@ type Descritor = {tipo: 'titular' | 'reserva'; valor: string};
 type SlotTela = {slotIndex: number; jogadorId: string; cx: number; cy: number};
 
 type SharedNum = SharedValue<number>;
-
-function primeiroNome(jogador: Player): string {
-  if (jogador.apelido) {
-    return jogador.apelido;
-  }
-  const partes = jogador.nome.split(' ');
-  return partes[partes.length - 1] ?? jogador.nome;
-}
 
 /**
  * Gesto reaproveitável por card: arraste (fantasma segue o dedo) + toque.
@@ -160,7 +143,7 @@ function CampoFUT({
   const altura = Math.round(largura * 1.42);
   // Cartas do campo (11 no gramado) e do banco (um pouco maiores, com folga).
   const cardW = Math.round(largura * 0.172);
-  const cardH = Math.round(cardW * 1.34);
+  const cardH = Math.round(cardW * 1.42);
   const cardBancoW = Math.round(largura * 0.2);
   // Card "fantasma" que segue o dedo no arraste: a CARTA FUT completa, num
   // tamanho médio, para mostrar o jogador sendo puxado (não uma bolinha).
@@ -628,70 +611,43 @@ function CartaFUT({
   destaque: boolean;
   esmaecer: boolean;
 }): React.JSX.Element {
-  const altura = Math.round(largura * 1.34);
+  const altura = Math.round(largura * 1.42);
   if (!jogador) {
     return (
-      <View
-        style={[
-          styles.carta,
-          styles.cartaVazia,
-          {width: largura, height: altura},
-        ]}>
+      <View style={[styles.cartaVazia, {width: largura, height: altura}]}>
         <Text style={styles.cartaVaziaTexto}>{posicaoEscalada}</Text>
       </View>
     );
   }
 
-  const tier = nivelCarta(jogador.overall);
   const adaptacao = nivelAdaptacao(jogador, posicaoEscalada);
-  const corAnel = destaque ? cores.primaria : corAdaptacao(adaptacao.nivel);
-  const pct = Math.round(adaptacao.fator * 100);
   const indisponivel = jogador.lesionado || jogador.suspenso;
 
+  // Mesma carta do jogo (CartaJogador), em modo compacto: mostra a POSIÇÃO
+  // escalada e o % de adaptação (penalidade fora de posição). Destaque = alvo
+  // de drop (brilho verde); esmaecer = card sendo arrastado.
   return (
     <View
       style={[
-        styles.carta,
-        glowDoTier(jogador.overall),
-        {
-          width: largura,
-          height: altura,
-          backgroundColor: tier.background,
-          borderColor: corAnel,
-        },
         destaque ? styles.cartaDestaque : null,
         esmaecer ? styles.cartaEsmaecida : null,
       ]}>
-      <View style={styles.cartaTopo}>
-        <Text
-          style={[
-            styles.cartaOverall,
-            {color: tier.text, fontSize: Math.round(largura * 0.32)},
-          ]}>
-          {jogador.overall}
-        </Text>
-        <Text style={[styles.cartaPos, {color: tier.mutedText}]}>
-          {posicaoEscalada}
-        </Text>
-      </View>
-
-      <Text
-        numberOfLines={1}
-        adjustsFontSizeToFit
-        style={[styles.cartaNome, {color: tier.text}]}>
-        {(jogador.apelido ?? primeiroNome(jogador)).toUpperCase()}
-      </Text>
-
+      <CartaJogador
+        jogador={jogador}
+        largura={largura}
+        compacto
+        posicaoEscalada={posicaoEscalada}
+        rendimento={Math.round(adaptacao.fator * 100)}
+        corRendimento={corAdaptacao(adaptacao.nivel)}
+      />
       {indisponivel ? (
-        <View style={styles.cartaTag}>
+        <View style={styles.cartaStatus}>
           <Icone
             nome={jogador.lesionado ? 'lesao' : 'cartao'}
-            tamanho={9}
+            tamanho={Math.round(largura * 0.18)}
             cor={cores.contrastePrimaria}
           />
         </View>
-      ) : adaptacao.nivel !== 'natural' ? (
-        <Text style={[styles.cartaPct, {color: corAnel}]}>{pct}%</Text>
       ) : null}
     </View>
   );
@@ -985,15 +941,13 @@ const styles = StyleSheet.create({
   slotWrap: {
     position: 'absolute',
   },
-  carta: {
-    borderRadius: raio.sm,
-    borderWidth: 2,
-    justifyContent: 'space-between',
-    overflow: 'hidden',
-    padding: 4,
-  },
   cartaDestaque: {
-    transform: [{scale: 1.08}],
+    elevation: 12,
+    shadowColor: cores.primaria,
+    shadowOffset: {width: 0, height: 0},
+    shadowOpacity: 0.9,
+    shadowRadius: 12,
+    transform: [{scale: 1.1}],
   },
   cartaEsmaecida: {
     opacity: 0.35,
@@ -1002,7 +956,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: cores.glassForte,
     borderColor: cores.bordaTransl,
+    borderRadius: raio.sm,
     borderStyle: 'dashed',
+    borderWidth: 2,
     justifyContent: 'center',
   },
   cartaVaziaTexto: {
@@ -1010,40 +966,17 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-  cartaTopo: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  cartaOverall: {
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  cartaPos: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-    marginTop: 2,
-  },
-  cartaNome: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-    textAlign: 'center',
-  },
-  cartaTag: {
+  cartaStatus: {
     alignItems: 'center',
-    alignSelf: 'center',
     backgroundColor: cores.perigo,
     borderRadius: 999,
-    height: 16,
+    height: 18,
     justifyContent: 'center',
-    width: 16,
-  },
-  cartaPct: {
-    alignSelf: 'center',
-    fontSize: 9,
-    fontWeight: '900',
+    position: 'absolute',
+    right: 4,
+    top: 4,
+    width: 18,
+    zIndex: 5,
   },
   dica: {
     color: cores.textoSecundario,
