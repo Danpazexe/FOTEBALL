@@ -120,7 +120,3 @@ dependencies {
         implementation jscFlavor
     }
 }
-
-// Empacota as fontes do react-native-vector-icons (MaterialCommunityIcons etc.).
-// Após adicionar isto, é necessário rebuildar o app (npm run android).
-apply from: file("../../node_modules/react-native-vector-icons/fonts.gradle")

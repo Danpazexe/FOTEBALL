@@ -1,5 +1,6 @@
 /**
- * Catálogo de conquistas (Módulo 15). Os ícones são nomes do MaterialCommunityIcons.
+ * Catálogo de conquistas (Módulo 15). O campo `icone` é um nome-string resolvido
+ * por `IconeGlifo` (Lucide) — ver o mapa ICONES_GLIFO em components/Icone.
  * A definição é estática; o estado de desbloqueio vive em `useAchievementsStore`.
  */
 

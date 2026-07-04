@@ -6,8 +6,8 @@
 
 import React from 'react';
 import {Image, StyleSheet, Text, View} from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
+import {IconeGlifo} from '../Icone';
 import {escudoDoTime} from '../../assets/escudos';
 import {contrasteTexto, corDoTime} from '../../theme';
 
@@ -34,7 +34,7 @@ function Escudo({clubeId, sigla, tamanho = 32}: EscudoProps): React.JSX.Element 
   const cor = corDoTime(clubeId);
   return (
     <View style={[styles.fallback, {height: tamanho, width: tamanho}]}>
-      <MaterialCommunityIcons name="shield" size={tamanho} color={cor} />
+      <IconeGlifo nome="shield" tamanho={tamanho} cor={cor} />
       <Text
         style={[
           styles.sigla,

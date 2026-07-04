@@ -1,9 +1,9 @@
 import React, {useEffect} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import Animated, {SlideInUp, SlideOutUp} from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
+import {IconeGlifo} from '../Icone';
 import {useAchievementsStore} from '../../store/useAchievementsStore';
 import {cores, espaco, raio} from '../../theme';
 
@@ -39,11 +39,7 @@ function ToastConquista(): React.JSX.Element | null {
       pointerEvents="none"
       style={[styles.wrap, {top: insets.top + espaco.sm}]}>
       <View style={[styles.iconeBox, {borderColor: atual.corIcone}]}>
-        <MaterialCommunityIcons
-          name={atual.icone}
-          size={28}
-          color={atual.corIcone}
-        />
+        <IconeGlifo nome={atual.icone} tamanho={28} cor={atual.corIcone} />
       </View>
       <View style={styles.texto}>
         <Text style={styles.cabecalho}>Conquista desbloqueada!</Text>

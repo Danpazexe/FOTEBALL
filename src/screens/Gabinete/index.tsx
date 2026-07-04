@@ -5,8 +5,8 @@
 
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
+import {IconeGlifo} from '../../components/Icone';
 import {AppHeader, ScreenContainer} from '../../components/ui';
 import {useAppNavigation} from '../../navigation/types';
 import {useAchievementsStore} from '../../store/useAchievementsStore';
@@ -77,10 +77,14 @@ function Gabinete(): React.JSX.Element {
               styles.card,
               conquista.desbloqueada ? styles.cardAtivo : styles.cardInativo,
             ]}>
-            <MaterialCommunityIcons
-              name={conquista.desbloqueada ? conquista.icone : 'lock-outline'}
-              size={32}
-              color={conquista.desbloqueada ? conquista.corIcone : cores.textoSecundario}
+            <IconeGlifo
+              nome={conquista.desbloqueada ? conquista.icone : 'lock-outline'}
+              tamanho={32}
+              cor={
+                conquista.desbloqueada
+                  ? conquista.corIcone
+                  : cores.textoSecundario
+              }
             />
             <Text
               style={[
