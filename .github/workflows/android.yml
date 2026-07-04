@@ -1,8 +1,10 @@
 name: Android APK
 
-# Builda um APK instalável e o publica como artifact (baixável na aba Actions).
-#   • Disparo manual: Actions → "Android APK" → Run workflow (escolha debug/release)
-#   • Por tag de versão: `git tag v0.1.0 && git push origin v0.1.0`  (sempre release)
+# Builda um APK instalável e o publica.
+#   • Push na main → APK de teste (debug) publicado no Release "nightly":
+#     github.com/Danpazexe/FOTEBALL/releases/tag/nightly (baixe direto no celular).
+#   • Disparo manual: Actions → "Android APK" → Run workflow (escolha debug/release).
+#   • Por tag de versão: `git tag v0.1.0 && git push origin v0.1.0` (sempre release).
 #
 # Assinatura: debug e release usam a debug key do projeto (android/app/debug.keystore),
 # então NÃO é preciso configurar segredos. Para distribuir de verdade, troque por uma
@@ -16,6 +18,7 @@ on:
         options: [debug, release]
         default: debug
   push:
+    branches: [main]
     tags: ["v*"]
 
 concurrency:
@@ -23,7 +26,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write # publicar o APK como Release (nightly)
 
 env:
   NODE_VERSION: "22"
@@ -120,6 +123,22 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Push na main: publica o APK num Release fixo "nightly" (tag estável), pra
+      # baixar direto no celular sem login. Recria o release a cada push para
+      # sempre ter só o APK mais novo.
+      - name: Publicar APK no Release "nightly" (só push na main)
+        if: github.event_name == 'push' && github.ref_name == 'main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete nightly --yes --cleanup-tag 2>/dev/null || true
+          gh release create nightly "${{ steps.apk.outputs.path }}" \
+            --title "FOTEBALL — build de teste (main)" \
+            --notes "APK de teste do último commit da main (\`${{ steps.vars.outputs.short_sha }}\`). No celular, habilite 'instalar de fontes desconhecidas' e toque no .apk." \
+            --prerelease \
+            --target "${GITHUB_SHA}"
+
       - name: Resumo do build
         if: success()
         run: |
@@ -134,6 +153,10 @@ jobs:
             echo "| Commit | \`${{ steps.vars.outputs.short_sha }}\` |"
             echo ""
             echo "⬇️ Baixe em **Artifacts** (topo desta página): \`foteball-apk-${{ steps.vars.outputs.build_type }}\`."
+            if [ "${{ github.ref_name }}" = "main" ] && [ "${{ github.event_name }}" = "push" ]; then
+              echo ""
+              echo "📲 Ou baixe direto no celular pelo Release: **[nightly](https://github.com/${{ github.repository }}/releases/tag/nightly)**"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Rastreabilidade de erro: em falha, sobe os relatórios do Gradle/AGP.
