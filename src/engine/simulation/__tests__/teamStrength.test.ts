@@ -97,6 +97,44 @@ describe('calcularForcaTime', () => {
     expect(fAlta.overall).toBeGreaterThan(fBaixa.overall);
   });
 
+  it('amplidão: Amplo favorece o ataque; Estreito favorece o meio', () => {
+    const jogadores = elenco();
+    const form = formacao(jogadores);
+    const amplo = calcularForcaTime(form, jogadores, {
+      ...TATICA,
+      amplidao: 'Amplo',
+    });
+    const estreito = calcularForcaTime(form, jogadores, {
+      ...TATICA,
+      amplidao: 'Estreito',
+    });
+    expect(amplo.ataque).toBeGreaterThan(estreito.ataque);
+    expect(estreito.meio).toBeGreaterThan(amplo.meio);
+  });
+
+  it('lado de ataque: atacar pelo flanco FORTE rende mais que pelo fraco', () => {
+    // Flanco esquerdo (LE, PE) forte; direito (LD, PD) fraco.
+    const jogadores = elenco().map(j => {
+      if (j.posicaoPrincipal === 'LE' || j.posicaoPrincipal === 'PE') {
+        return {...j, overall: 90};
+      }
+      if (j.posicaoPrincipal === 'LD' || j.posicaoPrincipal === 'PD') {
+        return {...j, overall: 60};
+      }
+      return j;
+    });
+    const form = formacao(jogadores);
+    const pelaEsq = calcularForcaTime(form, jogadores, {
+      ...TATICA,
+      ladoAtaque: 'Esquerda',
+    });
+    const pelaDir = calcularForcaTime(form, jogadores, {
+      ...TATICA,
+      ladoAtaque: 'Direita',
+    });
+    expect(pelaEsq.ataque).toBeGreaterThan(pelaDir.ataque);
+  });
+
   it('jogador improvisado (fora de posição) reduz a força de ataque', () => {
     const jogadores = elenco(); // todos naturais em suas posições
     const natural = formacao(jogadores);

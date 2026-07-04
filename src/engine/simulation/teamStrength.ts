@@ -126,6 +126,9 @@ export function calcularForcaTime(
     meio: [],
     defesa: [],
   };
+  // Contribuições por FLANCO (para o efeito do 'lado de ataque').
+  const flancoEsq: number[] = [];
+  const flancoDir: number[] = [];
   let forcaGoleiro = 55;
   let titularesDeLinha = 0; // jogadores de linha previstos na escalação (não-GOL)
   let presentesDeLinha = 0; // quantos desses estão realmente disponíveis
@@ -156,9 +159,17 @@ export function calcularForcaTime(
     }
 
     presentesDeLinha += 1;
-    linhas[linhaDaPosicao(titular.posicao)].push(
-      contribuicaoJogador(jogador, titular.posicao, condicaoDe(jogador)),
+    const contribuicao = contribuicaoJogador(
+      jogador,
+      titular.posicao,
+      condicaoDe(jogador),
     );
+    linhas[linhaDaPosicao(titular.posicao)].push(contribuicao);
+    if (titular.posicao === 'LE' || titular.posicao === 'PE') {
+      flancoEsq.push(contribuicao);
+    } else if (titular.posicao === 'LD' || titular.posicao === 'PD') {
+      flancoDir.push(contribuicao);
+    }
   }
 
   let ataque = media(linhas.ataque, 55);
@@ -208,6 +219,33 @@ export function calcularForcaTime(
   } else if (tatica.linhaDefensiva === 'Recuada') {
     ataque *= 0.96;
     defesa *= 1.05;
+  }
+
+  // Amplidão: Amplo abre o jogo (mais ataque, menos controle de meio);
+  // Estreito compacta (mais meio, menos largura no ataque).
+  if (tatica.amplidao === 'Amplo') {
+    ataque *= 1.04;
+    meio *= 0.98;
+  } else if (tatica.amplidao === 'Estreito') {
+    meio *= 1.04;
+    ataque *= 0.98;
+  }
+
+  // Lado de ataque: atacar por um FLANCO vale pela QUALIDADE daquele flanco —
+  // flanco acima da média de linha rende bônus (até +5%); abaixo, leve queda.
+  // 'Centro' concentra no meio; 'Ambos' é neutro (espalha).
+  if (tatica.ladoAtaque === 'Esquerda' || tatica.ladoAtaque === 'Direita') {
+    const flanco = tatica.ladoAtaque === 'Esquerda' ? flancoEsq : flancoDir;
+    const refLinha = media(
+      [...linhas.ataque, ...linhas.meio, ...linhas.defesa],
+      55,
+    );
+    if (flanco.length > 0 && refLinha > 0) {
+      const desvio = (media(flanco, refLinha) - refLinha) / refLinha;
+      ataque *= 1 + Math.max(-0.05, Math.min(0.05, desvio * 0.5));
+    }
+  } else if (tatica.ladoAtaque === 'Centro') {
+    meio *= 1.03;
   }
 
   // Bônus das habilidades especiais dos titulares (líder, muralha, velocista no

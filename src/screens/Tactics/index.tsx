@@ -26,6 +26,7 @@ import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
 } from '../../api/database/seed/defaults';
+import {ESTRATEGIAS, estrategiaAtiva} from '../../engine/tactics/estrategias';
 import {useAppNavigation} from '../../navigation/types';
 import {
   selecionarClubeUsuario,
@@ -53,6 +54,17 @@ const OPCOES_LINHA: Tatica['linhaDefensiva'][] = [
   'Adiantada',
 ];
 const OPCOES_RITMO: Tatica['ritmo'][] = ['Lento', 'Normal', 'Intenso'];
+const OPCOES_LADO: NonNullable<Tatica['ladoAtaque']>[] = [
+  'Esquerda',
+  'Centro',
+  'Direita',
+  'Ambos',
+];
+const OPCOES_AMPLIDAO: NonNullable<Tatica['amplidao']>[] = [
+  'Estreito',
+  'Normal',
+  'Amplo',
+];
 
 function Tactics(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -78,6 +90,8 @@ function Tactics(): React.JSX.Element {
     return <SafeAreaView style={styles.screen} />;
   }
 
+  const estrategia = estrategiaAtiva(taticaAtual);
+
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView
@@ -98,6 +112,29 @@ function Tactics(): React.JSX.Element {
           onArrastandoChange={setArrastando}
           onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
         />
+
+        <Section titulo="Estratégia">
+          <View style={styles.chipRow}>
+            {ESTRATEGIAS.map(estr => {
+              const ativa = estr.nome === estrategia;
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  key={estr.nome}
+                  onPress={() => atualizarTaticaUsuario(estr.tatica)}
+                  style={[styles.chip, ativa ? styles.chipAtivo : null]}>
+                  <Text
+                    style={[
+                      styles.chipTexto,
+                      ativa ? styles.chipTextoAtivo : null,
+                    ]}>
+                    {estr.nome}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </Section>
 
         <Section titulo="Formação">
           <View style={styles.chipRow}>
@@ -160,6 +197,28 @@ function Tactics(): React.JSX.Element {
               })
             }
           />
+          <OptionGroup
+            titulo="Lado de ataque"
+            valor={taticaAtual.ladoAtaque ?? 'Ambos'}
+            opcoes={OPCOES_LADO}
+            onSelect={valor =>
+              atualizarTaticaUsuario({
+                ...taticaAtual,
+                ladoAtaque: valor as NonNullable<Tatica['ladoAtaque']>,
+              })
+            }
+          />
+          <OptionGroup
+            titulo="Amplidão"
+            valor={taticaAtual.amplidao ?? 'Normal'}
+            opcoes={OPCOES_AMPLIDAO}
+            onSelect={valor =>
+              atualizarTaticaUsuario({
+                ...taticaAtual,
+                amplidao: valor as NonNullable<Tatica['amplidao']>,
+              })
+            }
+          />
         </Section>
       </ScrollView>
     </SafeAreaView>
@@ -190,9 +249,16 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: espaco.md,
   },
+  chipAtivo: {
+    backgroundColor: cores.primaria,
+    borderColor: cores.primaria,
+  },
   chipTexto: {
     color: cores.texto,
     fontSize: 13,
     fontWeight: '700',
+  },
+  chipTextoAtivo: {
+    color: cores.contrastePrimaria,
   },
 });
