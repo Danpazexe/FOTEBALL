@@ -10,7 +10,7 @@
 
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
-import Svg, {Path} from 'react-native-svg';
+import Svg, {Path, Rect} from 'react-native-svg';
 
 import {nivelAdaptacao} from '../../engine/tactics/adaptacao';
 import {contrasteTexto, corAdaptacao, cores, corDoTime} from '../../theme';
@@ -32,6 +32,28 @@ function ultimoNome(jogador: Player): string {
 /** Pé dominante em 1 letra: D = direito, E = esquerdo, A = ambidestro. */
 function rotuloPerna(perna: PernaDominante): string {
   return perna === 'Ambidestro' ? 'A' : perna;
+}
+
+/** Ícone de chuteira preenchido na cor dada — marca o pé dominante (estilo FC). */
+function Chuteira({
+  cor,
+  tamanho,
+}: {
+  cor: string;
+  tamanho: number;
+}): React.JSX.Element {
+  return (
+    <Svg width={tamanho} height={Math.round(tamanho * 0.66)} viewBox="0 0 28 18">
+      <Path
+        d="M4 4 Q4 2 7 2 L16 2 Q26 2 26 9 Q26 12 23 12 L6 12 Q4 12 4 10 Z"
+        fill={cor}
+      />
+      <Rect x="4" y="12" width="21" height="2.6" rx="1.2" fill={cor} />
+      <Rect x="7.5" y="14.6" width="2.6" height="2.2" rx="0.6" fill={cor} />
+      <Rect x="13" y="14.6" width="2.6" height="2.2" rx="0.6" fill={cor} />
+      <Rect x="18.5" y="14.6" width="2.6" height="2.2" rx="0.6" fill={cor} />
+    </Svg>
+  );
 }
 
 type FichaCamisaProps = {
@@ -93,6 +115,7 @@ function FichaCamisa({
       <View style={styles.linhaInfo}>
         <Text style={[styles.pos, {fontSize: fonteInfo}]}>{posicaoEscalada}</Text>
         <Text style={[styles.sep, {fontSize: fonteInfo}]}>·</Text>
+        <Chuteira cor={corPe} tamanho={Math.round(fonteInfo * 1.5)} />
         <Text style={[styles.pe, {color: corPe, fontSize: fonteInfo}]}>
           {rotuloPerna(jogador.pernaDominante)}
         </Text>

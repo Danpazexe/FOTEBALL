@@ -35,6 +35,7 @@ import Svg, {
   Defs,
   Line,
   LinearGradient,
+  Path,
   Rect,
   Stop,
 } from 'react-native-svg';
@@ -383,6 +384,7 @@ function CampoFUT({
           largura={largura}
           altura={altura}
           linhaDefensiva={tatica.linhaDefensiva}
+          ladoAtaque={tatica.ladoAtaque ?? 'Ambos'}
         />
 
         <Pressable
@@ -785,6 +787,8 @@ function TaticaStrip({tatica}: {tatica: Tatica}): React.JSX.Element {
     `Linha ${tatica.linhaDefensiva.toLowerCase()}`,
     `Ritmo ${tatica.ritmo.toLowerCase()}`,
     tatica.marcacao,
+    `Ataque ${(tatica.ladoAtaque ?? 'Ambos').toLowerCase()}`,
+    `Largura ${(tatica.amplidao ?? 'Normal').toLowerCase()}`,
   ];
   return (
     <View style={styles.taticaStrip}>
@@ -805,10 +809,12 @@ function PitchTopDown({
   largura,
   altura,
   linhaDefensiva,
+  ladoAtaque,
 }: {
   largura: number;
   altura: number;
   linhaDefensiva: Tatica['linhaDefensiva'];
+  ladoAtaque: NonNullable<Tatica['ladoAtaque']>;
 }): React.JSX.Element {
   const m = 8; // margem do gramado dentro do container
   const w = largura - m * 2;
@@ -828,6 +834,23 @@ function PitchTopDown({
       ? 0.72
       : 0.61;
   const yLinha = m + h * fracLinha;
+  // Seta(s) amarela(s) de LADO DE ATAQUE no terço ofensivo (topo), estilo SM26.
+  const setaTip = altura * 0.09;
+  const setaBase = altura * 0.3;
+  const seta = (ax: number): string =>
+    `M${ax - 3} ${setaBase} L${ax - 3} ${setaTip + 9} L${ax - 8} ${
+      setaTip + 9
+    } L${ax} ${setaTip} L${ax + 8} ${setaTip + 9} L${ax + 3} ${
+      setaTip + 9
+    } L${ax + 3} ${setaBase} Z`;
+  const xsSeta =
+    ladoAtaque === 'Esquerda'
+      ? [largura * 0.25]
+      : ladoAtaque === 'Direita'
+      ? [largura * 0.75]
+      : ladoAtaque === 'Centro'
+      ? [largura * 0.5]
+      : [largura * 0.25, largura * 0.75];
 
   return (
     <Svg
@@ -915,6 +938,9 @@ function PitchTopDown({
         strokeWidth={3.5}
         strokeDasharray="10 7"
       />
+      {xsSeta.map(ax => (
+        <Path key={ax} d={seta(ax)} fill="#FFD400" opacity={0.9} />
+      ))}
     </Svg>
   );
 }

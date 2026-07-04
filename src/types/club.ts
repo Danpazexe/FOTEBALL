@@ -38,11 +38,6 @@ export interface Formacao {
   reservas: string[];
 }
 
-export interface InstrucaoIndividual {
-  jogadorId: string;
-  instrucao: string;
-}
-
 export interface Tatica {
   estiloOfensivo:
     | 'Contra-ataque'
@@ -52,7 +47,17 @@ export interface Tatica {
   marcacao: 'Zona' | 'Individual' | 'Pressão alta';
   linhaDefensiva: 'Recuada' | 'Normal' | 'Adiantada';
   ritmo: 'Lento' | 'Normal' | 'Intenso';
-  instrucoesIndividuais?: InstrucaoIndividual[];
+  /**
+   * Por onde o time ataca (afeta a força pela qualidade do flanco escolhido).
+   * Opcional só por compatibilidade de saves antigos — ausência = 'Ambos'
+   * (neutro). taticaDefault e os presets sempre definem.
+   */
+  ladoAtaque?: 'Esquerda' | 'Centro' | 'Direita' | 'Ambos';
+  /**
+   * Largura do time: Amplo abre o jogo (ataque), Estreito compacta (meio).
+   * Opcional por compatibilidade de saves — ausência = 'Normal' (neutro).
+   */
+  amplidao?: 'Estreito' | 'Normal' | 'Amplo';
 }
 
 export interface Estadio {

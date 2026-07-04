@@ -33,6 +33,8 @@ export const taticaDefault: Tatica = {
   marcacao: 'Zona',
   linhaDefensiva: 'Normal',
   ritmo: 'Normal',
+  ladoAtaque: 'Ambos',
+  amplidao: 'Normal',
 };
 
 function jogadorCompatibilidade(
