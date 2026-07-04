@@ -492,71 +492,68 @@ function Home(): React.JSX.Element {
           </View>
         ) : null}
 
-        {/* Meta da diretoria — objetivo contratado da temporada + progresso. */}
-        {objetivo ? (
-          <View style={styles.objetivoCard}>
-            <View style={styles.objetivoTopo}>
-              <Icone nome="trofeu" tamanho={15} cor={cores.aviso} />
-              <Text style={styles.objetivoRotulo}>Objetivo da temporada</Text>
-              <View
-                style={[
-                  styles.objetivoTag,
-                  metaNoRumo ? styles.objetivoTagOk : styles.objetivoTagRisco,
-                ]}>
-                <Text
-                  style={[
-                    styles.objetivoTagTexto,
-                    metaNoRumo
-                      ? styles.objetivoTagTextoOk
-                      : styles.objetivoTagTextoRisco,
-                  ]}>
-                  {metaNoRumo ? 'No rumo' : 'Fora da meta'}
-                </Text>
+        {/* Objetivo + Diretoria — dois mini-botões lado a lado (compactos). */}
+        {objetivo && pressao ? (
+          <View style={styles.duplaBotoes}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ver a tabela"
+              onPress={() => nav.navigate('MainTabs', {screen: 'Competition'})}
+              style={({pressed}) => [
+                styles.miniBotao,
+                pressed ? styles.miniPressed : null,
+              ]}>
+              <View style={styles.miniTopo}>
+                <Icone nome="trofeu" tamanho={14} cor={cores.aviso} />
+                <Text style={styles.miniLabel}>Objetivo</Text>
               </View>
-            </View>
-            <Text style={styles.objetivoMeta} numberOfLines={1}>
-              {objetivo.descricao}
-            </Text>
-            <Text style={styles.objetivoAlvo} numberOfLines={1}>
-              Meta: terminar até {objetivo.posicaoAlvo}º · Você está em {posicao}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Termômetro da diretoria — pressão sobre o cargo (0-100 + nível). */}
-        {pressao ? (
-          <View style={styles.objetivoCard}>
-            <View style={styles.objetivoTopo}>
-              <Icone
-                nome="conversa"
-                tamanho={15}
-                cor={corDaPressao(pressao.nivel)}
-              />
-              <Text style={styles.objetivoRotulo}>Termômetro da diretoria</Text>
+              <Text style={styles.miniValor} numberOfLines={1}>
+                {objetivo.tipo}
+              </Text>
               <Text
                 style={[
-                  styles.pressaoNivel,
-                  {color: corDaPressao(pressao.nivel)},
-                ]}>
+                  styles.miniStatus,
+                  {color: metaNoRumo ? cores.sucesso : cores.perigo},
+                ]}
+                numberOfLines={1}>
+                {metaNoRumo ? 'No rumo' : 'Fora da meta'} · até{' '}
+                {objetivo.posicaoAlvo}º
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ver o gabinete do técnico"
+              onPress={() => nav.navigate('Gabinete')}
+              style={({pressed}) => [
+                styles.miniBotao,
+                pressed ? styles.miniPressed : null,
+              ]}>
+              <View style={styles.miniTopo}>
+                <Icone
+                  nome="conversa"
+                  tamanho={14}
+                  cor={corDaPressao(pressao.nivel)}
+                />
+                <Text style={styles.miniLabel}>Diretoria</Text>
+              </View>
+              <Text
+                style={[styles.miniValor, {color: corDaPressao(pressao.nivel)}]}
+                numberOfLines={1}>
                 {pressao.nivel}
               </Text>
-            </View>
-            <View style={styles.pressaoTrilha}>
-              <View
-                style={[
-                  styles.pressaoBarra,
-                  {
-                    width: `${pressao.pontuacao}%`,
-                    backgroundColor: corDaPressao(pressao.nivel),
-                  },
-                ]}
-              />
-            </View>
-            <Text style={styles.objetivoAlvo} numberOfLines={1}>
-              {pressao.fatores.length > 0
-                ? pressao.fatores[0]
-                : 'Diretoria tranquila com o trabalho.'}
-            </Text>
+              <View style={styles.pressaoTrilha}>
+                <View
+                  style={[
+                    styles.pressaoBarra,
+                    {
+                      width: `${pressao.pontuacao}%`,
+                      backgroundColor: corDaPressao(pressao.nivel),
+                    },
+                  ]}
+                />
+              </View>
+            </Pressable>
           </View>
         ) : null}
 
@@ -813,67 +810,7 @@ const styles = StyleSheet.create({
     backgroundColor: cores.superficieAlt,
     transform: [{scale: 0.99}],
   },
-  // Meta da diretoria — objetivo da temporada + progresso.
-  objetivoCard: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: 4,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.md,
-    ...sombra.suave,
-  },
-  objetivoTopo: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  objetivoRotulo: {
-    color: cores.textoSecundario,
-    flex: 1,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  objetivoMeta: {
-    color: cores.texto,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  objetivoAlvo: {
-    color: cores.textoSecundario,
-    fontSize: 12.5,
-  },
-  objetivoTag: {
-    borderRadius: raio.sm,
-    paddingHorizontal: espaco.xs,
-    paddingVertical: 2,
-  },
-  objetivoTagOk: {
-    backgroundColor: 'rgba(18, 183, 106, 0.12)',
-  },
-  objetivoTagRisco: {
-    backgroundColor: 'rgba(229, 72, 77, 0.12)',
-  },
-  objetivoTagTexto: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  objetivoTagTextoOk: {
-    color: cores.sucesso,
-  },
-  objetivoTagTextoRisco: {
-    color: cores.perigo,
-  },
-  // Termômetro da diretoria — nível + barra de pressão.
-  pressaoNivel: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-  },
+  // Termômetro da diretoria — barra de pressão (reusada no mini-botão).
   pressaoTrilha: {
     backgroundColor: cores.superficieAlt,
     borderRadius: 999,
@@ -885,6 +822,47 @@ const styles = StyleSheet.create({
   pressaoBarra: {
     borderRadius: 999,
     height: '100%',
+  },
+  // Objetivo + Diretoria — mini-botões lado a lado.
+  duplaBotoes: {
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  miniBotao: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    flex: 1,
+    gap: 4,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.md,
+    ...sombra.suave,
+  },
+  miniPressed: {
+    backgroundColor: cores.superficieAlt,
+    transform: [{scale: 0.99}],
+  },
+  miniTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  miniLabel: {
+    color: cores.textoSecundario,
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  miniValor: {
+    color: cores.texto,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  miniStatus: {
+    fontSize: 11.5,
+    fontWeight: '700',
   },
   // Ultimato — banner urgente (vermelho) no fio da navalha.
   ultimatoBanner: {
