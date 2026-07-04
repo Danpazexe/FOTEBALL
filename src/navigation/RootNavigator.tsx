@@ -15,6 +15,7 @@ import Academia from '../screens/Academia';
 import Gabinete from '../screens/Gabinete';
 import Calendario from '../screens/Calendario';
 import Contratos from '../screens/Contratos';
+import Central from '../screens/Central';
 import Demissao from '../screens/Demissao';
 import {TabNavigator} from './TabNavigator';
 import type {RootStackParamList} from './types';
@@ -49,6 +50,7 @@ export function RootNavigator() {
       <Stack.Screen name="Gabinete" component={Gabinete} />
       <Stack.Screen name="Calendario" component={Calendario} />
       <Stack.Screen name="Contratos" component={Contratos} />
+      <Stack.Screen name="Central" component={Central} />
       <Stack.Screen
         name="Demissao"
         component={Demissao}
