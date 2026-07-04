@@ -52,7 +52,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "GOL",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 5,
       "passe": 42,
@@ -190,7 +190,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "ZAG",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 22,
       "passe": 56,
@@ -328,7 +328,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "LE",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 25,
       "passe": 64,
@@ -420,7 +420,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "LD",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 35,
       "passe": 63,
@@ -604,7 +604,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "MEI",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 60,
       "passe": 88,
@@ -650,7 +650,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "MEI",
     "posicoesSecundarias": [],
-    "pernaDominante": "Ambidestro",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 65,
       "passe": 85,
@@ -696,7 +696,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "PD",
     "posicoesSecundarias": [],
-    "pernaDominante": "Ambidestro",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 68,
       "passe": 75,
@@ -788,7 +788,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "PE",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 71,
       "passe": 66,
@@ -1018,7 +1018,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "MC",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "Ambidestro",
     "atributos": {
       "finalizacao": 54,
       "passe": 80,

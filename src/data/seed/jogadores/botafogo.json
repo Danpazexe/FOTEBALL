@@ -190,7 +190,7 @@
     "nacionalidade": "Argentina",
     "posicaoPrincipal": "ZAG",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 33,
       "passe": 67,
@@ -236,7 +236,7 @@
     "nacionalidade": "Venezuela",
     "posicaoPrincipal": "ZAG",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 37,
       "passe": 62,
@@ -420,7 +420,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "LE",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 43,
       "passe": 76,
@@ -834,7 +834,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "MC",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 63,
       "passe": 80,
@@ -880,7 +880,7 @@
     "nacionalidade": "Argentina",
     "posicaoPrincipal": "MC",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 63,
       "passe": 80,
@@ -1064,7 +1064,7 @@
     "nacionalidade": "Argentina",
     "posicaoPrincipal": "PE",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 79,
       "passe": 79,

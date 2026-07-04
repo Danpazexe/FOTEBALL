@@ -6,7 +6,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "GOL",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 5,
       "passe": 47,
@@ -236,7 +236,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "ZAG",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 32,
       "passe": 67,
@@ -374,7 +374,7 @@
     "nacionalidade": "Argentina",
     "posicaoPrincipal": "LE",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 39,
       "passe": 74,
@@ -558,7 +558,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "VOL",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 47,
       "passe": 74,
@@ -788,7 +788,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "MC",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 61,
       "passe": 82,
@@ -880,7 +880,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "MEI",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 77,
       "passe": 96,
@@ -926,7 +926,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "PD",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 72,
       "passe": 75,
@@ -972,7 +972,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "PE",
     "posicoesSecundarias": [],
-    "pernaDominante": "Ambidestro",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 77,
       "passe": 80,
@@ -1018,7 +1018,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "SA",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 81,
       "passe": 80,
@@ -1110,7 +1110,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "CA",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 80,
       "passe": 63,

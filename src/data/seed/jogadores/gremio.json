@@ -52,7 +52,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "GOL",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 5,
       "passe": 43,
@@ -282,7 +282,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "ZAG",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 26,
       "passe": 60,
@@ -466,7 +466,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "LE",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 39,
       "passe": 73,
@@ -512,7 +512,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "LE",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 38,
       "passe": 68,
@@ -834,7 +834,7 @@
     "nacionalidade": "Paraguay",
     "posicaoPrincipal": "VOL",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 46,
       "passe": 75,
@@ -1202,7 +1202,7 @@
     "nacionalidade": "Ghana",
     "posicaoPrincipal": "PE",
     "posicoesSecundarias": [],
-    "pernaDominante": "E",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 74,
       "passe": 68,
@@ -1294,7 +1294,7 @@
     "nacionalidade": "Brazil",
     "posicaoPrincipal": "PD",
     "posicoesSecundarias": [],
-    "pernaDominante": "D",
+    "pernaDominante": "E",
     "atributos": {
       "finalizacao": 73,
       "passe": 74,
@@ -1340,7 +1340,7 @@
     "nacionalidade": "Colombia",
     "posicaoPrincipal": "PD",
     "posicoesSecundarias": [],
-    "pernaDominante": "Ambidestro",
+    "pernaDominante": "D",
     "atributos": {
       "finalizacao": 78,
       "passe": 76,
