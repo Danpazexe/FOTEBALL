@@ -12,6 +12,7 @@
  */
 
 import React from 'react';
+import {StyleSheet, View} from 'react-native';
 import {
   ArrowRightLeft,
   Bandage,
@@ -123,6 +124,8 @@ const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
   'seta-cima': ChevronUp,
   avancar: ChevronRight,
   bola: Goal,
+  // Sobrescrito no render como CARTA SÓLIDA (View) — o Square é só o placeholder
+  // do tipo. Ver `Icone`.
   cartao: Square,
   lesao: Bandage,
   substituicao: ArrowRightLeft,
@@ -182,11 +185,37 @@ type IconeProps = {
 };
 
 function Icone({nome, tamanho = 20, cor}: IconeProps): React.JSX.Element {
+  const color = cor ?? cores.texto;
+  // Cartão: carta SÓLIDA (retângulo arredondado preenchido, proporção de cartão)
+  // em vez de um ícone de contorno — muito mais parecido com o cartão real.
+  if (nome === 'cartao') {
+    return (
+      <View
+        style={[
+          styles.cartao,
+          {
+            width: Math.round(tamanho * 0.72),
+            height: tamanho,
+            borderRadius: Math.max(2, Math.round(tamanho * 0.16)),
+            backgroundColor: color,
+          },
+        ]}
+      />
+    );
+  }
   const Componente = ICONES_SEMANTICOS[nome];
-  return <Componente size={tamanho} color={cor ?? cores.texto} />;
+  return <Componente size={tamanho} color={color} />;
 }
 
 export default Icone;
+
+const styles = StyleSheet.create({
+  cartao: {
+    // Leve borda escura pra destacar a carta clara (amarelo) sobre fundo claro.
+    borderColor: 'rgba(15, 30, 61, 0.25)',
+    borderWidth: 1,
+  },
+});
 
 type IconeGlifoProps = {
   nome: string;
