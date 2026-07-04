@@ -49,7 +49,7 @@ import {
 } from '../../engine/tactics/geometria';
 import {validarEscalacao} from '../../engine/tactics/validacao';
 import {corAdaptacao, cores, corOverall, espaco, raio, suaves} from '../../theme';
-import type {Clube, Formacao, Player, Position} from '../../types';
+import type {Clube, Formacao, Player, Position, Tatica} from '../../types';
 import CartaJogador from '../CartaJogador';
 import Escudo from '../Escudo';
 import Icone from '../Icone';
@@ -58,6 +58,7 @@ type CampoFUTProps = {
   clube: Clube;
   formacao: Formacao;
   jogadores: Player[];
+  tatica: Tatica;
   forca: ForcaTime | null;
   reputacaoTecnico: number;
   onAtualizarFormacao: (formacao: Formacao) => void;
@@ -143,6 +144,7 @@ function CampoFUT({
   clube,
   formacao,
   jogadores,
+  tatica,
   forca,
   reputacaoTecnico,
   onAtualizarFormacao,
@@ -378,7 +380,11 @@ function CampoFUT({
         ref={pitchRef}
         onLayout={medirPitch}
         style={[styles.pitch, {width: largura, height: altura}]}>
-        <PitchTopDown largura={largura} altura={altura} />
+        <PitchTopDown
+          largura={largura}
+          altura={altura}
+          linhaDefensiva={tatica.linhaDefensiva}
+        />
 
         <Pressable
           accessibilityRole="button"
@@ -422,6 +428,8 @@ function CampoFUT({
           );
         })}
       </View>
+
+      <TaticaStrip tatica={tatica} />
 
       {!modoEdicao ? (
         <Text style={styles.dica}>Toque no olho para editar a escalação.</Text>
@@ -772,6 +780,25 @@ function PecaReserva({
   );
 }
 
+/** Resumo tático ao vivo (chips): estilo, linha, ritmo, marcação. */
+function TaticaStrip({tatica}: {tatica: Tatica}): React.JSX.Element {
+  const chips = [
+    tatica.estiloOfensivo,
+    `Linha ${tatica.linhaDefensiva.toLowerCase()}`,
+    `Ritmo ${tatica.ritmo.toLowerCase()}`,
+    tatica.marcacao,
+  ];
+  return (
+    <View style={styles.taticaStrip}>
+      {chips.map(texto => (
+        <View key={texto} style={styles.taticaChip}>
+          <Text style={styles.taticaChipTexto}>{texto}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /**
  * Gramado top-down (visão de cima): retângulo arredondado com gradiente sutil,
  * linha e círculo central, grandes e pequenas áreas nos dois gols. SVG puro.
@@ -779,9 +806,11 @@ function PecaReserva({
 function PitchTopDown({
   largura,
   altura,
+  linhaDefensiva,
 }: {
   largura: number;
   altura: number;
+  linhaDefensiva: Tatica['linhaDefensiva'];
 }): React.JSX.Element {
   const m = 8; // margem do gramado dentro do container
   const w = largura - m * 2;
@@ -793,6 +822,14 @@ function PitchTopDown({
   const golW = w * 0.34;
   const golH = h * 0.06;
   const raioCirculo = w * 0.15;
+  // Linha defensiva tática: sobe (Adiantada) ou recua (Recuada) no campo.
+  const fracLinha =
+    linhaDefensiva === 'Adiantada'
+      ? 0.5
+      : linhaDefensiva === 'Recuada'
+      ? 0.72
+      : 0.61;
+  const yLinha = m + h * fracLinha;
 
   return (
     <Svg
@@ -869,6 +906,17 @@ function PitchTopDown({
         fill="none"
         stroke={LINHA}
         strokeWidth={1.2}
+      />
+      {/* Linha defensiva tática (tracejada) — Recuada/Normal/Adiantada. */}
+      <Line
+        x1={m + 8}
+        y1={yLinha}
+        x2={largura - m - 8}
+        y2={yLinha}
+        stroke={cores.primaria}
+        strokeWidth={2}
+        strokeDasharray="7 6"
+        opacity={0.85}
       />
     </Svg>
   );
@@ -1063,6 +1111,25 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 11,
     textAlign: 'center',
+  },
+  taticaStrip: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espaco.xs,
+    justifyContent: 'center',
+  },
+  taticaChip: {
+    backgroundColor: cores.superficieAlt,
+    borderColor: cores.borda,
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 3,
+  },
+  taticaChipTexto: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '700',
   },
   bancoHeader: {
     alignItems: 'center',
