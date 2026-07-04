@@ -1,32 +1,31 @@
 /**
- * Tela Tática. Escalação LIVRE: o técnico arrasta cada jogador para onde quiser
- * no campo (DraggablePitch) e o sistema detecta a formação resultante e valida as
- * regras mínimas. Também traz "preencher rápido" por esquema-base (atalho, não
- * obrigatório) e as instruções táticas (estilo, marcação, linha, ritmo).
+ * Tela Tática. Escalação estilo FUT: o técnico monta o time num campo com CARTAS
+ * (CampoFUT) — arrasta um card sobre outro para trocar, ou puxa um reserva do
+ * banco horizontal sobre um titular para substituir. O cabeçalho traz clube,
+ * overall do time e card do técnico; o banner valida as regras mínimas. Também há
+ * "preencher rápido" por esquema-base e as instruções táticas.
  *
  * Mantém o scroll travado enquanto há um arraste em curso, para o gesto de
  * reposicionar não disputar com a rolagem da tela.
  */
 
-import React, {useMemo, useState} from 'react';
-import {Dimensions, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import React, {useState} from 'react';
+import {
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import DraggablePitch from '../../components/DraggablePitch';
-import {
-  AppHeader,
-  Metric,
-  MetricsRow,
-  OptionGroup,
-  Section,
-} from '../../components/ui';
-import Icone from '../../components/Icone';
+import CampoFUT from '../../components/CampoFUT';
+import {AppHeader, OptionGroup, Section} from '../../components/ui';
 import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
 } from '../../api/database/seed/defaults';
-import {detectarFormacao} from '../../engine/tactics/geometria';
-import {validarEscalacao} from '../../engine/tactics/validacao';
 import {useAppNavigation} from '../../navigation/types';
 import {
   selecionarClubeUsuario,
@@ -34,7 +33,7 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {cores, espaco, raio, suaves} from '../../theme';
+import {cores, espaco, raio} from '../../theme';
 import type {Tatica} from '../../types';
 
 const OPCOES_ESTILO: Tatica['estiloOfensivo'][] = [
@@ -60,6 +59,7 @@ function Tactics(): React.JSX.Element {
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const jogadores = useJogadoresUsuario();
   const forca = useForcaUsuario();
+  const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
   const atualizarTaticaUsuario = useGameStore(
     state => state.atualizarTaticaUsuario,
   );
@@ -74,15 +74,6 @@ function Tactics(): React.JSX.Element {
 
   const largura = Math.min(Dimensions.get('window').width - espaco.lg * 2, 360);
 
-  const validacao = useMemo(
-    () => (formacao ? validarEscalacao(formacao, jogadores) : null),
-    [formacao, jogadores],
-  );
-  const formacaoDetectada = useMemo(
-    () => (formacao ? detectarFormacao(formacao.titulares) : '—'),
-    [formacao],
-  );
-
   if (!clubeUsuario || !taticaAtual || !formacao) {
     return <SafeAreaView style={styles.screen} />;
   }
@@ -93,41 +84,21 @@ function Tactics(): React.JSX.Element {
         contentContainerStyle={styles.conteudo}
         scrollEnabled={!arrastando}
         showsVerticalScrollIndicator={false}>
-        <AppHeader titulo="Tática" subtitulo={clubeUsuario.nome} />
+        <AppHeader titulo="Escalação" subtitulo={clubeUsuario.nome} />
 
-        <MetricsRow>
-          <Metric label="Ataque" valor={(forca?.ataque ?? 0).toFixed(0)} />
-          <Metric label="Meio" valor={(forca?.meio ?? 0).toFixed(0)} />
-          <Metric label="Defesa" valor={(forca?.defesa ?? 0).toFixed(0)} />
-        </MetricsRow>
+        <CampoFUT
+          clube={clubeUsuario}
+          formacao={formacao}
+          jogadores={jogadores}
+          forca={forca}
+          reputacaoTecnico={reputacaoTecnico}
+          largura={largura}
+          onAtualizarFormacao={atualizarFormacaoUsuario}
+          onArrastandoChange={setArrastando}
+          onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
+        />
 
-        <Section titulo="Escalação">
-          {/* Formação detectada + status de validação */}
-          <View style={styles.detectada}>
-            <View style={styles.detectadaChip}>
-              <Icone nome="tatica" tamanho={15} cor={cores.primaria} />
-              <Text style={styles.detectadaTexto}>
-                Formação detectada:{' '}
-                <Text style={styles.detectadaForte}>{formacaoDetectada}</Text>
-              </Text>
-            </View>
-          </View>
-
-          {validacao ? <BannerValidacao validacao={validacao} /> : null}
-
-          <DraggablePitch
-            formacao={formacao}
-            jogadores={jogadores}
-            largura={largura}
-            onAtualizarFormacao={atualizarFormacaoUsuario}
-            onArrastandoChange={setArrastando}
-            onAbrirJogador={jogadorId =>
-              nav.navigate('PlayerDetail', {jogadorId})
-            }
-          />
-
-          {/* Preencher rápido por esquema-base (atalho opcional) */}
-          <Text style={styles.preencherTitulo}>Preencher rápido</Text>
+        <Section titulo="Formação">
           <View style={styles.chipRow}>
             {FORMACOES_DISPONIVEIS.map(tipo => (
               <Pressable
@@ -194,57 +165,6 @@ function Tactics(): React.JSX.Element {
   );
 }
 
-function BannerValidacao({
-  validacao,
-}: {
-  validacao: ReturnType<typeof validarEscalacao>;
-}): React.JSX.Element {
-  if (!validacao.valido) {
-    return (
-      <View style={[styles.banner, styles.bannerErro]}>
-        <Icone nome="fechar" tamanho={15} cor={cores.perigo} />
-        <View style={styles.bannerTextos}>
-          <Text style={[styles.bannerTitulo, {color: cores.perigo}]}>
-            Escalação inválida
-          </Text>
-          {validacao.erros.map(erro => (
-            <Text key={erro} style={styles.bannerLinha}>
-              • {erro}
-            </Text>
-          ))}
-        </View>
-      </View>
-    );
-  }
-
-  if (validacao.avisos.length > 0) {
-    return (
-      <View style={[styles.banner, styles.bannerAviso]}>
-        <Icone nome="lesao" tamanho={15} cor={cores.secundaria} />
-        <View style={styles.bannerTextos}>
-          <Text style={[styles.bannerTitulo, {color: cores.secundaria}]}>
-            Atenção
-          </Text>
-          {validacao.avisos.map(aviso => (
-            <Text key={aviso} style={styles.bannerLinha}>
-              • {aviso}
-            </Text>
-          ))}
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={[styles.banner, styles.bannerOk]}>
-      <Icone nome="check" tamanho={15} cor={cores.primaria} />
-      <Text style={[styles.bannerTitulo, {color: cores.primaria}]}>
-        Escalação válida
-      </Text>
-    </View>
-  );
-}
-
 export default Tactics;
 
 const styles = StyleSheet.create({
@@ -255,68 +175,6 @@ const styles = StyleSheet.create({
   conteudo: {
     padding: espaco.lg,
     paddingBottom: espaco.xl * 2,
-  },
-  detectada: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  detectadaChip: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
-    flexDirection: 'row',
-    gap: espaco.xs,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-  },
-  detectadaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-  },
-  detectadaForte: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  banner: {
-    alignItems: 'flex-start',
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.sm,
-    padding: espaco.sm,
-  },
-  // Fundos suaves do tema claro (badge/pill: fundo suave + acento do matiz).
-  bannerErro: {
-    backgroundColor: suaves.vermelho,
-    borderColor: cores.perigo,
-  },
-  bannerAviso: {
-    backgroundColor: suaves.amarelo,
-    borderColor: cores.secundaria,
-  },
-  bannerOk: {
-    alignItems: 'center',
-    backgroundColor: suaves.verde,
-    borderColor: cores.primaria,
-  },
-  bannerTextos: {
-    flex: 1,
-    gap: 2,
-  },
-  bannerTitulo: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  bannerLinha: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  preencherTitulo: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '800',
-    marginTop: espaco.sm,
   },
   chipRow: {
     flexDirection: 'row',
