@@ -94,7 +94,8 @@ function FichaCamisa({
   const indisponivel = jogador.lesionado || jogador.suspenso;
 
   const ladoCamisa = Math.round(largura * 0.82);
-  const fonteOverall = Math.round(ladoCamisa * 0.4);
+  // Overall menor pra caber DENTRO da camisa (o torso vai de ~50% a ~92%).
+  const fonteOverall = Math.round(ladoCamisa * 0.26);
   const fonteNome = Math.max(9, Math.round(largura * 0.135));
   const fonteInfo = Math.max(8, Math.round(largura * 0.11));
 
@@ -165,8 +166,8 @@ const styles = StyleSheet.create({
     left: 0,
     position: 'absolute',
     right: 0,
-    // O número fica no CORPO da camisa (abaixo da gola/mangas).
-    top: '30%',
+    // O número fica CENTRADO no torso da camisa (região ~40%..100% => centro ~70%).
+    top: '40%',
   },
   overall: {
     fontWeight: '900',
