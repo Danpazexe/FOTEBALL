@@ -22,7 +22,9 @@ export interface OpcoesForca {
   condicaoAtual?: Map<string, number>;
 }
 
-function linhaDaPosicao(posicao: Position): 'ataque' | 'meio' | 'defesa' {
+export function linhaDaPosicao(
+  posicao: Position,
+): 'ataque' | 'meio' | 'defesa' {
   if (['PD', 'PE', 'SA', 'CA'].includes(posicao)) {
     return 'ataque';
   }
