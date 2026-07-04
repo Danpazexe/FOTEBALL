@@ -129,4 +129,6 @@ export interface Clube {
   estadio: Estadio;
   reputacao: number;
   controladoPorIA: boolean;
+  /** Capitão do time (id do jogador). Opcional — saves antigos não têm. */
+  capitaoId?: string;
 }
