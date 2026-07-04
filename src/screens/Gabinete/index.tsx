@@ -15,6 +15,7 @@ import {
   calcularRetrospectiva,
   type PartidaRetro,
 } from '../../engine/season/retrospectiva';
+import {calcularJornada} from '../../engine/carreira/jornada';
 import {cores, espaco, raio, sombra, tipografia} from '../../theme';
 import {nomeClube} from '../../utils/formatters';
 import type {EstadoFinanceiro} from '../../types';
@@ -42,6 +43,9 @@ function Gabinete(): React.JSX.Element {
   const desbloqueadas = conquistas.filter(c => c.desbloqueada).length;
   const total = conquistas.length;
   const financeiro = ESTADO_FINANCEIRO[estadoFinanceiro];
+
+  // Jornada do técnico — estágio de carreira pela reputação + próximo marco.
+  const jornada = clubeUsuarioId ? calcularJornada(reputacaoTecnico) : null;
 
   // Retrospectiva da temporada — balanço e recordes derivados das partidas.
   const retro = React.useMemo(() => {
@@ -111,6 +115,29 @@ function Gabinete(): React.JSX.Element {
               </Text>
             </View>
           </View>
+        </View>
+      ) : null}
+
+      {jornada ? (
+        <View style={styles.retroCard}>
+          <View style={styles.jornadaTopo}>
+            <Text style={styles.retroTitulo}>Jornada do técnico</Text>
+            <Text style={styles.jornadaEstagio}>{jornada.estagioAtual}</Text>
+          </View>
+          <Text style={styles.jornadaDescricao}>{jornada.descricaoAtual}</Text>
+          <View style={styles.barraFundo}>
+            <View
+              style={[
+                styles.barraPreenchida,
+                {width: `${Math.round(jornada.progressoAteProximo * 100)}%`},
+              ]}
+            />
+          </View>
+          <Text style={styles.jornadaProximo}>
+            {jornada.proximoMarco
+              ? `Próximo: ${jornada.proximoMarco.estagio} (rep. ${jornada.proximoMarco.reputacaoMinima})`
+              : 'Auge da carreira alcançado.'}
+          </Text>
         </View>
       ) : null}
 
@@ -226,6 +253,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     marginBottom: espaco.xs,
+  },
+  jornadaTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  jornadaEstagio: {
+    color: cores.primaria,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  jornadaDescricao: {
+    color: cores.textoSecundario,
+    fontSize: 12.5,
+    marginBottom: espaco.xs,
+  },
+  jornadaProximo: {
+    color: cores.textoMuted,
+    fontSize: 11.5,
+    fontWeight: '700',
+    marginTop: 2,
   },
   retroLinha: {
     alignItems: 'center',
