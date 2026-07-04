@@ -20,10 +20,20 @@ import {useConfirm} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import type {RootStackParamList} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
+import {classificarCenario} from '../../engine/carreira/cenarios';
 import {cores, espaco, raio, sombra} from '../../theme';
 import type {Clube} from '../../types';
 
 const ORDEM_DIVISOES = ['Série A', 'Série B', 'Série C'];
+
+/** Desafio de carreira do clube (reputação + caixa + divisão). */
+function cenarioDoClube(clube: Clube) {
+  return classificarCenario({
+    reputacao: clube.reputacao,
+    saldo: clube.financas.saldo,
+    divisao: clube.divisao ?? 'Série A',
+  });
+}
 
 /** Linha de identidade do clube: "Cidade, UF · desde ANO". */
 function identidadeClube(clube: Clube): string {
@@ -64,10 +74,12 @@ function NewCareer(): React.JSX.Element {
 
   async function selecionar(clube: Clube): Promise<void> {
     const divisao = clube.divisao ?? 'Série A';
+    const cenario = cenarioDoClube(clube);
     const ok = await confirm({
       titulo: `Comandar o ${clube.nome}?`,
-      mensagem: `Você assume este clube na ${divisao}; os outros 19 são controlados pela IA.`,
+      mensagem: `${cenario.descricao} Os outros 19 clubes são controlados pela IA.`,
       detalhes: [
+        {rotulo: 'Desafio', valor: cenario.nome},
         {rotulo: 'Divisão', valor: divisao},
         {rotulo: 'Cidade', valor: [clube.cidade, clube.estado].filter(Boolean).join(', ') || '—'},
         {rotulo: 'Estádio', valor: clube.estadio.nome},
@@ -116,6 +128,11 @@ function NewCareer(): React.JSX.Element {
                   <Text style={styles.itemInfo} numberOfLines={1}>
                     {identidadeClube(clube)}
                   </Text>
+                  <View style={styles.cenarioChip}>
+                    <Text style={styles.cenarioChipTxt} numberOfLines={1}>
+                      {cenarioDoClube(clube).nome}
+                    </Text>
+                  </View>
                 </View>
                 <Icone nome="avancar" tamanho={22} cor={cores.textoMuted} />
               </Pressable>
@@ -180,6 +197,19 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 12.5,
     fontWeight: '600',
+  },
+  cenarioChip: {
+    alignSelf: 'flex-start',
+    backgroundColor: cores.superficieAlt,
+    borderRadius: raio.sm,
+    marginTop: 2,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 2,
+  },
+  cenarioChipTxt: {
+    color: cores.primaria,
+    fontSize: 11,
+    fontWeight: '800',
   },
 });
 
