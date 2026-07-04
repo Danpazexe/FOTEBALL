@@ -139,17 +139,15 @@ jobs:
             --prerelease \
             --target "${GITHUB_SHA}"
 
-      # Envia o APK pro Telegram (se os secrets estiverem configurados). O bot da
-      # API só sobe arquivos até 50 MB — se o APK passar disso, manda só o link.
+      # Avisa no Telegram com o LINK do APK (se os secrets estiverem configurados).
       # Config: crie um bot no @BotFather, dê /start nele, pegue seu chat id
       # (@userinfobot) e salve em Settings → Secrets → Actions:
       #   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-      - name: Enviar APK pro Telegram (só push na main)
+      - name: Avisar no Telegram com o link do APK (só push na main)
         if: github.event_name == 'push' && github.ref_name == 'main'
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
-          APK: ${{ steps.apk.outputs.path }}
           SHA: ${{ steps.vars.outputs.short_sha }}
           REPO: ${{ github.repository }}
         run: |
@@ -159,20 +157,11 @@ jobs:
             exit 0
           fi
           LINK="https://github.com/${REPO}/releases/tag/nightly"
-          LEGENDA="🟢 FOTEBALL — build da main (${SHA}). Instale habilitando 'fontes desconhecidas'. ${LINK}"
-          SIZE=$(stat -c%s "${APK}")
-          LIMITE=$((48 * 1024 * 1024))
-          if [ "${SIZE}" -le "${LIMITE}" ]; then
-            curl -sf -F chat_id="${TG_CHAT}" -F document=@"${APK}" \
-              -F caption="${LEGENDA}" \
-              "https://api.telegram.org/bot${TG_TOKEN}/sendDocument" >/dev/null \
-              && echo "APK enviado ao Telegram."
-          else
-            echo "::notice::APK acima de 48 MB — enviando só o link ao Telegram."
-            curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
-              --data-urlencode chat_id="${TG_CHAT}" \
-              --data-urlencode text="${LEGENDA}" >/dev/null
-          fi
+          TEXTO="🟢 FOTEBALL — novo build (${SHA}). Baixe o APK: ${LINK}"
+          curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --data-urlencode chat_id="${TG_CHAT}" \
+            --data-urlencode text="${TEXTO}" >/dev/null \
+            && echo "Link enviado ao Telegram."
 
       - name: Resumo do build
         if: success()
