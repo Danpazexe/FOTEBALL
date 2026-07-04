@@ -35,8 +35,8 @@ function rotuloPerna(perna: PernaDominante): string {
 }
 
 /**
- * Ícone de chuteira (cleat) — silhueta lateral com o bico à direita, cano baixo
- * e 2 travas na sola. Preenchido na cor do pé dominante (estilo EA FC).
+ * Ícone de chuteira — silhueta lateral (bico à esquerda, cano baixo, sola com
+ * travas), recriada da referência. Colorida pelo pé dominante.
  */
 function Chuteira({
   cor,
@@ -46,13 +46,15 @@ function Chuteira({
   tamanho: number;
 }): React.JSX.Element {
   return (
-    <Svg width={tamanho} height={Math.round(tamanho * 0.6)} viewBox="0 0 24 15">
+    <Svg width={tamanho} height={Math.round(tamanho * 0.5)} viewBox="0 0 30 15">
       <Path
-        d="M3 5 C3 3.8 4 3.5 5.2 3.9 C6 4.1 6.4 4.8 6.6 5.8 L7 8 C11 6.9 15 7.4 19 9.2 C21 10 22.6 10.8 23 12 C23.2 12.7 22.6 13 21.6 13 L5 13 C3.6 13 3 12 3 10 Z"
+        d="M2 9 C2 7.6 3 7.1 4.6 7.5 L9 8.3 C14 6 21 5.7 26 7.7 C28.2 8.6 28.6 9.7 27.4 10.4 C26.4 11 24 11.1 22 11.1 L4.6 11.1 C3 11.1 2 10.4 2 9 Z"
         fill={cor}
       />
-      <Rect x="6.5" y="13" width="2.4" height="1.7" rx="0.6" fill={cor} />
-      <Rect x="13" y="13" width="2.4" height="1.7" rx="0.6" fill={cor} />
+      <Rect x="4.5" y="11" width="2.3" height="2.2" rx="0.6" fill={cor} />
+      <Rect x="9.5" y="11" width="2.3" height="2.2" rx="0.6" fill={cor} />
+      <Rect x="14.5" y="11" width="2.3" height="2.2" rx="0.6" fill={cor} />
+      <Rect x="19.5" y="11" width="2.3" height="2.2" rx="0.6" fill={cor} />
     </Svg>
   );
 }
