@@ -21,7 +21,7 @@ import {LOGO_COPA} from '../../assets/escudos';
 // Papel de parede do "hero" do Gabinete: estádio noturno (empacotado).
 const FUNDO_ESTADIO = require('../../assets/planodefundo.jpg');
 import FormaRecente from '../../components/FormaRecente';
-import Icone, {type IconeNome} from '../../components/Icone';
+import Icone from '../../components/Icone';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
@@ -444,19 +444,6 @@ function Home(): React.JSX.Element {
     }
   };
 
-  // Atalhos da "Central do Técnico" — chips compactos (ícone + rótulo), 3 colunas.
-  const central: {rotulo: string; icone: IconeNome; onPress: () => void}[] = [
-    {rotulo: 'Elenco', icone: 'elenco', onPress: () => nav.navigate('MainTabs', {screen: 'Squad'})},
-    {rotulo: 'Mercado', icone: 'mercado', onPress: () => nav.navigate('TransferMarket')},
-    {rotulo: 'Treino', icone: 'apito', onPress: () => nav.navigate('Semana')},
-    {rotulo: 'Tática', icone: 'tatica', onPress: () => nav.navigate('MainTabs', {screen: 'Tactics'})},
-    {rotulo: 'Clube', icone: 'clube', onPress: () => nav.navigate('MainTabs', {screen: 'Club'})},
-    {rotulo: 'Contrato', icone: 'dinheiro', onPress: () => nav.navigate('Contratos')},
-    {rotulo: 'Copa', icone: 'trofeu', onPress: () => nav.navigate('Copa')},
-    {rotulo: 'Base', icone: 'base', onPress: () => nav.navigate('Academia')},
-    {rotulo: 'Troféus', icone: 'medalha', onPress: () => nav.navigate('Gabinete')},
-  ];
-
   return (
     <ScreenContainer scroll>
       <View style={styles.container}>
@@ -707,27 +694,24 @@ function Home(): React.JSX.Element {
           </View>
         ) : null}
 
-        {/* Central do Técnico — chips compactos (ícone + rótulo), 3 colunas. */}
-        <View style={styles.centralBloco}>
-          <Text style={styles.blocoTitulo}>Central do Técnico</Text>
-          <View style={styles.centralGrid}>
-            {central.map(item => (
-              <Pressable
-                key={item.rotulo}
-                accessibilityRole="button"
-                onPress={item.onPress}
-                style={({pressed}) => [
-                  styles.chip,
-                  pressed ? styles.cardPressed : null,
-                ]}>
-                <Icone nome={item.icone} tamanho={22} cor={cores.primaria} />
-                <Text style={styles.chipTexto} numberOfLines={1}>
-                  {item.rotulo}
-                </Text>
-              </Pressable>
-            ))}
+        {/* Atalho para a Central do Técnico (grade de gestão em tela própria). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Abrir a Central do Técnico"
+          onPress={() => nav.navigate('Central')}
+          style={({pressed}) => [
+            styles.centralAtalho,
+            pressed ? styles.cardPressed : null,
+          ]}>
+          <Icone nome="clube" tamanho={22} cor={cores.primaria} />
+          <View style={styles.centralAtalhoInfo}>
+            <Text style={styles.centralAtalhoTitulo}>Central do Técnico</Text>
+            <Text style={styles.centralAtalhoSub} numberOfLines={1}>
+              Elenco, mercado, treino, tática, contratos e mais
+            </Text>
           </View>
-        </View>
+          <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
+        </Pressable>
       </View>
     </ScreenContainer>
   );
@@ -1068,30 +1052,30 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 12.5,
   },
-  // Central do Técnico — grid de chips (ícone + rótulo), 3 colunas.
-  centralBloco: {
-    gap: espaco.sm,
-  },
-  centralGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.sm,
-  },
-  chip: {
+  // Central do Técnico — atalho para a tela própria (grade de gestão).
+  centralAtalho: {
     alignItems: 'center',
     backgroundColor: cores.superficie,
     borderColor: cores.borda,
     borderRadius: raio.lg,
     borderWidth: 1,
-    flexBasis: '31.5%',
-    flexGrow: 1,
-    gap: espaco.xs,
+    flexDirection: 'row',
+    gap: espaco.md,
+    paddingHorizontal: espaco.md,
     paddingVertical: espaco.md,
     ...sombra.suave,
   },
-  chipTexto: {
+  centralAtalhoInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  centralAtalhoTitulo: {
     color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  centralAtalhoSub: {
+    color: cores.textoSecundario,
+    fontSize: 12.5,
   },
 });
