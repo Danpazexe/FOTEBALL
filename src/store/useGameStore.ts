@@ -356,10 +356,6 @@ function estamparPublicoRodada(
   });
 }
 
-/**
- * Dias de afastamento por gravidade da lesão (7 dias ≈ 1 jogo/rodada).
- * Determinístico: usa o RNG derivado da partida (mesma partida => mesma lesão).
- */
 /** Treino-base aplicado automaticamente entre as rodadas (estilo Brasfoot). */
 const TREINO_AUTO_ID = 'hab_fisico';
 const INTENSIDADE_AUTO: IntensidadeTreino = 'leve';
@@ -1198,45 +1194,31 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   atualizarFormacaoUsuario: formacao => {
-    const {clubeUsuarioId, jogadores, clubes} = get();
+    const {clubeUsuarioId, jogadores} = get();
 
     if (!clubeUsuarioId) {
       return;
     }
 
-    // Portão central: a regra de escalação válida vive na engine
-    // (formationValidation), não na UI. Mas o bloqueio é NÃO-REGRESSIVO: só
-    // rejeita erros que ESTA edição introduz. Erros que já existiam na formação
-    // atual (ex.: um titular que ficou lesionado/suspenso e ainda não foi
-    // trocado — o jogo não os remove do XI sozinho) não podem travar
-    // substituições e ajustes legítimos, senão o usuário fica preso sem nem
-    // conseguir corrigir a própria escalação (inclusive durante a partida).
+    // Portão central (regra vive na engine, não na UI): só ERROS ESTRUTURAIS e de
+    // propriedade bloqueiam (11 titulares, 1 goleiro, mínimos por setor, sem
+    // repetido, jogador do próprio clube). São sempre satisfazíveis por qualquer
+    // elenco com 11+ jogadores, então o bloqueio nunca prende o usuário. Jogador
+    // lesionado/suspenso NÃO bloqueia — é AVISO (validarFormacao.warnings): o motor
+    // já ignora indisponíveis na simulação e um elenco curto pode não ter 11 aptos.
     const validacao = validarFormacao({
       formacao,
       jogadores,
       clubeId: clubeUsuarioId,
     });
     if (!validacao.valid) {
-      const atual = clubes.find(c => c.id === clubeUsuarioId)?.formacaoAtual;
-      const errosAntigos = atual
-        ? new Set(
-            validarFormacao({
-              formacao: atual,
-              jogadores,
-              clubeId: clubeUsuarioId,
-            }).errors,
-          )
-        : new Set<string>();
-      const errosNovos = validacao.errors.filter(e => !errosAntigos.has(e));
-      if (errosNovos.length > 0) {
-        set(state => ({
-          mensagens: adicionarMensagem(
-            state.mensagens,
-            `Escalação inválida: ${errosNovos[0]}`,
-          ),
-        }));
-        return;
-      }
+      set(state => ({
+        mensagens: adicionarMensagem(
+          state.mensagens,
+          `Escalação inválida: ${validacao.errors[0]}`,
+        ),
+      }));
+      return;
     }
 
     set(state => ({

@@ -93,6 +93,10 @@ export function posicaoClube(
   return index === -1 ? tabela.length : index + 1;
 }
 
+/**
+ * Dias de afastamento por gravidade da lesão (7 dias ≈ 1 jogo/rodada).
+ * Determinístico: usa o RNG derivado da partida (mesma partida => mesma lesão).
+ */
 export function sortearDuracaoLesao(rng: RandomGenerator): number {
   const r = rng();
   if (r < 0.5) {

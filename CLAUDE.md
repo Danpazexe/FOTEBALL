@@ -509,13 +509,18 @@ A validação deve cobrir:
 - exatamente 1 goleiro titular
 - nenhum jogador repetido
 - jogador deve pertencer ao clube
-- jogador lesionado não pode ser titular
-- jogador suspenso não pode ser titular
+- jogador lesionado/suspenso gera AVISO (não bloqueia — ver nota abaixo)
 - mínimo de 3 defensores
 - mínimo de 2 meio-campistas
 - mínimo de 1 atacante
 - detectar jogador improvisado como warning
 ```
+
+> **Nota (revisado 2026-07): disponibilidade é AVISO, não bloqueio.** Bloquear
+> lesionado/suspenso trava elencos curtos (que podem não ter 11 aptos) e o motor
+> de simulação já IGNORA indisponíveis em campo. Então o gate bloqueia só o que é
+> SEMPRE satisfazível — estrutura (11/goleiro/mínimos/sem repetido) + propriedade
+> do clube — e lesionado/suspenso vira `warnings`.
 
 Depois integrar em:
 
@@ -540,12 +545,12 @@ Se a formação for inválida:
 Critério de aceite:
 
 ```txt
-- formação inválida nunca entra em campo
+- formação estruturalmente inválida nunca entra em campo
 - sem goleiro bloqueia
 - dois goleiros bloqueia
 - jogador repetido bloqueia
-- lesionado bloqueia
-- suspenso bloqueia
+- jogador de outro clube bloqueia
+- lesionado/suspenso AVISA (não bloqueia — ver nota acima)
 - menos de 11 bloqueia
 - mais de 11 bloqueia
 - typecheck/lint/test passam
