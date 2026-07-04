@@ -13,7 +13,9 @@ import {TREINO_PADRAO_ID} from '../engine/progression/treinoTipos';
 import {useGameStore} from '../store/useGameStore';
 import type {Player, TabelaClassificacao} from '../types';
 
-const TEMPORADAS = 3;
+// 2 viradas de temporada já provam o encadeamento coerente e o envelhecimento;
+// a 3ª era redundante e triplicava o custo do e2e mais caro da suíte.
+const TEMPORADAS = 2;
 
 const estado = () => useGameStore.getState();
 

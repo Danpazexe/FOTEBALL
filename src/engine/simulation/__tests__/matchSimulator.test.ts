@@ -130,7 +130,9 @@ function criarClube(id: string, jogadores: Player[]): Clube {
   };
 }
 
-function simularSerie(overallCasa: number, overallFora: number, total = 1000) {
+// Padrão de 500 jogos (era 1000): metade do custo, mantendo as faixas
+// estatísticas com folga (séries determinísticas por seed sequencial).
+function simularSerie(overallCasa: number, overallFora: number, total = 500) {
   const jogadoresCasa = criarJogadores('casa', overallCasa);
   const jogadoresFora = criarJogadores('fora', overallFora);
   const timeCasa = criarClube('casa', jogadoresCasa);
