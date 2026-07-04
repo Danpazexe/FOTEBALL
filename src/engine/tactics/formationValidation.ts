@@ -8,21 +8,19 @@ import {nivelAdaptacao} from './adaptacao';
  * salvar a formação do usuário (ver `atualizarFormacaoUsuario`): uma formação
  * inválida nunca deve virar `formacaoAtual` e, portanto, nunca chega à partida.
  *
- * Diferença para `validarEscalacao` (validacao.ts): aquela é PROPOSITALMENTE
- * frouxa e serve aos banners informativos das telas (Tactics/PreJogo), tratando
- * jogador indisponível apenas como AVISO. Esta é a versão ESTRITA do contrato de
- * produção: reaproveita toda a checagem estrutural de `validarEscalacao` (11
- * titulares, exatamente 1 goleiro, mínimos por setor, duplicados) e ENDURECE:
+ * Reaproveita a checagem estrutural de `validarEscalacao` (11 titulares, 1
+ * goleiro, mínimos por setor, duplicados) e adiciona a propriedade do clube.
  *
- *   ERROS (bloqueiam):
- *     - jogador lesionado como titular
- *     - jogador suspenso como titular
+ *   ERROS (bloqueiam — sempre satisfazíveis por qualquer elenco de 11+):
+ *     - estrutura (tudo que `validarEscalacao` já considera erro)
  *     - jogador que não pertence ao clube (clubeId divergente)
- *     - tudo que `validarEscalacao` já considera erro (estrutura)
  *
- *   AVISOS (não bloqueiam):
- *     - jogador improvisado na posição escalada (nível 'improvisado' de
- *       `nivelAdaptacao` — abaixo de natural/similar/adaptado)
+ *   AVISOS (NÃO bloqueiam):
+ *     - jogador lesionado ou suspenso escalado como titular. NÃO é erro de
+ *       propósito: bloquear travaria elencos curtos (que podem não ter 11 aptos)
+ *       e o motor de simulação já IGNORA indisponíveis em campo. O aviso deixa o
+ *       problema visível sem impedir o técnico de salvar/ajustar a escalação.
+ *     - jogador improvisado na posição escalada (nível 'improvisado')
  *     - titular com condição física baixa (abaixo de LIMIAR_CONDICAO_BAIXA)
  *
  * Função pura: apenas inspeciona os dados recebidos, sem ler nem alterar estado.
@@ -76,16 +74,16 @@ export function validarFormacao(args: {
     }
     vistos.add(jogador.id);
 
-    // Propriedade: o titular precisa pertencer ao clube que está escalando.
+    // Propriedade: o titular precisa pertencer ao clube que está escalando (erro).
     if (jogador.clubeId !== clubeId) {
       errors.push(`${jogador.nome} não pertence ao seu elenco.`);
     }
-    // Disponibilidade: lesionado/suspenso não pode ser titular (bloqueia).
+    // Disponibilidade: lesionado/suspenso é AVISO (não bloqueia) — ver cabeçalho.
     if (jogador.lesionado) {
-      errors.push(`${jogador.nome} está lesionado e não pode ser titular.`);
+      warnings.push(`${jogador.nome} está lesionado (indisponível).`);
     }
     if (jogador.suspenso) {
-      errors.push(`${jogador.nome} está suspenso e não pode ser titular.`);
+      warnings.push(`${jogador.nome} está suspenso (indisponível).`);
     }
     // Encaixe: fora da posição natural/similar é só um AVISO (o técnico pode
     // improvisar de propósito), mas precisa ficar visível.

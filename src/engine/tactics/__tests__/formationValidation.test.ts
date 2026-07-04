@@ -98,24 +98,25 @@ describe('validarFormacao', () => {
     expect(r.errors.some(e => e.toLowerCase().includes('repetido'))).toBe(true);
   });
 
-  it('bloqueia jogador lesionado como titular', () => {
+  it('avisa (não bloqueia) jogador lesionado como titular', () => {
     const r = validarFormacao({
       formacao: form(baseTitulares()),
       jogadores: baseJogadores({5: {lesionado: true}}),
       clubeId: CLUBE,
     });
-    expect(r.valid).toBe(false);
-    expect(r.errors.some(e => e.includes('lesionado'))).toBe(true);
+    // Disponibilidade é AVISO, não bloqueio (elenco curto + motor ignora indisp.).
+    expect(r.valid).toBe(true);
+    expect(r.warnings.some(w => w.includes('lesionado'))).toBe(true);
   });
 
-  it('bloqueia jogador suspenso como titular', () => {
+  it('avisa (não bloqueia) jogador suspenso como titular', () => {
     const r = validarFormacao({
       formacao: form(baseTitulares()),
       jogadores: baseJogadores({6: {suspenso: true}}),
       clubeId: CLUBE,
     });
-    expect(r.valid).toBe(false);
-    expect(r.errors.some(e => e.includes('suspenso'))).toBe(true);
+    expect(r.valid).toBe(true);
+    expect(r.warnings.some(w => w.includes('suspenso'))).toBe(true);
   });
 
   it('bloqueia jogador de outro clube', () => {
@@ -225,7 +226,7 @@ describe('validarFormacao', () => {
     expect(r.warnings.some(w => w.includes('condição física'))).toBe(true);
   });
 
-  it('acumula múltiplos erros de uma vez', () => {
+  it('separa propriedade (bloqueia) de indisponibilidade (avisa)', () => {
     const r = validarFormacao({
       formacao: form(baseTitulares()),
       jogadores: baseJogadores({
@@ -235,7 +236,10 @@ describe('validarFormacao', () => {
       }),
       clubeId: CLUBE,
     });
+    // Só o jogador de outro clube bloqueia; lesionado/suspenso são avisos.
     expect(r.valid).toBe(false);
-    expect(r.errors.length).toBeGreaterThanOrEqual(3);
+    expect(r.errors.some(e => e.includes('não pertence'))).toBe(true);
+    expect(r.warnings.some(w => w.includes('lesionado'))).toBe(true);
+    expect(r.warnings.some(w => w.includes('suspenso'))).toBe(true);
   });
 });
