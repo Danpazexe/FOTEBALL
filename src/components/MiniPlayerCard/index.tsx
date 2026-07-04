@@ -9,6 +9,7 @@ import {Dimensions, Pressable, StyleSheet, Text, View} from 'react-native';
 
 import {cores, espaco, glowDoTier, nivelCarta, raio} from '../../theme';
 import type {Player} from '../../types';
+import FaceJogador from '../FaceJogador';
 import Icone from '../Icone';
 import StatBar from '../StatBar';
 
@@ -64,8 +65,15 @@ function MiniPlayerCard({
         </View>
       </View>
 
-      {/* Silhueta/placeholder do jogador */}
-      <View style={styles.silhueta} />
+      {/* Face do jogador: foto real (se baixada) ou fallback de iniciais. */}
+      <View style={styles.faceWrap}>
+        <FaceJogador
+          jogadorId={jogador.id}
+          nome={jogador.nome}
+          overall={jogador.overall}
+          tamanho={46}
+        />
+      </View>
 
       <Text
         numberOfLines={1}
@@ -119,15 +127,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
-  silhueta: {
+  faceWrap: {
     alignSelf: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderColor: 'rgba(255, 255, 255, 0.10)',
-    borderRadius: 24,
-    borderWidth: 1,
-    height: 46,
     marginVertical: 2,
-    width: 46,
   },
   nome: {
     fontSize: 12,
