@@ -145,6 +145,7 @@ jobs:
       #   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
       - name: Avisar no Telegram com o link do APK (só push na main)
         if: github.event_name == 'push' && github.ref_name == 'main'
+        continue-on-error: true # aviso é best-effort: nunca derruba o build
         env:
           TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
