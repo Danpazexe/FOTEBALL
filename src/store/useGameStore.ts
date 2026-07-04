@@ -52,6 +52,7 @@ import {
   deltaReputacaoMeta,
   metaCumprida,
 } from '../engine/carreira/objetivo';
+import type {Dificuldade} from '../engine/carreira/dificuldade';
 import {calcularTabela} from '../engine/season/classification';
 import {
   avancarCopa,
@@ -185,6 +186,8 @@ export interface ConfigJogo {
   confirmarAcoes: boolean;
   pausarNoIntervalo: boolean;
   som: boolean;
+  /** Nível de dificuldade (cobrança da diretoria). */
+  dificuldade: Dificuldade;
 }
 
 /**
@@ -204,6 +207,7 @@ export const CONFIG_PADRAO: ConfigJogo = {
   confirmarAcoes: true,
   pausarNoIntervalo: true,
   som: true,
+  dificuldade: 'Normal',
 };
 
 export interface GameState {
@@ -2212,14 +2216,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (clubeUsuarioFim && state.clubeUsuarioId) {
       // divisaoAtiva = divisão em que a temporada foi disputada (state.tabela),
       // NÃO a nova divisão pós acesso/rebaixamento (divisaoUsuario).
+      const dificuldade = state.config.dificuldade;
       const objetivo = definirObjetivoTemporada(
         clubeUsuarioFim.reputacao,
         divisaoAtiva,
+        dificuldade,
       );
       const posFinal = posicaoClube(state.tabela, state.clubeUsuarioId);
       reputacaoTecnico = Math.max(
         0,
-        Math.min(100, reputacaoBase + deltaReputacaoMeta(objetivo, posFinal)),
+        Math.min(
+          100,
+          reputacaoBase + deltaReputacaoMeta(objetivo, posFinal, dificuldade),
+        ),
       );
       mensagens = adicionarMensagem(
         mensagens,

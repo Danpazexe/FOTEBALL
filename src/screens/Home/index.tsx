@@ -141,6 +141,7 @@ function Home(): React.JSX.Element {
     state => state.derrotasConsecutivas,
   );
   const rodadasNoVermelho = useGameStore(state => state.rodadasNoVermelho);
+  const dificuldade = useGameStore(state => state.config.dificuldade);
 
   // Demissão: assim que a diretoria demite, leva o técnico à tela de recontratação.
   React.useEffect(() => {
@@ -162,9 +163,10 @@ function Home(): React.JSX.Element {
         ? definirObjetivoTemporada(
             clubeUsuario.reputacao,
             clubeUsuario.divisao ?? 'Série A',
+            dificuldade,
           )
         : null,
-    [clubeUsuario],
+    [clubeUsuario, dificuldade],
   );
   // Antes da 1ª rodada a posição é desempate arbitrário (localeCompare do clubeId);
   // só há "posição real" com jogos disputados — senão a meta cobraria sem jogo.

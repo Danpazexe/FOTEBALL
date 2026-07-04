@@ -11,8 +11,17 @@ import {Botao, ScreenContainer, Section} from '../../components/ui';
 import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, type VelocidadeNarracao} from '../../store/useGameStore';
+import {DIFICULDADES} from '../../engine/carreira/dificuldade';
 import {cores, espaco, raio, sombra} from '../../theme';
 import {VERSAO_APP} from '../../version';
+
+/** Resumo do efeito de cada dificuldade (cobrança da diretoria). */
+const DIFICULDADE_DESC: Record<string, string> = {
+  Fácil: 'Meta folgada e diretoria paciente.',
+  Normal: 'Cobrança equilibrada da diretoria.',
+  Difícil: 'Meta exigente; falhar custa mais reputação.',
+  Lendário: 'Meta durríssima; punição máxima por falhar.',
+};
 
 function Settings(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -81,6 +90,26 @@ function Settings(): React.JSX.Element {
           valor={config.som}
           onValueChange={valor => atualizarConfig({som: valor})}
         />
+      </Section>
+
+      <Section titulo="Dificuldade">
+        <Text style={styles.descricao}>
+          {DIFICULDADE_DESC[config.dificuldade]}
+        </Text>
+        <View style={styles.chipRow}>
+          {DIFICULDADES.map(nivel => {
+            const ativo = config.dificuldade === nivel;
+            return (
+              <View key={nivel} style={styles.chipWrap}>
+                <Botao
+                  titulo={nivel}
+                  variante={ativo ? 'primaria' : 'secundaria'}
+                  onPress={() => atualizarConfig({dificuldade: nivel})}
+                />
+              </View>
+            );
+          })}
+        </View>
       </Section>
 
       <Section titulo="Geral">
