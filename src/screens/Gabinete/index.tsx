@@ -7,7 +7,8 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import {IconeGlifo} from '../../components/Icone';
-import {AppHeader, ScreenContainer} from '../../components/ui';
+import {AppHeader, Botao, ScreenContainer} from '../../components/ui';
+import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useAchievementsStore} from '../../store/useAchievementsStore';
 import {useGameStore} from '../../store/useGameStore';
@@ -16,6 +17,7 @@ import {
   type PartidaRetro,
 } from '../../engine/season/retrospectiva';
 import {calcularJornada} from '../../engine/carreira/jornada';
+import {proporEmpregos} from '../../engine/carreira/propostas';
 import {cores, espaco, raio, sombra, tipografia} from '../../theme';
 import {nomeClube} from '../../utils/formatters';
 import type {EstadoFinanceiro} from '../../types';
@@ -32,6 +34,8 @@ const ESTADO_FINANCEIRO: Record<
 
 function Gabinete(): React.JSX.Element {
   const nav = useAppNavigation();
+  const confirm = useConfirm();
+  const toast = useToast();
   const conquistas = useAchievementsStore(state => state.conquistas);
   const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
   const estadoFinanceiro = useGameStore(state => state.estadoFinanceiro);
@@ -39,6 +43,8 @@ function Gabinete(): React.JSX.Element {
   const partidas = useGameStore(state => state.partidas);
   const clubes = useGameStore(state => state.clubes);
   const jogadores = useGameStore(state => state.jogadores);
+  const todosClubes = useGameStore(state => state.todosClubes);
+  const assumirClube = useGameStore(state => state.assumirClube);
 
   const desbloqueadas = conquistas.filter(c => c.desbloqueada).length;
   const total = conquistas.length;
@@ -46,6 +52,38 @@ function Gabinete(): React.JSX.Element {
 
   // Jornada do técnico — estágio de carreira pela reputação + próximo marco.
   const jornada = clubeUsuarioId ? calcularJornada(reputacaoTecnico) : null;
+
+  // Propostas de clubes maiores (a reputação abrindo portas).
+  const propostas = React.useMemo(() => {
+    if (!clubeUsuarioId) {
+      return [];
+    }
+    const atual = todosClubes.find(clube => clube.id === clubeUsuarioId);
+    if (!atual) {
+      return [];
+    }
+    return proporEmpregos({
+      reputacaoTecnico,
+      clubeAtualId: clubeUsuarioId,
+      reputacaoClubeAtual: atual.reputacao,
+      clubes: todosClubes,
+    });
+  }, [clubeUsuarioId, todosClubes, reputacaoTecnico]);
+
+  async function aceitarProposta(clubeId: string, nome: string): Promise<void> {
+    const ok = await confirm({
+      titulo: `Assumir o ${nome}?`,
+      mensagem:
+        'Você deixa o clube atual e recomeça a temporada no comando do novo clube. Sua reputação é preservada.',
+      confirmarLabel: 'Aceitar proposta',
+    });
+    if (!ok) {
+      return;
+    }
+    assumirClube(clubeId);
+    toast(`Agora você comanda o ${nome}.`, 'sucesso');
+    nav.navigate('MainTabs');
+  }
 
   // Retrospectiva da temporada — balanço e recordes derivados das partidas.
   const retro = React.useMemo(() => {
@@ -138,6 +176,33 @@ function Gabinete(): React.JSX.Element {
               ? `Próximo: ${jornada.proximoMarco.estagio} (rep. ${jornada.proximoMarco.reputacaoMinima})`
               : 'Auge da carreira alcançado.'}
           </Text>
+        </View>
+      ) : null}
+
+      {propostas.length > 0 ? (
+        <View style={styles.retroCard}>
+          <Text style={styles.retroTitulo}>Propostas de clubes</Text>
+          {propostas.map(proposta => (
+            <View key={proposta.clubeId} style={styles.propostaLinha}>
+              <View style={styles.propostaInfo}>
+                <Text style={styles.propostaNome} numberOfLines={1}>
+                  {proposta.nome}
+                </Text>
+                <Text style={styles.propostaSub} numberOfLines={1}>
+                  {proposta.divisao} · reputação {proposta.reputacao}
+                </Text>
+              </View>
+              <View style={styles.propostaAcao}>
+                <Botao
+                  titulo="Assumir"
+                  variante="secundaria"
+                  onPress={() =>
+                    aceitarProposta(proposta.clubeId, proposta.nome)
+                  }
+                />
+              </View>
+            </View>
+          ))}
         </View>
       ) : null}
 
@@ -274,6 +339,28 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '700',
     marginTop: 2,
+  },
+  propostaLinha: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.md,
+    justifyContent: 'space-between',
+  },
+  propostaInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  propostaNome: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  propostaSub: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+  },
+  propostaAcao: {
+    minWidth: 110,
   },
   retroLinha: {
     alignItems: 'center',
