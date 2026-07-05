@@ -732,3 +732,50 @@ describe('rodada ao vivo — equivalência incremental × simularPartida', () =>
     }
   });
 });
+
+describe('resiliência: lado sem XI não derruba o motor', () => {
+  it('não lança quando um lado tem o XI vazio (titulares "fantasma" / todos vendidos)', () => {
+    const jogadoresCasa = criarJogadores('casa', 75);
+    const timeCasa = criarClube('casa', jogadoresCasa);
+    // Fora: elenco vazio (tudo vendido), mas a formação ainda referencia os 11
+    // titulares antigos — IDs que não existem mais → XI resolvido vazio.
+    const jogadoresFora: Player[] = [];
+    const timeFora: Clube = {
+      ...criarClube('fora', []),
+      formacaoAtual: criarFormacao(criarJogadores('fora', 75)),
+    };
+
+    for (let seed = 1; seed <= 40; seed += 1) {
+      const input = {timeCasa, timeFora, jogadoresCasa, jogadoresFora, seed};
+      // Antes do fix, o motor lançava "Não há jogadores disponíveis…" no 1º
+      // minuto que sorteava evento para o lado vazio.
+      expect(() => simularPartida(input)).not.toThrow();
+      const partida = simularPartida(input);
+      // Lado sem ninguém não marca; determinismo mantido no caso degenerado.
+      expect(partida.placarFora).toBe(0);
+      expect(simularPartida(input)).toEqual(partida);
+    }
+  });
+
+  it('ambos os lados sem XI: 0x0 sem crash', () => {
+    const timeCasa: Clube = {
+      ...criarClube('casa', []),
+      formacaoAtual: criarFormacao(criarJogadores('casa', 70)),
+    };
+    const timeFora: Clube = {
+      ...criarClube('fora', []),
+      formacaoAtual: criarFormacao(criarJogadores('fora', 70)),
+    };
+    const input = {
+      timeCasa,
+      timeFora,
+      jogadoresCasa: [],
+      jogadoresFora: [],
+      seed: 7,
+    };
+    expect(() => simularPartida(input)).not.toThrow();
+    const partida = simularPartida(input);
+    expect(partida.placarCasa).toBe(0);
+    expect(partida.placarFora).toBe(0);
+  });
+});

@@ -834,7 +834,7 @@ export function simularMinuto(
   const momentumCasa = fatorMomentum(diff, minuto);
   const momentumFora = fatorMomentum(-diff, minuto);
 
-  if (rng() < p.probGolCasaPorMinuto * fTempo * momentumCasa) {
+  if (emCampoCasa.length > 0 && rng() < p.probGolCasaPorMinuto * fTempo * momentumCasa) {
     const golEvento = simularEventoGol(minuto, ctx.timeCasa, emCampoCasa, rng);
     if (rng() < PROB_VAR_ANULA_GOL) {
       adicionar(golAnuladoVAR(golEvento));
@@ -843,7 +843,7 @@ export function simularMinuto(
       adicionar(golEvento);
     }
   }
-  if (rng() < p.probGolForaPorMinuto * fTempo * momentumFora) {
+  if (emCampoFora.length > 0 && rng() < p.probGolForaPorMinuto * fTempo * momentumFora) {
     const golEvento = simularEventoGol(minuto, ctx.timeFora, emCampoFora, rng);
     if (rng() < PROB_VAR_ANULA_GOL) {
       adicionar(golAnuladoVAR(golEvento));
@@ -854,7 +854,7 @@ export function simularMinuto(
   }
 
   const fTempoCartao = 1 + Math.max(0, minuto - 60) / 120;
-  if (rng() < p.probCartaoCasaPorMinuto * fTempoCartao) {
+  if (emCampoCasa.length > 0 && rng() < p.probCartaoCasaPorMinuto * fTempoCartao) {
     const ev = simularCartao(
       minuto,
       ctx.timeCasa,
@@ -869,7 +869,7 @@ export function simularMinuto(
     }
     adicionar(ev);
   }
-  if (rng() < p.probCartaoForaPorMinuto * fTempoCartao) {
+  if (emCampoFora.length > 0 && rng() < p.probCartaoForaPorMinuto * fTempoCartao) {
     const ev = simularCartao(
       minuto,
       ctx.timeFora,
@@ -885,7 +885,11 @@ export function simularMinuto(
     adicionar(ev);
   }
 
-  if (rng() < p.probPenaltiCasaPorMinuto) {
+  if (
+    emCampoCasa.length > 0 &&
+    emCampoFora.length > 0 &&
+    rng() < p.probPenaltiCasaPorMinuto
+  ) {
     // A falta vem ANTES da cobrança: infrator do time de fora, com cartão
     // quando o lance merece (vermelho tira o jogador do resto do jogo).
     const falta = simularFaltaDoPenalti(
@@ -909,7 +913,11 @@ export function simularMinuto(
     }
     adicionar(penalti.evento);
   }
-  if (rng() < p.probPenaltiForaPorMinuto) {
+  if (
+    emCampoCasa.length > 0 &&
+    emCampoFora.length > 0 &&
+    rng() < p.probPenaltiForaPorMinuto
+  ) {
     const falta = simularFaltaDoPenalti(
       minuto,
       ctx.timeCasa,
@@ -932,7 +940,7 @@ export function simularMinuto(
     adicionar(penalti.evento);
   }
 
-  if (rng() < p.probLesaoCasaPorMinuto) {
+  if (emCampoCasa.length > 0 && rng() < p.probLesaoCasaPorMinuto) {
     const ev = simularLesao(minuto, ctx.timeCasa, emCampoCasa, rng);
     estado.indisponiveis.add(ev.jogadorId);
     estado.lesionadosPendentes.push({
@@ -941,7 +949,7 @@ export function simularMinuto(
     });
     adicionar(ev);
   }
-  if (rng() < p.probLesaoForaPorMinuto) {
+  if (emCampoFora.length > 0 && rng() < p.probLesaoForaPorMinuto) {
     const ev = simularLesao(minuto, ctx.timeFora, emCampoFora, rng);
     estado.indisponiveis.add(ev.jogadorId);
     estado.lesionadosPendentes.push({
@@ -961,40 +969,44 @@ export function simularMinuto(
     const totalGol = p.probGolCasaPorMinuto + p.probGolForaPorMinuto;
     const pesoCasa = totalGol > 0 ? p.probGolCasaPorMinuto / totalGol : 0.5;
     const ehCasa = rng() < pesoCasa;
-    adicionar(
-      simularChance(
-        minuto,
-        ehCasa ? ctx.timeCasa : ctx.timeFora,
-        ehCasa ? emCampoCasa : emCampoFora,
-        rng,
-      ),
-    );
-    // VAR pode flagrar um pênalti no lance de perigo (a favor de quem atacou).
-    if (rng() < PROB_VAR_PENALTI) {
-      const emCampoDefesa = ehCasa ? emCampoFora : emCampoCasa;
-      const penalti = simularPenalti(
-        minuto,
-        ehCasa ? ctx.timeCasa : ctx.timeFora,
-        ehCasa ? emCampoCasa : emCampoFora,
-        ehCasa ? ctx.goleiroFora : ctx.goleiroCasa,
-        rng,
+    const emCampoChance = ehCasa ? emCampoCasa : emCampoFora;
+    // Lado sem ninguém em campo não cria a chance (evita sortear de um XI vazio).
+    if (emCampoChance.length > 0) {
+      adicionar(
+        simularChance(
+          minuto,
+          ehCasa ? ctx.timeCasa : ctx.timeFora,
+          emCampoChance,
+          rng,
+        ),
       );
-      // Infrator do time que defende (toque de mão flagrado — sem cartão).
-      const ofensor =
-        emCampoDefesa[Math.floor(rng() * emCampoDefesa.length)] ??
-        emCampoDefesa[0];
-      if (ofensor) {
-        penalti.evento.jogadorFaltaId = ofensor.id;
-      }
-      penalti.evento.descricao = `VAR flagra pênalti! ${penalti.evento.descricao}`;
-      if (penalti.gol) {
-        if (ehCasa) {
-          estado.placarCasa += 1;
-        } else {
-          estado.placarFora += 1;
+      // VAR pode flagrar um pênalti no lance de perigo (a favor de quem atacou).
+      if (rng() < PROB_VAR_PENALTI) {
+        const emCampoDefesa = ehCasa ? emCampoFora : emCampoCasa;
+        const penalti = simularPenalti(
+          minuto,
+          ehCasa ? ctx.timeCasa : ctx.timeFora,
+          emCampoChance,
+          ehCasa ? ctx.goleiroFora : ctx.goleiroCasa,
+          rng,
+        );
+        // Infrator do time que defende (toque de mão flagrado — sem cartão).
+        const ofensor =
+          emCampoDefesa[Math.floor(rng() * emCampoDefesa.length)] ??
+          emCampoDefesa[0];
+        if (ofensor) {
+          penalti.evento.jogadorFaltaId = ofensor.id;
         }
+        penalti.evento.descricao = `VAR flagra pênalti! ${penalti.evento.descricao}`;
+        if (penalti.gol) {
+          if (ehCasa) {
+            estado.placarCasa += 1;
+          } else {
+            estado.placarFora += 1;
+          }
+        }
+        adicionar(penalti.evento);
       }
-      adicionar(penalti.evento);
     }
   }
 
