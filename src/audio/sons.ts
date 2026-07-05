@@ -248,6 +248,11 @@ export function tocarVarAnulado(): void {
   setTimeout(() => tocar('impedimentoAnulado'), 3200);
 }
 
+/** VAR checando (usado quando o VAR intervém e marca pênalti). */
+export function tocarVarChecando(): void {
+  tocar('varChecando');
+}
+
 export function tocarIntervalo(): void {
   tocar('intervalo');
 }
