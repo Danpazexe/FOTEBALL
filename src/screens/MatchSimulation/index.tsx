@@ -655,24 +655,46 @@ function MatchSimulation(): React.JSX.Element | null {
       const nomeFalta = ev.jogadorFaltaId
         ? nomesRef.current[ev.jogadorFaltaId]
         : undefined;
+      // Linha de detalhe = O QUE ACONTECEU (ação), não só o nome. Todo lance
+      // ganha um rótulo claro; contexto extra (assistência/pênalti/falta) entra
+      // junto quando existe.
       if (ev.tipo === 'gol') {
         placarPill = `${estado.placarCasa} - ${estado.placarFora}`;
-        detalhe = ev.jogadorAssistenciaId
-          ? `(${nomesRef.current[ev.jogadorAssistenciaId] ?? 'assistência'})`
-          : ev.penaltiData
-          ? nomeFalta
-            ? `(pênalti · falta de ${nomeFalta})`
-            : '(pênalti)'
+        const assist = ev.jogadorAssistenciaId
+          ? nomesRef.current[ev.jogadorAssistenciaId] ?? 'assistência'
           : undefined;
+        detalhe = ev.penaltiData
+          ? nomeFalta
+            ? `Gol de pênalti · falta de ${nomeFalta}`
+            : 'Gol de pênalti'
+          : /falta/i.test(ev.descricao)
+          ? 'Golaço de falta'
+          : assist
+          ? `Gol · assistência de ${assist}`
+          : 'Gol!';
       } else if (ev.tipo === 'substituicao') {
         autor = ev.jogadorEntraId
           ? nomesRef.current[ev.jogadorEntraId] ?? 'Reserva'
           : nomeAutor;
-        detalhe = `(${nomeAutor})`;
+        detalhe = `Substituição · sai ${nomeAutor}`;
       } else if (ev.tipo === 'penalti') {
         detalhe = nomeFalta
-          ? `(pênalti desperdiçado · falta de ${nomeFalta})`
-          : '(pênalti desperdiçado)';
+          ? `Pênalti perdido · falta de ${nomeFalta}`
+          : 'Pênalti perdido';
+      } else if (ev.tipo === 'cartao_amarelo') {
+        detalhe = 'Cartão amarelo';
+      } else if (ev.tipo === 'cartao_vermelho') {
+        detalhe = /segundo amarelo/i.test(ev.descricao)
+          ? 'Expulso · 2º amarelo'
+          : 'Cartão vermelho';
+      } else if (ev.tipo === 'chance_perdida') {
+        detalhe = /anulado/i.test(ev.descricao)
+          ? 'Gol anulado pelo VAR'
+          : 'Chance perdida';
+      } else if (ev.tipo === 'lesao') {
+        detalhe = 'Lesão';
+      } else if (ev.tipo === 'falta_cobranca') {
+        detalhe = 'Cobrança de falta perigosa';
       }
 
       return {
