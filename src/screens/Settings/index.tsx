@@ -4,9 +4,8 @@
  * no store em memória — coerente com o escopo atual do projeto.
  */
 
-import React, {useCallback} from 'react';
+import React from 'react';
 import {Pressable, StyleSheet, Switch, Text, View} from 'react-native';
-import {useFocusEffect} from '@react-navigation/native';
 
 import {Botao, ScreenContainer, Section} from '../../components/ui';
 import {useConfirm, useToast} from '../../components/feedback';
@@ -14,14 +13,7 @@ import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, type VelocidadeNarracao} from '../../store/useGameStore';
 import {DIFICULDADES} from '../../engine/carreira/dificuldade';
 import {definirSomHabilitado, definirVolumeEfeitos} from '../../audio/sons';
-import {
-  FAIXAS_MUSICA,
-  definirMusicaHabilitada,
-  definirVolumeMusica,
-  iniciarMusica,
-  pararMusica,
-  selecionarFaixa,
-} from '../../audio/musica';
+import {FAIXAS_MUSICA} from '../../audio/musica';
 import {cores, espaco, raio, sombra} from '../../theme';
 import {VERSAO_APP} from '../../version';
 
@@ -50,20 +42,6 @@ function Settings(): React.JSX.Element {
     {valor: 'normal', rotulo: 'Normal'},
     {valor: 'rapido', rotulo: 'Rápido'},
   ];
-
-  // Prévia ao vivo: enquanto os Ajustes estão abertos, a música do menu toca
-  // para o jogador ouvir a faixa/altura que está escolhendo; para ao sair.
-  useFocusEffect(
-    useCallback(() => {
-      const c = useGameStore.getState().config;
-      iniciarMusica({
-        faixa: c.musicaSelecionada,
-        volume: c.volumeMusica,
-        habilitada: c.musicaHabilitada,
-      });
-      return () => pararMusica();
-    }, []),
-  );
 
   const handleReiniciar = async () => {
     const ok = await confirm({
@@ -117,10 +95,7 @@ function Settings(): React.JSX.Element {
           rotulo="Música do menu"
           descricao="Trilha de fundo nas telas iniciais."
           valor={config.musicaHabilitada}
-          onValueChange={valor => {
-            atualizarConfig({musicaHabilitada: valor});
-            definirMusicaHabilitada(valor);
-          }}
+          onValueChange={valor => atualizarConfig({musicaHabilitada: valor})}
         />
 
         {config.musicaHabilitada ? (
@@ -134,10 +109,9 @@ function Settings(): React.JSX.Element {
                     <Botao
                       titulo={faixa.titulo}
                       variante={ativo ? 'primaria' : 'secundaria'}
-                      onPress={() => {
-                        atualizarConfig({musicaSelecionada: faixa.id});
-                        selecionarFaixa(faixa.id);
-                      }}
+                      onPress={() =>
+                        atualizarConfig({musicaSelecionada: faixa.id})
+                      }
                     />
                   </View>
                 );
@@ -147,10 +121,7 @@ function Settings(): React.JSX.Element {
             <Text style={styles.rotuloControle}>Altura da música</Text>
             <SeletorVolume
               valor={config.volumeMusica}
-              onChange={valor => {
-                atualizarConfig({volumeMusica: valor});
-                definirVolumeMusica(valor);
-              }}
+              onChange={valor => atualizarConfig({volumeMusica: valor})}
             />
           </>
         ) : null}
@@ -250,12 +221,11 @@ function SeletorVolume({
             accessibilityLabel={
               nivel === 0 ? 'Mudo' : `${Math.round(nivel * 100)} por cento`
             }
-            style={[styles.volumeChip, ativo && styles.volumeChipAtivo]}>
+            style={[styles.volumeChip, ativo && styles.volumeChipAtivo]}
+          >
             <Text
-              style={[
-                styles.volumeChipTxt,
-                ativo && styles.volumeChipTxtAtivo,
-              ]}>
+              style={[styles.volumeChipTxt, ativo && styles.volumeChipTxtAtivo]}
+            >
               {nivel === 0 ? 'Mudo' : `${Math.round(nivel * 100)}%`}
             </Text>
           </Pressable>

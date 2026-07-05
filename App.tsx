@@ -16,6 +16,7 @@ import {FeedbackProvider} from './src/components/feedback';
 import ToastConquista from './src/components/ToastConquista';
 import Loading from './src/screens/Loading';
 import {carregarJogo, limparSave, salvarJogo} from './src/store/persistence';
+import {sincronizarMusica} from './src/audio/musica';
 import {useGameStore} from './src/store/useGameStore';
 import {
   conquistasParaSalvar,
@@ -85,9 +86,7 @@ function App(): React.JSX.Element {
     // flush precisa saber disso para não engolir o limparSave ao ir pro background.
     let limparPendente = false;
 
-    const gravar = (
-      estado: ReturnType<typeof useGameStore.getState>,
-    ): void => {
+    const gravar = (estado: ReturnType<typeof useGameStore.getState>): void => {
       const conquistas = conquistasParaSalvar(
         useAchievementsStore.getState().conquistas,
       );
@@ -156,6 +155,26 @@ function App(): React.JSX.Element {
       cancelar();
     };
   }, [carregando]);
+
+  // Música de fundo CONTÍNUA: dirigida no nível do app (não por tela), então não
+  // corta ao navegar. A partida a suspende via suprimirMusica (em MatchSimulation)
+  // e o app em background pausa/retoma (dentro de musica.ts). Só arranca depois
+  // de hidratar o save, para respeitar a faixa/volume/on-off salvos.
+  const musicaHabilitada = useGameStore(state => state.config.musicaHabilitada);
+  const volumeMusica = useGameStore(state => state.config.volumeMusica);
+  const musicaSelecionada = useGameStore(
+    state => state.config.musicaSelecionada,
+  );
+  useEffect(() => {
+    if (carregando) {
+      return;
+    }
+    sincronizarMusica({
+      faixa: musicaSelecionada,
+      volume: volumeMusica,
+      habilitada: musicaHabilitada,
+    });
+  }, [carregando, musicaHabilitada, volumeMusica, musicaSelecionada]);
 
   if (carregando) {
     return <Loading />;

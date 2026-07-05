@@ -1,20 +1,18 @@
 /**
- * Música de fundo do menu (lobby) via react-native-sound.
+ * Música de fundo (lobby) via react-native-sound.
  *
- * As faixas vivem em `src/audio/lobby/*.mp3` e são empacotadas como recursos
- * nativos (Android `res/raw/`, iOS bundle) — o carregamento é pelo NOME.
+ * Modelo CONTÍNUO e global — a música NÃO é ligada por tela. Toca sempre que
+ * está habilitada, o app está em primeiro plano e NÃO há partida em andamento.
+ * Trocar de tela não corta a música; só a partida a suspende (e o app em
+ * background pausa/retoma).
  *
- * O jogador escolhe a faixa, o volume ("altura") e liga/desliga nos Ajustes.
- * Carregamento preguiçoso e tolerante a falhas: se a faixa não carregar, o menu
- * segue em silêncio, sem derrubar nada.
+ * As faixas vivem em `src/audio/lobby/*.mp3` (Android res/raw + iOS bundle).
+ * Carregamento preguiçoso e tolerante a falha: se a faixa não carregar, segue
+ * em silêncio sem derrubar nada.
  *
- * Estado desejado (o que DEVE tocar) x estado real (o que está carregado):
- *   - faixaId          = faixa ALVO escolhida (sempre válida; default 0)
- *   - faixa/faixaCarregadaId = Sound realmente carregado e sua faixa
- *   - ativa            = alguma tela (menu/ajustes) quer música
- *   - habilitada       = ligada nos Ajustes
- *   - emPrimeiroPlano  = app à frente (pausa no background, retoma no active)
- * As funções públicas ajustam o estado desejado e reconciliam com o real.
+ * Estado desejado x real: `faixaId` = faixa ALVO; `faixa`/`faixaCarregadaId` =
+ * Sound realmente carregado. Toca iff `podeTocar()` (habilitada && !suprimido &&
+ * emPrimeiroPlano). As funções públicas ajustam o desejado e reconciliam.
  */
 import Sound from 'react-native-sound';
 import {AppState} from 'react-native';
@@ -29,27 +27,28 @@ export interface FaixaMusica {
   titulo: string;
 }
 
-/** Faixas disponíveis no menu (índice = id). */
+/** Faixas disponíveis (índice = id). */
 export const FAIXAS_MUSICA: readonly FaixaMusica[] = [
   {id: 0, arquivo: 'lobby1.mp3', titulo: 'Faixa 1'},
   {id: 1, arquivo: 'lobby2.mp3', titulo: 'Faixa 2'},
   {id: 2, arquivo: 'lobby3.mp3', titulo: 'Faixa 3'},
 ];
 
-/** Sound carregado e pronto (null enquanto carrega ou se falhou). */
 let faixa: Sound | null = null;
 /** Faixa que o `faixa` acima representa (-1 = nenhuma). */
 let faixaCarregadaId = -1;
-/** Faixa ALVO — o que deve tocar. Sempre válida (nunca fica -1). */
+/** Faixa ALVO — o que deve tocar. Sempre válida. */
 let faixaId = 0;
-/** Id de um carregamento em voo (evita disparar dois loads da mesma faixa). */
+/** Id de um carregamento em voo (evita dois loads da mesma faixa). */
 let carregando: number | null = null;
 let habilitada = true;
 let volume = 0.6;
-/** true = alguma tela quer a música tocando (menu/ajustes em foco). */
-let ativa = false;
-/** true = app em primeiro plano (o SO não pausa MediaPlayer sozinho no Android). */
+/** Partida em andamento — única situação que suspende a música. */
+let suprimido = false;
+/** App em primeiro plano (o SO não pausa o MediaPlayer sozinho no Android). */
 let emPrimeiroPlano = true;
+/** A faixa atual está de fato tocando (evita reiniciar num play() repetido). */
+let tocando = false;
 
 function limitar(valor: number): number {
   if (Number.isNaN(valor)) {
@@ -65,23 +64,39 @@ function normalizarId(id: number): number {
   return id;
 }
 
-/** Começa (ou retoma) a faixa carregada, se tudo estiver ligado e à frente. */
-function tocarFaixaCarregada(): void {
-  if (!faixa || !ativa || !habilitada || !emPrimeiroPlano) {
+/** Tudo alinhado para a música tocar? */
+function podeTocar(): boolean {
+  return habilitada && !suprimido && emPrimeiroPlano;
+}
+
+/** Toca (ou mantém tocando) a faixa carregada, respeitando o volume. */
+function play(): void {
+  if (!faixa || !podeTocar()) {
     return;
   }
   faixa.setNumberOfLoops(-1);
   faixa.setVolume(volume);
-  faixa.play();
+  if (!tocando) {
+    faixa.play();
+    tocando = true;
+  }
 }
 
-/** Reconcilia: garante que a faixa ALVO esteja carregada e tocando (se ligada). */
+/** Pausa (mantém a posição, para retomar depois). */
+function pause(): void {
+  if (faixa && tocando) {
+    faixa.pause();
+    tocando = false;
+  }
+}
+
+/** Garante que a faixa ALVO esteja carregada e tocando (se puder tocar). */
 function reconciliar(): void {
-  if (!ativa || !habilitada || !emPrimeiroPlano) {
+  if (!podeTocar()) {
     return;
   }
   if (faixa && faixaCarregadaId === faixaId) {
-    tocarFaixaCarregada();
+    play();
   } else {
     carregar(faixaId);
   }
@@ -89,8 +104,6 @@ function reconciliar(): void {
 
 /** Libera a faixa anterior e carrega a de `id` (tocando ao ficar pronta). */
 function carregar(id: number): void {
-  // Já existe um load em voo para ESTA faixa? Não dispare outro (senão duas
-  // instâncias tocam ao mesmo tempo e a primeira vaza sem referência).
   if (carregando === id) {
     return;
   }
@@ -99,6 +112,7 @@ function carregar(id: number): void {
     faixa.release();
     faixa = null;
     faixaCarregadaId = -1;
+    tocando = false;
   }
   faixaId = id;
   carregando = id;
@@ -110,20 +124,18 @@ function carregar(id: number): void {
         carregando = null;
       }
       if (erro !== null) {
-        // Sem música: o menu segue normal.
         return;
       }
-      // Usuário trocou de faixa durante o load? Descarta esta.
+      // Trocou de faixa durante o load? Descarta esta.
       if (faixaId !== alvo) {
         som.release();
         return;
       }
       faixa = som;
       faixaCarregadaId = alvo;
-      tocarFaixaCarregada();
+      play();
     });
   } catch {
-    // Faixa indisponível não pode derrubar o menu.
     if (carregando === alvo) {
       carregando = null;
     }
@@ -131,67 +143,44 @@ function carregar(id: number): void {
 }
 
 /**
- * Marca a música como desejada por uma tela (menu/ajustes) e começa a tocar.
- * Idempotente — pode ser chamado a cada foco de tela.
+ * Sincroniza a música com as preferências (chamado no boot e a cada mudança de
+ * config). É a fonte única do estado desejado — faixa, volume e ligado/desligado.
  */
-export function iniciarMusica(config: {
+export function sincronizarMusica(config: {
   faixa: number;
   volume: number;
   habilitada: boolean;
 }): void {
   volume = limitar(config.volume);
-  habilitada = config.habilitada;
-  ativa = true;
-  // Guarda a faixa escolhida SEMPRE — mesmo desligada — para religar na certa.
+  faixa?.setVolume(volume);
   faixaId = normalizarId(config.faixa);
+  habilitada = config.habilitada;
   if (!habilitada) {
     faixa?.stop();
+    tocando = false;
     return;
   }
   reconciliar();
 }
 
-/** Para a música (ao sair do menu / entrar no jogo). Mantém a faixa carregada. */
-export function pararMusica(): void {
-  ativa = false;
-  faixa?.stop();
-}
-
-/** Liga/desliga a música do menu, aplicando na hora. */
-export function definirMusicaHabilitada(valor: boolean): void {
-  habilitada = valor;
-  if (!valor) {
-    faixa?.stop();
-    return;
+/** Suspende/retoma a música por causa da partida (true = em jogo). */
+export function suprimirMusica(valor: boolean): void {
+  suprimido = valor;
+  if (valor) {
+    pause();
+  } else {
+    reconciliar();
   }
-  reconciliar();
 }
 
-/** Ajusta o volume/altura da música (0-1), aplicando na hora. */
-export function definirVolumeMusica(valor: number): void {
-  volume = limitar(valor);
-  faixa?.setVolume(volume);
-}
-
-/** Troca a faixa; se a música estiver ativa e ligada, começa a nova na hora. */
-export function selecionarFaixa(id: number): void {
-  const alvo = normalizarId(id);
-  // Já é a faixa atual (carregada ou carregando)? Não recarrega.
-  if (alvo === faixaId && (faixa !== null || carregando === alvo)) {
-    return;
-  }
-  carregar(alvo);
-}
-
-// App em background: o MediaPlayer do Android NÃO é pausado pelo SO, então a
-// música continuaria em loop com o app minimizado. Pausamos aqui e retomamos
-// quando o app volta ao primeiro plano (se ainda houver tela querendo música).
+// App em background: o MediaPlayer do Android não é pausado pelo SO — pausamos
+// aqui e retomamos quando volta ao primeiro plano.
 AppState.addEventListener('change', estado => {
   if (estado === 'active') {
     emPrimeiroPlano = true;
     reconciliar();
   } else {
     emPrimeiroPlano = false;
-    faixa?.pause();
+    pause();
   }
 });

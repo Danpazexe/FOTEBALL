@@ -40,9 +40,13 @@ import {
   tocarSubstituicao,
   tocarVarAnulado,
 } from '../../audio/sons';
+import {suprimirMusica} from '../../audio/musica';
 import {Botao, ScreenContainer} from '../../components/ui';
 import Icone, {type IconeNome} from '../../components/Icone';
-import {LanceLimpo, type LadoLance} from '../../components/MatchNarration/LanceLimpo';
+import {
+  LanceLimpo,
+  type LadoLance,
+} from '../../components/MatchNarration/LanceLimpo';
 import AjustesPartida from '../../components/MatchNarration/AjustesPartida';
 import {calcularPublicoJogo} from '../../engine/finance/financeEngine';
 import {
@@ -69,7 +73,15 @@ import {
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
-import {acentos, cores, corDoTime, espaco, raio, sombra, suaves} from '../../theme';
+import {
+  acentos,
+  cores,
+  corDoTime,
+  espaco,
+  raio,
+  sombra,
+  suaves,
+} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {
   Clube,
@@ -405,6 +417,8 @@ function MatchSimulation(): React.JSX.Element | null {
     definirSomHabilitado(estado.config.som);
     definirVolumeEfeitos(estado.config.volumeEfeitos);
     inicializarSons();
+    // Silencia a música de fundo durante a partida (retomada ao sair da tela).
+    suprimirMusica(true);
     iniciarTorcida();
     tocarInicio();
 
@@ -424,9 +438,7 @@ function MatchSimulation(): React.JSX.Element | null {
       // Confronto de mata-mata: o usuário manda o jogo; adversário pode ser de
       // outra divisão (clube/jogadores vêm do conjunto-mestre).
       modoCopaRef.current = true;
-      const meu = estado.copa
-        ? confrontoDoClube(estado.copa, userId)
-        : null;
+      const meu = estado.copa ? confrontoDoClube(estado.copa, userId) : null;
       // Só joga no dia: a Copa precisa ser o compromisso da vez.
       if (!meu || !selecionarCopaNaVez(estado)) {
         nav.goBack();
@@ -493,7 +505,8 @@ function MatchSimulation(): React.JSX.Element | null {
       nomesRef.current = mapearNomesJogadores(estado.jogadores);
       estadoRef.current = iniciarPartidaAoVivo(
         estado.rodadaAtual * 1000 +
-          (proximo.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 1000),
+          (proximo.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0) %
+            1000),
       );
       setSiglaCasa(siglaClube(estado.clubes, proximo.timeCasa));
       setSiglaFora(siglaClube(estado.clubes, proximo.timeFora));
@@ -520,6 +533,8 @@ function MatchSimulation(): React.JSX.Element | null {
   useEffect(() => {
     return () => {
       pararTorcida();
+      // Sai da partida → retoma a música de fundo.
+      suprimirMusica(false);
       useGameStore.getState().restaurarFormacaoPreLive();
     };
   }, []);
@@ -563,7 +578,14 @@ function MatchSimulation(): React.JSX.Element | null {
       });
     }, tickMs);
     return () => clearInterval(id);
-  }, [fixture, terminou, pausado, intervalo, segundoTempoLiberado, multiplicador]);
+  }, [
+    fixture,
+    terminou,
+    pausado,
+    intervalo,
+    segundoTempoLiberado,
+    multiplicador,
+  ]);
 
   // SIMULAÇÃO AO VIVO: simula os minutos ainda não simulados até o minuto atual,
   // recalculando a força a partir da escalação ATUAL (subs valem aqui).
@@ -591,8 +613,12 @@ function MatchSimulation(): React.JSX.Element | null {
     const jogadoresAdversario = modoCopaRef.current
       ? jogadoresAdversarioRef.current
       : st.jogadores.filter(j => j.clubeId === adversario.id);
-    const jogadoresCasa = usuarioEhCasa ? jogadoresUsuario : jogadoresAdversario;
-    const jogadoresFora = usuarioEhCasa ? jogadoresAdversario : jogadoresUsuario;
+    const jogadoresCasa = usuarioEhCasa
+      ? jogadoresUsuario
+      : jogadoresAdversario;
+    const jogadoresFora = usuarioEhCasa
+      ? jogadoresAdversario
+      : jogadoresUsuario;
 
     // Sons de lance: só no avanço normal (lotes de 1–2 minutos). Ao pular
     // tempo, um lote de 45' viraria uma rajada de efeitos sobrepostos.
@@ -626,10 +652,10 @@ function MatchSimulation(): React.JSX.Element | null {
         detalhe = ev.jogadorAssistenciaId
           ? `(${nomesRef.current[ev.jogadorAssistenciaId] ?? 'assistência'})`
           : ev.penaltiData
-            ? nomeFalta
-              ? `(pênalti · falta de ${nomeFalta})`
-              : '(pênalti)'
-            : undefined;
+          ? nomeFalta
+            ? `(pênalti · falta de ${nomeFalta})`
+            : '(pênalti)'
+          : undefined;
       } else if (ev.tipo === 'substituicao') {
         autor = ev.jogadorEntraId
           ? nomesRef.current[ev.jogadorEntraId] ?? 'Reserva'
@@ -664,7 +690,10 @@ function MatchSimulation(): React.JSX.Element | null {
 
     while (minutoSimuladoRef.current < alvo) {
       const proximoMinuto = minutoSimuladoRef.current + 1;
-      if (proximoMinuto === MINUTO_INTERVALO + 1 && !marcosRef.current.segundoTempo) {
+      if (
+        proximoMinuto === MINUTO_INTERVALO + 1 &&
+        !marcosRef.current.segundoTempo
+      ) {
         marcosRef.current.segundoTempo = true;
         novosItens.push({
           minuto: MINUTO_INTERVALO + 1,
@@ -748,7 +777,10 @@ function MatchSimulation(): React.JSX.Element | null {
 
     // O gol tem som próprio (efeito do placar) e vence os demais do lote.
     const somDoLote = lote.som;
-    if (somDoLote && estado.placarCasa + estado.placarFora === golsAntesDoLote) {
+    if (
+      somDoLote &&
+      estado.placarCasa + estado.placarFora === golsAntesDoLote
+    ) {
       somDoLote();
     }
 
@@ -796,8 +828,16 @@ function MatchSimulation(): React.JSX.Element | null {
   useEffect(() => {
     if (totalGols > golsPulseRef.current) {
       Animated.sequence([
-        Animated.timing(pulsePlacar, {toValue: 1.12, duration: 160, useNativeDriver: true}),
-        Animated.timing(pulsePlacar, {toValue: 1, duration: 160, useNativeDriver: true}),
+        Animated.timing(pulsePlacar, {
+          toValue: 1.12,
+          duration: 160,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulsePlacar, {
+          toValue: 1,
+          duration: 160,
+          useNativeDriver: true,
+        }),
       ]).start();
     }
     golsPulseRef.current = totalGols;
@@ -972,7 +1012,10 @@ function MatchSimulation(): React.JSX.Element | null {
     ? tabela.findIndex(linha => linha.clubeId === clubeCasaObj.id) + 1
     : 0;
   const publico = clubeCasaObj
-    ? calcularPublicoJogo(clubeCasaObj, posicaoMandante > 0 ? posicaoMandante : 10)
+    ? calcularPublicoJogo(
+        clubeCasaObj,
+        posicaoMandante > 0 ? posicaoMandante : 10,
+      )
     : undefined;
   const condicoes = estadoRef.current?.estatisticas;
 
@@ -985,7 +1028,8 @@ function MatchSimulation(): React.JSX.Element | null {
               <View style={styles.placarTimes}>
                 <Text
                   style={[styles.placarNome, styles.placarNomeEsq]}
-                  numberOfLines={1}>
+                  numberOfLines={1}
+                >
                   {nomeCasaRef.current}
                 </Text>
                 <Text style={styles.placarNumeros}>
@@ -994,20 +1038,23 @@ function MatchSimulation(): React.JSX.Element | null {
                 </Text>
                 <Text
                   style={[styles.placarNome, styles.placarNomeDir]}
-                  numberOfLines={1}>
+                  numberOfLines={1}
+                >
                   {nomeForaRef.current}
                 </Text>
               </View>
               <Text style={styles.placarMeta}>
                 {modoCopa
                   ? 'Copa do Brasil'
-                  : `${clubeUsuario?.divisao ?? 'Brasileirão'} · Rodada ${fixture.rodada}`}
+                  : `${clubeUsuario?.divisao ?? 'Brasileirão'} · Rodada ${
+                      fixture.rodada
+                    }`}
                 {' | '}
                 {terminou
                   ? 'Fim de jogo'
                   : intervalo
-                    ? 'Intervalo'
-                    : `${minuto}' ao vivo`}
+                  ? 'Intervalo'
+                  : `${minuto}' ao vivo`}
               </Text>
               <View style={styles.metaChips}>
                 {estadioCasa ? (
@@ -1091,17 +1138,19 @@ function MatchSimulation(): React.JSX.Element | null {
                   styles.abaFeed,
                   abaFeed === chave && styles.abaFeedAtiva,
                 ]}
-                onPress={() => setAbaFeed(chave)}>
+                onPress={() => setAbaFeed(chave)}
+              >
                 <Text
                   style={[
                     styles.abaFeedTexto,
                     abaFeed === chave && styles.abaFeedTextoAtivo,
-                  ]}>
+                  ]}
+                >
                   {chave === 'lances'
                     ? 'Lances'
                     : chave === 'rodada'
-                      ? 'Rodada'
-                      : 'Tabela'}
+                    ? 'Rodada'
+                    : 'Tabela'}
                 </Text>
               </Pressable>
             ))}
@@ -1121,7 +1170,8 @@ function MatchSimulation(): React.JSX.Element | null {
                 />
                 <Text
                   style={[styles.jogoNome, styles.jogoNomeEsq]}
-                  numberOfLines={1}>
+                  numberOfLines={1}
+                >
                   {item.nomeCasa}
                 </Text>
                 <Text style={styles.jogoPlacar}>
@@ -1152,16 +1202,25 @@ function MatchSimulation(): React.JSX.Element | null {
               const total = tabelaAoVivo.length;
               const zona =
                 index < 4
-                  ? {faixa: acentos.verde, badge: suaves.verde, texto: acentos.verde}
+                  ? {
+                      faixa: acentos.verde,
+                      badge: suaves.verde,
+                      texto: acentos.verde,
+                    }
                   : index >= total - 4
-                    ? {faixa: acentos.vermelho, badge: suaves.vermelho, texto: acentos.vermelho}
-                    : null;
+                  ? {
+                      faixa: acentos.vermelho,
+                      badge: suaves.vermelho,
+                      texto: acentos.vermelho,
+                    }
+                  : null;
               return (
                 <View
                   style={[
                     styles.tabelaLinha,
                     ehUsuario && styles.tabelaLinhaUsuario,
-                  ]}>
+                  ]}
+                >
                   <View
                     style={[
                       styles.tabelaZona,
@@ -1172,12 +1231,14 @@ function MatchSimulation(): React.JSX.Element | null {
                     style={[
                       styles.tabelaPosBadge,
                       zona ? {backgroundColor: zona.badge} : null,
-                    ]}>
+                    ]}
+                  >
                     <Text
                       style={[
                         styles.tabelaPos,
                         zona ? {color: zona.texto} : null,
-                      ]}>
+                      ]}
+                    >
                       {index + 1}
                     </Text>
                   </View>
@@ -1213,9 +1274,19 @@ function MatchSimulation(): React.JSX.Element | null {
             }
             ListFooterComponent={
               <View style={styles.tabelaLegenda}>
-                <View style={[styles.legendaPonto, {backgroundColor: acentos.verde}]} />
+                <View
+                  style={[
+                    styles.legendaPonto,
+                    {backgroundColor: acentos.verde},
+                  ]}
+                />
                 <Text style={styles.legendaTexto}>Acesso</Text>
-                <View style={[styles.legendaPonto, {backgroundColor: acentos.vermelho}]} />
+                <View
+                  style={[
+                    styles.legendaPonto,
+                    {backgroundColor: acentos.vermelho},
+                  ]}
+                />
                 <Text style={styles.legendaTexto}>Rebaixamento</Text>
               </View>
             }
@@ -1225,7 +1296,9 @@ function MatchSimulation(): React.JSX.Element | null {
             style={styles.lista}
             contentContainerStyle={styles.listaConteudo}
             data={eventosFeed}
-            keyExtractor={(item, index) => `${item.minuto}_${item.tipo}_${index}`}
+            keyExtractor={(item, index) =>
+              `${item.minuto}_${item.tipo}_${index}`
+            }
             renderItem={({item}) => (
               <LanceLimpo
                 minuto={item.minuto}
@@ -1311,12 +1384,14 @@ function MatchSimulation(): React.JSX.Element | null {
                       style={[
                         styles.chipVel,
                         ativo ? styles.chipVelAtivo : null,
-                      ]}>
+                      ]}
+                    >
                       <Text
                         style={[
                           styles.chipVelTexto,
                           ativo ? styles.chipVelTextoAtivo : null,
-                        ]}>
+                        ]}
+                      >
                         {mult}x
                       </Text>
                     </Pressable>
@@ -1394,14 +1469,18 @@ function BotaoIcone({
         styles.botaoIcone,
         primaria ? styles.botaoIconePrimaria : styles.botaoIconeSecundaria,
         disabled ? styles.botaoIconeDisabled : null,
-      ]}>
+      ]}
+    >
       <Icone
         nome={nome}
         tamanho={16}
         cor={primaria ? cores.contrastePrimaria : cores.texto}
       />
       <Text
-        style={primaria ? styles.botaoIconeTextoPrimaria : styles.botaoIconeTexto}>
+        style={
+          primaria ? styles.botaoIconeTextoPrimaria : styles.botaoIconeTexto
+        }
+      >
         {titulo}
       </Text>
     </Pressable>

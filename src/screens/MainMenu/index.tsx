@@ -4,18 +4,17 @@
  * do ScreenContainer.
  */
 
-import React, {useCallback} from 'react';
+import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
-import {useFocusEffect} from '@react-navigation/native';
 
 import {Botao, Card, ScreenContainer} from '../../components/ui';
 import Escudo from '../../components/Escudo';
 import Icone, {type IconeNome} from '../../components/Icone';
 import LogoFoteball from '../../components/LogoFoteball';
+import DiscoVinil from '../../components/DiscoVinil';
 import {cores, espaco, raio} from '../../theme';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation} from '../../navigation/types';
-import {iniciarMusica, pararMusica} from '../../audio/musica';
 import {VERSAO_APP} from '../../version';
 
 function MainMenu(): React.JSX.Element {
@@ -25,23 +24,6 @@ function MainMenu(): React.JSX.Element {
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
   const temporadaAtual = useGameStore(state => state.temporadaAtual);
   const rodadaAtual = useGameStore(state => state.rodadaAtual);
-  const musicaHabilitada = useGameStore(state => state.config.musicaHabilitada);
-  const volumeMusica = useGameStore(state => state.config.volumeMusica);
-  const musicaSelecionada = useGameStore(
-    state => state.config.musicaSelecionada,
-  );
-
-  // Música do menu: toca ao entrar na tela, para ao sair (ou ir pro jogo).
-  useFocusEffect(
-    useCallback(() => {
-      iniciarMusica({
-        faixa: musicaSelecionada,
-        volume: volumeMusica,
-        habilitada: musicaHabilitada,
-      });
-      return () => pararMusica();
-    }, [musicaSelecionada, volumeMusica, musicaHabilitada]),
-  );
 
   const clube = clubeUsuarioId
     ? clubes.find(item => item.id === clubeUsuarioId)
@@ -53,73 +35,79 @@ function MainMenu(): React.JSX.Element {
   const rodadaExibida = Math.min(rodadaAtual, 38);
 
   return (
-    <ScreenContainer scroll>
-      <View style={styles.hero}>
-        <LogoFoteball />
-        <Text style={styles.titulo}>FOTEBALL</Text>
-        <Text style={styles.subtitulo}>MANAGER</Text>
-        <Text style={styles.tagline}>
-          Construa uma dinastia no futebol brasileiro
-        </Text>
-      </View>
+    <View style={styles.raiz}>
+      <ScreenContainer scroll>
+        <View style={styles.hero}>
+          <LogoFoteball />
+          <Text style={styles.titulo}>FOTEBALL</Text>
+          <Text style={styles.subtitulo}>MANAGER</Text>
+          <Text style={styles.tagline}>
+            Construa uma dinastia no futebol brasileiro
+          </Text>
+        </View>
 
-      <Card destaque={!!clubeUsuarioId}>
-        {clube ? (
-          <>
-            <View style={styles.cardTopo}>
-              <Escudo clubeId={clube.id} sigla={clube.sigla} tamanho={46} />
-              <View style={styles.flex1}>
-                <Text style={styles.cardLabel}>Carreira atual</Text>
-                <Text style={styles.cardTitulo} numberOfLines={1}>
-                  {clube.nome}
-                </Text>
+        <Card destaque={!!clubeUsuarioId}>
+          {clube ? (
+            <>
+              <View style={styles.cardTopo}>
+                <Escudo clubeId={clube.id} sigla={clube.sigla} tamanho={46} />
+                <View style={styles.flex1}>
+                  <Text style={styles.cardLabel}>Carreira atual</Text>
+                  <Text style={styles.cardTitulo} numberOfLines={1}>
+                    {clube.nome}
+                  </Text>
+                </View>
               </View>
-            </View>
-            <View style={styles.chips}>
-              <Chip icone="calendario" texto={`Temporada ${temporadaAtual}`} />
-              <Chip icone="bola" texto={`Rodada ${rodadaExibida}/38`} />
-              <Chip icone="tabela" texto={`${posicao}º lugar`} />
-            </View>
-          </>
-        ) : (
-          <>
-            <Text style={styles.cardLabel}>Novo desafio</Text>
-            <Text style={styles.cardTitulo}>Nenhuma carreira ativa</Text>
-            <Text style={styles.cardResumo}>
-              Brasileirão Série A 2026 · 20 clubes
-            </Text>
-          </>
-        )}
-      </Card>
+              <View style={styles.chips}>
+                <Chip
+                  icone="calendario"
+                  texto={`Temporada ${temporadaAtual}`}
+                />
+                <Chip icone="bola" texto={`Rodada ${rodadaExibida}/38`} />
+                <Chip icone="tabela" texto={`${posicao}º lugar`} />
+              </View>
+            </>
+          ) : (
+            <>
+              <Text style={styles.cardLabel}>Novo desafio</Text>
+              <Text style={styles.cardTitulo}>Nenhuma carreira ativa</Text>
+              <Text style={styles.cardResumo}>
+                Brasileirão Série A 2026 · 20 clubes
+              </Text>
+            </>
+          )}
+        </Card>
 
-      <View style={styles.acoes}>
-        {clubeUsuarioId ? (
-          <>
+        <View style={styles.acoes}>
+          {clubeUsuarioId ? (
+            <>
+              <Botao
+                variante="grande"
+                icone="jogar"
+                titulo="Continuar carreira"
+                onPress={() => nav.navigate('MainTabs')}
+              />
+              <Botao
+                variante="secundaria"
+                icone="troca"
+                titulo="Nova carreira"
+                onPress={() => nav.navigate('LeagueSelect')}
+              />
+            </>
+          ) : (
             <Botao
               variante="grande"
               icone="jogar"
-              titulo="Continuar carreira"
-              onPress={() => nav.navigate('MainTabs')}
-            />
-            <Botao
-              variante="secundaria"
-              icone="troca"
-              titulo="Nova carreira"
+              titulo="Começar agora"
               onPress={() => nav.navigate('LeagueSelect')}
             />
-          </>
-        ) : (
-          <Botao
-            variante="grande"
-            icone="jogar"
-            titulo="Começar agora"
-            onPress={() => nav.navigate('LeagueSelect')}
-          />
-        )}
-      </View>
+          )}
+        </View>
 
-      <Text style={styles.rodape}>Feito no Brasil · v{VERSAO_APP}</Text>
-    </ScreenContainer>
+        <Text style={styles.rodape}>Feito no Brasil · v{VERSAO_APP}</Text>
+      </ScreenContainer>
+      <DiscoVinil />
+    </View>
   );
 }
 
@@ -139,6 +127,9 @@ function Chip({
 }
 
 const styles = StyleSheet.create({
+  raiz: {
+    flex: 1,
+  },
   hero: {
     alignItems: 'center',
     marginTop: espaco.xxl,
