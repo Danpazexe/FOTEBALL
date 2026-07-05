@@ -47,20 +47,23 @@ export function linhaDaPosicao(
  * em degraus — abaixo de 20 o jogador rende só 35% (e corre risco de lesão). É o
  * que torna a rotação de elenco obrigatória.
  */
+// Condição é um fator MENOR (alvo ~10% do resultado, bem abaixo do overall):
+// cansaço penaliza, mas não é devastador (antes 55 de condição tirava 25% da
+// força → cansaço dominava o jogo). Curva bem mais suave.
 export function fatorPreparo(condicao: number): number {
   if (condicao >= 80) {
     return 1.0;
   }
   if (condicao >= 60) {
-    return 0.9;
+    return 0.97;
   }
   if (condicao >= 40) {
-    return 0.75;
+    return 0.93;
   }
   if (condicao >= 20) {
-    return 0.55;
+    return 0.88;
   }
-  return 0.35;
+  return 0.82;
 }
 
 /** Fatores comuns (condição/moral/forma) que escalam a contribuição de um jogador. */
@@ -68,7 +71,9 @@ function fatoresEstado(jogador: Player, condicaoEfetiva: number): number {
   const fatorCondicao = fatorPreparo(condicaoEfetiva);
   // Moral impacta a força efetiva em ±10% (BRASFOOT_MASTER §15): moral 0 → 0.90,
   // moral 100 → 1.10, moral 50 (neutra) → 1.00.
-  const fatorMoral = 0.9 + (jogador.moral / 100) * 0.2;
+  // Moral também é fator MENOR (alvo ~10%): ±4% de força (antes ±10%, pesava
+  // mais que a própria qualidade do elenco).
+  const fatorMoral = 0.96 + (jogador.moral / 100) * 0.08;
   const fatorForma = 1 + jogador.forma * 0.02;
   return fatorCondicao * fatorMoral * fatorForma;
 }
