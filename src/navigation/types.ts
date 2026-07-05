@@ -4,10 +4,9 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 
 /** Abas inferiores (gestão do clube no dia a dia). */
 export type MainTabsParamList = {
-  Home: undefined;
-  Squad: undefined;
-  Tactics: undefined;
+  Central: undefined;
   Competition: undefined;
+  Home: undefined;
   Club: undefined;
   Settings: undefined;
 };
@@ -31,7 +30,8 @@ export type RootStackParamList = {
   Gabinete: undefined;
   Calendario: undefined;
   Contratos: undefined;
-  Central: undefined;
+  Squad: undefined;
+  Tactics: undefined;
   Demissao: undefined;
 };
 
