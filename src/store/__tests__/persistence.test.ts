@@ -69,6 +69,33 @@ describe('persistence', () => {
     expect(aplicado.propostasRecebidas).toEqual(estado.propostasRecebidas);
   });
 
+  it('salva e restaura o mundo mestre (todosClubes/todosJogadores)', () => {
+    const estado = useGameStore.getState();
+    // O mundo das outras divisões existe no estado inicial (seed completo).
+    expect(estado.todosClubes.length).toBeGreaterThan(0);
+    expect(estado.todosJogadores.length).toBeGreaterThan(0);
+
+    const snap = montarSnapshot(estado);
+    expect(snap.todosClubes).toHaveLength(estado.todosClubes.length);
+    expect(snap.todosJogadores).toHaveLength(estado.todosJogadores.length);
+
+    const aplicado = aplicarSnapshot(snap);
+    expect(aplicado.todosClubes).toHaveLength(estado.todosClubes.length);
+    expect(aplicado.todosJogadores).toHaveLength(estado.todosJogadores.length);
+  });
+
+  it('save antigo sem mundo mestre: NÃO sobrescreve (mantém o mundo do seed)', () => {
+    const estado = useGameStore.getState();
+    const snap = montarSnapshot(estado);
+    // Simula um save anterior, sem os campos do mundo mestre.
+    const {todosClubes: _c, todosJogadores: _j, ...semMundo} = snap;
+    const aplicado = aplicarSnapshot(semMundo);
+    // Ausentes no snapshot → omitidos do partial → setState mantém o seed
+    // completo em vez de regredir para só a Série A.
+    expect('todosClubes' in aplicado).toBe(false);
+    expect('todosJogadores' in aplicado).toBe(false);
+  });
+
   it('migra saves antigos: deriva habilidades e tipo ausentes no load', () => {
     const estado = useGameStore.getState();
     const snap = montarSnapshot(estado);

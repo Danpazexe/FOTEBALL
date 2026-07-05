@@ -80,6 +80,7 @@ import {
 import {calcularForcaTime, type ForcaTime} from '../engine/simulation/teamStrength';
 import {mesmaTatica} from '../engine/tactics/estrategias';
 import {validarFormacao} from '../engine/tactics/formationValidation';
+import {removerJogadorDaFormacao} from '../engine/tactics/formacaoOps';
 import {
   respostaIAProposta,
   type PropostaTransferencia,
@@ -933,33 +934,48 @@ export const useGameStore = create<GameState>((set, get) => ({
         return partida;
       }
 
-      const simulada = simularPartida({
-        timeCasa: clubeCasa,
-        timeFora: clubeFora,
-        jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
-        jogadoresFora: jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
-        seed: state.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
-        competicaoId: jogo.competicaoId,
-        rodada: jogo.rodada,
-        data: jogo.data,
-      });
-      // Jogo da IA guarda só os agregados (save enxuto); o do usuário, tudo.
-      const ehDoUsuario =
-        jogo.timeCasa === state.clubeUsuarioId ||
-        jogo.timeFora === state.clubeUsuarioId;
-      const resultado = ehDoUsuario ? simulada : enxugarEstatisticasIA(simulada);
+      try {
+        const simulada = simularPartida({
+          timeCasa: clubeCasa,
+          timeFora: clubeFora,
+          jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
+          jogadoresFora: jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
+          seed: state.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
+          competicaoId: jogo.competicaoId,
+          rodada: jogo.rodada,
+          data: jogo.data,
+        });
+        // Jogo da IA guarda só os agregados (save enxuto); o do usuário, tudo.
+        const ehDoUsuario =
+          jogo.timeCasa === state.clubeUsuarioId ||
+          jogo.timeFora === state.clubeUsuarioId;
+        const resultado = ehDoUsuario
+          ? simulada
+          : enxugarEstatisticasIA(simulada);
 
-      jogadoresAtualizados = aplicarResultadoNosJogadores(
-        jogadoresAtualizados,
-        resultado,
-        clubeCasa,
-        clubeFora,
-      );
+        jogadoresAtualizados = aplicarResultadoNosJogadores(
+          jogadoresAtualizados,
+          resultado,
+          clubeCasa,
+          clubeFora,
+        );
 
-      // Preserva o id do calendário: simularPartida gera um id próprio e o
-      // spread o sobrescreveria, quebrando buscas por id (ex.: localizar a
-      // partida do usuário recém-jogada para a narração e a "Última Partida").
-      return {...partida, ...resultado, id: partida.id};
+        // Preserva o id do calendário: simularPartida gera um id próprio e o
+        // spread o sobrescreveria, quebrando buscas por id (ex.: localizar a
+        // partida do usuário recém-jogada para a narração e a "Última Partida").
+        return {...partida, ...resultado, id: partida.id};
+      } catch (erro) {
+        // Defesa: um jogo que falha NÃO pode abortar a rodada inteira (perderia
+        // o avanço e o save). Encerra seguro em 0x0 e segue os demais jogos.
+        console.warn(`[avancarRodada] jogo ${partida.id} falhou (0x0):`, erro);
+        return {
+          ...partida,
+          jogada: true,
+          placarCasa: 0,
+          placarFora: 0,
+          eventos: [],
+        };
+      }
     });
 
     const tabela = calcularTabela(state.clubes, partidasAtualizadas);
@@ -1609,23 +1625,33 @@ export const useGameStore = create<GameState>((set, get) => ({
       jogadores: stateAtual.jogadores.map(item =>
         item.id === jogadorId ? {...item, clubeId: null} : item,
       ),
-      clubes: stateAtual.clubes.map(clube =>
-        clube.id === clubeUsuarioId
-          ? registrarTransacao(
-              {
-                ...clube,
-                elenco: clube.elenco.filter(id => id !== jogadorId),
-              },
-              {
-                data: `${stateAtual.temporadaAtual}-mercado`,
-                tipo: 'receita',
-                categoria: 'vendaJogadores',
-                valor,
-                descricao: `Venda de ${jogador.nome}`,
-              },
-            )
-          : clube,
-      ),
+      clubes: stateAtual.clubes.map(clube => {
+        if (clube.id !== clubeUsuarioId) {
+          return clube;
+        }
+        const elencoRestante = clube.elenco.filter(id => id !== jogadorId);
+        return registrarTransacao(
+          {
+            ...clube,
+            elenco: elencoRestante,
+            // Tira o vendido da escalação (senão vira id fantasma → XI vazio).
+            formacaoAtual: clube.formacaoAtual
+              ? removerJogadorDaFormacao(
+                  clube.formacaoAtual,
+                  jogadorId,
+                  elencoRestante,
+                )
+              : clube.formacaoAtual,
+          },
+          {
+            data: `${stateAtual.temporadaAtual}-mercado`,
+            tipo: 'receita',
+            categoria: 'vendaJogadores',
+            valor,
+            descricao: `Venda de ${jogador.nome}`,
+          },
+        );
+      }),
       mensagens: adicionarMensagem(
         stateAtual.mensagens,
         `${jogador.nome} vendido por R$ ${valor.toLocaleString('pt-BR')}.`,
@@ -1664,7 +1690,19 @@ export const useGameStore = create<GameState>((set, get) => ({
       ),
       clubes: state.clubes.map(clube => {
         if (clube.id === clubeUsuarioId) {
-          return {...clube, elenco: clube.elenco.filter(id => id !== jogadorId)};
+          const elencoRestante = clube.elenco.filter(id => id !== jogadorId);
+          return {
+            ...clube,
+            elenco: elencoRestante,
+            // Tira o emprestado da escalação (senão vira id fantasma → XI vazio).
+            formacaoAtual: clube.formacaoAtual
+              ? removerJogadorDaFormacao(
+                  clube.formacaoAtual,
+                  jogadorId,
+                  elencoRestante,
+                )
+              : clube.formacaoAtual,
+          };
         }
         if (clube.id === clubeDestinoId) {
           return {...clube, elenco: [...clube.elenco, jogadorId]};

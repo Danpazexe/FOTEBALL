@@ -53,6 +53,11 @@ export interface SnapshotJogo {
   rodadasNoVermelho?: number;
   estadoFinanceiro?: EstadoFinanceiro;
   demissao?: MotivoDemissao | null;
+  // Mundo mestre (TODAS as divisões) — evolui a cada temporada. Sem persistir,
+  // ao recarregar o app o mundo regride ao seed. Opcionais para ler saves que
+  // ainda não os tinham (aditivo, sem bump de versão — apps antigos os ignoram).
+  todosClubes?: Clube[];
+  todosJogadores?: Player[];
 }
 
 /**
@@ -86,6 +91,8 @@ export function montarSnapshot(
     rodadasNoVermelho: state.rodadasNoVermelho,
     estadoFinanceiro: state.estadoFinanceiro,
     demissao: state.demissao,
+    todosClubes: state.todosClubes,
+    todosJogadores: state.todosJogadores,
   };
 }
 
@@ -113,6 +120,17 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     rodadasNoVermelho: snapshot.rodadasNoVermelho ?? 0,
     estadoFinanceiro: snapshot.estadoFinanceiro ?? 'SAUDAVEL',
     demissao: snapshot.demissao ?? null,
+    // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
+    // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
+    // só a Série A). Aplica a migração de habilidades/tipo também aqui.
+    ...(snapshot.todosClubes ? {todosClubes: snapshot.todosClubes} : {}),
+    ...(snapshot.todosJogadores
+      ? {
+          todosJogadores: snapshot.todosJogadores
+            .map(comHabilidades)
+            .map(comTipo),
+        }
+      : {}),
   };
 }
 
