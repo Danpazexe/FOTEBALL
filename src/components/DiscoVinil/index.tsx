@@ -15,6 +15,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {useIsFocused} from '@react-navigation/native';
 
 import {Botao} from '../ui';
 import Icone from '../Icone';
@@ -33,11 +34,16 @@ export default function DiscoVinil(): React.JSX.Element {
   const selecionada = useGameStore(state => state.config.musicaSelecionada);
   const volumeMusica = useGameStore(state => state.config.volumeMusica);
   const atualizarConfig = useGameStore(state => state.atualizarConfig);
+  const focado = useIsFocused();
+  // "Audível" = ligada E com volume > 0. Mudar pelo switch OU zerar o volume
+  // apaga e para o disco (o giro/aceso não pode contradizer o silêncio).
+  const audivel = habilitada && volumeMusica > 0;
 
-  // Gira enquanto a música está ligada; congela quando muta.
+  // Gira só quando audível E a aba está em foco (não gira fora da tela) e é
+  // cancelado ao desmontar (sem animação órfã perpétua na UI thread).
   const angulo = useSharedValue(0);
   useEffect(() => {
-    if (habilitada) {
+    if (audivel && focado) {
       angulo.value = 0;
       angulo.value = withRepeat(
         withTiming(360, {duration: 3200, easing: Easing.linear}),
@@ -47,7 +53,8 @@ export default function DiscoVinil(): React.JSX.Element {
     } else {
       cancelAnimation(angulo);
     }
-  }, [habilitada, angulo]);
+    return () => cancelAnimation(angulo);
+  }, [audivel, focado, angulo]);
   const discoStyle = useAnimatedStyle(() => ({
     transform: [{rotate: `${angulo.value}deg`}],
   }));
@@ -60,10 +67,10 @@ export default function DiscoVinil(): React.JSX.Element {
         style={styles.flutuante}
         onPress={() => setAberto(true)}
         accessibilityRole="button"
-        accessibilityLabel={`Música: ${habilitada ? faixaAtual : 'mutada'}`}
+        accessibilityLabel={`Música: ${audivel ? faixaAtual : 'silenciada'}`}
       >
         <Animated.View
-          style={[styles.disco, discoStyle, !habilitada && styles.discoMudo]}
+          style={[styles.disco, discoStyle, !audivel && styles.discoMudo]}
         >
           <View style={styles.groove1} />
           <View style={styles.groove2} />
@@ -100,7 +107,7 @@ export default function DiscoVinil(): React.JSX.Element {
               <View style={styles.flex1}>
                 <Text style={styles.linhaRotulo}>Tocar música</Text>
                 <Text style={styles.descricao}>
-                  {habilitada ? `Tocando: ${faixaAtual}` : 'Mutada'}
+                  {audivel ? `Tocando: ${faixaAtual}` : 'Silenciada'}
                 </Text>
               </View>
               <Switch

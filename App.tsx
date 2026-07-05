@@ -15,6 +15,7 @@ import {RootNavigator} from './src/navigation/RootNavigator';
 import {FeedbackProvider} from './src/components/feedback';
 import ToastConquista from './src/components/ToastConquista';
 import Loading from './src/screens/Loading';
+import SaveIndicator from './src/components/SaveIndicator';
 import {carregarJogo, limparSave, salvarJogo} from './src/store/persistence';
 import {sincronizarMusica} from './src/audio/musica';
 import {useGameStore} from './src/store/useGameStore';
@@ -165,6 +166,9 @@ function App(): React.JSX.Element {
   const musicaSelecionada = useGameStore(
     state => state.config.musicaSelecionada,
   );
+  // Só toca com carreira ativa: o controle (vinil) vive na aba Início, dentro do
+  // jogo. Sem isso, no fresh install a música tocaria no menu sem nenhum controle.
+  const temCarreira = useGameStore(state => state.clubeUsuarioId !== null);
   useEffect(() => {
     if (carregando) {
       return;
@@ -172,9 +176,9 @@ function App(): React.JSX.Element {
     sincronizarMusica({
       faixa: musicaSelecionada,
       volume: volumeMusica,
-      habilitada: musicaHabilitada,
+      habilitada: musicaHabilitada && temCarreira,
     });
-  }, [carregando, musicaHabilitada, volumeMusica, musicaSelecionada]);
+  }, [carregando, musicaHabilitada, volumeMusica, musicaSelecionada, temCarreira]);
 
   if (carregando) {
     return <Loading />;
@@ -190,6 +194,7 @@ function App(): React.JSX.Element {
           </FeedbackProvider>
         </NavigationContainer>
         <ToastConquista />
+        <SaveIndicator />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

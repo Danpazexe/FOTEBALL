@@ -11,7 +11,7 @@
  * resultado é fechado e os demais jogos da rodada (IA) são simulados.
  */
 
-import React, {useEffect, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Animated,
   FlatList,
@@ -93,6 +93,7 @@ import type {
   TabelaClassificacao,
 } from '../../types';
 import {useAppNavigation, useAppRoute} from '../../navigation/types';
+import {useFocusEffect} from '@react-navigation/native';
 
 type ItemTimeline = {
   minuto: number;
@@ -418,8 +419,6 @@ function MatchSimulation(): React.JSX.Element | null {
     definirSomHabilitado(estado.config.som);
     definirVolumeEfeitos(estado.config.volumeEfeitos);
     inicializarSons();
-    // Silencia a música de fundo durante a partida (retomada ao sair da tela).
-    suprimirMusica(true);
     iniciarTorcida();
     tocarInicio();
 
@@ -534,11 +533,19 @@ function MatchSimulation(): React.JSX.Element | null {
   useEffect(() => {
     return () => {
       pararTorcida();
-      // Sai da partida → retoma a música de fundo.
-      suprimirMusica(false);
       useGameStore.getState().restaurarFormacaoPreLive();
     };
   }, []);
+
+  // Música de fundo: silencia enquanto a TELA da partida está em foco e retoma
+  // ao sair. Como o resultado é uma tela SEPARADA (esta desfoca ao navegar pra
+  // lá), a música volta já na tela de resultado — não fica muda "após a partida".
+  useFocusEffect(
+    useCallback(() => {
+      suprimirMusica(true);
+      return () => suprimirMusica(false);
+    }, []),
+  );
 
   const minuto = Math.min(DURACAO, Math.floor(relogioSeg / 60));
   const terminou = fixture !== null && relogioSeg >= DURACAO_SEG;

@@ -39,8 +39,9 @@ let faixa: Sound | null = null;
 let faixaCarregadaId = -1;
 /** Faixa ALVO — o que deve tocar. Sempre válida. */
 let faixaId = 0;
-/** Id de um carregamento em voo (evita dois loads da mesma faixa). */
-let carregando: number | null = null;
+/** Contador de carregamentos: só o mais recente assume a faixa. Um load antigo,
+ * resolvido tarde, se descarta em vez de vazar um Sound tocando em paralelo. */
+let geracao = 0;
 let habilitada = true;
 let volume = 0.6;
 /** Partida em andamento — única situação que suspende a música. */
@@ -104,9 +105,6 @@ function reconciliar(): void {
 
 /** Libera a faixa anterior e carrega a de `id` (tocando ao ficar pronta). */
 function carregar(id: number): void {
-  if (carregando === id) {
-    return;
-  }
   if (faixa) {
     faixa.stop();
     faixa.release();
@@ -115,30 +113,26 @@ function carregar(id: number): void {
     tocando = false;
   }
   faixaId = id;
-  carregando = id;
-  const alvo = id;
+  const meuToken = ++geracao;
   const meta = FAIXAS_MUSICA[id];
   try {
     const som = new Sound(meta.arquivo, Sound.MAIN_BUNDLE, erro => {
-      if (carregando === alvo) {
-        carregando = null;
+      // Superado por um carregar mais novo (troca de faixa durante o load)?
+      // Descarta este Sound — senão tocaria em paralelo, órfão, sem referência.
+      if (meuToken !== geracao) {
+        som.release();
+        return;
       }
       if (erro !== null) {
         return;
       }
-      // Trocou de faixa durante o load? Descarta esta.
-      if (faixaId !== alvo) {
-        som.release();
-        return;
-      }
       faixa = som;
-      faixaCarregadaId = alvo;
+      faixaCarregadaId = id;
+      tocando = false;
       play();
     });
   } catch {
-    if (carregando === alvo) {
-      carregando = null;
-    }
+    // Faixa indisponível não pode derrubar o app.
   }
 }
 

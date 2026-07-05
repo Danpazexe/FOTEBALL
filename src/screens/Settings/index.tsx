@@ -92,8 +92,8 @@ function Settings(): React.JSX.Element {
 
       <Section titulo="Áudio">
         <LinhaSwitch
-          rotulo="Música do menu"
-          descricao="Trilha de fundo nas telas iniciais."
+          rotulo="Música de fundo"
+          descricao="Toca em todas as telas do jogo, menos durante a partida."
           valor={config.musicaHabilitada}
           onValueChange={valor => atualizarConfig({musicaHabilitada: valor})}
         />
