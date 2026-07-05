@@ -33,8 +33,10 @@ import {
   tocarChancePerdida,
   tocarContusao,
   tocarExpulsao,
+  tocarFalhaGoleiro,
   tocarFimDeJogo,
   tocarGol,
+  tocarGolContra,
   tocarInicio,
   tocarIntervalo,
   tocarPenalti,
@@ -379,6 +381,9 @@ function MatchSimulation(): React.JSX.Element | null {
   const pulsePlacar = useRef(new Animated.Value(1)).current;
   const golsPulseRef = useRef(0);
   const golsSomRef = useRef({usuario: 0, adversario: 0});
+  // "Sabor" do gol mais recente para escolher o som certo (gol contra / falha do
+  // goleiro têm gravação dedicada; os demais usam a festa/lamento padrão).
+  const saborGolRef = useRef<'normal' | 'contra' | 'falhaGoleiro'>('normal');
 
   const [relogioSeg, setRelogioSeg] = useState(0);
   const [multiplicador, setMultiplicador] = useState<number>(() =>
@@ -763,6 +768,13 @@ function MatchSimulation(): React.JSX.Element | null {
         const doUsuario =
           (ev.timeId === fixture.timeCasa) ===
           (ladoUsuarioRef.current === 'casa');
+        if (ev.tipo === 'gol_contra') {
+          saborGolRef.current = 'contra';
+        } else if (ev.tipo === 'gol') {
+          saborGolRef.current = /falha do goleiro/i.test(ev.descricao)
+            ? 'falhaGoleiro'
+            : 'normal';
+        }
         if (ev.tipo === 'cartao_vermelho') {
           registrarSom(3, () => tocarExpulsao(doUsuario));
         } else if (ev.tipo === 'penalti') {
@@ -885,15 +897,24 @@ function MatchSimulation(): React.JSX.Element | null {
     golsPulseRef.current = totalGols;
   }, [totalGols, pulsePlacar]);
 
-  // Som de gol por lado: a festa é do usuário, o lamento é do adversário.
+  // Som de gol por lado: a festa é do usuário, o lamento é do adversário. Gol
+  // contra e gol de falha do goleiro têm gravação dedicada (ver saborGolRef).
   useEffect(() => {
     const usuarioEhCasa = ladoUsuarioRef.current === 'casa';
     const golsUsuario = usuarioEhCasa ? placar.casa : placar.fora;
     const golsAdversario = usuarioEhCasa ? placar.fora : placar.casa;
-    if (golsUsuario > golsSomRef.current.usuario) {
-      tocarGol(true);
-    } else if (golsAdversario > golsSomRef.current.adversario) {
-      tocarGol(false);
+    const houveGol =
+      golsUsuario > golsSomRef.current.usuario ||
+      golsAdversario > golsSomRef.current.adversario;
+    if (houveGol) {
+      const doUsuario = golsUsuario > golsSomRef.current.usuario;
+      if (saborGolRef.current === 'contra') {
+        tocarGolContra();
+      } else if (saborGolRef.current === 'falhaGoleiro') {
+        tocarFalhaGoleiro();
+      } else {
+        tocarGol(doUsuario);
+      }
     }
     golsSomRef.current = {usuario: golsUsuario, adversario: golsAdversario};
   }, [placar]);

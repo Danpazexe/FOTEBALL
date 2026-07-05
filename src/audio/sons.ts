@@ -24,6 +24,8 @@ Sound.setCategory('Ambient', true);
 const ARQUIVOS = {
   gol: 'gol1.mp3',
   golAdversario: 'goladv.mp3',
+  golContra: 'golcontra.mp3',
+  falhaGoleiro: 'falhouogoleiro.mp3',
   expulsao: 'expulsao.mp3',
   expulsaoAdversario: 'expulsaoadv.mp3',
   penaltiPerdido: 'penalty.mp3',
@@ -172,6 +174,16 @@ function tocar(nome: NomeSom): void {
 /** Gol: festa quando é do time do usuário, lamento quando é do adversário. */
 export function tocarGol(doUsuario: boolean): void {
   tocar(doUsuario ? 'gol' : 'golAdversario');
+}
+
+/** Gol contra: reação dedicada (independe de quem se beneficiou). */
+export function tocarGolContra(): void {
+  tocar('golContra');
+}
+
+/** Gol saído de falha do goleiro: comentário dedicado ("falhou o goleiro"). */
+export function tocarFalhaGoleiro(): void {
+  tocar('falhaGoleiro');
 }
 
 export function tocarExpulsao(doUsuario: boolean): void {
