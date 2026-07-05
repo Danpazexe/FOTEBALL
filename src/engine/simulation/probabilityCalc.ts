@@ -152,9 +152,15 @@ export function calcularProbabilidades(
   // laboratório: ~2.4–3.1 gols/partida entre times parelhos (antes ~3.6, gols
   // demais). A razão casa/fora é preservada (mando dentro de 42–50%) e os tetos
   // foram reduzidos para deixar as goleadas raras (<10%). Ver matchBalance.test.
+  //
+  // Peso da QUALIDADE (diferencaCasa * 0.042/0.032): calibrado para o time forte
+  // ter vantagem CLARA sem vitória automática. Como o termo é ZERO entre times
+  // parelhos (diferenca=0), aumentá-lo NÃO mexe no balanço 75x75 — só reduz as
+  // zebras de gap real (Série A: overall 69–80, gap ≤ 11). No gap 11 o forte
+  // passou a vencer ~59% fora / ~70% em casa (zebra ~10–17%). Ver matchBalance.
   const golsEsperadosCasa = limitar(
     (1.35 +
-      diferencaCasa * 0.022 +
+      diferencaCasa * 0.042 +
       vantagemAtaqueCasa +
       modMatchupAtaque(taticaCasa, taticaFora)) *
       mando *
@@ -165,7 +171,7 @@ export function calcularProbabilidades(
   );
   const golsEsperadosFora = limitar(
     (1.17 -
-      diferencaCasa * 0.016 +
+      diferencaCasa * 0.032 +
       vantagemAtaqueFora +
       modMatchupAtaque(taticaFora, taticaCasa)) *
       (1 - (mando - 1) * 0.55) *

@@ -282,3 +282,40 @@ describe('laboratório de balanceamento — impacto da tática', () => {
     expect(taxa).toBeGreaterThan(0.35);
   });
 });
+
+// Cenário que faltava e deixou "fraco ganhando de time bom" passar: a diferença
+// de QUALIDADE precisa pesar. Gaps escolhidos pela faixa real da Série A (69–80,
+// gap máx ~11). A zebra continua POSSÍVEL, só não pode ser frequente.
+describe('laboratório — qualidade pesa (forte x fraco)', () => {
+  it('gap 11, forte em casa: domínio claro (vence ~70%, zebra rara)', () => {
+    const m = calcularMetricasBalanceamento(simularSerie(80, 69));
+    console.log(
+      `[80x69] casa=${m.taxaVitoriaCasa.toFixed(3)} fora=${m.taxaVitoriaFora.toFixed(3)}`,
+    );
+    expect(m.taxaVitoriaCasa).toBeGreaterThan(0.62); // forte manda em casa
+    expect(m.taxaVitoriaFora).toBeLessThan(0.16); // zebra do visitante fraco é rara
+  });
+
+  it('gap 11, forte VISITANTE: ainda vence a maioria (mando não salva o fraco)', () => {
+    const m = calcularMetricasBalanceamento(simularSerie(69, 80));
+    console.log(
+      `[69x80] casa(zebra)=${m.taxaVitoriaCasa.toFixed(3)} fora(forte)=${m.taxaVitoriaFora.toFixed(3)}`,
+    );
+    expect(m.taxaVitoriaFora).toBeGreaterThan(0.5); // forte fora vence a maioria
+    expect(m.taxaVitoriaCasa).toBeLessThan(0.24); // fraco em casa surpreende pouco
+  });
+
+  it('gap 6: vantagem existe, mas o jogo segue competitivo', () => {
+    const m = calcularMetricasBalanceamento(simularSerie(78, 72));
+    expect(m.taxaVitoriaCasa).toBeGreaterThan(0.5); // leve favorito
+    expect(m.taxaVitoriaFora).toBeGreaterThan(0.1); // zebra bem viva num gap curto
+  });
+
+  it('75x75 segue no balanço-alvo (a mudança de qualidade não mexe em parelho)', () => {
+    const m = calcularMetricasBalanceamento(simularSerie(75, 75));
+    expect(m.taxaVitoriaCasa).toBeGreaterThan(0.4);
+    expect(m.taxaVitoriaCasa).toBeLessThan(0.56);
+    expect(m.mediaGols).toBeGreaterThan(2.4);
+    expect(m.mediaGols).toBeLessThan(3.1);
+  });
+});
