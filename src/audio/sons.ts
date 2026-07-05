@@ -33,9 +33,11 @@ const ARQUIVOS = {
   fimDeJogo: 'fimjogo.mp3',
   fimDeJogoAlt: 'fimjogo2.mp3',
   // Narração (voz) — novos lances.
+  inicio: 'apitoinicial.mp3',
   cartaoAmarelo: 'amarelo.mp3',
   chancePerdida: 'chance1.mp3',
   chancePerdidaAlt: 'chance2.mp3',
+  chancePerdidaTrave: 'bolanatrave.mp3',
   varAnulado: 'varanulado.mp3',
   // Ambiente de estádio (toca em loop durante a partida).
   torcida: 'torcida.mp3',
@@ -168,13 +170,24 @@ export function tocarContusao(): void {
   tocar('contusao');
 }
 
+/** Apito inicial — a bola vai rolar. */
+export function tocarInicio(): void {
+  tocar('inicio');
+}
+
 export function tocarCartaoAmarelo(): void {
   tocar('cartaoAmarelo');
 }
 
-/** Chance perdida: alterna entre as gravações para não repetir. */
+const CHANCES: NomeSom[] = [
+  'chancePerdida',
+  'chancePerdidaAlt',
+  'chancePerdidaTrave',
+];
+
+/** Chance perdida: sorteia entre as gravações para não repetir. */
 export function tocarChancePerdida(): void {
-  tocar(Math.random() < 0.5 ? 'chancePerdida' : 'chancePerdidaAlt');
+  tocar(CHANCES[Math.floor(Math.random() * CHANCES.length)]);
 }
 
 /** Gol anulado pelo VAR (impedimento). */

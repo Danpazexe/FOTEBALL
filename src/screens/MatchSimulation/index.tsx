@@ -33,6 +33,7 @@ import {
   tocarExpulsao,
   tocarFimDeJogo,
   tocarGol,
+  tocarInicio,
   tocarIntervalo,
   tocarPenaltiPerdido,
   tocarVarAnulado,
@@ -402,6 +403,7 @@ function MatchSimulation(): React.JSX.Element | null {
     definirSomHabilitado(estado.config.som);
     inicializarSons();
     iniciarTorcida();
+    tocarInicio();
 
     const userId = estado.clubeUsuarioId;
     if (!userId) {
