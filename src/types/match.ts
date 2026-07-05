@@ -8,13 +8,25 @@ export interface PenaltiResultado {
 
 export type EventoPartidaTipo =
   | 'gol'
+  | 'gol_contra'
   | 'cartao_amarelo'
   | 'cartao_vermelho'
   | 'lesao'
   | 'substituicao'
   | 'chance_perdida'
+  | 'bola_trave'
   | 'penalti'
   | 'falta_cobranca';
+
+/**
+ * Evento que MUDA O PLACAR: gol normal ou gol contra (ambos somam 1 ao time que
+ * marcou). Usado onde o placar é reconstruído a partir dos eventos (viradas,
+ * moral, invariante placar↔eventos). NÃO inclui pênalti perdido/chance/trave.
+ * Para CRÉDITO do artilheiro use `tipo === 'gol'` (gol contra não credita ninguém).
+ */
+export function ehEventoGol(tipo: EventoPartidaTipo): boolean {
+  return tipo === 'gol' || tipo === 'gol_contra';
+}
 
 export interface EventoPartida {
   minuto: number;

@@ -33,6 +33,7 @@ export type {
   Partida,
   PenaltiResultado,
 } from './match';
+export {ehEventoGol} from './match';
 export type {
   Competicao,
   Confronto,

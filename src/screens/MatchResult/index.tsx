@@ -119,8 +119,11 @@ function iconeClima(clima: string): IconeNome {
 }
 
 function iconeEvento(tipo: EventoPartida['tipo']): IconeNome {
-  if (tipo === 'gol') {
+  if (tipo === 'gol' || tipo === 'gol_contra') {
     return 'bola';
+  }
+  if (tipo === 'bola_trave') {
+    return 'chance';
   }
   if (tipo === 'cartao_amarelo' || tipo === 'cartao_vermelho') {
     return 'cartao';
@@ -140,6 +143,9 @@ function iconeEvento(tipo: EventoPartida['tipo']): IconeNome {
 function corEvento(tipo: EventoPartida['tipo']): string {
   if (tipo === 'gol') {
     return acentos.verde;
+  }
+  if (tipo === 'gol_contra' || tipo === 'bola_trave') {
+    return acentos.laranja;
   }
   if (tipo === 'cartao_amarelo') {
     return acentos.amarelo;

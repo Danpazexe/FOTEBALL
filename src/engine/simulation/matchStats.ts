@@ -16,6 +16,7 @@
  * faltas >= cartões do time.
  */
 
+import {ehEventoGol} from '../../types';
 import type {
   ClimaPartida,
   EstatisticasPartida,
@@ -223,7 +224,7 @@ function processarEventosDoMinuto(
       ? 1
       : corredorDaPosicao(autor?.posicaoPrincipal ?? 'MC');
 
-    if (evento.tipo === 'gol') {
+    if (ehEventoGol(evento.tipo)) {
       const naArea = evento.penaltiData ? true : rng() < 0.8;
       time.finalizacoes += 1;
       time.finalizacoesNoAlvo += 1;
@@ -231,7 +232,12 @@ function processarEventosDoMinuto(
       time.finalizacoesDeFora += naArea ? 0 : 1;
       time.grandesChances += 1;
       time.perigoSetores[corredor] = (time.perigoSetores[corredor] ?? 0) + 1;
-      registrarFinalizacaoJogador(time, evento.jogadorId, true);
+      // Gol contra: o "autor" é um defensor ADVERSÁRIO — o lance conta como chance
+      // da equipe que marcou (mantém finalizacoesNoAlvo/grandesChances >= placar),
+      // mas não credita finalização a nenhum jogador do time.
+      if (evento.tipo === 'gol') {
+        registrarFinalizacaoJogador(time, evento.jogadorId, true);
+      }
       // Gol de pênalti: o adversário cometeu a falta que originou a cobrança
       // (a menos que o infrator já tenha sido punido com cartão no lance).
       if (
