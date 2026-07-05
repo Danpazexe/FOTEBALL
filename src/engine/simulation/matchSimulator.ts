@@ -641,7 +641,14 @@ export function idsTitularesDisponiveis(
 
 /** Reta final do jogo é mais aberta: mais gols nos últimos 20 minutos. */
 function fatorTempo(minuto: number): number {
-  return 1 + Math.max(0, minuto - 70) / 100;
+  // Começo cauteloso: os times se estudam nos primeiros ~20' (menos gol cedo, pra
+  // o jogo não se decidir no começo). Depois normaliza; a partir dos 70' abre
+  // (cansaço/pressão) e sobe até ~1.2 no fim. Calibrado p/ "gol no 1ºT ~62%,
+  // <15' ~22%, >75' ~36%" (ver medição de linha do tempo).
+  const inicioCauteloso = minuto <= 25 ? 0.45 + (minuto / 25) * 0.55 : 1;
+  // Fim de jogo mais aberto (cansaço/desespero) — redistribui gols do começo para
+  // o fim, sem derrubar o total. Pico ~+0.33 aos 90'.
+  return inicioCauteloso + Math.max(0, minuto - 65) / 75;
 }
 
 /**

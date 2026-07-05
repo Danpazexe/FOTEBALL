@@ -352,10 +352,11 @@ function acumularVolumeTime(
   time.assistenciasEsperadas += xgMinuto * 0.7;
 
   // Finalização extra (sem evento do simulador): quem pressiona chuta mais.
-  const probFinalizacao = limitar(xgMinuto * 5.5, 0.015, 0.32);
+  // Calibrado p/ ~25–29 chutes/jogo (soma dos dois times) — ver medição de stats.
+  const probFinalizacao = limitar(xgMinuto * 8, 0.022, 0.4);
   if (rng() < probFinalizacao) {
     const naArea = rng() < 0.58;
-    const noAlvo = rng() < (naArea ? 0.42 : 0.28) * (chuva ? 0.9 : 1);
+    const noAlvo = rng() < (naArea ? 0.36 : 0.24) * (chuva ? 0.9 : 1);
     time.finalizacoes += 1;
     time.finalizacoesNaArea += naArea ? 1 : 0;
     time.finalizacoesDeFora += naArea ? 0 : 1;
@@ -368,12 +369,12 @@ function acumularVolumeTime(
         (time.perigoSetores[corredor] ?? 0) + (naArea ? 0.45 : 0.3);
     }
     // Chute na área rende escanteio com frequência (desvio/defesa).
-    if (naArea && rng() < 0.34) {
+    if (naArea && rng() < 0.42) {
       time.escanteios += 1;
     }
   }
   // Escanteio de pressão sem chute (cruzamento afastado pela zaga).
-  if (rng() < 0.02 * (0.5 + fracaoPosse)) {
+  if (rng() < 0.032 * (0.5 + fracaoPosse)) {
     time.escanteios += 1;
   }
 
