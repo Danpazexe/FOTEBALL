@@ -23,6 +23,7 @@ Sound.setCategory('Ambient', true);
 /** Um efeito para cada momento da partida; sufixo `Adversario` = lance deles. */
 const ARQUIVOS = {
   gol: 'gol1.mp3',
+  golPancada: 'golpancada.mp3',
   golAdversario: 'goladv.mp3',
   golContra: 'golcontra.mp3',
   falhaGoleiro: 'falhouogoleiro.mp3',
@@ -43,6 +44,8 @@ const ARQUIVOS = {
   penaltiMarcado: 'penaltimarcado.mp3',
   substituicao: 'substituicao.mp3',
   varAnulado: 'varanulado.mp3',
+  varChecando: 'varchecando.mp3',
+  impedimentoAnulado: 'impedimentolanceanulado.mp3',
   // Ambiente de estádio (toca em loop durante a partida).
   torcida: 'torcida.mp3',
 } as const;
@@ -171,9 +174,15 @@ function tocar(nome: NomeSom): void {
   reproduzir(nome);
 }
 
-/** Gol: festa quando é do time do usuário, lamento quando é do adversário. */
+const GOLS_USUARIO: NomeSom[] = ['gol', 'golPancada'];
+
+/** Gol: festa do usuário (varia p/ não enjoar), lamento quando é do adversário. */
 export function tocarGol(doUsuario: boolean): void {
-  tocar(doUsuario ? 'gol' : 'golAdversario');
+  if (!doUsuario) {
+    tocar('golAdversario');
+    return;
+  }
+  tocar(GOLS_USUARIO[Math.floor(Math.random() * GOLS_USUARIO.length)]);
 }
 
 /** Gol contra: reação dedicada (independe de quem se beneficiou). */
@@ -230,9 +239,13 @@ export function tocarBolaNaTrave(): void {
   tocar('chancePerdidaTrave');
 }
 
-/** Gol anulado pelo VAR (impedimento). */
+/**
+ * Gol anulado pelo VAR: sequência dramática — "atenção, o VAR está checando" e,
+ * ao fim da checagem (~3.2s), o desfecho "impedimento, lance anulado".
+ */
 export function tocarVarAnulado(): void {
-  tocar('varAnulado');
+  tocar('varChecando');
+  setTimeout(() => tocar('impedimentoAnulado'), 3200);
 }
 
 export function tocarIntervalo(): void {
