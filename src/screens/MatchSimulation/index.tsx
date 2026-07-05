@@ -42,6 +42,7 @@ import {
   tocarPenalti,
   tocarSubstituicao,
   tocarVarAnulado,
+  tocarVarChecando,
 } from '../../audio/sons';
 import {suprimirMusica} from '../../audio/musica';
 import {salvarAgora} from '../../store/autosave';
@@ -775,10 +776,18 @@ function MatchSimulation(): React.JSX.Element | null {
             ? 'falhaGoleiro'
             : 'normal';
         }
+        // VAR intervindo (pênalti flagrado): "atenção, o VAR está checando" antes
+        // do desfecho. Chamada direta (gated) porque o gol converte o lote.
+        if (comSomDeLance && ev.descricao.includes('VAR flagra')) {
+          tocarVarChecando();
+        }
         if (ev.tipo === 'cartao_vermelho') {
           registrarSom(3, () => tocarExpulsao(doUsuario));
         } else if (ev.tipo === 'penalti') {
-          registrarSom(2, () => tocarPenalti());
+          // Pênalti do VAR já é anunciado pelo "VAR checando" acima — não dobra o apito.
+          if (!ev.descricao.includes('VAR flagra')) {
+            registrarSom(2, () => tocarPenalti());
+          }
         } else if (ev.tipo === 'lesao') {
           registrarSom(1, () => tocarContusao());
         } else if (ev.tipo === 'cartao_amarelo') {
