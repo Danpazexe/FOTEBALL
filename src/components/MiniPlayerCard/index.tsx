@@ -21,12 +21,15 @@ type MiniPlayerCardProps = {
   jogador: Player;
   onPress?: () => void;
   largura?: number;
+  /** Mostra o selo © (capitão do time). */
+  ehCapitao?: boolean;
 };
 
 function MiniPlayerCard({
   jogador,
   onPress,
   largura = LARGURA_PADRAO,
+  ehCapitao = false,
 }: MiniPlayerCardProps): React.JSX.Element {
   const tier = nivelCarta(jogador.overall);
   const indisponivel = jogador.lesionado || jogador.suspenso;
@@ -51,6 +54,13 @@ function MiniPlayerCard({
           {jogador.overall}
         </Text>
         <View style={styles.posWrap}>
+          {ehCapitao ? (
+            <Text
+              style={styles.capitao}
+              accessibilityLabel="Capitão">
+              ©
+            </Text>
+          ) : null}
           {indisponivel ? (
             <Icone
               nome={jogador.lesionado ? 'lesao' : 'cartao'}
@@ -118,6 +128,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  capitao: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: cores.secundaria,
   },
   silhueta: {
     alignSelf: 'center',

@@ -227,16 +227,21 @@ function simularCartao(
   amarelosPartida: Map<string, number>,
   fatorVermelho: number,
 ): EventoPartida {
-  // Defensores e quem desarma muito tendem a levar mais cartão.
+  // Defensores e quem desarma muito tendem a levar mais cartão. Quem JÁ tem
+  // amarelo joga com cautela (pisa no freio) → bem menos propenso a um 2º → mantém
+  // os vermelhos raros mesmo com muitos amarelos (2º amarelo era ~toda expulsão).
   const jogador = escolherJogadorPonderado(jogadores, rng, atleta => {
     const base = ['ZAG', 'LD', 'LE', 'VOL'].includes(atleta.posicaoPrincipal)
       ? 2
       : 1;
-    return base * (0.6 + atleta.atributos.desarme / 100);
+    const cautela = (amarelosPartida.get(atleta.id) ?? 0) >= 1 ? 0.3 : 1;
+    return base * (0.6 + atleta.atributos.desarme / 100) * cautela;
   });
 
   const jaTinhaAmarelo = (amarelosPartida.get(jogador.id) ?? 0) >= 1;
-  const vermelhoDireto = rng() < limitar(0.06 * fatorVermelho, 0.04, 0.16);
+  // Vermelho DIRETO raro: com o volume de amarelos calibrado (~3.4/jogo) o 2º
+  // amarelo já gera boa parte das expulsões — manter os vermelhos em ~0.20/jogo.
+  const vermelhoDireto = rng() < limitar(0.018 * fatorVermelho, 0.012, 0.06);
 
   // Segundo amarelo no mesmo jogo => expulsão.
   if (vermelhoDireto || jaTinhaAmarelo) {
@@ -430,6 +435,44 @@ function simularChance(
   );
 }
 
+/**
+ * Cobrança de falta perigosa (bola parada). O batedor é o ESPECIALISTA da equipe
+ * (finalização + passe) — protagonismo. Gol de falta é RARO (~1 a cada 40 jogos):
+ * base baixa, escalada pela qualidade do cobrador contra o goleiro adversário.
+ */
+function simularFaltaCobranca(
+  minuto: number,
+  clube: Clube,
+  jogadores: Player[],
+  goleiroAdversario: Player | undefined,
+  rng: RandomGenerator,
+): {evento: EventoPartida; gol: boolean} {
+  const cobrador = escolherJogadorPonderado(
+    jogadores,
+    rng,
+    atleta =>
+      ((atleta.atributos.finalizacao * 0.6 + atleta.atributos.passe * 0.4) / 60) *
+      pesoGol(atleta.posicaoPrincipal),
+  );
+  const qualidade = cobrador.atributos.finalizacao / 100;
+  const defesaGoleiro = goleiroAdversario
+    ? (goleiroAdversario.atributos.reflexos +
+        goleiroAdversario.atributos.posicionamento) /
+      200
+    : 0.6;
+  const gol = rng() < limitar(0.03 * qualidade * (1.2 - defesaGoleiro), 0.006, 0.06);
+  const evento = criarEvento(
+    minuto,
+    gol ? 'gol' : 'falta_cobranca',
+    clube.id,
+    cobrador,
+    gol
+      ? `Golaço de falta de ${cobrador.nome}!`
+      : `${cobrador.nome} cobra uma falta perigosa.`,
+  );
+  return {evento, gol};
+}
+
 /** Estado mutável de uma partida simulada minuto a minuto (ao vivo). */
 export interface EstadoPartidaAoVivo {
   rng: RandomGenerator;
@@ -555,27 +598,24 @@ export function calcularContextoMinuto(
   ) {
     throw new Error('Clube sem formação ou tática para a simulação');
   }
-  const opcoes = estado
+  const opcoesBase = estado
     ? {indisponiveis: estado.indisponiveis, condicaoAtual: estado.condicaoAtual}
-    : undefined;
+    : {};
   // Formações AO VIVO: as trocas da IA vivem no estado (a formação persistida
   // do clube não muda); o time do usuário troca via store (formacaoAtual).
   const formacaoCasa =
     estado?.formacoesAoVivo.get(timeCasa.id) ?? timeCasa.formacaoAtual;
   const formacaoFora =
     estado?.formacoesAoVivo.get(timeFora.id) ?? timeFora.formacaoAtual;
-  const forcaCasa = calcularForcaTime(
-    formacaoCasa,
-    jogadoresCasa,
-    timeCasa.taticaAtual,
-    opcoes,
-  );
-  const forcaFora = calcularForcaTime(
-    formacaoFora,
-    jogadoresFora,
-    timeFora.taticaAtual,
-    opcoes,
-  );
+  // Capitão é POR TIME — cada lado ganha o bônus de liderança do seu capitão.
+  const forcaCasa = calcularForcaTime(formacaoCasa, jogadoresCasa, timeCasa.taticaAtual, {
+    ...opcoesBase,
+    capitaoId: timeCasa.capitaoId,
+  });
+  const forcaFora = calcularForcaTime(formacaoFora, jogadoresFora, timeFora.taticaAtual, {
+    ...opcoesBase,
+    capitaoId: timeFora.capitaoId,
+  });
 
   // Autores de lances (gols/cartões/lesões/pênaltis) só podem ser os que estão
   // EM CAMPO agora — não o elenco inteiro. Quem foi substituído, expulso ou
@@ -639,7 +679,14 @@ export function idsTitularesDisponiveis(
 
 /** Reta final do jogo é mais aberta: mais gols nos últimos 20 minutos. */
 function fatorTempo(minuto: number): number {
-  return 1 + Math.max(0, minuto - 70) / 100;
+  // Começo cauteloso: os times se estudam nos primeiros ~20' (menos gol cedo, pra
+  // o jogo não se decidir no começo). Depois normaliza; a partir dos 70' abre
+  // (cansaço/pressão) e sobe até ~1.2 no fim. Calibrado p/ "gol no 1ºT ~62%,
+  // <15' ~22%, >75' ~36%" (ver medição de linha do tempo).
+  const inicioCauteloso = minuto <= 25 ? 0.45 + (minuto / 25) * 0.55 : 1;
+  // Fim de jogo mais aberto (cansaço/desespero) — redistribui gols do começo para
+  // o fim, sem derrubar o total. Pico ~+0.33 aos 90'.
+  return inicioCauteloso + Math.max(0, minuto - 65) / 75;
 }
 
 /**
@@ -799,6 +846,9 @@ function aplicarFadiga(
  */
 const PROB_VAR_ANULA_GOL = 0.06;
 const PROB_VAR_PENALTI = 0.06;
+// Cobrança de falta perigosa por minuto/time → ~2.5 faltas perigosas/jogo (alvo
+// 1.8–3.2). A grande maioria é lance de perigo; gol de falta é raro (~1/40 jogos).
+const PROB_FALTA_POR_MINUTO = 0.014;
 
 /** Converte um gol em evento de gol ANULADO pelo VAR (não conta no placar). */
 function golAnuladoVAR(golEvento: EventoPartida): EventoPartida {
@@ -1008,6 +1058,36 @@ export function simularMinuto(
         adicionar(penalti.evento);
       }
     }
+  }
+
+  // Cobrança de falta perigosa (bola parada): protagonismo do especialista; o
+  // gol de falta é raro. Fica por ÚLTIMO nos lances para não desalinhar o consumo
+  // de RNG dos blocos já calibrados (gol/cartão/pênalti/lesão/chance).
+  if (emCampoCasa.length > 0 && rng() < PROB_FALTA_POR_MINUTO) {
+    const falta = simularFaltaCobranca(
+      minuto,
+      ctx.timeCasa,
+      emCampoCasa,
+      ctx.goleiroFora,
+      rng,
+    );
+    if (falta.gol) {
+      estado.placarCasa += 1;
+    }
+    adicionar(falta.evento);
+  }
+  if (emCampoFora.length > 0 && rng() < PROB_FALTA_POR_MINUTO) {
+    const falta = simularFaltaCobranca(
+      minuto,
+      ctx.timeFora,
+      emCampoFora,
+      ctx.goleiroCasa,
+      rng,
+    );
+    if (falta.gol) {
+      estado.placarFora += 1;
+    }
+    adicionar(falta.evento);
   }
 
   // Posse do minuto: usa a força/eventos REAIS deste minuto (nada cosmético).

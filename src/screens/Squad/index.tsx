@@ -131,6 +131,7 @@ function Squad() {
             <MiniPlayerCard
               key={jogador.id}
               jogador={jogador}
+              ehCapitao={clubeUsuario?.capitaoId === jogador.id}
               onPress={() =>
                 nav.navigate('PlayerDetail', {jogadorId: jogador.id})
               }

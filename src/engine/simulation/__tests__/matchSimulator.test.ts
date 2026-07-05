@@ -227,7 +227,7 @@ describe('simularPartida', () => {
     expect(mediaGols).toBeLessThanOrEqual(3.1);
   });
 
-  it('creates cards in 30 to 70 percent of matches', () => {
+  it('cartões aparecem na quase totalidade dos jogos (~3.4 amarelos/jogo)', () => {
     const partidas = simularSerie(75, 75);
     const partidasComCartao = partidas.filter(partida =>
       partida.eventos.some(
@@ -236,8 +236,9 @@ describe('simularPartida', () => {
       ),
     ).length;
 
-    expect(partidasComCartao / partidas.length).toBeGreaterThanOrEqual(0.3);
-    expect(partidasComCartao / partidas.length).toBeLessThanOrEqual(0.7);
+    // Calibrado ao alvo do usuário (3.4 amarelos/jogo, nível Brasileirão): quase
+    // todo jogo tem cartão — o intervalo antigo (30–70%) valia p/ ~0.9 cartão/jogo.
+    expect(partidasComCartao / partidas.length).toBeGreaterThanOrEqual(0.85);
   });
 
   it('gera pênaltis (perdidos) e expulsões ao longo de muitos jogos', () => {

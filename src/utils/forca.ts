@@ -8,6 +8,7 @@ export function forcaDoClube(clube: Clube, jogadores: Player[]): ForcaTime {
       clube.formacaoAtual,
       jogadores.filter(jogador => jogador.clubeId === clube.id),
       clube.taticaAtual,
+      {capitaoId: clube.capitaoId},
     );
   }
   const doClube = jogadores
