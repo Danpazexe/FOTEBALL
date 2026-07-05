@@ -20,7 +20,12 @@ export interface ForcaTime {
 export interface OpcoesForca {
   indisponiveis?: Set<string>;
   condicaoAtual?: Map<string, number>;
+  /** Capitão do time: em campo, dá um pequeno bônus de liderança à equipe. */
+  capitaoId?: string;
 }
+
+/** Bônus de overall por ter o CAPITÃO em campo (liderança que estabiliza o time). */
+export const BONUS_CAPITAO = 1.2;
 
 export function linhaDaPosicao(
   posicao: Position,
@@ -120,6 +125,7 @@ export function calcularForcaTime(
   const jogadoresPorId = new Map(jogadores.map(jogador => [jogador.id, jogador]));
   const indisponiveis = opcoes?.indisponiveis;
   const condicaoAtual = opcoes?.condicaoAtual;
+  const capitaoId = opcoes?.capitaoId;
   const condicaoDe = (jogador: Player): number =>
     condicaoAtual?.get(jogador.id) ?? jogador.condicaoFisica;
 
@@ -253,8 +259,14 @@ export function calcularForcaTime(
   // Bônus das habilidades especiais dos titulares (líder, muralha, velocista no
   // contra-ataque...). Pequeno e com teto — ver `calcularBonusHabilidades`.
   const bonusHabilidades = calcularBonusHabilidades(titularesPresentes, tatica);
+  // Liderança: o capitão EM CAMPO estabiliza o time (some se ele está fora/lesionado).
+  const bonusCapitao =
+    capitaoId !== undefined &&
+    titularesPresentes.some(jogador => jogador.id === capitaoId)
+      ? BONUS_CAPITAO
+      : 0;
   const overall =
-    ataque * 0.35 + meio * 0.35 + defesa * 0.3 + bonusHabilidades;
+    ataque * 0.35 + meio * 0.35 + defesa * 0.3 + bonusHabilidades + bonusCapitao;
 
   return {ataque, meio, defesa, forcaGoleiro, overall};
 }

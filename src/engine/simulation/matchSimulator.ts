@@ -560,27 +560,24 @@ export function calcularContextoMinuto(
   ) {
     throw new Error('Clube sem formação ou tática para a simulação');
   }
-  const opcoes = estado
+  const opcoesBase = estado
     ? {indisponiveis: estado.indisponiveis, condicaoAtual: estado.condicaoAtual}
-    : undefined;
+    : {};
   // Formações AO VIVO: as trocas da IA vivem no estado (a formação persistida
   // do clube não muda); o time do usuário troca via store (formacaoAtual).
   const formacaoCasa =
     estado?.formacoesAoVivo.get(timeCasa.id) ?? timeCasa.formacaoAtual;
   const formacaoFora =
     estado?.formacoesAoVivo.get(timeFora.id) ?? timeFora.formacaoAtual;
-  const forcaCasa = calcularForcaTime(
-    formacaoCasa,
-    jogadoresCasa,
-    timeCasa.taticaAtual,
-    opcoes,
-  );
-  const forcaFora = calcularForcaTime(
-    formacaoFora,
-    jogadoresFora,
-    timeFora.taticaAtual,
-    opcoes,
-  );
+  // Capitão é POR TIME — cada lado ganha o bônus de liderança do seu capitão.
+  const forcaCasa = calcularForcaTime(formacaoCasa, jogadoresCasa, timeCasa.taticaAtual, {
+    ...opcoesBase,
+    capitaoId: timeCasa.capitaoId,
+  });
+  const forcaFora = calcularForcaTime(formacaoFora, jogadoresFora, timeFora.taticaAtual, {
+    ...opcoesBase,
+    capitaoId: timeFora.capitaoId,
+  });
 
   // Autores de lances (gols/cartões/lesões/pênaltis) só podem ser os que estão
   // EM CAMPO agora — não o elenco inteiro. Quem foi substituído, expulso ou
