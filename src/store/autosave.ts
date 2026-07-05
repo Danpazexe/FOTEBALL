@@ -11,6 +11,7 @@ import {
   useAchievementsStore,
 } from './useAchievementsStore';
 import {salvarJogo} from './persistence';
+import {useSaveStatus} from './useSaveStatus';
 
 export function salvarAgora(): void {
   const estado = useGameStore.getState();
@@ -21,7 +22,13 @@ export function salvarAgora(): void {
   const conquistas = conquistasParaSalvar(
     useAchievementsStore.getState().conquistas,
   );
-  salvarJogo(estado, conquistas).catch(erro =>
-    console.warn('[save] falha ao gravar imediato:', erro),
-  );
+  const saveStatus = useSaveStatus.getState();
+  saveStatus.marcarSalvando();
+  salvarJogo(estado, conquistas)
+    .then(() => saveStatus.marcarSalvo())
+    .catch(erro => {
+      console.warn('[save] falha ao gravar imediato:', erro);
+      // Some o indicador em falha (o autosave com debounce é a rede de segurança).
+      saveStatus.ocultar();
+    });
 }

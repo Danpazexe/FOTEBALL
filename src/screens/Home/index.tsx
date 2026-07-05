@@ -22,10 +22,14 @@ import {LOGO_COPA} from '../../assets/escudos';
 const FUNDO_ESTADIO = require('../../assets/planodefundo.jpg');
 import FormaRecente from '../../components/FormaRecente';
 import Icone from '../../components/Icone';
+import DiscoVinil from '../../components/DiscoVinil';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
-import {confrontoDoClube, type EstadoCopa} from '../../engine/season/copaEngine';
+import {
+  confrontoDoClube,
+  type EstadoCopa,
+} from '../../engine/season/copaEngine';
 import {
   definirObjetivoTemporada,
   metaCumprida,
@@ -35,10 +39,7 @@ import {
   type NivelPressao,
 } from '../../engine/carreira/pressao';
 import {avaliarUltimato} from '../../engine/carreira/ultimato';
-import {
-  gerarManchetes,
-  type TomManchete,
-} from '../../engine/carreira/imprensa';
+import {gerarManchetes, type TomManchete} from '../../engine/carreira/imprensa';
 import {
   calcularSequencias,
   type JogoResultado,
@@ -150,7 +151,9 @@ function Home(): React.JSX.Element {
     }
   }, [demissao, nav]);
 
-  const indiceTabela = tabela.findIndex(linha => linha.clubeId === clubeUsuarioId);
+  const indiceTabela = tabela.findIndex(
+    linha => linha.clubeId === clubeUsuarioId,
+  );
   const posicao = indiceTabela === -1 ? '-' : `${indiceTabela + 1}º`;
   const jogos = indiceTabela === -1 ? 0 : tabela[indiceTabela].jogos;
   const pontos = indiceTabela === -1 ? 0 : tabela[indiceTabela].pontos;
@@ -170,9 +173,12 @@ function Home(): React.JSX.Element {
   );
   // Antes da 1ª rodada a posição é desempate arbitrário (localeCompare do clubeId);
   // só há "posição real" com jogos disputados — senão a meta cobraria sem jogo.
-  const posicaoReal = jogos > 0 && indiceTabela !== -1 ? indiceTabela + 1 : null;
+  const posicaoReal =
+    jogos > 0 && indiceTabela !== -1 ? indiceTabela + 1 : null;
   const metaNoRumo =
-    objetivo && posicaoReal != null ? metaCumprida(objetivo, posicaoReal) : true;
+    objetivo && posicaoReal != null
+      ? metaCumprida(objetivo, posicaoReal)
+      : true;
 
   // Ultimato — a diretoria dá a exigência concreta quando um gatilho de demissão
   // está a um passo. Deriva do estado; resolve pela própria lógica de demissão.
@@ -240,14 +246,18 @@ function Home(): React.JSX.Element {
         lista.push({
           id: `lesao_${jogador.id}`,
           tipo: 'lesao',
-          texto: `${jogador.apelido ?? jogador.nome} — lesão (${jogador.diasLesao} dias)`,
+          texto: `${jogador.apelido ?? jogador.nome} — lesão (${
+            jogador.diasLesao
+          } dias)`,
           jogadorId: jogador.id,
         });
       } else if (jogador.suspenso) {
         lista.push({
           id: `susp_${jogador.id}`,
           tipo: 'suspensao',
-          texto: `${jogador.apelido ?? jogador.nome} — suspenso (${jogador.jogosSuspensao} jogo)`,
+          texto: `${jogador.apelido ?? jogador.nome} — suspenso (${
+            jogador.jogosSuspensao
+          } jogo)`,
           jogadorId: jogador.id,
         });
       }
@@ -445,260 +455,283 @@ function Home(): React.JSX.Element {
   };
 
   return (
-    <ScreenContainer scroll>
-      <View style={styles.container}>
-        {/* Cabeçalho "hero" cinematográfico: estádio ao fundo + véu + texto claro. */}
-        <ImageBackground source={FUNDO_ESTADIO} style={styles.hero}>
-          <View style={styles.heroVeu} />
-          <Text style={styles.eyebrow} numberOfLines={1}>
-            {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
-          </Text>
-          <View style={styles.tituloRow}>
-            <Text style={[styles.titulo, styles.heroTexto]} numberOfLines={1}>
-              Mesa do Técnico
+    <View style={styles.raiz}>
+      <ScreenContainer scroll>
+        <View style={styles.container}>
+          {/* Cabeçalho "hero" cinematográfico: estádio ao fundo + véu + texto claro. */}
+          <ImageBackground source={FUNDO_ESTADIO} style={styles.hero}>
+            <View style={styles.heroVeu} />
+            <Text style={styles.eyebrow} numberOfLines={1}>
+              {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
             </Text>
-            <View style={[styles.saldoPill, styles.heroPill]}>
-              <Text
-                style={[
-                  styles.saldoPillTexto,
-                  styles.heroTexto,
-                  (clubeUsuario?.financas.saldo ?? 0) < 0
-                    ? styles.saldoNegativo
-                    : null,
-                ]}>
-                {moedaCompacta(clubeUsuario?.financas.saldo ?? 0)}
+            <View style={styles.tituloRow}>
+              <Text style={[styles.titulo, styles.heroTexto]} numberOfLines={1}>
+                Mesa do Técnico
               </Text>
-            </View>
-          </View>
-          <View style={styles.statusRow}>
-            <Text style={[styles.subtitulo, styles.heroSub]} numberOfLines={1}>
-              {clubeUsuario?.divisao ?? 'Série A'} · {posicao} · {jogos} jogos ·{' '}
-              {pontos} pts
-            </Text>
-            {forma.length > 0 ? (
-              <FormaRecente resultados={forma} compacto />
-            ) : null}
-          </View>
-        </ImageBackground>
-
-        {/* Ultimato — exigência concreta da diretoria no fio da navalha. */}
-        {ultimato ? (
-          <View style={styles.ultimatoBanner}>
-            <View style={styles.ultimatoTopo}>
-              <Icone nome="apito" tamanho={16} cor={cores.perigo} />
-              <Text style={styles.ultimatoTitulo}>{ultimato.titulo}</Text>
-            </View>
-            <Text style={styles.ultimatoMensagem}>{ultimato.mensagem}</Text>
-          </View>
-        ) : null}
-
-        {/* Objetivo + Diretoria — dois mini-botões lado a lado (compactos). */}
-        {objetivo && pressao ? (
-          <View style={styles.duplaBotoes}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Ver a tabela"
-              onPress={() => nav.navigate('MainTabs', {screen: 'Competition'})}
-              style={({pressed}) => [
-                styles.miniBotao,
-                pressed ? styles.miniPressed : null,
-              ]}>
-              <View style={styles.miniTopo}>
-                <Icone nome="trofeu" tamanho={14} cor={cores.aviso} />
-                <Text style={styles.miniLabel}>Objetivo</Text>
-              </View>
-              <Text style={styles.miniValor} numberOfLines={1}>
-                {objetivo.tipo}
-              </Text>
-              <Text
-                style={[
-                  styles.miniStatus,
-                  {color: metaNoRumo ? cores.sucesso : cores.perigo},
-                ]}
-                numberOfLines={1}>
-                {metaNoRumo ? 'No rumo' : 'Fora da meta'} · até{' '}
-                {objetivo.posicaoAlvo}º
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Ver o gabinete do técnico"
-              onPress={() => nav.navigate('Gabinete')}
-              style={({pressed}) => [
-                styles.miniBotao,
-                pressed ? styles.miniPressed : null,
-              ]}>
-              <View style={styles.miniTopo}>
-                <Icone
-                  nome="conversa"
-                  tamanho={14}
-                  cor={corDaPressao(pressao.nivel)}
-                />
-                <Text style={styles.miniLabel}>Diretoria</Text>
-              </View>
-              <Text
-                style={[styles.miniValor, {color: corDaPressao(pressao.nivel)}]}
-                numberOfLines={1}>
-                {pressao.nivel}
-              </Text>
-              <View style={styles.pressaoTrilha}>
-                <View
-                  style={[
-                    styles.pressaoBarra,
-                    {
-                      width: `${pressao.pontuacao}%`,
-                      backgroundColor: corDaPressao(pressao.nivel),
-                    },
-                  ]}
-                />
-              </View>
-            </Pressable>
-          </View>
-        ) : null}
-
-        {/* Sequências (streaks) atuais — forma + defesa. */}
-        {sequencias.length > 0 ? (
-          <View style={styles.sequenciasRow}>
-            {sequencias.map(seq => (
-              <View
-                key={seq.tipo}
-                style={[
-                  styles.seqChip,
-                  seq.destaque === 'bom'
-                    ? styles.seqChipBom
-                    : styles.seqChipRuim,
-                ]}>
+              <View style={[styles.saldoPill, styles.heroPill]}>
                 <Text
                   style={[
-                    styles.seqChipTexto,
-                    seq.destaque === 'bom'
-                      ? styles.seqTextoBom
-                      : styles.seqTextoRuim,
-                  ]}>
-                  {seq.rotulo}
+                    styles.saldoPillTexto,
+                    styles.heroTexto,
+                    (clubeUsuario?.financas.saldo ?? 0) < 0
+                      ? styles.saldoNegativo
+                      : null,
+                  ]}
+                >
+                  {moedaCompacta(clubeUsuario?.financas.saldo ?? 0)}
                 </Text>
               </View>
-            ))}
-          </View>
-        ) : null}
+            </View>
+            <View style={styles.statusRow}>
+              <Text
+                style={[styles.subtitulo, styles.heroSub]}
+                numberOfLines={1}
+              >
+                {clubeUsuario?.divisao ?? 'Série A'} · {posicao} · {jogos} jogos
+                · {pontos} pts
+              </Text>
+              {forma.length > 0 ? (
+                <FormaRecente resultados={forma} compacto />
+              ) : null}
+            </View>
+          </ImageBackground>
 
-        {/* Clássico à vista — realça a rivalidade do próximo jogo. */}
-        {classico ? (
-          <View style={styles.classicoBanner}>
-            <Icone nome="apito" tamanho={15} cor={cores.aviso} />
-            <Text style={styles.classicoTexto}>
-              CLÁSSICO · {classico.nome}
-            </Text>
-          </View>
-        ) : null}
+          {/* Ultimato — exigência concreta da diretoria no fio da navalha. */}
+          {ultimato ? (
+            <View style={styles.ultimatoBanner}>
+              <View style={styles.ultimatoTopo}>
+                <Icone nome="apito" tamanho={16} cor={cores.perigo} />
+                <Text style={styles.ultimatoTitulo}>{ultimato.titulo}</Text>
+              </View>
+              <Text style={styles.ultimatoMensagem}>{ultimato.mensagem}</Text>
+            </View>
+          ) : null}
 
-        {/* Próximo compromisso (sem header duplicado — o card já se rotula). */}
-        {copaNaVez ? (
-          <View style={styles.copaJogoCard}>
-            <Image
-              source={LOGO_COPA}
-              style={styles.copaJogoLogo}
-              resizeMode="contain"
-            />
-            <Text style={styles.copaJogoFase}>
-              Copa do Brasil · {copaNaVez.faseNome}
-            </Text>
-            <Text style={styles.copaJogoConfronto} numberOfLines={1}>
-              {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
-            </Text>
+          {/* Objetivo + Diretoria — dois mini-botões lado a lado (compactos). */}
+          {objetivo && pressao ? (
+            <View style={styles.duplaBotoes}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ver a tabela"
+                onPress={() =>
+                  nav.navigate('MainTabs', {screen: 'Competition'})
+                }
+                style={({pressed}) => [
+                  styles.miniBotao,
+                  pressed ? styles.miniPressed : null,
+                ]}
+              >
+                <View style={styles.miniTopo}>
+                  <Icone nome="trofeu" tamanho={14} cor={cores.aviso} />
+                  <Text style={styles.miniLabel}>Objetivo</Text>
+                </View>
+                <Text style={styles.miniValor} numberOfLines={1}>
+                  {objetivo.tipo}
+                </Text>
+                <Text
+                  style={[
+                    styles.miniStatus,
+                    {color: metaNoRumo ? cores.sucesso : cores.perigo},
+                  ]}
+                  numberOfLines={1}
+                >
+                  {metaNoRumo ? 'No rumo' : 'Fora da meta'} · até{' '}
+                  {objetivo.posicaoAlvo}º
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ver o gabinete do técnico"
+                onPress={() => nav.navigate('Gabinete')}
+                style={({pressed}) => [
+                  styles.miniBotao,
+                  pressed ? styles.miniPressed : null,
+                ]}
+              >
+                <View style={styles.miniTopo}>
+                  <Icone
+                    nome="conversa"
+                    tamanho={14}
+                    cor={corDaPressao(pressao.nivel)}
+                  />
+                  <Text style={styles.miniLabel}>Diretoria</Text>
+                </View>
+                <Text
+                  style={[
+                    styles.miniValor,
+                    {color: corDaPressao(pressao.nivel)},
+                  ]}
+                  numberOfLines={1}
+                >
+                  {pressao.nivel}
+                </Text>
+                <View style={styles.pressaoTrilha}>
+                  <View
+                    style={[
+                      styles.pressaoBarra,
+                      {
+                        width: `${pressao.pontuacao}%`,
+                        backgroundColor: corDaPressao(pressao.nivel),
+                      },
+                    ]}
+                  />
+                </View>
+              </Pressable>
+            </View>
+          ) : null}
+
+          {/* Sequências (streaks) atuais — forma + defesa. */}
+          {sequencias.length > 0 ? (
+            <View style={styles.sequenciasRow}>
+              {sequencias.map(seq => (
+                <View
+                  key={seq.tipo}
+                  style={[
+                    styles.seqChip,
+                    seq.destaque === 'bom'
+                      ? styles.seqChipBom
+                      : styles.seqChipRuim,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.seqChipTexto,
+                      seq.destaque === 'bom'
+                        ? styles.seqTextoBom
+                        : styles.seqTextoRuim,
+                    ]}
+                  >
+                    {seq.rotulo}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {/* Clássico à vista — realça a rivalidade do próximo jogo. */}
+          {classico ? (
+            <View style={styles.classicoBanner}>
+              <Icone nome="apito" tamanho={15} cor={cores.aviso} />
+              <Text style={styles.classicoTexto}>
+                CLÁSSICO · {classico.nome}
+              </Text>
+            </View>
+          ) : null}
+
+          {/* Próximo compromisso (sem header duplicado — o card já se rotula). */}
+          {copaNaVez ? (
+            <View style={styles.copaJogoCard}>
+              <Image
+                source={LOGO_COPA}
+                style={styles.copaJogoLogo}
+                resizeMode="contain"
+              />
+              <Text style={styles.copaJogoFase}>
+                Copa do Brasil · {copaNaVez.faseNome}
+              </Text>
+              <Text style={styles.copaJogoConfronto} numberOfLines={1}>
+                {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
+              </Text>
+              <Botao
+                variante="ouro"
+                icone="jogar"
+                titulo="Jogar confronto da Copa"
+                onPress={() => {
+                  avancarParaData(copaNaVez.data);
+                  nav.navigate('MatchSimulation', {copa: true});
+                }}
+              />
+            </View>
+          ) : proximoEvento.tipo === 'fim' ? (
             <Botao
               variante="ouro"
-              icone="jogar"
-              titulo="Jogar confronto da Copa"
-              onPress={() => {
-                avancarParaData(copaNaVez.data);
-                nav.navigate('MatchSimulation', {copa: true});
-              }}
+              icone="trofeu"
+              titulo="Iniciar próxima temporada"
+              onPress={handleFinalizarTemporada}
             />
-          </View>
-        ) : proximoEvento.tipo === 'fim' ? (
-          <Botao
-            variante="ouro"
-            icone="trofeu"
-            titulo="Iniciar próxima temporada"
-            onPress={handleFinalizarTemporada}
-          />
-        ) : proximoJogo && confronto ? (
-          <ProximoJogoCard
-            partida={proximoJogo}
-            clubeCasa={confronto.casa}
-            clubeFora={confronto.fora}
-            forcaCasa={confronto.forcaCasa}
-            forcaFora={confronto.forcaFora}
-            mandoCasa={mandoCasa}
-            onJogar={handleJogarPartida}
-          />
-        ) : (
-          <TextoVazio>Nenhum jogo agendado.</TextoVazio>
-        )}
-
-        {/* Copa do Brasil — card clean (linha única, sem gradiente). */}
-        {copa ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Ver chave da Copa do Brasil"
-            onPress={() => nav.navigate('Copa')}
-            style={({pressed}) => [
-              styles.copaCard,
-              pressed ? styles.cardPressed : null,
-            ]}>
-            <Image
-              source={LOGO_COPA}
-              style={styles.copaLogo}
-              resizeMode="contain"
+          ) : proximoJogo && confronto ? (
+            <ProximoJogoCard
+              partida={proximoJogo}
+              clubeCasa={confronto.casa}
+              clubeFora={confronto.fora}
+              forcaCasa={confronto.forcaCasa}
+              forcaFora={confronto.forcaFora}
+              mandoCasa={mandoCasa}
+              onJogar={handleJogarPartida}
             />
-            <View style={styles.copaInfo}>
-              <Text style={styles.copaFase} numberOfLines={1}>
-                {copa.campeao ? 'Campeão!' : copa.fases[copa.faseAtual].nome}
-              </Text>
-              <Text style={styles.copaDetalhe} numberOfLines={1}>
-                {resumoCopa(copa, clubeUsuarioId, todosClubes)}
-              </Text>
-            </View>
-            <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
-          </Pressable>
-        ) : null}
+          ) : (
+            <TextoVazio>Nenhum jogo agendado.</TextoVazio>
+          )}
 
-        <AlertasCard
-          alertas={alertas}
-          onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
-        />
-
-        {/* Imprensa — manchetes editoriais derivadas do momento do clube. */}
-        {manchetes.length > 0 ? (
-          <View style={styles.imprensaBloco}>
-            <View style={styles.imprensaTopo}>
-              <Icone nome="conversa" tamanho={15} cor={cores.secundaria} />
-              <Text style={styles.blocoTitulo}>Imprensa</Text>
-            </View>
-            {manchetes.map(manchete => (
-              <View key={manchete.id} style={styles.mancheteLinha}>
-                <View
-                  style={[
-                    styles.mancheteDot,
-                    {backgroundColor: corDoTom(manchete.tom)},
-                  ]}
-                />
-                <Text style={styles.mancheteTexto}>{manchete.texto}</Text>
+          {/* Copa do Brasil — card clean (linha única, sem gradiente). */}
+          {copa ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ver chave da Copa do Brasil"
+              onPress={() => nav.navigate('Copa')}
+              style={({pressed}) => [
+                styles.copaCard,
+                pressed ? styles.cardPressed : null,
+              ]}
+            >
+              <Image
+                source={LOGO_COPA}
+                style={styles.copaLogo}
+                resizeMode="contain"
+              />
+              <View style={styles.copaInfo}>
+                <Text style={styles.copaFase} numberOfLines={1}>
+                  {copa.campeao ? 'Campeão!' : copa.fases[copa.faseAtual].nome}
+                </Text>
+                <Text style={styles.copaDetalhe} numberOfLines={1}>
+                  {resumoCopa(copa, clubeUsuarioId, todosClubes)}
+                </Text>
               </View>
-            ))}
-          </View>
-        ) : null}
+              <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
+            </Pressable>
+          ) : null}
 
-      </View>
-    </ScreenContainer>
+          <AlertasCard
+            alertas={alertas}
+            onAbrirJogador={jogadorId =>
+              nav.navigate('PlayerDetail', {jogadorId})
+            }
+          />
+
+          {/* Imprensa — manchetes editoriais derivadas do momento do clube. */}
+          {manchetes.length > 0 ? (
+            <View style={styles.imprensaBloco}>
+              <View style={styles.imprensaTopo}>
+                <Icone nome="conversa" tamanho={15} cor={cores.secundaria} />
+                <Text style={styles.blocoTitulo}>Imprensa</Text>
+              </View>
+              {manchetes.map(manchete => (
+                <View key={manchete.id} style={styles.mancheteLinha}>
+                  <View
+                    style={[
+                      styles.mancheteDot,
+                      {backgroundColor: corDoTom(manchete.tom)},
+                    ]}
+                  />
+                  <Text style={styles.mancheteTexto}>{manchete.texto}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      </ScreenContainer>
+      <DiscoVinil />
+    </View>
   );
 }
 
 export default Home;
 
 const styles = StyleSheet.create({
+  raiz: {
+    flex: 1,
+  },
   container: {
     // Sem padding próprio: o ScreenContainer (scroll) já aplica o padding
     // padrão — antes duplicava (32px de cada lado), deixando a tela apertada.
