@@ -11,7 +11,6 @@ import {Botao, Card, ScreenContainer} from '../../components/ui';
 import Escudo from '../../components/Escudo';
 import Icone, {type IconeNome} from '../../components/Icone';
 import LogoFoteball from '../../components/LogoFoteball';
-import DiscoVinil from '../../components/DiscoVinil';
 import {cores, espaco, raio} from '../../theme';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation} from '../../navigation/types';
@@ -35,79 +34,73 @@ function MainMenu(): React.JSX.Element {
   const rodadaExibida = Math.min(rodadaAtual, 38);
 
   return (
-    <View style={styles.raiz}>
-      <ScreenContainer scroll>
-        <View style={styles.hero}>
-          <LogoFoteball />
-          <Text style={styles.titulo}>FOTEBALL</Text>
-          <Text style={styles.subtitulo}>MANAGER</Text>
-          <Text style={styles.tagline}>
-            Construa uma dinastia no futebol brasileiro
-          </Text>
-        </View>
+    <ScreenContainer scroll>
+      <View style={styles.hero}>
+        <LogoFoteball />
+        <Text style={styles.titulo}>FOTEBALL</Text>
+        <Text style={styles.subtitulo}>MANAGER</Text>
+        <Text style={styles.tagline}>
+          Construa uma dinastia no futebol brasileiro
+        </Text>
+      </View>
 
-        <Card destaque={!!clubeUsuarioId}>
-          {clube ? (
-            <>
-              <View style={styles.cardTopo}>
-                <Escudo clubeId={clube.id} sigla={clube.sigla} tamanho={46} />
-                <View style={styles.flex1}>
-                  <Text style={styles.cardLabel}>Carreira atual</Text>
-                  <Text style={styles.cardTitulo} numberOfLines={1}>
-                    {clube.nome}
-                  </Text>
-                </View>
+      <Card destaque={!!clubeUsuarioId}>
+        {clube ? (
+          <>
+            <View style={styles.cardTopo}>
+              <Escudo clubeId={clube.id} sigla={clube.sigla} tamanho={46} />
+              <View style={styles.flex1}>
+                <Text style={styles.cardLabel}>Carreira atual</Text>
+                <Text style={styles.cardTitulo} numberOfLines={1}>
+                  {clube.nome}
+                </Text>
               </View>
-              <View style={styles.chips}>
-                <Chip
-                  icone="calendario"
-                  texto={`Temporada ${temporadaAtual}`}
-                />
-                <Chip icone="bola" texto={`Rodada ${rodadaExibida}/38`} />
-                <Chip icone="tabela" texto={`${posicao}º lugar`} />
-              </View>
-            </>
-          ) : (
-            <>
-              <Text style={styles.cardLabel}>Novo desafio</Text>
-              <Text style={styles.cardTitulo}>Nenhuma carreira ativa</Text>
-              <Text style={styles.cardResumo}>
-                Brasileirão Série A 2026 · 20 clubes
-              </Text>
-            </>
-          )}
-        </Card>
+            </View>
+            <View style={styles.chips}>
+              <Chip icone="calendario" texto={`Temporada ${temporadaAtual}`} />
+              <Chip icone="bola" texto={`Rodada ${rodadaExibida}/38`} />
+              <Chip icone="tabela" texto={`${posicao}º lugar`} />
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={styles.cardLabel}>Novo desafio</Text>
+            <Text style={styles.cardTitulo}>Nenhuma carreira ativa</Text>
+            <Text style={styles.cardResumo}>
+              Brasileirão Série A 2026 · 20 clubes
+            </Text>
+          </>
+        )}
+      </Card>
 
-        <View style={styles.acoes}>
-          {clubeUsuarioId ? (
-            <>
-              <Botao
-                variante="grande"
-                icone="jogar"
-                titulo="Continuar carreira"
-                onPress={() => nav.navigate('MainTabs')}
-              />
-              <Botao
-                variante="secundaria"
-                icone="troca"
-                titulo="Nova carreira"
-                onPress={() => nav.navigate('LeagueSelect')}
-              />
-            </>
-          ) : (
+      <View style={styles.acoes}>
+        {clubeUsuarioId ? (
+          <>
             <Botao
               variante="grande"
               icone="jogar"
-              titulo="Começar agora"
+              titulo="Continuar carreira"
+              onPress={() => nav.navigate('MainTabs')}
+            />
+            <Botao
+              variante="secundaria"
+              icone="troca"
+              titulo="Nova carreira"
               onPress={() => nav.navigate('LeagueSelect')}
             />
-          )}
-        </View>
+          </>
+        ) : (
+          <Botao
+            variante="grande"
+            icone="jogar"
+            titulo="Começar agora"
+            onPress={() => nav.navigate('LeagueSelect')}
+          />
+        )}
+      </View>
 
-        <Text style={styles.rodape}>Feito no Brasil · v{VERSAO_APP}</Text>
-      </ScreenContainer>
-      <DiscoVinil />
-    </View>
+      <Text style={styles.rodape}>Feito no Brasil · v{VERSAO_APP}</Text>
+    </ScreenContainer>
   );
 }
 
@@ -127,9 +120,6 @@ function Chip({
 }
 
 const styles = StyleSheet.create({
-  raiz: {
-    flex: 1,
-  },
   hero: {
     alignItems: 'center',
     marginTop: espaco.xxl,

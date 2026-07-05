@@ -57,7 +57,7 @@ export default function DiscoVinil(): React.JSX.Element {
   return (
     <>
       <Pressable
-        style={[styles.flutuante, {top: insets.top + 10}]}
+        style={styles.flutuante}
         onPress={() => setAberto(true)}
         accessibilityRole="button"
         accessibilityLabel={`Música: ${habilitada ? faixaAtual : 'mutada'}`}
@@ -168,6 +168,7 @@ const styles = StyleSheet.create({
   flutuante: {
     position: 'absolute',
     right: espaco.lg,
+    bottom: espaco.lg,
     zIndex: 20,
     alignItems: 'center',
     justifyContent: 'center',
