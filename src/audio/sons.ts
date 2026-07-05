@@ -38,6 +38,8 @@ const ARQUIVOS = {
   chancePerdida: 'chance1.mp3',
   chancePerdidaAlt: 'chance2.mp3',
   chancePerdidaTrave: 'bolanatrave.mp3',
+  penaltiMarcado: 'penaltimarcado.mp3',
+  substituicao: 'substituicao.mp3',
   varAnulado: 'varanulado.mp3',
   // Ambiente de estádio (toca em loop durante a partida).
   torcida: 'torcida.mp3',
@@ -164,6 +166,16 @@ export function tocarExpulsao(doUsuario: boolean): void {
 /** Pênalti desperdiçado/defendido (o convertido vira gol e toca como gol). */
 export function tocarPenaltiPerdido(doUsuario: boolean): void {
   tocar(doUsuario ? 'penaltiPerdido' : 'penaltiPerdidoAdversario');
+}
+
+/** Marcação do pênalti ("PÊNALTI!") — o árbitro apontou para a marca da cal. */
+export function tocarPenalti(): void {
+  tocar('penaltiMarcado');
+}
+
+/** Substituição — mexe o treinador. */
+export function tocarSubstituicao(): void {
+  tocar('substituicao');
 }
 
 export function tocarContusao(): void {

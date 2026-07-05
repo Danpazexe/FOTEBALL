@@ -35,7 +35,8 @@ import {
   tocarGol,
   tocarInicio,
   tocarIntervalo,
-  tocarPenaltiPerdido,
+  tocarPenalti,
+  tocarSubstituicao,
   tocarVarAnulado,
 } from '../../audio/sons';
 import {Botao, ScreenContainer} from '../../components/ui';
@@ -694,11 +695,13 @@ function MatchSimulation(): React.JSX.Element | null {
         if (ev.tipo === 'cartao_vermelho') {
           registrarSom(3, () => tocarExpulsao(doUsuario));
         } else if (ev.tipo === 'penalti') {
-          registrarSom(2, () => tocarPenaltiPerdido(doUsuario));
+          registrarSom(2, () => tocarPenalti());
         } else if (ev.tipo === 'lesao') {
           registrarSom(1, () => tocarContusao());
         } else if (ev.tipo === 'cartao_amarelo') {
           registrarSom(1, () => tocarCartaoAmarelo());
+        } else if (ev.tipo === 'substituicao') {
+          registrarSom(1, () => tocarSubstituicao());
         } else if (ev.tipo === 'chance_perdida') {
           // O VAR anula gol virando um 'chance_perdida' com "anulado" na descrição.
           if (ev.descricao.includes('anulado')) {
