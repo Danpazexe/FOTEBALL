@@ -47,6 +47,12 @@ function iconeDoTipo(tipo: string): {nome: IconeNome; cor: string} | null {
   if (tipo === 'gol') {
     return {nome: 'bola', cor: acentos.verde};
   }
+  if (tipo === 'gol_contra') {
+    return {nome: 'bola', cor: acentos.laranja};
+  }
+  if (tipo === 'bola_trave') {
+    return {nome: 'chance', cor: acentos.laranja};
+  }
   if (tipo === 'substituicao') {
     return {nome: 'substituicao', cor: acentos.azul};
   }

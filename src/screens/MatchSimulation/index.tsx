@@ -28,6 +28,7 @@ import {
   iniciarTorcida,
   inicializarSons,
   pararTorcida,
+  tocarBolaNaTrave,
   tocarCartaoAmarelo,
   tocarChancePerdida,
   tocarContusao,
@@ -667,11 +668,20 @@ function MatchSimulation(): React.JSX.Element | null {
           ? nomeFalta
             ? `Gol de pênalti · falta de ${nomeFalta}`
             : 'Gol de pênalti'
+          : /falha do goleiro/i.test(ev.descricao)
+          ? 'Gol · falha do goleiro'
+          : /falha grave da defesa/i.test(ev.descricao)
+          ? 'Gol · falha da defesa'
           : /falta/i.test(ev.descricao)
           ? 'Golaço de falta'
           : assist
           ? `Gol · assistência de ${assist}`
           : 'Gol!';
+      } else if (ev.tipo === 'gol_contra') {
+        placarPill = `${estado.placarCasa} - ${estado.placarFora}`;
+        detalhe = 'Gol contra';
+      } else if (ev.tipo === 'bola_trave') {
+        detalhe = 'Na trave!';
       } else if (ev.tipo === 'substituicao') {
         autor = ev.jogadorEntraId
           ? nomesRef.current[ev.jogadorEntraId] ?? 'Reserva'
@@ -770,6 +780,8 @@ function MatchSimulation(): React.JSX.Element | null {
           } else {
             registrarSom(1, () => tocarChancePerdida());
           }
+        } else if (ev.tipo === 'bola_trave') {
+          registrarSom(2, () => tocarBolaNaTrave());
         }
       }
       if (proximoMinuto === MINUTO_INTERVALO && !marcosRef.current.intervalo) {

@@ -206,15 +206,16 @@ export function tocarCartaoAmarelo(): void {
   tocar('cartaoAmarelo');
 }
 
-const CHANCES: NomeSom[] = [
-  'chancePerdida',
-  'chancePerdidaAlt',
-  'chancePerdidaTrave',
-];
+const CHANCES: NomeSom[] = ['chancePerdida', 'chancePerdidaAlt'];
 
 /** Chance perdida: sorteia entre as gravações para não repetir. */
 export function tocarChancePerdida(): void {
   tocar(CHANCES[Math.floor(Math.random() * CHANCES.length)]);
+}
+
+/** Bola na trave: quase-gol (usa a gravação dedicada do travessão). */
+export function tocarBolaNaTrave(): void {
+  tocar('chancePerdidaTrave');
 }
 
 /** Gol anulado pelo VAR (impedimento). */

@@ -1,4 +1,5 @@
 import {simularPartida} from '../matchSimulator';
+import {ehEventoGol} from '../../../types';
 import type {Clube, Partida, Player, Position, Tatica} from '../../../types';
 
 /**
@@ -93,9 +94,9 @@ function simularAmostra(total: number): Partida[] {
 describe('VAR na simulação', () => {
   const partidas = simularAmostra(200);
 
-  it('invariante: o placar sempre bate com o nº de eventos de gol (anulado não conta)', () => {
+  it('invariante: o placar sempre bate com o nº de eventos de gol (anulado não conta; gol contra conta)', () => {
     for (const p of partidas) {
-      const golsEvento = p.eventos.filter(e => e.tipo === 'gol').length;
+      const golsEvento = p.eventos.filter(e => ehEventoGol(e.tipo)).length;
       expect((p.placarCasa ?? 0) + (p.placarFora ?? 0)).toBe(golsEvento);
     }
   });

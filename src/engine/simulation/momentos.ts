@@ -10,7 +10,7 @@
  * o placar final antes de emitir momentos que dependem da ordem dos gols.
  */
 
-import type {EventoPartida} from '../../types';
+import {ehEventoGol, type EventoPartida} from '../../types';
 
 export type TipoMomento =
   | 'virada'
@@ -82,9 +82,9 @@ export function analisarMomentos(ctx: ContextoMomentos): MomentoDramatico[] {
   const resultadoCampo: 'V' | 'E' | 'D' =
     meuPlacar > advPlacar ? 'V' : meuPlacar < advPlacar ? 'D' : 'E';
 
-  // Progressão do placar pelos eventos de gol.
+  // Progressão do placar pelos eventos de gol (inclui gol contra — muda placar).
   const gols = eventos
-    .filter(evento => evento.tipo === 'gol')
+    .filter(evento => ehEventoGol(evento.tipo))
     .sort((a, b) => a.minuto - b.minuto);
   let casa = 0;
   let fora = 0;

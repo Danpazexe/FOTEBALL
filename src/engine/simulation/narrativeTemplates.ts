@@ -59,13 +59,27 @@ const TEMPLATES_FALTA = [
   '{jogador} ajeita a bola para a cobrança de falta...',
 ];
 
+const TEMPLATES_GOL_CONTRA = [
+  'Que infelicidade! {jogador} desviou contra a própria meta!',
+  'Gol contra! {jogador} mandou pra dentro do próprio gol.',
+  'Lance azarado: {jogador} marcou contra!',
+];
+
+const TEMPLATES_TRAVE = [
+  'Na trave! {jogador} carimbou a madeira!',
+  'Quase! {jogador} acertou o travessão!',
+  'No poste! {jogador} chegou pertíssimo do gol.',
+];
+
 const TEMPLATES_POR_TIPO: Record<EventoPartidaTipo, string[]> = {
   gol: TEMPLATES_GOL,
+  gol_contra: TEMPLATES_GOL_CONTRA,
   cartao_amarelo: TEMPLATES_CARTAO_AMARELO,
   cartao_vermelho: TEMPLATES_CARTAO_VERMELHO,
   lesao: TEMPLATES_LESAO,
   substituicao: TEMPLATES_SUBSTITUICAO,
   chance_perdida: TEMPLATES_CHANCE_PERDIDA,
+  bola_trave: TEMPLATES_TRAVE,
   penalti: TEMPLATES_PENALTI,
   falta_cobranca: TEMPLATES_FALTA,
 };

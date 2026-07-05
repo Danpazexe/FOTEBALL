@@ -181,7 +181,35 @@ function simularEventoGol(
   clube: Clube,
   jogadores: Player[],
   rng: RandomGenerator,
+  jogadoresAdversario: Player[] = [],
+  goleiroAdversario?: Player,
 ): EventoPartida {
+  const advAptos = jogadoresAdversario.filter(
+    jogador => !jogador.lesionado && !jogador.suspenso,
+  );
+
+  // DRAMA: o MESMO gol pode nascer de um lance dramático — gol contra, falha do
+  // goleiro ou falha grave da defesa do adversário. Dá emoção sem inflar o placar
+  // (o gol aconteceria de qualquer jeito). Calibrado no laboratório: ~gol contra
+  // 4%/jogo, falha de goleiro 5%/jogo, falha defensiva 12%/jogo.
+  const sorteDrama = rng();
+
+  // GOL CONTRA (~2% dos gols → ~4%/jogo): um defensor do ADVERSÁRIO contra a meta.
+  if (sorteDrama < 0.02 && advAptos.length > 0) {
+    const defensores = advAptos.filter(jogador =>
+      ['ZAG', 'LD', 'LE', 'VOL'].includes(jogador.posicaoPrincipal),
+    );
+    const pool = defensores.length > 0 ? defensores : advAptos;
+    const autorContra = pool[Math.floor(rng() * pool.length)] ?? pool[0]!;
+    return criarEvento(
+      minuto,
+      'gol_contra',
+      clube.id,
+      autorContra,
+      `Gol contra de ${autorContra.nome}!`,
+    );
+  }
+
   // Autor ponderado por aptidão de FINALIZAÇÃO (não só overall): atacante
   // matador marca mais que um pé-de-obra na mesma posição.
   const autor = escolherJogadorPonderado(
@@ -192,6 +220,29 @@ function simularEventoGol(
       (jogador.atributos.finalizacao / 70) *
       fatorPesoGol(jogador),
   );
+
+  // FALHA DO GOLEIRO (~2.3% dos gols → ~5%/jogo) / FALHA GRAVE DA DEFESA (~6% →
+  // ~12%/jogo): gol de presente, sem assistência, com narração de erro.
+  if (sorteDrama >= 0.02 && sorteDrama < 0.043) {
+    return criarEvento(
+      minuto,
+      'gol',
+      clube.id,
+      autor,
+      goleiroAdversario
+        ? `${autor.nome} marcou após falha do goleiro ${goleiroAdversario.nome}!`
+        : `${autor.nome} marcou após falha do goleiro!`,
+    );
+  }
+  if (sorteDrama >= 0.043 && sorteDrama < 0.105) {
+    return criarEvento(
+      minuto,
+      'gol',
+      clube.id,
+      autor,
+      `${autor.nome} marcou após falha grave da defesa!`,
+    );
+  }
 
   const evento = criarEvento(
     minuto,
@@ -217,6 +268,31 @@ function simularEventoGol(
   }
 
   return evento;
+}
+
+/**
+ * Bola na trave: quase-gol para dar drama, SEM alterar o placar. O autor é um
+ * finalizador. Fica fora dos blocos de gol (não conta ponto).
+ */
+function simularBolaNaTrave(
+  minuto: number,
+  clube: Clube,
+  jogadores: Player[],
+  rng: RandomGenerator,
+): EventoPartida {
+  const autor = escolherJogadorPonderado(
+    jogadores,
+    rng,
+    atleta =>
+      pesoGol(atleta.posicaoPrincipal) * (atleta.atributos.finalizacao / 70),
+  );
+  return criarEvento(
+    minuto,
+    'bola_trave',
+    clube.id,
+    autor,
+    `${autor.nome} acertou a trave!`,
+  );
 }
 
 function simularCartao(
@@ -849,6 +925,9 @@ const PROB_VAR_PENALTI = 0.06;
 // Cobrança de falta perigosa por minuto/time → ~2.5 faltas perigosas/jogo (alvo
 // 1.8–3.2). A grande maioria é lance de perigo; gol de falta é raro (~1/40 jogos).
 const PROB_FALTA_POR_MINUTO = 0.014;
+// Bola na trave por minuto/time → ~30% dos jogos com pelo menos uma (alvo do
+// balanceamento). Não altera o placar; é quase-gol para dar drama.
+const PROB_TRAVE_POR_MINUTO = 0.002;
 
 /** Converte um gol em evento de gol ANULADO pelo VAR (não conta no placar). */
 function golAnuladoVAR(golEvento: EventoPartida): EventoPartida {
@@ -885,7 +964,14 @@ export function simularMinuto(
   const momentumFora = fatorMomentum(-diff, minuto);
 
   if (emCampoCasa.length > 0 && rng() < p.probGolCasaPorMinuto * fTempo * momentumCasa) {
-    const golEvento = simularEventoGol(minuto, ctx.timeCasa, emCampoCasa, rng);
+    const golEvento = simularEventoGol(
+      minuto,
+      ctx.timeCasa,
+      emCampoCasa,
+      rng,
+      emCampoFora,
+      ctx.goleiroFora,
+    );
     if (rng() < PROB_VAR_ANULA_GOL) {
       adicionar(golAnuladoVAR(golEvento));
     } else {
@@ -894,7 +980,14 @@ export function simularMinuto(
     }
   }
   if (emCampoFora.length > 0 && rng() < p.probGolForaPorMinuto * fTempo * momentumFora) {
-    const golEvento = simularEventoGol(minuto, ctx.timeFora, emCampoFora, rng);
+    const golEvento = simularEventoGol(
+      minuto,
+      ctx.timeFora,
+      emCampoFora,
+      rng,
+      emCampoCasa,
+      ctx.goleiroCasa,
+    );
     if (rng() < PROB_VAR_ANULA_GOL) {
       adicionar(golAnuladoVAR(golEvento));
     } else {
@@ -1088,6 +1181,15 @@ export function simularMinuto(
       estado.placarFora += 1;
     }
     adicionar(falta.evento);
+  }
+
+  // Bola na trave (quase-gol): drama puro, não mexe no placar. Por último nos
+  // lances para não desalinhar o RNG dos blocos calibrados acima.
+  if (emCampoCasa.length > 0 && rng() < PROB_TRAVE_POR_MINUTO) {
+    adicionar(simularBolaNaTrave(minuto, ctx.timeCasa, emCampoCasa, rng));
+  }
+  if (emCampoFora.length > 0 && rng() < PROB_TRAVE_POR_MINUTO) {
+    adicionar(simularBolaNaTrave(minuto, ctx.timeFora, emCampoFora, rng));
   }
 
   // Posse do minuto: usa a força/eventos REAIS deste minuto (nada cosmético).
