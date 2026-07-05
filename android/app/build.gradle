@@ -90,7 +90,7 @@ android {
         versionCode project.hasProperty('foteballVersionCode') ? project.foteballVersionCode.toInteger() : 1
         // versionName manual — bumpar a cada ajuste (sincronizar com src/version.ts).
         // Em teste fica 0.x.x; 1.0.0 é reservado pro lançamento.
-        versionName "0.24.2"
+        versionName "0.25.0"
     }
     signingConfigs {
         debug {
