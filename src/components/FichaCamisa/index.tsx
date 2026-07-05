@@ -78,12 +78,15 @@ type FichaCamisaProps = {
   jogador: Player;
   posicaoEscalada: Position;
   largura: number;
+  /** Braçadeira © do capitão do time. */
+  ehCapitao?: boolean;
 };
 
 function FichaCamisa({
   jogador,
   posicaoEscalada,
   largura,
+  ehCapitao = false,
 }: FichaCamisaProps): React.JSX.Element {
   const cor = corDoClube(jogador.clubeId ?? jogador.id);
   const corTexto = contrasteTexto(cor);
@@ -120,6 +123,11 @@ function FichaCamisa({
             {jogador.overall}
           </Text>
         </View>
+        {ehCapitao ? (
+          <View style={styles.capitao} pointerEvents="none">
+            <Text style={styles.capitaoTxt}>©</Text>
+          </View>
+        ) : null}
       </View>
 
       <Text
@@ -168,6 +176,26 @@ const styles = StyleSheet.create({
     right: 0,
     // O número fica CENTRADO no torso da camisa (região ~40%..100% => centro ~70%).
     top: '40%',
+  },
+  capitao: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    minWidth: 15,
+    height: 15,
+    borderRadius: 8,
+    paddingHorizontal: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: cores.secundaria,
+    borderWidth: 1,
+    borderColor: cores.superficie,
+  },
+  capitaoTxt: {
+    color: cores.contrastePrimaria,
+    fontSize: 10,
+    fontWeight: '900',
+    lineHeight: 12,
   },
   overall: {
     fontWeight: '900',

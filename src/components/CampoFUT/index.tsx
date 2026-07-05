@@ -407,6 +407,7 @@ function CampoFUT({
               slotIndex={slot.slotIndex}
               jogador={porId.get(slot.jogadorId)}
               posicaoEscalada={titular.posicao}
+              ehCapitao={clube.capitaoId === slot.jogadorId}
               cx={slot.cx}
               cy={slot.cy}
               cardW={cardW}
@@ -604,12 +605,14 @@ function CartaFUT({
   largura,
   destaque,
   esmaecer,
+  ehCapitao = false,
 }: {
   jogador: Player | undefined;
   posicaoEscalada: Position;
   largura: number;
   destaque: boolean;
   esmaecer: boolean;
+  ehCapitao?: boolean;
 }): React.JSX.Element {
   const altura = Math.round(largura * 1.2);
   if (!jogador) {
@@ -634,6 +637,7 @@ function CartaFUT({
         jogador={jogador}
         posicaoEscalada={posicaoEscalada}
         largura={largura}
+        ehCapitao={ehCapitao}
       />
       {indisponivel ? (
         <View style={styles.cartaStatus}>
@@ -652,6 +656,7 @@ type PecaCampoProps = {
   slotIndex: number;
   jogador: Player | undefined;
   posicaoEscalada: Position;
+  ehCapitao: boolean;
   cx: number;
   cy: number;
   cardW: number;
@@ -673,6 +678,7 @@ function PecaCampo({
   slotIndex,
   jogador,
   posicaoEscalada,
+  ehCapitao,
   cx,
   cy,
   cardW,
@@ -716,6 +722,7 @@ function PecaCampo({
           largura={cardW}
           destaque={hover}
           esmaecer={arrastandoEste}
+          ehCapitao={ehCapitao}
         />
       </View>
     </GestureDetector>
