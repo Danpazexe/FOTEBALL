@@ -40,6 +40,7 @@ import {
   tocarSubstituicao,
   tocarVarAnulado,
 } from '../../audio/sons';
+import {salvarAgora} from '../../store/autosave';
 import {Botao, ScreenContainer} from '../../components/ui';
 import Icone, {type IconeNome} from '../../components/Icone';
 import {LanceLimpo, type LadoLance} from '../../components/MatchNarration/LanceLimpo';
@@ -858,6 +859,9 @@ function MatchSimulation(): React.JSX.Element | null {
           calcularEstatisticasFinais(e),
         );
     }
+    // Salva JÁ o resultado — não espera o debounce do autosave (se o app fechar
+    // logo após a partida, o progresso não pode se perder).
+    salvarAgora();
   }, [terminou, fixture, nav]);
 
   const retomarSegundoTempo = () => {
