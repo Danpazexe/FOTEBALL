@@ -227,16 +227,21 @@ function simularCartao(
   amarelosPartida: Map<string, number>,
   fatorVermelho: number,
 ): EventoPartida {
-  // Defensores e quem desarma muito tendem a levar mais cartão.
+  // Defensores e quem desarma muito tendem a levar mais cartão. Quem JÁ tem
+  // amarelo joga com cautela (pisa no freio) → bem menos propenso a um 2º → mantém
+  // os vermelhos raros mesmo com muitos amarelos (2º amarelo era ~toda expulsão).
   const jogador = escolherJogadorPonderado(jogadores, rng, atleta => {
     const base = ['ZAG', 'LD', 'LE', 'VOL'].includes(atleta.posicaoPrincipal)
       ? 2
       : 1;
-    return base * (0.6 + atleta.atributos.desarme / 100);
+    const cautela = (amarelosPartida.get(atleta.id) ?? 0) >= 1 ? 0.3 : 1;
+    return base * (0.6 + atleta.atributos.desarme / 100) * cautela;
   });
 
   const jaTinhaAmarelo = (amarelosPartida.get(jogador.id) ?? 0) >= 1;
-  const vermelhoDireto = rng() < limitar(0.06 * fatorVermelho, 0.04, 0.16);
+  // Vermelho DIRETO raro: com o volume de amarelos calibrado (~3.4/jogo) o 2º
+  // amarelo já gera boa parte das expulsões — manter os vermelhos em ~0.20/jogo.
+  const vermelhoDireto = rng() < limitar(0.018 * fatorVermelho, 0.012, 0.06);
 
   // Segundo amarelo no mesmo jogo => expulsão.
   if (vermelhoDireto || jaTinhaAmarelo) {

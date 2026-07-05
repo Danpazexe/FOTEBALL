@@ -193,8 +193,8 @@ export function calcularProbabilidades(
   return {
     probGolCasaPorMinuto: golsEsperadosCasa / 90,
     probGolForaPorMinuto: golsEsperadosFora / 90,
-    probCartaoCasaPorMinuto: 0.0045 * fatorCartao(taticaCasa),
-    probCartaoForaPorMinuto: 0.0045 * fatorCartao(taticaFora),
+    probCartaoCasaPorMinuto: 0.018 * fatorCartao(taticaCasa),
+    probCartaoForaPorMinuto: 0.018 * fatorCartao(taticaFora),
     // Pênalti: o adversário marca pesado => esta equipe ganha o pênalti.
     probPenaltiCasaPorMinuto: 0.0013 * fatorPenalti(taticaFora),
     probPenaltiForaPorMinuto: 0.0013 * fatorPenalti(taticaCasa),
