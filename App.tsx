@@ -81,6 +81,9 @@ function App(): React.JSX.Element {
     let timer: ReturnType<typeof setTimeout> | undefined;
     // Último estado COM carreira ainda não gravado — usado no flush (background).
     let pendente: ReturnType<typeof useGameStore.getState> | null = null;
+    // Exclusão do save agendada (reinício de carreira) ainda não executada — o
+    // flush precisa saber disso para não engolir o limparSave ao ir pro background.
+    let limparPendente = false;
 
     const gravar = (
       estado: ReturnType<typeof useGameStore.getState>,
@@ -99,11 +102,14 @@ function App(): React.JSX.Element {
       }
       if (!estado.clubeUsuarioId) {
         pendente = null;
+        limparPendente = true;
         timer = setTimeout(() => {
           limparSave().catch(() => {});
+          limparPendente = false;
         }, 300);
         return;
       }
+      limparPendente = false;
       pendente = estado;
       timer = setTimeout(() => {
         gravar(estado);
@@ -125,6 +131,12 @@ function App(): React.JSX.Element {
         gravar(pendente);
         pendente = null;
       }
+      // Exclusão agendada (reinício de carreira) também precisa ir JÁ — senão o
+      // clearTimeout acima a cancelaria e o save antigo voltaria no próximo boot.
+      if (limparPendente) {
+        limparSave().catch(() => {});
+        limparPendente = false;
+      }
     };
     const assinaturaApp = AppState.addEventListener('change', flush);
 
@@ -135,6 +147,10 @@ function App(): React.JSX.Element {
       // Grava o pendente ao desmontar também (rede de segurança).
       if (pendente) {
         gravar(pendente);
+      }
+      if (limparPendente) {
+        limparSave().catch(() => {});
+        limparPendente = false;
       }
       assinaturaApp.remove();
       cancelar();
