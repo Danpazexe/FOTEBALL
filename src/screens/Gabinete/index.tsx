@@ -7,11 +7,19 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import {IconeGlifo} from '../../components/Icone';
-import {AppHeader, ScreenContainer} from '../../components/ui';
+import {AppHeader, Botao, ScreenContainer} from '../../components/ui';
+import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useAchievementsStore} from '../../store/useAchievementsStore';
 import {useGameStore} from '../../store/useGameStore';
+import {
+  calcularRetrospectiva,
+  type PartidaRetro,
+} from '../../engine/season/retrospectiva';
+import {calcularJornada} from '../../engine/carreira/jornada';
+import {proporEmpregos} from '../../engine/carreira/propostas';
 import {cores, espaco, raio, sombra, tipografia} from '../../theme';
+import {nomeClube} from '../../utils/formatters';
 import type {EstadoFinanceiro} from '../../types';
 
 const ESTADO_FINANCEIRO: Record<
@@ -26,14 +34,93 @@ const ESTADO_FINANCEIRO: Record<
 
 function Gabinete(): React.JSX.Element {
   const nav = useAppNavigation();
+  const confirm = useConfirm();
+  const toast = useToast();
   const conquistas = useAchievementsStore(state => state.conquistas);
   const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
   const estadoFinanceiro = useGameStore(state => state.estadoFinanceiro);
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
+  const partidas = useGameStore(state => state.partidas);
+  const clubes = useGameStore(state => state.clubes);
+  const jogadores = useGameStore(state => state.jogadores);
+  const todosClubes = useGameStore(state => state.todosClubes);
+  const assumirClube = useGameStore(state => state.assumirClube);
 
   const desbloqueadas = conquistas.filter(c => c.desbloqueada).length;
   const total = conquistas.length;
   const financeiro = ESTADO_FINANCEIRO[estadoFinanceiro];
+
+  // Jornada do técnico — estágio de carreira pela reputação + próximo marco.
+  const jornada = clubeUsuarioId ? calcularJornada(reputacaoTecnico) : null;
+
+  // Propostas de clubes maiores (a reputação abrindo portas).
+  const propostas = React.useMemo(() => {
+    if (!clubeUsuarioId) {
+      return [];
+    }
+    const atual = todosClubes.find(clube => clube.id === clubeUsuarioId);
+    if (!atual) {
+      return [];
+    }
+    return proporEmpregos({
+      reputacaoTecnico,
+      clubeAtualId: clubeUsuarioId,
+      reputacaoClubeAtual: atual.reputacao,
+      clubes: todosClubes,
+    });
+  }, [clubeUsuarioId, todosClubes, reputacaoTecnico]);
+
+  async function aceitarProposta(clubeId: string, nome: string): Promise<void> {
+    const ok = await confirm({
+      titulo: `Assumir o ${nome}?`,
+      mensagem:
+        'Você deixa o clube atual e recomeça a temporada no comando do novo clube. Sua reputação é preservada.',
+      confirmarLabel: 'Aceitar proposta',
+    });
+    if (!ok) {
+      return;
+    }
+    assumirClube(clubeId);
+    toast(`Agora você comanda o ${nome}.`, 'sucesso');
+    nav.navigate('MainTabs');
+  }
+
+  // Retrospectiva da temporada — balanço e recordes derivados das partidas.
+  const retro = React.useMemo(() => {
+    if (!clubeUsuarioId) {
+      return null;
+    }
+    const jogadas: PartidaRetro[] = partidas
+      .filter(
+        partida =>
+          partida.jogada &&
+          (partida.timeCasa === clubeUsuarioId ||
+            partida.timeFora === clubeUsuarioId),
+      )
+      .sort((a, b) => a.rodada - b.rodada)
+      .map(partida => ({
+        timeCasa: partida.timeCasa,
+        timeFora: partida.timeFora,
+        placarCasa: partida.placarCasa ?? 0,
+        placarFora: partida.placarFora ?? 0,
+        gols: partida.eventos
+          .filter(evento => evento.tipo === 'gol')
+          .map(evento => ({
+            timeId: evento.timeId,
+            jogadorId: evento.jogadorId,
+          })),
+      }));
+    if (jogadas.length === 0) {
+      return null;
+    }
+    return calcularRetrospectiva(jogadas, clubeUsuarioId);
+  }, [partidas, clubeUsuarioId]);
+
+  const artilheiroNome = retro?.artilheiro
+    ? (jogadores.find(j => j.id === retro.artilheiro?.jogadorId)?.apelido ??
+      jogadores.find(j => j.id === retro.artilheiro?.jogadorId)?.nome ??
+      'Desconhecido')
+    : null;
 
   return (
     <ScreenContainer scroll>
@@ -66,6 +153,112 @@ function Gabinete(): React.JSX.Element {
               </Text>
             </View>
           </View>
+        </View>
+      ) : null}
+
+      {jornada ? (
+        <View style={styles.retroCard}>
+          <View style={styles.jornadaTopo}>
+            <Text style={styles.retroTitulo}>Jornada do técnico</Text>
+            <Text style={styles.jornadaEstagio}>{jornada.estagioAtual}</Text>
+          </View>
+          <Text style={styles.jornadaDescricao}>{jornada.descricaoAtual}</Text>
+          <View style={styles.barraFundo}>
+            <View
+              style={[
+                styles.barraPreenchida,
+                {width: `${Math.round(jornada.progressoAteProximo * 100)}%`},
+              ]}
+            />
+          </View>
+          <Text style={styles.jornadaProximo}>
+            {jornada.proximoMarco
+              ? `Próximo: ${jornada.proximoMarco.estagio} (rep. ${jornada.proximoMarco.reputacaoMinima})`
+              : 'Auge da carreira alcançado.'}
+          </Text>
+        </View>
+      ) : null}
+
+      {propostas.length > 0 ? (
+        <View style={styles.retroCard}>
+          <Text style={styles.retroTitulo}>Propostas de clubes</Text>
+          {propostas.map(proposta => (
+            <View key={proposta.clubeId} style={styles.propostaLinha}>
+              <View style={styles.propostaInfo}>
+                <Text style={styles.propostaNome} numberOfLines={1}>
+                  {proposta.nome}
+                </Text>
+                <Text style={styles.propostaSub} numberOfLines={1}>
+                  {proposta.divisao} · reputação {proposta.reputacao}
+                </Text>
+              </View>
+              <View style={styles.propostaAcao}>
+                <Botao
+                  titulo="Assumir"
+                  variante="secundaria"
+                  onPress={() =>
+                    aceitarProposta(proposta.clubeId, proposta.nome)
+                  }
+                />
+              </View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
+      {retro ? (
+        <View style={styles.retroCard}>
+          <Text style={styles.retroTitulo}>Retrospectiva da temporada</Text>
+          <View style={styles.retroLinha}>
+            <Text style={styles.retroRotulo}>Campanha</Text>
+            <Text style={styles.retroValor}>
+              {retro.vitorias}V {retro.empates}E {retro.derrotas}D ·{' '}
+              {retro.aproveitamento}%
+            </Text>
+          </View>
+          <View style={styles.retroLinha}>
+            <Text style={styles.retroRotulo}>Gols</Text>
+            <Text style={styles.retroValor}>
+              {retro.golsPro} pró · {retro.golsContra} contra (
+              {retro.saldo >= 0 ? '+' : ''}
+              {retro.saldo})
+            </Text>
+          </View>
+          {retro.maiorVitoria ? (
+            <View style={styles.retroLinha}>
+              <Text style={styles.retroRotulo}>Maior vitória</Text>
+              <Text style={styles.retroValor} numberOfLines={1}>
+                {retro.maiorVitoria.golsFavor}x{retro.maiorVitoria.golsContra} vs{' '}
+                {nomeClube(clubes, retro.maiorVitoria.adversarioId)}
+              </Text>
+            </View>
+          ) : null}
+          {retro.maiorDerrota ? (
+            <View style={styles.retroLinha}>
+              <Text style={styles.retroRotulo}>Maior derrota</Text>
+              <Text style={styles.retroValor} numberOfLines={1}>
+                {retro.maiorDerrota.golsFavor}x{retro.maiorDerrota.golsContra} vs{' '}
+                {nomeClube(clubes, retro.maiorDerrota.adversarioId)}
+              </Text>
+            </View>
+          ) : null}
+          {retro.maiorSequenciaVitorias >= 2 ? (
+            <View style={styles.retroLinha}>
+              <Text style={styles.retroRotulo}>Melhor sequência</Text>
+              <Text style={styles.retroValor}>
+                {retro.maiorSequenciaVitorias} vitórias seguidas
+              </Text>
+            </View>
+          ) : null}
+          {retro.artilheiro && artilheiroNome ? (
+            <View style={styles.retroLinha}>
+              <Text style={styles.retroRotulo}>Artilheiro</Text>
+              <Text style={styles.retroValor} numberOfLines={1}>
+                {artilheiroNome} ({retro.artilheiro.gols}{' '}
+                {retro.artilheiro.gols === 1 ? 'gol' : 'gols'})
+              </Text>
+            </View>
+          ) : null}
         </View>
       ) : null}
 
@@ -110,6 +303,83 @@ function Gabinete(): React.JSX.Element {
 export default Gabinete;
 
 const styles = StyleSheet.create({
+  retroCard: {
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.xs,
+    marginBottom: espaco.md,
+    padding: espaco.md,
+    ...sombra.card,
+  },
+  retroTitulo: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: espaco.xs,
+  },
+  jornadaTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  jornadaEstagio: {
+    color: cores.primaria,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  jornadaDescricao: {
+    color: cores.textoSecundario,
+    fontSize: 12.5,
+    marginBottom: espaco.xs,
+  },
+  jornadaProximo: {
+    color: cores.textoMuted,
+    fontSize: 11.5,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+  propostaLinha: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.md,
+    justifyContent: 'space-between',
+  },
+  propostaInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  propostaNome: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  propostaSub: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+  },
+  propostaAcao: {
+    minWidth: 110,
+  },
+  retroLinha: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: espaco.md,
+  },
+  retroRotulo: {
+    color: cores.textoSecundario,
+    fontSize: 12.5,
+    fontWeight: '600',
+  },
+  retroValor: {
+    color: cores.texto,
+    flexShrink: 1,
+    fontSize: 12.5,
+    fontWeight: '800',
+    textAlign: 'right',
+  },
   carreiraCard: {
     backgroundColor: cores.superficieElevada,
     borderColor: cores.bordaTransl,

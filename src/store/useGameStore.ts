@@ -29,6 +29,7 @@ import {
   calcularEfeitoTreino,
   aplicarEfeitoTreino,
 } from '../engine/progression/treinoAtributos';
+import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
   CONDICAO_MAX,
@@ -47,6 +48,12 @@ import {
   salariosAtrasados,
   verificarDemissao,
 } from '../engine/carreira/carreiraEngine';
+import {
+  definirObjetivoTemporada,
+  deltaReputacaoMeta,
+  metaCumprida,
+} from '../engine/carreira/objetivo';
+import type {Dificuldade} from '../engine/carreira/dificuldade';
 import {calcularTabela} from '../engine/season/classification';
 import {
   avancarCopa,
@@ -72,6 +79,7 @@ import {
   inteiroEntre,
 } from '../engine/simulation/rng';
 import {calcularForcaTime, type ForcaTime} from '../engine/simulation/teamStrength';
+import {mesmaTatica} from '../engine/tactics/estrategias';
 import {validarFormacao} from '../engine/tactics/formationValidation';
 import {
   respostaIAProposta,
@@ -107,6 +115,7 @@ import {
   TEMPORADA_INICIAL,
 } from './setup';
 import type {
+  AtributoChave,
   Clube,
   EstadoFinanceiro,
   EstatisticasPartida,
@@ -179,6 +188,8 @@ export interface ConfigJogo {
   confirmarAcoes: boolean;
   pausarNoIntervalo: boolean;
   som: boolean;
+  /** Nível de dificuldade (cobrança da diretoria). */
+  dificuldade: Dificuldade;
 }
 
 /**
@@ -198,6 +209,7 @@ export const CONFIG_PADRAO: ConfigJogo = {
   confirmarAcoes: true,
   pausarNoIntervalo: true,
   som: true,
+  dificuldade: 'Normal',
 };
 
 export interface GameState {
@@ -256,6 +268,8 @@ export interface GameState {
     estatisticas?: EstatisticasPartida,
   ) => void;
   atualizarTaticaUsuario: (tatica: Tatica) => void;
+  /** Define a tática do adversário (IA) no jogo do usuário — preview honesto. */
+  definirTaticaAdversario: (clubeId: string, tatica: Tatica) => void;
   atualizarFormacaoUsuario: (formacao: Formacao) => void;
   /** Conversa com o grupo: +5 de moral a todo o elenco (1x por semana). */
   conversarComGrupo: () => boolean;
@@ -269,6 +283,10 @@ export interface GameState {
   /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
   restaurarFormacaoPreLive: () => void;
   aplicarTreino: (treinoId: string, intensidade: IntensidadeTreino) => void;
+  /** Define (ou limpa, com null) o atributo em foco no treino individual de um jogador. */
+  definirFocoTreino: (jogadorId: string, foco: AtributoChave | null) => void;
+  /** Define o capitão do time do usuário (id do jogador). */
+  definirCapitao: (jogadorId: string) => void;
   renovarContrato: (jogadorId: string, anos: number, salario: number) => boolean;
   venderJogador: (jogadorId: string) => ResultadoTransacao;
   /** Empresta um jogador do usuário a outro clube até a próxima temporada (§9.3). */
@@ -1193,6 +1211,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     }));
   },
 
+  definirTaticaAdversario: (clubeId, tatica) => {
+    const alvo = get().clubes.find(clube => clube.id === clubeId);
+    // Só grava se realmente mudou (evita re-render/save à toa e loop no efeito).
+    if (!alvo || (alvo.taticaAtual && mesmaTatica(alvo.taticaAtual, tatica))) {
+      return;
+    }
+    set(state => ({
+      clubes: state.clubes.map(clube =>
+        clube.id === clubeId ? {...clube, taticaAtual: tatica} : clube,
+      ),
+    }));
+  },
+
   atualizarFormacaoUsuario: formacao => {
     const {clubeUsuarioId, jogadores} = get();
 
@@ -1303,7 +1334,12 @@ export const useGameStore = create<GameState>((set, get) => ({
         if (efeito.lesionou) {
           lesoes += 1;
         }
-        return aplicarEfeitoTreino(jogador, efeito);
+        const treinado = aplicarEfeitoTreino(jogador, efeito);
+        // Treino individual: quem tem foco tende a desenvolver o atributo focado.
+        return desenvolverFoco(
+          treinado,
+          criarRNGComSeed(baseSeed + hashString(`${jogador.id}_foco`)),
+        );
       });
 
       const custoTreino = INTENSIDADES[intensidade].custo;
@@ -1338,6 +1374,30 @@ export const useGameStore = create<GameState>((set, get) => ({
         mensagens: adicionarMensagem(state.mensagens, partes.join(' ')),
       };
     });
+  },
+
+  definirFocoTreino: (jogadorId, foco) => {
+    set(state => ({
+      jogadores: state.jogadores.map(jogador =>
+        jogador.id === jogadorId
+          ? {...jogador, focoTreino: foco ?? undefined}
+          : jogador,
+      ),
+    }));
+  },
+
+  definirCapitao: jogadorId => {
+    const {clubeUsuarioId} = get();
+    if (!clubeUsuarioId) {
+      return;
+    }
+    set(state => ({
+      clubes: state.clubes.map(clube =>
+        clube.id === clubeUsuarioId
+          ? {...clube, capitaoId: jogadorId}
+          : clube,
+      ),
+    }));
   },
 
   conversarComGrupo: () => {
@@ -2179,10 +2239,39 @@ export const useGameStore = create<GameState>((set, get) => ({
           : idxNova >= 0 && idxNova < idxAntiga
             ? 'acesso'
             : 'meio';
-    const reputacaoTecnico = reputacaoFimTemporada(
+    const reputacaoBase = reputacaoFimTemporada(
       state.reputacaoTecnico,
       eventoTemporada,
     );
+    // Meta da diretoria: cumpriu a meta contratada? ajusta reputação + manchete.
+    let reputacaoTecnico = reputacaoBase;
+    const clubeUsuarioFim = state.clubes.find(
+      clube => clube.id === state.clubeUsuarioId,
+    );
+    if (clubeUsuarioFim && state.clubeUsuarioId) {
+      // divisaoAtiva = divisão em que a temporada foi disputada (state.tabela),
+      // NÃO a nova divisão pós acesso/rebaixamento (divisaoUsuario).
+      const dificuldade = state.config.dificuldade;
+      const objetivo = definirObjetivoTemporada(
+        clubeUsuarioFim.reputacao,
+        divisaoAtiva,
+        dificuldade,
+      );
+      const posFinal = posicaoClube(state.tabela, state.clubeUsuarioId);
+      reputacaoTecnico = Math.max(
+        0,
+        Math.min(
+          100,
+          reputacaoBase + deltaReputacaoMeta(objetivo, posFinal, dificuldade),
+        ),
+      );
+      mensagens = adicionarMensagem(
+        mensagens,
+        metaCumprida(objetivo, posFinal)
+          ? `Objetivo cumprido: ${objetivo.descricao}! A diretoria está satisfeita.`
+          : `Objetivo não alcançado (${objetivo.descricao}). A diretoria cobra melhora.`,
+      );
+    }
     let demissao = state.demissao;
     if (!demissao && eventoTemporada === 'rebaixamento' && state.clubeUsuarioId) {
       demissao = 'REBAIXAMENTO';

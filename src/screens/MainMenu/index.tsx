@@ -14,6 +14,7 @@ import LogoFoteball from '../../components/LogoFoteball';
 import {cores, espaco, raio} from '../../theme';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation} from '../../navigation/types';
+import {VERSAO_APP} from '../../version';
 
 function MainMenu(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -98,7 +99,7 @@ function MainMenu(): React.JSX.Element {
         )}
       </View>
 
-      <Text style={styles.rodape}>Feito no Brasil · v0.0.1</Text>
+      <Text style={styles.rodape}>Feito no Brasil · v{VERSAO_APP}</Text>
     </ScreenContainer>
   );
 }

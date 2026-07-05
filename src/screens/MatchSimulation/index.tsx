@@ -24,13 +24,20 @@ import {
 import {trocarTitular} from '../../api/database/seed/defaults';
 import {
   definirSomHabilitado,
+  iniciarTorcida,
   inicializarSons,
+  pararTorcida,
+  tocarCartaoAmarelo,
+  tocarChancePerdida,
   tocarContusao,
   tocarExpulsao,
   tocarFimDeJogo,
   tocarGol,
+  tocarInicio,
   tocarIntervalo,
-  tocarPenaltiPerdido,
+  tocarPenalti,
+  tocarSubstituicao,
+  tocarVarAnulado,
 } from '../../audio/sons';
 import {Botao, ScreenContainer} from '../../components/ui';
 import Icone, {type IconeNome} from '../../components/Icone';
@@ -396,6 +403,8 @@ function MatchSimulation(): React.JSX.Element | null {
     pausarNoIntervaloRef.current = estado.config.pausarNoIntervalo;
     definirSomHabilitado(estado.config.som);
     inicializarSons();
+    iniciarTorcida();
+    tocarInicio();
 
     const userId = estado.clubeUsuarioId;
     if (!userId) {
@@ -508,6 +517,7 @@ function MatchSimulation(): React.JSX.Element | null {
   // concluirPartidaAoVivo já restaura no caminho normal, tornando isto um no-op).
   useEffect(() => {
     return () => {
+      pararTorcida();
       useGameStore.getState().restaurarFormacaoPreLive();
     };
   }, []);
@@ -685,9 +695,20 @@ function MatchSimulation(): React.JSX.Element | null {
         if (ev.tipo === 'cartao_vermelho') {
           registrarSom(3, () => tocarExpulsao(doUsuario));
         } else if (ev.tipo === 'penalti') {
-          registrarSom(2, () => tocarPenaltiPerdido(doUsuario));
+          registrarSom(2, () => tocarPenalti());
         } else if (ev.tipo === 'lesao') {
           registrarSom(1, () => tocarContusao());
+        } else if (ev.tipo === 'cartao_amarelo') {
+          registrarSom(1, () => tocarCartaoAmarelo());
+        } else if (ev.tipo === 'substituicao') {
+          registrarSom(1, () => tocarSubstituicao());
+        } else if (ev.tipo === 'chance_perdida') {
+          // O VAR anula gol virando um 'chance_perdida' com "anulado" na descrição.
+          if (ev.descricao.includes('anulado')) {
+            registrarSom(2, () => tocarVarAnulado());
+          } else {
+            registrarSom(1, () => tocarChancePerdida());
+          }
         }
       }
       if (proximoMinuto === MINUTO_INTERVALO && !marcosRef.current.intervalo) {
@@ -799,6 +820,7 @@ function MatchSimulation(): React.JSX.Element | null {
       return;
     }
     comitadoRef.current = true;
+    pararTorcida();
     tocarFimDeJogo();
     const e = estadoRef.current;
     if (modoCopaRef.current) {

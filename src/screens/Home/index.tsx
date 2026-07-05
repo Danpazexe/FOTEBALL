@@ -21,11 +21,29 @@ import {LOGO_COPA} from '../../assets/escudos';
 // Papel de parede do "hero" do Gabinete: estádio noturno (empacotado).
 const FUNDO_ESTADIO = require('../../assets/planodefundo.jpg');
 import FormaRecente from '../../components/FormaRecente';
-import Icone, {type IconeNome} from '../../components/Icone';
+import Icone from '../../components/Icone';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
 import {confrontoDoClube, type EstadoCopa} from '../../engine/season/copaEngine';
+import {
+  definirObjetivoTemporada,
+  metaCumprida,
+} from '../../engine/carreira/objetivo';
+import {
+  calcularPressaoDiretoria,
+  type NivelPressao,
+} from '../../engine/carreira/pressao';
+import {avaliarUltimato} from '../../engine/carreira/ultimato';
+import {
+  gerarManchetes,
+  type TomManchete,
+} from '../../engine/carreira/imprensa';
+import {
+  calcularSequencias,
+  type JogoResultado,
+} from '../../engine/season/sequencias';
+import {classicoEntre} from '../../engine/season/classicos';
 import {useAppNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
@@ -33,12 +51,35 @@ import {
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
+import {limiteDerrotasPorDivisao} from '../../store/helpers';
 import {cores, espaco, raio, sombra} from '../../theme';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Clube, Partida} from '../../types';
 
 const MAX_FORMA = 5;
 const MAX_ALERTAS = 5;
+
+/** Cor do termômetro da diretoria por nível de pressão (verde → laranja → vermelho). */
+function corDaPressao(nivel: NivelPressao): string {
+  if (nivel === 'Tranquilo' || nivel === 'Estável') {
+    return cores.sucesso;
+  }
+  if (nivel === 'Pressionado') {
+    return cores.aviso;
+  }
+  return cores.perigo;
+}
+
+/** Cor do marcador da manchete pelo tom editorial. */
+function corDoTom(tom: TomManchete): string {
+  if (tom === 'positivo') {
+    return cores.sucesso;
+  }
+  if (tom === 'negativo') {
+    return cores.perigo;
+  }
+  return cores.textoMuted;
+}
 
 type ResultadoForma = 'V' | 'E' | 'D';
 
@@ -95,6 +136,12 @@ function Home(): React.JSX.Element {
   const finalizarTemporada = useGameStore(state => state.finalizarTemporada);
   const avancarParaData = useGameStore(state => state.avancarParaData);
   const demissao = useGameStore(state => state.demissao);
+  const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
+  const derrotasConsecutivas = useGameStore(
+    state => state.derrotasConsecutivas,
+  );
+  const rodadasNoVermelho = useGameStore(state => state.rodadasNoVermelho);
+  const dificuldade = useGameStore(state => state.config.dificuldade);
 
   // Demissão: assim que a diretoria demite, leva o técnico à tela de recontratação.
   React.useEffect(() => {
@@ -107,6 +154,64 @@ function Home(): React.JSX.Element {
   const posicao = indiceTabela === -1 ? '-' : `${indiceTabela + 1}º`;
   const jogos = indiceTabela === -1 ? 0 : tabela[indiceTabela].jogos;
   const pontos = indiceTabela === -1 ? 0 : tabela[indiceTabela].pontos;
+
+  // Meta da diretoria (mesma regra do fim de temporada): reputação + divisão do
+  // clube definem a meta; a posição atual diz se está no rumo.
+  const objetivo = useMemo(
+    () =>
+      clubeUsuario
+        ? definirObjetivoTemporada(
+            clubeUsuario.reputacao,
+            clubeUsuario.divisao ?? 'Série A',
+            dificuldade,
+          )
+        : null,
+    [clubeUsuario, dificuldade],
+  );
+  // Antes da 1ª rodada a posição é desempate arbitrário (localeCompare do clubeId);
+  // só há "posição real" com jogos disputados — senão a meta cobraria sem jogo.
+  const posicaoReal = jogos > 0 && indiceTabela !== -1 ? indiceTabela + 1 : null;
+  const metaNoRumo =
+    objetivo && posicaoReal != null ? metaCumprida(objetivo, posicaoReal) : true;
+
+  // Ultimato — a diretoria dá a exigência concreta quando um gatilho de demissão
+  // está a um passo. Deriva do estado; resolve pela própria lógica de demissão.
+  const ultimato = clubeUsuario
+    ? avaliarUltimato({
+        derrotasConsecutivas,
+        limiteDerrotas: limiteDerrotasPorDivisao(
+          clubeUsuario.divisao ?? 'Série A',
+        ),
+        rodadasNoVermelho,
+      })
+    : null;
+
+  // Termômetro de pressão da diretoria — espelha os gatilhos de demissão + meta.
+  const pressao = useMemo(
+    () =>
+      clubeUsuario && objetivo
+        ? calcularPressaoDiretoria({
+            derrotasConsecutivas,
+            limiteDerrotas: limiteDerrotasPorDivisao(
+              clubeUsuario.divisao ?? 'Série A',
+            ),
+            rodadasNoVermelho,
+            reputacaoTecnico,
+            posicaoAtual: posicaoReal,
+            posicaoAlvo: objetivo.posicaoAlvo,
+            totalClubes: tabela.length,
+          })
+        : null,
+    [
+      clubeUsuario,
+      objetivo,
+      derrotasConsecutivas,
+      rodadasNoVermelho,
+      reputacaoTecnico,
+      posicaoReal,
+      tabela.length,
+    ],
+  );
 
   const forma = useMemo<ResultadoForma[]>(() => {
     if (!clubeUsuarioId) {
@@ -176,6 +281,107 @@ function Home(): React.JSX.Element {
 
   const mandoCasa = proximoJogo?.timeCasa === clubeUsuarioId;
 
+  // Clássico: o próximo jogo é uma rivalidade reconhecida?
+  const classico = proximoJogo
+    ? classicoEntre(proximoJogo.timeCasa, proximoJogo.timeFora)
+    : null;
+
+  // Última partida disputada pelo clube — base editorial do feed de imprensa.
+  const ultimaJogada = useMemo(() => {
+    if (!clubeUsuarioId) {
+      return null;
+    }
+    const jogadas = partidas
+      .filter(
+        partida =>
+          partida.jogada &&
+          (partida.timeCasa === clubeUsuarioId ||
+            partida.timeFora === clubeUsuarioId),
+      )
+      .sort((a, b) => a.rodada - b.rodada);
+    const ultima = jogadas[jogadas.length - 1];
+    if (!ultima || ultima.placarCasa == null || ultima.placarFora == null) {
+      return null;
+    }
+    const mandante = ultima.timeCasa === clubeUsuarioId;
+    return {
+      golsFavor: mandante ? ultima.placarCasa : ultima.placarFora,
+      golsContra: mandante ? ultima.placarFora : ultima.placarCasa,
+      adversario: nomeClube(
+        clubes,
+        mandante ? ultima.timeFora : ultima.timeCasa,
+      ),
+      mandante,
+    };
+  }, [partidas, clubeUsuarioId, clubes]);
+
+  // Sequências (streaks) atuais do clube — derivadas do histórico da temporada.
+  const sequencias = useMemo(() => {
+    if (!clubeUsuarioId) {
+      return [];
+    }
+    const ordenadas = partidas
+      .filter(
+        partida =>
+          partida.jogada &&
+          (partida.timeCasa === clubeUsuarioId ||
+            partida.timeFora === clubeUsuarioId),
+      )
+      .sort((a, b) => a.rodada - b.rodada);
+    const jogosSeq: JogoResultado[] = [];
+    for (const partida of ordenadas) {
+      if (partida.placarCasa == null || partida.placarFora == null) {
+        continue;
+      }
+      const mandante = partida.timeCasa === clubeUsuarioId;
+      const golsFavor = mandante ? partida.placarCasa : partida.placarFora;
+      const golsContra = mandante ? partida.placarFora : partida.placarCasa;
+      jogosSeq.push({
+        resultado:
+          golsFavor > golsContra ? 'V' : golsFavor < golsContra ? 'D' : 'E',
+        golsFavor,
+        golsContra,
+      });
+    }
+    return calcularSequencias(jogosSeq);
+  }, [partidas, clubeUsuarioId]);
+
+  const proximoAdversario =
+    proximoJogo && clubeUsuarioId
+      ? nomeClube(
+          clubes,
+          proximoJogo.timeCasa === clubeUsuarioId
+            ? proximoJogo.timeFora
+            : proximoJogo.timeCasa,
+        )
+      : null;
+
+  // Feed de imprensa — manchetes editoriais derivadas do estado atual.
+  const manchetes = useMemo(
+    () =>
+      clubeUsuario && objetivo
+        ? gerarManchetes({
+            nomeClube: clubeUsuario.nome,
+            ultima: ultimaJogada,
+            nivelPressao: pressao?.nivel ?? 'Tranquilo',
+            temUltimato: ultimato != null,
+            posicaoAtual: posicaoReal,
+            posicaoAlvo: objetivo.posicaoAlvo,
+            objetivoDescricao: objetivo.descricao,
+            proximoAdversario,
+          })
+        : [],
+    [
+      clubeUsuario,
+      objetivo,
+      ultimaJogada,
+      pressao,
+      ultimato,
+      posicaoReal,
+      proximoAdversario,
+    ],
+  );
+
   // Próximo evento do calendário (treino → jogo → fim de temporada).
   const proximoEvento = useMemo(
     () => calcularProximoEvento(proximoJogo),
@@ -238,19 +444,6 @@ function Home(): React.JSX.Element {
     }
   };
 
-  // Atalhos da "Central do Técnico" — chips compactos (ícone + rótulo), 3 colunas.
-  const central: {rotulo: string; icone: IconeNome; onPress: () => void}[] = [
-    {rotulo: 'Elenco', icone: 'elenco', onPress: () => nav.navigate('MainTabs', {screen: 'Squad'})},
-    {rotulo: 'Mercado', icone: 'mercado', onPress: () => nav.navigate('TransferMarket')},
-    {rotulo: 'Treino', icone: 'apito', onPress: () => nav.navigate('Semana')},
-    {rotulo: 'Tática', icone: 'tatica', onPress: () => nav.navigate('MainTabs', {screen: 'Tactics'})},
-    {rotulo: 'Clube', icone: 'clube', onPress: () => nav.navigate('MainTabs', {screen: 'Club'})},
-    {rotulo: 'Contrato', icone: 'dinheiro', onPress: () => nav.navigate('Contratos')},
-    {rotulo: 'Copa', icone: 'trofeu', onPress: () => nav.navigate('Copa')},
-    {rotulo: 'Base', icone: 'base', onPress: () => nav.navigate('Academia')},
-    {rotulo: 'Troféus', icone: 'medalha', onPress: () => nav.navigate('Gabinete')},
-  ];
-
   return (
     <ScreenContainer scroll>
       <View style={styles.container}>
@@ -287,6 +480,118 @@ function Home(): React.JSX.Element {
             ) : null}
           </View>
         </ImageBackground>
+
+        {/* Ultimato — exigência concreta da diretoria no fio da navalha. */}
+        {ultimato ? (
+          <View style={styles.ultimatoBanner}>
+            <View style={styles.ultimatoTopo}>
+              <Icone nome="apito" tamanho={16} cor={cores.perigo} />
+              <Text style={styles.ultimatoTitulo}>{ultimato.titulo}</Text>
+            </View>
+            <Text style={styles.ultimatoMensagem}>{ultimato.mensagem}</Text>
+          </View>
+        ) : null}
+
+        {/* Objetivo + Diretoria — dois mini-botões lado a lado (compactos). */}
+        {objetivo && pressao ? (
+          <View style={styles.duplaBotoes}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ver a tabela"
+              onPress={() => nav.navigate('MainTabs', {screen: 'Competition'})}
+              style={({pressed}) => [
+                styles.miniBotao,
+                pressed ? styles.miniPressed : null,
+              ]}>
+              <View style={styles.miniTopo}>
+                <Icone nome="trofeu" tamanho={14} cor={cores.aviso} />
+                <Text style={styles.miniLabel}>Objetivo</Text>
+              </View>
+              <Text style={styles.miniValor} numberOfLines={1}>
+                {objetivo.tipo}
+              </Text>
+              <Text
+                style={[
+                  styles.miniStatus,
+                  {color: metaNoRumo ? cores.sucesso : cores.perigo},
+                ]}
+                numberOfLines={1}>
+                {metaNoRumo ? 'No rumo' : 'Fora da meta'} · até{' '}
+                {objetivo.posicaoAlvo}º
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ver o gabinete do técnico"
+              onPress={() => nav.navigate('Gabinete')}
+              style={({pressed}) => [
+                styles.miniBotao,
+                pressed ? styles.miniPressed : null,
+              ]}>
+              <View style={styles.miniTopo}>
+                <Icone
+                  nome="conversa"
+                  tamanho={14}
+                  cor={corDaPressao(pressao.nivel)}
+                />
+                <Text style={styles.miniLabel}>Diretoria</Text>
+              </View>
+              <Text
+                style={[styles.miniValor, {color: corDaPressao(pressao.nivel)}]}
+                numberOfLines={1}>
+                {pressao.nivel}
+              </Text>
+              <View style={styles.pressaoTrilha}>
+                <View
+                  style={[
+                    styles.pressaoBarra,
+                    {
+                      width: `${pressao.pontuacao}%`,
+                      backgroundColor: corDaPressao(pressao.nivel),
+                    },
+                  ]}
+                />
+              </View>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* Sequências (streaks) atuais — forma + defesa. */}
+        {sequencias.length > 0 ? (
+          <View style={styles.sequenciasRow}>
+            {sequencias.map(seq => (
+              <View
+                key={seq.tipo}
+                style={[
+                  styles.seqChip,
+                  seq.destaque === 'bom'
+                    ? styles.seqChipBom
+                    : styles.seqChipRuim,
+                ]}>
+                <Text
+                  style={[
+                    styles.seqChipTexto,
+                    seq.destaque === 'bom'
+                      ? styles.seqTextoBom
+                      : styles.seqTextoRuim,
+                  ]}>
+                  {seq.rotulo}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        {/* Clássico à vista — realça a rivalidade do próximo jogo. */}
+        {classico ? (
+          <View style={styles.classicoBanner}>
+            <Icone nome="apito" tamanho={15} cor={cores.aviso} />
+            <Text style={styles.classicoTexto}>
+              CLÁSSICO · {classico.nome}
+            </Text>
+          </View>
+        ) : null}
 
         {/* Próximo compromisso (sem header duplicado — o card já se rotula). */}
         {copaNaVez ? (
@@ -365,27 +670,45 @@ function Home(): React.JSX.Element {
           onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
         />
 
-        {/* Central do Técnico — chips compactos (ícone + rótulo), 3 colunas. */}
-        <View style={styles.centralBloco}>
-          <Text style={styles.blocoTitulo}>Central do Técnico</Text>
-          <View style={styles.centralGrid}>
-            {central.map(item => (
-              <Pressable
-                key={item.rotulo}
-                accessibilityRole="button"
-                onPress={item.onPress}
-                style={({pressed}) => [
-                  styles.chip,
-                  pressed ? styles.cardPressed : null,
-                ]}>
-                <Icone nome={item.icone} tamanho={22} cor={cores.primaria} />
-                <Text style={styles.chipTexto} numberOfLines={1}>
-                  {item.rotulo}
-                </Text>
-              </Pressable>
+        {/* Imprensa — manchetes editoriais derivadas do momento do clube. */}
+        {manchetes.length > 0 ? (
+          <View style={styles.imprensaBloco}>
+            <View style={styles.imprensaTopo}>
+              <Icone nome="conversa" tamanho={15} cor={cores.secundaria} />
+              <Text style={styles.blocoTitulo}>Imprensa</Text>
+            </View>
+            {manchetes.map(manchete => (
+              <View key={manchete.id} style={styles.mancheteLinha}>
+                <View
+                  style={[
+                    styles.mancheteDot,
+                    {backgroundColor: corDoTom(manchete.tom)},
+                  ]}
+                />
+                <Text style={styles.mancheteTexto}>{manchete.texto}</Text>
+              </View>
             ))}
           </View>
-        </View>
+        ) : null}
+
+        {/* Atalho para a Central do Técnico (grade de gestão em tela própria). */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Abrir a Central do Técnico"
+          onPress={() => nav.navigate('Central')}
+          style={({pressed}) => [
+            styles.centralAtalho,
+            pressed ? styles.cardPressed : null,
+          ]}>
+          <Icone nome="clube" tamanho={22} cor={cores.primaria} />
+          <View style={styles.centralAtalhoInfo}>
+            <Text style={styles.centralAtalhoTitulo}>Central do Técnico</Text>
+            <Text style={styles.centralAtalhoSub} numberOfLines={1}>
+              Elenco, mercado, treino, tática, contratos e mais
+            </Text>
+          </View>
+          <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
+        </Pressable>
       </View>
     </ScreenContainer>
   );
@@ -487,6 +810,169 @@ const styles = StyleSheet.create({
     backgroundColor: cores.superficieAlt,
     transform: [{scale: 0.99}],
   },
+  // Termômetro da diretoria — barra de pressão (reusada no mini-botão).
+  pressaoTrilha: {
+    backgroundColor: cores.superficieAlt,
+    borderRadius: 999,
+    height: 8,
+    marginVertical: 2,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  pressaoBarra: {
+    borderRadius: 999,
+    height: '100%',
+  },
+  // Objetivo + Diretoria — mini-botões lado a lado.
+  duplaBotoes: {
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  miniBotao: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    flex: 1,
+    gap: 4,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.md,
+    ...sombra.suave,
+  },
+  miniPressed: {
+    backgroundColor: cores.superficieAlt,
+    transform: [{scale: 0.99}],
+  },
+  miniTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  miniLabel: {
+    color: cores.textoSecundario,
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  miniValor: {
+    color: cores.texto,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  miniStatus: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  // Ultimato — banner urgente (vermelho) no fio da navalha.
+  ultimatoBanner: {
+    backgroundColor: 'rgba(229, 72, 77, 0.10)',
+    borderColor: cores.perigo,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: 4,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.md,
+  },
+  ultimatoTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  ultimatoTitulo: {
+    color: cores.perigo,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  ultimatoMensagem: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  // Clássico — banner de rivalidade do próximo jogo.
+  classicoBanner: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(224, 135, 0, 0.10)',
+    borderColor: 'rgba(224, 135, 0, 0.35)',
+    borderRadius: raio.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: espaco.xs,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.sm,
+  },
+  classicoTexto: {
+    color: cores.aviso,
+    fontSize: 12.5,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  // Sequências (streaks) — chips de forma/defesa.
+  sequenciasRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espaco.sm,
+  },
+  seqChip: {
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 6,
+  },
+  seqChipBom: {
+    backgroundColor: 'rgba(18, 183, 106, 0.10)',
+    borderColor: 'rgba(18, 183, 106, 0.35)',
+  },
+  seqChipRuim: {
+    backgroundColor: 'rgba(229, 72, 77, 0.10)',
+    borderColor: 'rgba(229, 72, 77, 0.35)',
+  },
+  seqChipTexto: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  seqTextoBom: {
+    color: cores.sucesso,
+  },
+  seqTextoRuim: {
+    color: cores.perigo,
+  },
+  // Imprensa — painel de manchetes editoriais.
+  imprensaBloco: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.sm,
+    paddingHorizontal: espaco.md,
+    paddingVertical: espaco.md,
+    ...sombra.suave,
+  },
+  imprensaTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  mancheteLinha: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  mancheteDot: {
+    borderRadius: 999,
+    height: 7,
+    marginTop: 6,
+    width: 7,
+  },
+  mancheteTexto: {
+    color: cores.textoSecundario,
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   // Copa "na vez" — card de destaque clean.
   copaJogoCard: {
     alignItems: 'center',
@@ -544,30 +1030,30 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 12.5,
   },
-  // Central do Técnico — grid de chips (ícone + rótulo), 3 colunas.
-  centralBloco: {
-    gap: espaco.sm,
-  },
-  centralGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.sm,
-  },
-  chip: {
+  // Central do Técnico — atalho para a tela própria (grade de gestão).
+  centralAtalho: {
     alignItems: 'center',
     backgroundColor: cores.superficie,
     borderColor: cores.borda,
     borderRadius: raio.lg,
     borderWidth: 1,
-    flexBasis: '31.5%',
-    flexGrow: 1,
-    gap: espaco.xs,
+    flexDirection: 'row',
+    gap: espaco.md,
+    paddingHorizontal: espaco.md,
     paddingVertical: espaco.md,
     ...sombra.suave,
   },
-  chipTexto: {
+  centralAtalhoInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  centralAtalhoTitulo: {
     color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  centralAtalhoSub: {
+    color: cores.textoSecundario,
+    fontSize: 12.5,
   },
 });

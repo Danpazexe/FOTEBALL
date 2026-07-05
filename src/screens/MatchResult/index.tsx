@@ -26,6 +26,10 @@ import {
   calcularNotaPartida,
   type ResultadoJogador,
 } from '../../engine/simulation/matchRating';
+import {
+  analisarMomentos,
+  type TomMomento,
+} from '../../engine/simulation/momentos';
 import {acentos, cores, corDoTime, espaco, raio, suaves} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {useGameStore} from '../../store/useGameStore';
@@ -260,6 +264,17 @@ function linhasDoTime(
 }
 
 /** Card branco padrão da súmula. */
+/** Cor do marcador do momento dramático pelo tom. */
+function corDoTomMomento(tom: TomMomento): string {
+  if (tom === 'bom') {
+    return acentos.verde;
+  }
+  if (tom === 'ruim') {
+    return acentos.vermelho;
+  }
+  return cores.textoMuted;
+}
+
 function Card({
   titulo,
   children,
@@ -573,6 +588,28 @@ function MatchResult(): React.JSX.Element {
   );
   const clubes = useGameStore(state => state.clubes);
   const jogadores = useGameStore(state => state.jogadores);
+  const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
+
+  // Momentos dramáticos na ótica do usuário — só quando o clube dele jogou.
+  const momentos = useMemo(() => {
+    if (
+      !partida ||
+      !clubeUsuarioId ||
+      (partida.timeCasa !== clubeUsuarioId &&
+        partida.timeFora !== clubeUsuarioId)
+    ) {
+      return [];
+    }
+    return analisarMomentos({
+      eventos: partida.eventos,
+      timeCasa: partida.timeCasa,
+      timeFora: partida.timeFora,
+      placarCasa: partida.placarCasa ?? 0,
+      placarFora: partida.placarFora ?? 0,
+      meuTimeId: clubeUsuarioId,
+      vencedorPenaltis: partida.vencedorPenaltis,
+    });
+  }, [partida, clubeUsuarioId]);
 
   const dados = useMemo(() => {
     if (!partida) {
@@ -641,6 +678,21 @@ function MatchResult(): React.JSX.Element {
 
   const renderResumo = () => (
     <>
+      {momentos.length > 0 ? (
+        <Card titulo="Momentos">
+          {momentos.map(momento => (
+            <View key={momento.tipo} style={styles.momentoLinha}>
+              <View
+                style={[
+                  styles.momentoDot,
+                  {backgroundColor: corDoTomMomento(momento.tom)},
+                ]}
+              />
+              <Text style={styles.momentoTexto}>{momento.texto}</Text>
+            </View>
+          ))}
+        </Card>
+      ) : null}
       {melhorJogador && melhorJogador.nota !== null ? (
         <Card titulo="Craque do jogo">
           <View style={styles.craque}>
@@ -1206,6 +1258,24 @@ const styles = StyleSheet.create({
     color: cores.texto,
     fontSize: 15,
     fontWeight: '800',
+  },
+  momentoLinha: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  momentoDot: {
+    borderRadius: 999,
+    height: 8,
+    marginTop: 5,
+    width: 8,
+  },
+  momentoTexto: {
+    color: cores.textoSecundario,
+    flex: 1,
+    fontSize: 13.5,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   craque: {
     alignItems: 'center',

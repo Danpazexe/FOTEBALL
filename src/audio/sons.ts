@@ -32,6 +32,17 @@ const ARQUIVOS = {
   intervalo: 'intervalo.mp3',
   fimDeJogo: 'fimjogo.mp3',
   fimDeJogoAlt: 'fimjogo2.mp3',
+  // Narração (voz) — novos lances.
+  inicio: 'apitoinicial.mp3',
+  cartaoAmarelo: 'amarelo.mp3',
+  chancePerdida: 'chance1.mp3',
+  chancePerdidaAlt: 'chance2.mp3',
+  chancePerdidaTrave: 'bolanatrave.mp3',
+  penaltiMarcado: 'penaltimarcado.mp3',
+  substituicao: 'substituicao.mp3',
+  varAnulado: 'varanulado.mp3',
+  // Ambiente de estádio (toca em loop durante a partida).
+  torcida: 'torcida.mp3',
 } as const;
 
 type NomeSom = keyof typeof ARQUIVOS;
@@ -43,6 +54,20 @@ const prontos = new Set<NomeSom>();
 const pendentes = new Set<NomeSom>();
 let carregado = false;
 let habilitado = true;
+/** Ambiente de estádio pedido (loop) — retomado quando o arquivo termina de carregar. */
+let torcidaAtiva = false;
+/** Volume do ambiente de torcida (fundo discreto, não abafa os lances). */
+const VOLUME_TORCIDA = 0.35;
+
+function reproduzirTorcida(): void {
+  const som = sons.get('torcida');
+  if (!habilitado || !som || !prontos.has('torcida')) {
+    return;
+  }
+  som.setNumberOfLoops(-1);
+  som.setVolume(VOLUME_TORCIDA);
+  som.play();
+}
 
 function reproduzir(nome: NomeSom): void {
   const som = sons.get(nome);
@@ -77,9 +102,14 @@ export function inicializarSons(): void {
             return;
           }
           prontos.add(nome);
-          // Lance aconteceu enquanto o som carregava? Toca agora (atraso de
-          // ~1s é melhor que um gol mudo).
-          if (pendentes.delete(nome)) {
+          // Ambiente pedido antes de carregar? Começa o loop assim que pronto.
+          if (nome === 'torcida') {
+            if (torcidaAtiva) {
+              reproduzirTorcida();
+            }
+          } else if (pendentes.delete(nome)) {
+            // Lance aconteceu enquanto o som carregava? Toca agora (atraso de
+            // ~1s é melhor que um gol mudo).
             reproduzir(nome);
           }
         }),
@@ -95,7 +125,22 @@ export function definirSomHabilitado(valor: boolean): void {
   habilitado = valor;
   if (!valor) {
     pendentes.clear();
+    sons.get('torcida')?.stop();
+  } else if (torcidaAtiva) {
+    reproduzirTorcida();
   }
+}
+
+/** Inicia o ambiente de estádio em loop (chamar ao começar a partida). */
+export function iniciarTorcida(): void {
+  torcidaAtiva = true;
+  reproduzirTorcida();
+}
+
+/** Para o ambiente de estádio (ao terminar ou sair da partida). */
+export function pararTorcida(): void {
+  torcidaAtiva = false;
+  sons.get('torcida')?.stop();
 }
 
 function tocar(nome: NomeSom): void {
@@ -123,8 +168,43 @@ export function tocarPenaltiPerdido(doUsuario: boolean): void {
   tocar(doUsuario ? 'penaltiPerdido' : 'penaltiPerdidoAdversario');
 }
 
+/** Marcação do pênalti ("PÊNALTI!") — o árbitro apontou para a marca da cal. */
+export function tocarPenalti(): void {
+  tocar('penaltiMarcado');
+}
+
+/** Substituição — mexe o treinador. */
+export function tocarSubstituicao(): void {
+  tocar('substituicao');
+}
+
 export function tocarContusao(): void {
   tocar('contusao');
+}
+
+/** Apito inicial — a bola vai rolar. */
+export function tocarInicio(): void {
+  tocar('inicio');
+}
+
+export function tocarCartaoAmarelo(): void {
+  tocar('cartaoAmarelo');
+}
+
+const CHANCES: NomeSom[] = [
+  'chancePerdida',
+  'chancePerdidaAlt',
+  'chancePerdidaTrave',
+];
+
+/** Chance perdida: sorteia entre as gravações para não repetir. */
+export function tocarChancePerdida(): void {
+  tocar(CHANCES[Math.floor(Math.random() * CHANCES.length)]);
+}
+
+/** Gol anulado pelo VAR (impedimento). */
+export function tocarVarAnulado(): void {
+  tocar('varAnulado');
 }
 
 export function tocarIntervalo(): void {

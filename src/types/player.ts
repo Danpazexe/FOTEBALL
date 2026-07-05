@@ -110,6 +110,11 @@ export interface Player {
    * treinos. Opcional para manter compatibilidade com saves antigos.
    */
   progressoAtributos?: ProgressoAtributos;
+  /**
+   * Atributo em FOCO no treino individual (desenvolve mais rápido). Opcional para
+   * compatibilidade com saves antigos (undefined = sem foco).
+   */
+  focoTreino?: AtributoChave;
   overall: number;
   potencial: number;
   condicaoFisica: number;

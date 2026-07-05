@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import {
@@ -100,6 +100,8 @@ function PlayerDetail(): React.JSX.Element {
   const clubes = useGameStore(state => state.clubes);
   const venderJogador = useGameStore(state => state.venderJogador);
   const emprestarJogador = useGameStore(state => state.emprestarJogador);
+  const definirFocoTreino = useGameStore(state => state.definirFocoTreino);
+  const definirCapitao = useGameStore(state => state.definirCapitao);
   const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
   const confirm = useConfirm();
   const toast = useToast();
@@ -119,6 +121,8 @@ function PlayerDetail(): React.JSX.Element {
   const tipoInfo = jogador.tipo ? TIPO_LABEL[jogador.tipo] : undefined;
   const doClubeUsuario =
     clubeUsuarioId !== null && jogador.clubeId === clubeUsuarioId;
+  const clubeDoUsuario = clubes.find(clube => clube.id === clubeUsuarioId);
+  const ehCapitao = clubeDoUsuario?.capitaoId === jogador.id;
 
   const handleVender = async () => {
     const ok = !confirmarAcoes
@@ -332,6 +336,76 @@ function PlayerDetail(): React.JSX.Element {
         </Painel>
       </Section>
 
+      {doClubeUsuario ? (
+        <Section titulo="Liderança">
+          <Painel>
+            {ehCapitao ? (
+              <View style={styles.capitaoRow}>
+                <Icone nome="medalha" tamanho={18} cor={cores.secundaria} />
+                <Text style={styles.capitaoTxt}>Capitão do time</Text>
+              </View>
+            ) : (
+              <Botao
+                variante="secundaria"
+                icone="medalha"
+                titulo="Tornar capitão"
+                onPress={() => {
+                  definirCapitao(jogador.id);
+                  toast(
+                    `${jogador.apelido ?? jogador.nome} é o novo capitão.`,
+                    'sucesso',
+                  );
+                }}
+              />
+            )}
+          </Painel>
+        </Section>
+      ) : null}
+
+      {doClubeUsuario ? (
+        <Section titulo="Foco de treino">
+          <Painel>
+            <Text style={styles.atributosNota}>
+              O atributo em foco evolui mais rápido nos treinos (limitado ao
+              potencial).
+            </Text>
+            <View style={styles.focoChips}>
+              <Pressable
+                onPress={() => definirFocoTreino(jogador.id, null)}
+                style={[
+                  styles.focoChip,
+                  !jogador.focoTreino && styles.focoChipAtivo,
+                ]}>
+                <Text
+                  style={[
+                    styles.focoChipTxt,
+                    !jogador.focoTreino && styles.focoChipTxtAtivo,
+                  ]}>
+                  Nenhum
+                </Text>
+              </Pressable>
+              {ATRIBUTOS.map(attr => {
+                const ativo = jogador.focoTreino === attr.chave;
+                return (
+                  <Pressable
+                    key={attr.chave}
+                    onPress={() => definirFocoTreino(jogador.id, attr.chave)}
+                    style={[styles.focoChip, ativo && styles.focoChipAtivo]}>
+                    <Text
+                      style={[
+                        styles.focoChipTxt,
+                        ativo && styles.focoChipTxtAtivo,
+                      ]}>
+                      {attr.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </Painel>
+        </Section>
+      ) : null}
+
       {doClubeUsuario && !jogador.emprestimo ? (
         <View style={styles.acoes}>
           <Botao
@@ -540,6 +614,42 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 11,
     marginTop: espaco.xs,
+  },
+  capitaoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  capitaoTxt: {
+    color: cores.texto,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  focoChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espaco.xs,
+    marginTop: espaco.sm,
+  },
+  focoChip: {
+    backgroundColor: cores.superficieAlt,
+    borderColor: cores.borda,
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 6,
+  },
+  focoChipAtivo: {
+    backgroundColor: cores.primaria,
+    borderColor: cores.primaria,
+  },
+  focoChipTxt: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  focoChipTxtAtivo: {
+    color: cores.superficie,
   },
   atributoProgressoFundo: {
     backgroundColor: cores.superficieAlt,

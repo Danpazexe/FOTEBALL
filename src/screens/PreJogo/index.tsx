@@ -15,7 +15,7 @@
  * rolagem), como na tela de Tática.
  */
 
-import React, {useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {
   Dimensions,
   Pressable,
@@ -36,7 +36,13 @@ import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
 } from '../../api/database/seed/defaults';
+import {
+  avaliarConfronto,
+  taticaProvavelIA,
+  type NivelConfronto,
+} from '../../engine/tactics/preview';
 import {validarEscalacao} from '../../engine/tactics/validacao';
+import {analisarAdversario, type Setor} from '../../engine/simulation/scout';
 import {useAppNavigation} from '../../navigation/types';
 import {
   selecionarClubeUsuario,
@@ -90,6 +96,38 @@ function nomeCurto(jogador: Player): string {
   return jogador.apelido ?? jogador.nome;
 }
 
+const NIVEL_TEXTO: Record<NivelConfronto, string> = {
+  favoravel: 'Confronto favorável a você',
+  neutro: 'Confronto equilibrado',
+  arriscado: 'Confronto arriscado',
+};
+
+const SETOR_LABEL: Record<Setor, string> = {
+  ataque: 'o ataque',
+  meio: 'o meio-campo',
+  defesa: 'a defesa',
+};
+
+function nivelCor(n: NivelConfronto): string {
+  if (n === 'favoravel') {
+    return cores.primariaEscura;
+  }
+  if (n === 'arriscado') {
+    return cores.perigo;
+  }
+  return cores.secundariaEscura;
+}
+
+function nivelFundo(n: NivelConfronto): string {
+  if (n === 'favoravel') {
+    return suaves.verde;
+  }
+  if (n === 'arriscado') {
+    return suaves.vermelho;
+  }
+  return suaves.amarelo;
+}
+
 function PreJogo(): React.JSX.Element {
   const nav = useAppNavigation();
   const toast = useToast();
@@ -105,6 +143,9 @@ function PreJogo(): React.JSX.Element {
   );
   const atualizarTaticaUsuario = useGameStore(
     state => state.atualizarTaticaUsuario,
+  );
+  const definirTaticaAdversario = useGameStore(
+    state => state.definirTaticaAdversario,
   );
   const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
 
@@ -128,6 +169,42 @@ function PreJogo(): React.JSX.Element {
       forcaFora: forcaDoClube(fora, jogadores),
     };
   }, [proximo, clubes, jogadores]);
+
+  // Tática PROVÁVEL do adversário (IA), pela força relativa + mando.
+  const advInfo = useMemo(() => {
+    if (!confronto || !clubeUsuario || !proximo) {
+      return null;
+    }
+    const mando = proximo.timeCasa === clubeUsuario.id;
+    const eu = mando ? confronto.forcaCasa : confronto.forcaFora;
+    const ele = mando ? confronto.forcaFora : confronto.forcaCasa;
+    const adversario = mando ? confronto.fora : confronto.casa;
+    return {
+      id: adversario.id,
+      tatica: taticaProvavelIA({
+        overallAdversario: ele.overall,
+        overallUsuario: eu.overall,
+        adversarioMandante: !mando,
+      }),
+    };
+  }, [confronto, clubeUsuario, proximo]);
+
+  // Fixa a tática do adversário no estado, pra a simulação (Simular e ao vivo)
+  // usar a MESMA que o preview mostra — leitura honesta.
+  useEffect(() => {
+    if (advInfo) {
+      definirTaticaAdversario(advInfo.id, advInfo.tatica);
+    }
+  }, [advInfo, definirTaticaAdversario]);
+
+  // Scout do adversário — força por setor + craque + ponto fraco do elenco dele.
+  const scout = useMemo(() => {
+    if (!advInfo) {
+      return null;
+    }
+    const elenco = jogadores.filter(j => j.clubeId === advInfo.id);
+    return elenco.length > 0 ? analisarAdversario(elenco) : null;
+  }, [advInfo, jogadores]);
 
   const formacao = clubeUsuario?.formacaoAtual ?? null;
   const taticaAtual = clubeUsuario?.taticaAtual ?? null;
@@ -159,6 +236,8 @@ function PreJogo(): React.JSX.Element {
   const mandoCasa = proximo.timeCasa === clubeUsuario.id;
   const forcaMinha = mandoCasa ? confronto.forcaCasa : confronto.forcaFora;
   const forcaDele = mandoCasa ? confronto.forcaFora : confronto.forcaCasa;
+  const advTatica = advInfo?.tatica ?? null;
+  const leitura = advTatica ? avaliarConfronto(taticaAtual, advTatica) : null;
   const diff = forcaMinha.overall + (mandoCasa ? 3 : 0) - forcaDele.overall;
   const favoritismo =
     Math.abs(diff) < 2
@@ -226,6 +305,92 @@ function PreJogo(): React.JSX.Element {
             />
           </View>
         </View>
+
+        {/* LEITURA DO ADVERSÁRIO (preview tático) */}
+        {advTatica && leitura ? (
+          <View style={styles.leituraCard}>
+            <View style={styles.leituraHeader}>
+              <Icone nome="tatica" tamanho={15} cor={cores.primaria} />
+              <Text style={styles.leituraTitulo}>Leitura do adversário</Text>
+            </View>
+            <Text style={styles.leituraSub}>Provável postura dele:</Text>
+            <View style={styles.leituraChips}>
+              <View style={styles.leituraChip}>
+                <Text style={styles.leituraChipTxt}>
+                  {advTatica.estiloOfensivo}
+                </Text>
+              </View>
+              <View style={styles.leituraChip}>
+                <Text style={styles.leituraChipTxt}>
+                  Linha {advTatica.linhaDefensiva.toLowerCase()}
+                </Text>
+              </View>
+              <View style={styles.leituraChip}>
+                <Text style={styles.leituraChipTxt}>{advTatica.marcacao}</Text>
+              </View>
+            </View>
+            <View
+              style={[
+                styles.nivelBadge,
+                {
+                  backgroundColor: nivelFundo(leitura.nivel),
+                  borderColor: nivelCor(leitura.nivel),
+                },
+              ]}>
+              <Text style={[styles.nivelTxt, {color: nivelCor(leitura.nivel)}]}>
+                {NIVEL_TEXTO[leitura.nivel]}
+              </Text>
+            </View>
+            {leitura.riscos.slice(0, 2).map(risco => (
+              <Text key={risco} style={[styles.linhaLeitura, styles.risco]}>
+                Risco: {risco}
+              </Text>
+            ))}
+            {leitura.vantagens.slice(0, 1).map(vantagem => (
+              <Text key={vantagem} style={[styles.linhaLeitura, styles.vantagem]}>
+                Vantagem: {vantagem}
+              </Text>
+            ))}
+            {leitura.sugestao ? (
+              <Text style={[styles.linhaLeitura, styles.sugestaoTxt]}>
+                Sugestão: {leitura.sugestao}
+              </Text>
+            ) : null}
+          </View>
+        ) : null}
+
+        {/* SCOUT DO ADVERSÁRIO (força por setor + craque + ponto fraco) */}
+        {scout ? (
+          <View style={styles.leituraCard}>
+            <View style={styles.leituraHeader}>
+              <Icone nome="olho" tamanho={15} cor={cores.primaria} />
+              <Text style={styles.leituraTitulo}>Scout do adversário</Text>
+            </View>
+            <View style={styles.scoutSetores}>
+              <View style={styles.scoutSetor}>
+                <Text style={styles.scoutSetorRotulo}>ATA</Text>
+                <Text style={styles.scoutSetorForca}>{scout.forcaAtaque}</Text>
+              </View>
+              <View style={styles.scoutSetor}>
+                <Text style={styles.scoutSetorRotulo}>MEI</Text>
+                <Text style={styles.scoutSetorForca}>{scout.forcaMeio}</Text>
+              </View>
+              <View style={styles.scoutSetor}>
+                <Text style={styles.scoutSetorRotulo}>DEF</Text>
+                <Text style={styles.scoutSetorForca}>{scout.forcaDefesa}</Text>
+              </View>
+            </View>
+            {scout.melhorJogador ? (
+              <Text style={styles.linhaLeitura}>
+                Craque: {scout.melhorJogador.nome} (
+                {scout.melhorJogador.posicao} · {scout.melhorJogador.overall})
+              </Text>
+            ) : null}
+            <Text style={[styles.linhaLeitura, styles.vantagem]}>
+              Ponto fraco: {SETOR_LABEL[scout.setorFraco]}
+            </Text>
+          </View>
+        ) : null}
 
         {/* ESCALAÇÃO */}
         <Section titulo="Escalação">
@@ -482,6 +647,99 @@ const styles = StyleSheet.create({
   },
   barras: {
     alignItems: 'center',
+  },
+  // LEITURA DO ADVERSÁRIO
+  leituraCard: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.xs,
+    marginBottom: espaco.md,
+    padding: espaco.lg,
+    ...sombra.suave,
+  },
+  scoutSetores: {
+    flexDirection: 'row',
+    gap: espaco.sm,
+    marginVertical: espaco.xs,
+  },
+  scoutSetor: {
+    alignItems: 'center',
+    backgroundColor: cores.superficieAlt,
+    borderRadius: raio.md,
+    flex: 1,
+    gap: 2,
+    paddingVertical: espaco.sm,
+  },
+  scoutSetorRotulo: {
+    color: cores.textoMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  scoutSetorForca: {
+    color: cores.texto,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  leituraHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  leituraTitulo: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  leituraSub: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+  },
+  leituraChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espaco.xs,
+  },
+  leituraChip: {
+    backgroundColor: cores.superficieAlt,
+    borderColor: cores.borda,
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 3,
+  },
+  leituraChipTxt: {
+    color: cores.texto,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  nivelBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    marginTop: 2,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 3,
+  },
+  nivelTxt: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  linhaLeitura: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  risco: {
+    color: cores.perigo,
+  },
+  vantagem: {
+    color: cores.primariaEscura,
+  },
+  sugestaoTxt: {
+    color: cores.secundariaEscura,
+    fontWeight: '800',
   },
   // ESCALAÇÃO
   subTitulo: {

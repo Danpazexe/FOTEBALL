@@ -124,14 +124,22 @@ export function mentalidadeDaTatica(tatica: Tatica): number {
   return Math.max(0, Math.min(100, m));
 }
 
-/** Nome do preset cuja tática bate EXATAMENTE com a atual (ou null se custom). */
-export function estrategiaAtiva(tatica: Tatica): string | null {
-  const igual = (a: Tatica, b: Tatica): boolean =>
+/** Duas táticas têm os mesmos 6 campos? */
+export function mesmaTatica(a: Tatica, b: Tatica): boolean {
+  return (
     a.estiloOfensivo === b.estiloOfensivo &&
     a.marcacao === b.marcacao &&
     a.linhaDefensiva === b.linhaDefensiva &&
     a.ritmo === b.ritmo &&
     a.ladoAtaque === b.ladoAtaque &&
-    a.amplidao === b.amplidao;
-  return ESTRATEGIAS.find(estrategia => igual(estrategia.tatica, tatica))?.nome ?? null;
+    a.amplidao === b.amplidao
+  );
+}
+
+/** Nome do preset cuja tática bate EXATAMENTE com a atual (ou null se custom). */
+export function estrategiaAtiva(tatica: Tatica): string | null {
+  return (
+    ESTRATEGIAS.find(estrategia => mesmaTatica(estrategia.tatica, tatica))
+      ?.nome ?? null
+  );
 }

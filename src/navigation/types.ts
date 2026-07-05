@@ -31,6 +31,7 @@ export type RootStackParamList = {
   Gabinete: undefined;
   Calendario: undefined;
   Contratos: undefined;
+  Central: undefined;
   Demissao: undefined;
 };
 

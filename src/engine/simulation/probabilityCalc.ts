@@ -90,7 +90,7 @@ function fatorGoleiro(forcaGoleiroAdversario: number): number {
  * montagem de B. Devolve um acréscimo ADITIVO aos gols esperados de A (pode ser
  * negativo). Estilos neutros entre si => 0.
  */
-function modMatchupAtaque(a: Tatica, b: Tatica): number {
+export function modMatchupAtaque(a: Tatica, b: Tatica): number {
   let mod = 0;
 
   if (a.estiloOfensivo === 'Contra-ataque') {

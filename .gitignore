@@ -76,3 +76,6 @@ yarn-error.log
 
 # Claude Code (config local da máquina — não compartilhar)
 .claude/settings.local.json
+
+# Pacote de ícones gerado (fonte; assets já instalados em res/ e ios/)
+AppIcons-3/

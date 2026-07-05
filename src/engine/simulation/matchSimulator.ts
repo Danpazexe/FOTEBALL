@@ -789,6 +789,28 @@ function aplicarFadiga(
 }
 
 /** Simula UM minuto, anexa ao estado e devolve os eventos novos. */
+/**
+ * VAR (calibrado no laboratório de balanceamento — ver matchBalance.test.ts).
+ * Dois lados, mantendo os gols na faixa-alvo (2.4–3.1):
+ *  • anula uma fração dos gols de jogo aberto (impedimento);
+ *  • flagra pênalti numa fração dos lances de perigo (chance narrada).
+ * Os valores foram medidos antes/depois para o net ficar ~neutro (regra do
+ * CLAUDE.md §14: nunca ajustar o balanceamento no escuro).
+ */
+const PROB_VAR_ANULA_GOL = 0.06;
+const PROB_VAR_PENALTI = 0.06;
+
+/** Converte um gol em evento de gol ANULADO pelo VAR (não conta no placar). */
+function golAnuladoVAR(golEvento: EventoPartida): EventoPartida {
+  return {
+    minuto: golEvento.minuto,
+    tipo: 'chance_perdida',
+    timeId: golEvento.timeId,
+    jogadorId: golEvento.jogadorId,
+    descricao: 'VAR em ação: gol anulado por impedimento.',
+  };
+}
+
 export function simularMinuto(
   estado: EstadoPartidaAoVivo,
   ctx: ContextoMinuto,
@@ -813,12 +835,22 @@ export function simularMinuto(
   const momentumFora = fatorMomentum(-diff, minuto);
 
   if (rng() < p.probGolCasaPorMinuto * fTempo * momentumCasa) {
-    estado.placarCasa += 1;
-    adicionar(simularEventoGol(minuto, ctx.timeCasa, emCampoCasa, rng));
+    const golEvento = simularEventoGol(minuto, ctx.timeCasa, emCampoCasa, rng);
+    if (rng() < PROB_VAR_ANULA_GOL) {
+      adicionar(golAnuladoVAR(golEvento));
+    } else {
+      estado.placarCasa += 1;
+      adicionar(golEvento);
+    }
   }
   if (rng() < p.probGolForaPorMinuto * fTempo * momentumFora) {
-    estado.placarFora += 1;
-    adicionar(simularEventoGol(minuto, ctx.timeFora, emCampoFora, rng));
+    const golEvento = simularEventoGol(minuto, ctx.timeFora, emCampoFora, rng);
+    if (rng() < PROB_VAR_ANULA_GOL) {
+      adicionar(golAnuladoVAR(golEvento));
+    } else {
+      estado.placarFora += 1;
+      adicionar(golEvento);
+    }
   }
 
   const fTempoCartao = 1 + Math.max(0, minuto - 60) / 120;
@@ -937,6 +969,33 @@ export function simularMinuto(
         rng,
       ),
     );
+    // VAR pode flagrar um pênalti no lance de perigo (a favor de quem atacou).
+    if (rng() < PROB_VAR_PENALTI) {
+      const emCampoDefesa = ehCasa ? emCampoFora : emCampoCasa;
+      const penalti = simularPenalti(
+        minuto,
+        ehCasa ? ctx.timeCasa : ctx.timeFora,
+        ehCasa ? emCampoCasa : emCampoFora,
+        ehCasa ? ctx.goleiroFora : ctx.goleiroCasa,
+        rng,
+      );
+      // Infrator do time que defende (toque de mão flagrado — sem cartão).
+      const ofensor =
+        emCampoDefesa[Math.floor(rng() * emCampoDefesa.length)] ??
+        emCampoDefesa[0];
+      if (ofensor) {
+        penalti.evento.jogadorFaltaId = ofensor.id;
+      }
+      penalti.evento.descricao = `VAR flagra pênalti! ${penalti.evento.descricao}`;
+      if (penalti.gol) {
+        if (ehCasa) {
+          estado.placarCasa += 1;
+        } else {
+          estado.placarFora += 1;
+        }
+      }
+      adicionar(penalti.evento);
+    }
   }
 
   // Posse do minuto: usa a força/eventos REAIS deste minuto (nada cosmético).
