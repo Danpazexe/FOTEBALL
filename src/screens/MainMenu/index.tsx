@@ -4,8 +4,9 @@
  * do ScreenContainer.
  */
 
-import React from 'react';
+import React, {useCallback} from 'react';
 import {StyleSheet, Text, View} from 'react-native';
+import {useFocusEffect} from '@react-navigation/native';
 
 import {Botao, Card, ScreenContainer} from '../../components/ui';
 import Escudo from '../../components/Escudo';
@@ -14,6 +15,7 @@ import LogoFoteball from '../../components/LogoFoteball';
 import {cores, espaco, raio} from '../../theme';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation} from '../../navigation/types';
+import {iniciarMusica, pararMusica} from '../../audio/musica';
 import {VERSAO_APP} from '../../version';
 
 function MainMenu(): React.JSX.Element {
@@ -23,6 +25,23 @@ function MainMenu(): React.JSX.Element {
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
   const temporadaAtual = useGameStore(state => state.temporadaAtual);
   const rodadaAtual = useGameStore(state => state.rodadaAtual);
+  const musicaHabilitada = useGameStore(state => state.config.musicaHabilitada);
+  const volumeMusica = useGameStore(state => state.config.volumeMusica);
+  const musicaSelecionada = useGameStore(
+    state => state.config.musicaSelecionada,
+  );
+
+  // Música do menu: toca ao entrar na tela, para ao sair (ou ir pro jogo).
+  useFocusEffect(
+    useCallback(() => {
+      iniciarMusica({
+        faixa: musicaSelecionada,
+        volume: volumeMusica,
+        habilitada: musicaHabilitada,
+      });
+      return () => pararMusica();
+    }, [musicaSelecionada, volumeMusica, musicaHabilitada]),
+  );
 
   const clube = clubeUsuarioId
     ? clubes.find(item => item.id === clubeUsuarioId)

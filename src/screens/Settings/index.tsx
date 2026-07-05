@@ -4,16 +4,29 @@
  * no store em memória — coerente com o escopo atual do projeto.
  */
 
-import React from 'react';
-import {StyleSheet, Switch, Text, View} from 'react-native';
+import React, {useCallback} from 'react';
+import {Pressable, StyleSheet, Switch, Text, View} from 'react-native';
+import {useFocusEffect} from '@react-navigation/native';
 
 import {Botao, ScreenContainer, Section} from '../../components/ui';
 import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, type VelocidadeNarracao} from '../../store/useGameStore';
 import {DIFICULDADES} from '../../engine/carreira/dificuldade';
+import {definirSomHabilitado, definirVolumeEfeitos} from '../../audio/sons';
+import {
+  FAIXAS_MUSICA,
+  definirMusicaHabilitada,
+  definirVolumeMusica,
+  iniciarMusica,
+  pararMusica,
+  selecionarFaixa,
+} from '../../audio/musica';
 import {cores, espaco, raio, sombra} from '../../theme';
 import {VERSAO_APP} from '../../version';
+
+/** Níveis de volume oferecidos (sem lib de slider — controle em degraus). */
+const NIVEIS_VOLUME = [0, 0.25, 0.5, 0.75, 1] as const;
 
 /** Resumo do efeito de cada dificuldade (cobrança da diretoria). */
 const DIFICULDADE_DESC: Record<string, string> = {
@@ -37,6 +50,20 @@ function Settings(): React.JSX.Element {
     {valor: 'normal', rotulo: 'Normal'},
     {valor: 'rapido', rotulo: 'Rápido'},
   ];
+
+  // Prévia ao vivo: enquanto os Ajustes estão abertos, a música do menu toca
+  // para o jogador ouvir a faixa/altura que está escolhendo; para ao sair.
+  useFocusEffect(
+    useCallback(() => {
+      const c = useGameStore.getState().config;
+      iniciarMusica({
+        faixa: c.musicaSelecionada,
+        volume: c.volumeMusica,
+        habilitada: c.musicaHabilitada,
+      });
+      return () => pararMusica();
+    }, []),
+  );
 
   const handleReiniciar = async () => {
     const ok = await confirm({
@@ -83,13 +110,73 @@ function Settings(): React.JSX.Element {
           valor={config.pausarNoIntervalo}
           onValueChange={valor => atualizarConfig({pausarNoIntervalo: valor})}
         />
+      </Section>
+
+      <Section titulo="Áudio">
+        <LinhaSwitch
+          rotulo="Música do menu"
+          descricao="Trilha de fundo nas telas iniciais."
+          valor={config.musicaHabilitada}
+          onValueChange={valor => {
+            atualizarConfig({musicaHabilitada: valor});
+            definirMusicaHabilitada(valor);
+          }}
+        />
+
+        {config.musicaHabilitada ? (
+          <>
+            <Text style={styles.rotuloControle}>Faixa</Text>
+            <View style={styles.chipRow}>
+              {FAIXAS_MUSICA.map(faixa => {
+                const ativo = config.musicaSelecionada === faixa.id;
+                return (
+                  <View key={faixa.id} style={styles.chipWrap}>
+                    <Botao
+                      titulo={faixa.titulo}
+                      variante={ativo ? 'primaria' : 'secundaria'}
+                      onPress={() => {
+                        atualizarConfig({musicaSelecionada: faixa.id});
+                        selecionarFaixa(faixa.id);
+                      }}
+                    />
+                  </View>
+                );
+              })}
+            </View>
+
+            <Text style={styles.rotuloControle}>Altura da música</Text>
+            <SeletorVolume
+              valor={config.volumeMusica}
+              onChange={valor => {
+                atualizarConfig({volumeMusica: valor});
+                definirVolumeMusica(valor);
+              }}
+            />
+          </>
+        ) : null}
 
         <LinhaSwitch
           rotulo="Efeitos sonoros"
-          descricao="Som de gol e de apito final durante a narração."
+          descricao="Narração, gols, apitos e ambiente do estádio na partida."
           valor={config.som}
-          onValueChange={valor => atualizarConfig({som: valor})}
+          onValueChange={valor => {
+            atualizarConfig({som: valor});
+            definirSomHabilitado(valor);
+          }}
         />
+
+        {config.som ? (
+          <>
+            <Text style={styles.rotuloControle}>Volume dos efeitos</Text>
+            <SeletorVolume
+              valor={config.volumeEfeitos}
+              onChange={valor => {
+                atualizarConfig({volumeEfeitos: valor});
+                definirVolumeEfeitos(valor);
+              }}
+            />
+          </>
+        ) : null}
       </Section>
 
       <Section titulo="Dificuldade">
@@ -143,6 +230,41 @@ function Settings(): React.JSX.Element {
   );
 }
 
+/** Controle de volume em degraus (mudo a 100%) — sem lib de slider. */
+function SeletorVolume({
+  valor,
+  onChange,
+}: {
+  valor: number;
+  onChange: (valor: number) => void;
+}): React.JSX.Element {
+  return (
+    <View style={styles.volumeRow}>
+      {NIVEIS_VOLUME.map(nivel => {
+        const ativo = Math.abs(valor - nivel) < 0.01;
+        return (
+          <Pressable
+            key={nivel}
+            onPress={() => onChange(nivel)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              nivel === 0 ? 'Mudo' : `${Math.round(nivel * 100)} por cento`
+            }
+            style={[styles.volumeChip, ativo && styles.volumeChipAtivo]}>
+            <Text
+              style={[
+                styles.volumeChipTxt,
+                ativo && styles.volumeChipTxtAtivo,
+              ]}>
+              {nivel === 0 ? 'Mudo' : `${Math.round(nivel * 100)}%`}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 type LinhaSwitchProps = {
   rotulo: string;
   descricao: string;
@@ -191,12 +313,46 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 2,
   },
+  rotuloControle: {
+    color: cores.texto,
+    fontSize: 13,
+    fontWeight: '800',
+    marginTop: espaco.xs,
+  },
   chipRow: {
     flexDirection: 'row',
     gap: espaco.sm,
   },
   chipWrap: {
     flex: 1,
+  },
+  volumeRow: {
+    flexDirection: 'row',
+    gap: espaco.xs,
+    marginTop: espaco.xs,
+  },
+  volumeChip: {
+    alignItems: 'center',
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaClara,
+    borderRadius: raio.md,
+    borderWidth: 1,
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 36,
+    paddingHorizontal: 2,
+  },
+  volumeChipAtivo: {
+    backgroundColor: cores.primaria,
+    borderColor: cores.primaria,
+  },
+  volumeChipTxt: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  volumeChipTxtAtivo: {
+    color: cores.contrastePrimaria,
   },
   linhaSwitch: {
     alignItems: 'center',

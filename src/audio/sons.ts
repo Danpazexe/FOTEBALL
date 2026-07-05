@@ -54,9 +54,11 @@ const prontos = new Set<NomeSom>();
 const pendentes = new Set<NomeSom>();
 let carregado = false;
 let habilitado = true;
+/** Volume mestre dos efeitos/narração (0-1), controlado pelos Ajustes. */
+let volumeEfeitos = 1;
 /** Ambiente de estádio pedido (loop) — retomado quando o arquivo termina de carregar. */
 let torcidaAtiva = false;
-/** Volume do ambiente de torcida (fundo discreto, não abafa os lances). */
+/** Volume-base do ambiente de torcida (fundo discreto), antes do volume mestre. */
 const VOLUME_TORCIDA = 0.35;
 
 function reproduzirTorcida(): void {
@@ -65,7 +67,7 @@ function reproduzirTorcida(): void {
     return;
   }
   som.setNumberOfLoops(-1);
-  som.setVolume(VOLUME_TORCIDA);
+  som.setVolume(VOLUME_TORCIDA * volumeEfeitos);
   som.play();
 }
 
@@ -74,6 +76,7 @@ function reproduzir(nome: NomeSom): void {
   if (!habilitado || !som) {
     return;
   }
+  som.setVolume(volumeEfeitos);
   // Reinicia antes de tocar para permitir lances em sequência.
   som.stop(() => {
     som.play(() => {
@@ -128,6 +131,18 @@ export function definirSomHabilitado(valor: boolean): void {
     sons.get('torcida')?.stop();
   } else if (torcidaAtiva) {
     reproduzirTorcida();
+  }
+}
+
+/**
+ * Ajusta o volume mestre dos efeitos/narração (0-1). Aplica na hora ao ambiente
+ * de torcida que já está tocando; os lances usam o novo volume no próximo toque.
+ */
+export function definirVolumeEfeitos(valor: number): void {
+  volumeEfeitos = Math.max(0, Math.min(1, valor));
+  const torcida = sons.get('torcida');
+  if (torcida && torcidaAtiva) {
+    torcida.setVolume(VOLUME_TORCIDA * volumeEfeitos);
   }
 }
 

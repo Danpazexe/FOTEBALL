@@ -22,6 +22,18 @@
 		FB6D10000000000000000008 /* intervalo.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000008 /* intervalo.mp3 */; };
 		FB6D10000000000000000009 /* fimjogo.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000009 /* fimjogo.mp3 */; };
 		FB6D10000000000000000010 /* fimjogo2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000010 /* fimjogo2.mp3 */; };
+		FB6D10000000000000000011 /* amarelo.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000011 /* amarelo.mp3 */; };
+		FB6D10000000000000000012 /* apitoinicial.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000012 /* apitoinicial.mp3 */; };
+		FB6D10000000000000000013 /* bolanatrave.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000013 /* bolanatrave.mp3 */; };
+		FB6D10000000000000000014 /* chance1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000014 /* chance1.mp3 */; };
+		FB6D10000000000000000015 /* chance2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000015 /* chance2.mp3 */; };
+		FB6D10000000000000000016 /* penaltimarcado.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000016 /* penaltimarcado.mp3 */; };
+		FB6D10000000000000000017 /* substituicao.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000017 /* substituicao.mp3 */; };
+		FB6D10000000000000000018 /* torcida.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000018 /* torcida.mp3 */; };
+		FB6D10000000000000000019 /* varanulado.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000019 /* varanulado.mp3 */; };
+		FB6D10000000000000000020 /* lobby1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000020 /* lobby1.mp3 */; };
+		FB6D10000000000000000021 /* lobby2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000021 /* lobby2.mp3 */; };
+		FB6D10000000000000000022 /* lobby3.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000022 /* lobby3.mp3 */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +57,18 @@
 		FA6D10000000000000000008 /* intervalo.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = intervalo.mp3; path = ../src/audio/intervalo.mp3; sourceTree = "<group>"; };
 		FA6D10000000000000000009 /* fimjogo.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = fimjogo.mp3; path = ../src/audio/fimjogo.mp3; sourceTree = "<group>"; };
 		FA6D10000000000000000010 /* fimjogo2.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = fimjogo2.mp3; path = ../src/audio/fimjogo2.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000011 /* amarelo.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = amarelo.mp3; path = ../src/audio/amarelo.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000012 /* apitoinicial.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = apitoinicial.mp3; path = ../src/audio/apitoinicial.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000013 /* bolanatrave.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = bolanatrave.mp3; path = ../src/audio/bolanatrave.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000014 /* chance1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = chance1.mp3; path = ../src/audio/chance1.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000015 /* chance2.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = chance2.mp3; path = ../src/audio/chance2.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000016 /* penaltimarcado.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = penaltimarcado.mp3; path = ../src/audio/penaltimarcado.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000017 /* substituicao.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = substituicao.mp3; path = ../src/audio/substituicao.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000018 /* torcida.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = torcida.mp3; path = ../src/audio/torcida.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000019 /* varanulado.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = varanulado.mp3; path = ../src/audio/varanulado.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000020 /* lobby1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = lobby1.mp3; path = ../src/audio/lobby/lobby1.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000021 /* lobby2.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = lobby2.mp3; path = ../src/audio/lobby/lobby2.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000022 /* lobby3.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = lobby3.mp3; path = ../src/audio/lobby/lobby3.mp3; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -132,6 +156,18 @@
 				FA6D10000000000000000008 /* intervalo.mp3 */,
 				FA6D10000000000000000009 /* fimjogo.mp3 */,
 				FA6D10000000000000000010 /* fimjogo2.mp3 */,
+				FA6D10000000000000000011 /* amarelo.mp3 */,
+				FA6D10000000000000000012 /* apitoinicial.mp3 */,
+				FA6D10000000000000000013 /* bolanatrave.mp3 */,
+				FA6D10000000000000000014 /* chance1.mp3 */,
+				FA6D10000000000000000015 /* chance2.mp3 */,
+				FA6D10000000000000000016 /* penaltimarcado.mp3 */,
+				FA6D10000000000000000017 /* substituicao.mp3 */,
+				FA6D10000000000000000018 /* torcida.mp3 */,
+				FA6D10000000000000000019 /* varanulado.mp3 */,
+				FA6D10000000000000000020 /* lobby1.mp3 */,
+				FA6D10000000000000000021 /* lobby2.mp3 */,
+				FA6D10000000000000000022 /* lobby3.mp3 */,
 			);
 			name = Audio;
 			sourceTree = "<group>";
@@ -209,6 +245,18 @@
 				FB6D10000000000000000008 /* intervalo.mp3 in Resources */,
 				FB6D10000000000000000009 /* fimjogo.mp3 in Resources */,
 				FB6D10000000000000000010 /* fimjogo2.mp3 in Resources */,
+				FB6D10000000000000000011 /* amarelo.mp3 in Resources */,
+				FB6D10000000000000000012 /* apitoinicial.mp3 in Resources */,
+				FB6D10000000000000000013 /* bolanatrave.mp3 in Resources */,
+				FB6D10000000000000000014 /* chance1.mp3 in Resources */,
+				FB6D10000000000000000015 /* chance2.mp3 in Resources */,
+				FB6D10000000000000000016 /* penaltimarcado.mp3 in Resources */,
+				FB6D10000000000000000017 /* substituicao.mp3 in Resources */,
+				FB6D10000000000000000018 /* torcida.mp3 in Resources */,
+				FB6D10000000000000000019 /* varanulado.mp3 in Resources */,
+				FB6D10000000000000000020 /* lobby1.mp3 in Resources */,
+				FB6D10000000000000000021 /* lobby2.mp3 in Resources */,
+				FB6D10000000000000000022 /* lobby3.mp3 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

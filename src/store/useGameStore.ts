@@ -188,6 +188,14 @@ export interface ConfigJogo {
   confirmarAcoes: boolean;
   pausarNoIntervalo: boolean;
   som: boolean;
+  /** Volume dos efeitos/narração (0-1). */
+  volumeEfeitos: number;
+  /** Música de fundo (lobby) ligada. */
+  musicaHabilitada: boolean;
+  /** Volume da música (0-1). */
+  volumeMusica: number;
+  /** Faixa de música selecionada (índice em FAIXAS_MUSICA). */
+  musicaSelecionada: number;
   /** Nível de dificuldade (cobrança da diretoria). */
   dificuldade: Dificuldade;
 }
@@ -209,6 +217,10 @@ export const CONFIG_PADRAO: ConfigJogo = {
   confirmarAcoes: true,
   pausarNoIntervalo: true,
   som: true,
+  volumeEfeitos: 1,
+  musicaHabilitada: true,
+  volumeMusica: 0.5,
+  musicaSelecionada: 0,
   dificuldade: 'Normal',
 };
 
