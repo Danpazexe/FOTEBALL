@@ -21,6 +21,7 @@ import type {
   TabelaClassificacao,
 } from '../types';
 import {REPUTACAO_INICIAL} from '../engine/carreira/carreiraEngine';
+import {sugerirCapitao} from '../engine/carreira/capitao';
 import {comHabilidades} from '../engine/progression/habilidades';
 import {comTipo} from '../engine/progression/tipoJogador';
 import {CONFIG_PADRAO, type ConfigJogo, type GameState} from './useGameStore';
@@ -96,6 +97,21 @@ export function montarSnapshot(
   };
 }
 
+/** Atribui um capitão padrão aos clubes sem um (saves anteriores ao capitão). */
+function comCapitaoPadrao(clubes: Clube[], jogadores: Player[]): Clube[] {
+  return clubes.map(clube =>
+    clube.capitaoId
+      ? clube
+      : {
+          ...clube,
+          capitaoId:
+            sugerirCapitao(
+              jogadores.filter(jogador => jogador.clubeId === clube.id),
+            ) ?? undefined,
+        },
+  );
+}
+
 /** Reconstrói a fatia de estado a aplicar via `useGameStore.setState`. */
 export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
   return {
@@ -105,7 +121,7 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     dataAtual: snapshot.dataAtual ?? `${snapshot.temporadaAtual}-04-04`,
     treinouProximoJogo: snapshot.treinouProximoJogo ?? false,
     conversouComGrupo: snapshot.conversouComGrupo ?? false,
-    clubes: snapshot.clubes,
+    clubes: comCapitaoPadrao(snapshot.clubes, snapshot.jogadores),
     // Migração: saves anteriores ao sistema de habilidades/tipo não têm esses
     // campos — deriva no load (no-op para quem já tem).
     jogadores: snapshot.jogadores.map(comHabilidades).map(comTipo),
@@ -123,7 +139,14 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
     // só a Série A). Aplica a migração de habilidades/tipo também aqui.
-    ...(snapshot.todosClubes ? {todosClubes: snapshot.todosClubes} : {}),
+    ...(snapshot.todosClubes
+      ? {
+          todosClubes: comCapitaoPadrao(
+            snapshot.todosClubes,
+            snapshot.todosJogadores ?? snapshot.jogadores,
+          ),
+        }
+      : {}),
     ...(snapshot.todosJogadores
       ? {
           todosJogadores: snapshot.todosJogadores

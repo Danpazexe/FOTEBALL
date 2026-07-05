@@ -12,6 +12,7 @@ import {
   posicaoPorCoordenada,
   preencherCoordenadas,
 } from '../../../engine/tactics/geometria';
+import {sugerirCapitao} from '../../../engine/carreira/capitao';
 
 export const TEMPLATES_FORMACAO: Record<FormacaoPreset, Position[]> = {
   '4-4-2': ['GOL', 'LD', 'ZAG', 'ZAG', 'LE', 'VOL', 'MC', 'MC', 'MEI', 'CA', 'SA'],
@@ -244,6 +245,9 @@ export function aplicarDefaultsClube(clube: Clube, jogadores: Player[]): Clube {
     ...clube,
     formacaoAtual: clube.formacaoAtual ?? criarFormacaoDefault(elenco),
     taticaAtual: clube.taticaAtual ?? taticaDefault,
+    // Capitão padrão (melhor líder do elenco) — senão nenhum time começa com
+    // capitão e o © nunca aparece na escalação.
+    capitaoId: clube.capitaoId ?? sugerirCapitao(elenco) ?? undefined,
     // Substitui o estádio genérico do seed por um real/variado por clube.
     estadio: estadioDoClube(clube.id, clube.nome),
   };
