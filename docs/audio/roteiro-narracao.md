@@ -1,9 +1,12 @@
 # 🎙️ Roteiro de narração — FOTEBALL Manager
 
-**Narrador:** Luiz Felipe Freitas
 **Tom:** emocionado, estilo rádio/TV brasileira. Frases curtas (1–3s), sem citar
 nome de jogador, time ou placar (isso fica no texto da tela). Grave **cada
 variação como um arquivo separado** — o jogo escolhe qual tocar.
+
+> **Status (já no jogo):** ligados os áudios de **cartão amarelo**, **chance
+> perdida** (2 variações), **VAR / gol anulado** e o **loop de torcida**. Faltam
+> mapear 2 clipes ambíguos (início/fim) e gravar os demais eventos listados abaixo.
 
 ---
 
