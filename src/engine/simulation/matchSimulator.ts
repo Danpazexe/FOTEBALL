@@ -435,6 +435,44 @@ function simularChance(
   );
 }
 
+/**
+ * Cobrança de falta perigosa (bola parada). O batedor é o ESPECIALISTA da equipe
+ * (finalização + passe) — protagonismo. Gol de falta é RARO (~1 a cada 40 jogos):
+ * base baixa, escalada pela qualidade do cobrador contra o goleiro adversário.
+ */
+function simularFaltaCobranca(
+  minuto: number,
+  clube: Clube,
+  jogadores: Player[],
+  goleiroAdversario: Player | undefined,
+  rng: RandomGenerator,
+): {evento: EventoPartida; gol: boolean} {
+  const cobrador = escolherJogadorPonderado(
+    jogadores,
+    rng,
+    atleta =>
+      ((atleta.atributos.finalizacao * 0.6 + atleta.atributos.passe * 0.4) / 60) *
+      pesoGol(atleta.posicaoPrincipal),
+  );
+  const qualidade = cobrador.atributos.finalizacao / 100;
+  const defesaGoleiro = goleiroAdversario
+    ? (goleiroAdversario.atributos.reflexos +
+        goleiroAdversario.atributos.posicionamento) /
+      200
+    : 0.6;
+  const gol = rng() < limitar(0.03 * qualidade * (1.2 - defesaGoleiro), 0.006, 0.06);
+  const evento = criarEvento(
+    minuto,
+    gol ? 'gol' : 'falta_cobranca',
+    clube.id,
+    cobrador,
+    gol
+      ? `Golaço de falta de ${cobrador.nome}!`
+      : `${cobrador.nome} cobra uma falta perigosa.`,
+  );
+  return {evento, gol};
+}
+
 /** Estado mutável de uma partida simulada minuto a minuto (ao vivo). */
 export interface EstadoPartidaAoVivo {
   rng: RandomGenerator;
@@ -808,6 +846,9 @@ function aplicarFadiga(
  */
 const PROB_VAR_ANULA_GOL = 0.06;
 const PROB_VAR_PENALTI = 0.06;
+// Cobrança de falta perigosa por minuto/time → ~2.5 faltas perigosas/jogo (alvo
+// 1.8–3.2). A grande maioria é lance de perigo; gol de falta é raro (~1/40 jogos).
+const PROB_FALTA_POR_MINUTO = 0.014;
 
 /** Converte um gol em evento de gol ANULADO pelo VAR (não conta no placar). */
 function golAnuladoVAR(golEvento: EventoPartida): EventoPartida {
@@ -1017,6 +1058,36 @@ export function simularMinuto(
         adicionar(penalti.evento);
       }
     }
+  }
+
+  // Cobrança de falta perigosa (bola parada): protagonismo do especialista; o
+  // gol de falta é raro. Fica por ÚLTIMO nos lances para não desalinhar o consumo
+  // de RNG dos blocos já calibrados (gol/cartão/pênalti/lesão/chance).
+  if (emCampoCasa.length > 0 && rng() < PROB_FALTA_POR_MINUTO) {
+    const falta = simularFaltaCobranca(
+      minuto,
+      ctx.timeCasa,
+      emCampoCasa,
+      ctx.goleiroFora,
+      rng,
+    );
+    if (falta.gol) {
+      estado.placarCasa += 1;
+    }
+    adicionar(falta.evento);
+  }
+  if (emCampoFora.length > 0 && rng() < PROB_FALTA_POR_MINUTO) {
+    const falta = simularFaltaCobranca(
+      minuto,
+      ctx.timeFora,
+      emCampoFora,
+      ctx.goleiroCasa,
+      rng,
+    );
+    if (falta.gol) {
+      estado.placarFora += 1;
+    }
+    adicionar(falta.evento);
   }
 
   // Posse do minuto: usa a força/eventos REAIS deste minuto (nada cosmético).
