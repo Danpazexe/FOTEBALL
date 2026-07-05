@@ -32,11 +32,10 @@ import {
 import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
-  CONDICAO_MAX,
-  CONDICAO_MIN,
   INTENSIDADES,
   type IntensidadeTreino,
 } from '../engine/progression/treinoTipos';
+import {aplicarCondicaoPosPartida} from '../engine/progression/condicao';
 import {
   atualizarDerrotasConsecutivas,
   atualizarReputacao,
@@ -560,18 +559,17 @@ function aplicarResultadoNosJogadores(
       diasLesao = Math.max(diasLesao, sortearDuracaoLesao(rngPartida));
     }
 
-    // Preparo físico (BRASFOOT_MASTER §4): a FOLGA de 2-3 dias entre rodadas
-    // RECUPERA condição — por isso jogar não afunda mais o titular. Líquido por
-    // rodada: titular jogou 90' mas descansou (-6), reserva que entrou (+4), quem
-    // ficou de fora recupera cheio (+25). Ainda pesa rodar o elenco em maratona.
+    // Preparo físico (BRASFOOT_MASTER §4/§11): titular joga 90' e cansa (-11),
+    // reserva que entrou cansa leve (-2), quem ficou de fora recupera cheio
+    // (+25). Com a folga + treino leve (+8/rodada), o titular que joga TUDO cai
+    // ~3/rodada e precisa de rodízio; quem descansa volta. Regra em condicao.ts.
     const ehTitular = titularesNoApito.has(jogador.id);
     const participou =
       ehTitular || jogou.has(jogador.id) || jogadorIdsEmCampo.has(jogador.id);
-    const deltaCondicao = ehTitular ? -6 : participou ? 4 : 25;
-    const condicaoFisica = Math.min(
-      CONDICAO_MAX,
-      Math.max(CONDICAO_MIN, jogador.condicaoFisica + deltaCondicao),
-    );
+    const condicaoFisica = aplicarCondicaoPosPartida(jogador.condicaoFisica, {
+      ehTitular,
+      participou,
+    });
 
     const base: Player = {
       ...jogador,
