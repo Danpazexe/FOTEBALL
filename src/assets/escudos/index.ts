@@ -50,6 +50,27 @@ export const ESCUDOS: Record<string, ImageSourcePropType> = {
   club_botafogo_sp: require('./serie-b/club_botafogo_sp.png'),
   club_nautico: require('./serie-b/club_nautico.png'),
   club_londrina: require('./serie-b/club_londrina.png'),
+  // Série C
+  club_serie_c_amazonas: require('./serie-c/club_serie_c_amazonas.png'),
+  club_serie_c_anapolis: require('./serie-c/club_serie_c_anapolis.png'),
+  club_serie_c_barra: require('./serie-c/club_serie_c_barra.png'),
+  club_serie_c_botafogo_pb: require('./serie-c/club_serie_c_botafogo_pb.png'),
+  club_serie_c_brusque: require('./serie-c/club_serie_c_brusque.png'),
+  club_serie_c_caxias: require('./serie-c/club_serie_c_caxias.png'),
+  club_serie_c_confianca: require('./serie-c/club_serie_c_confianca.png'),
+  club_serie_c_ferroviaria: require('./serie-c/club_serie_c_ferroviaria.png'),
+  club_serie_c_figueirense: require('./serie-c/club_serie_c_figueirense.png'),
+  club_serie_c_floresta: require('./serie-c/club_serie_c_floresta.png'),
+  club_serie_c_guarani: require('./serie-c/club_serie_c_guarani.png'),
+  club_serie_c_inter_limeira: require('./serie-c/club_serie_c_inter_limeira.png'),
+  club_serie_c_itabaiana: require('./serie-c/club_serie_c_itabaiana.png'),
+  club_serie_c_ituano: require('./serie-c/club_serie_c_ituano.png'),
+  club_serie_c_maranhao: require('./serie-c/club_serie_c_maranhao.png'),
+  club_serie_c_maringa: require('./serie-c/club_serie_c_maringa.png'),
+  club_serie_c_paysandu: require('./serie-c/club_serie_c_paysandu.png'),
+  club_serie_c_santa_cruz: require('./serie-c/club_serie_c_santa_cruz.png'),
+  club_serie_c_volta_redonda: require('./serie-c/club_serie_c_volta_redonda.png'),
+  club_serie_c_ypiranga: require('./serie-c/club_serie_c_ypiranga.png'),
 };
 
 // Logo por divisão (cada série tem o seu emblema).
