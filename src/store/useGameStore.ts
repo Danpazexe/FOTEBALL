@@ -548,13 +548,14 @@ function aplicarResultadoNosJogadores(
       diasLesao = Math.max(diasLesao, sortearDuracaoLesao(rngPartida));
     }
 
-    // Preparo físico (BRASFOOT_MASTER §4): titular gasta ~90' (-20), reserva que
-    // entrou gasta parcial (-10), e quem ficou de fora DESCANSA e recupera (+25).
-    // É o que obriga a rodar o elenco ao longo das 38 rodadas.
+    // Preparo físico (BRASFOOT_MASTER §4): a FOLGA de 2-3 dias entre rodadas
+    // RECUPERA condição — por isso jogar não afunda mais o titular. Líquido por
+    // rodada: titular jogou 90' mas descansou (-6), reserva que entrou (+4), quem
+    // ficou de fora recupera cheio (+25). Ainda pesa rodar o elenco em maratona.
     const ehTitular = titularesNoApito.has(jogador.id);
     const participou =
       ehTitular || jogou.has(jogador.id) || jogadorIdsEmCampo.has(jogador.id);
-    const deltaCondicao = ehTitular ? -20 : participou ? -10 : 25;
+    const deltaCondicao = ehTitular ? -6 : participou ? 4 : 25;
     const condicaoFisica = Math.min(
       CONDICAO_MAX,
       Math.max(CONDICAO_MIN, jogador.condicaoFisica + deltaCondicao),
