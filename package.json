@@ -8,7 +8,10 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "build:android": "cd android && ./gradlew assembleRelease && echo '✅ APK release: android/app/build/outputs/apk/release/app-release.apk'",
+    "build:android:aab": "cd android && ./gradlew bundleRelease && echo '✅ AAB (Play Store): android/app/build/outputs/bundle/release/app-release.aab'",
+    "build:android:clean": "cd android && ./gradlew clean"
   },
   "dependencies": {
     "@op-engineering/op-sqlite": "^16.2.1",
