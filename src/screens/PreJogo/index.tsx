@@ -15,7 +15,7 @@
  * rolagem), como na tela de Tática.
  */
 
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   Dimensions,
   Pressable,
@@ -189,10 +189,15 @@ function PreJogo(): React.JSX.Element {
     };
   }, [confronto, clubeUsuario, proximo]);
 
-  // Fixa a tática do adversário no estado, pra a simulação (Simular e ao vivo)
-  // usar a MESMA que o preview mostra — leitura honesta.
+  // Fixa a tática do adversário no estado UMA vez por confronto. Cuidado: definir
+  // a tática muda a FORÇA do clube (calcularForcaTime usa a tática), o que
+  // recalcularia `confronto`→`advInfo` e re-dispararia este efeito com uma nova
+  // recomendação — um loop de feedback ("Maximum update depth exceeded"). O guard
+  // por id do adversário corta o loop (a tela remonta a cada nova partida).
+  const advFixadoRef = useRef<string | null>(null);
   useEffect(() => {
-    if (advInfo) {
+    if (advInfo && advFixadoRef.current !== advInfo.id) {
+      advFixadoRef.current = advInfo.id;
       definirTaticaAdversario(advInfo.id, advInfo.tatica);
     }
   }, [advInfo, definirTaticaAdversario]);
