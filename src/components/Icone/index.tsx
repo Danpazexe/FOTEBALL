@@ -42,6 +42,7 @@ import {
   Hand,
   Handshake,
   Home,
+  LayoutGrid,
   Landmark,
   ListOrdered,
   Lock,
@@ -71,6 +72,7 @@ import {cores} from '../../theme';
 
 export type IconeNome =
   | 'inicio'
+  | 'central'
   | 'elenco'
   | 'tatica'
   | 'tabela'
@@ -112,6 +114,7 @@ export type IconeNome =
 /** Nome semântico → componente do Lucide. */
 const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
   inicio: Home,
+  central: LayoutGrid,
   elenco: Users,
   tatica: ClipboardList,
   tabela: ListOrdered,

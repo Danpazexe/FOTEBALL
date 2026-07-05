@@ -23,14 +23,20 @@ const DESTAQUES: Atalho[] = [
   {
     rotulo: 'Elenco',
     icone: 'elenco',
-    descricao: 'Jogadores, moral e status',
-    ir: nav => nav.navigate('MainTabs', {screen: 'Squad'}),
+    descricao: 'Jogadores e status',
+    ir: nav => nav.navigate('Squad'),
   },
   {
     rotulo: 'Tática',
     icone: 'tatica',
     descricao: 'Escalação e estratégia',
-    ir: nav => nav.navigate('MainTabs', {screen: 'Tactics'}),
+    ir: nav => nav.navigate('Tactics'),
+  },
+  {
+    rotulo: 'Treino',
+    icone: 'apito',
+    descricao: 'Treino da semana',
+    ir: nav => nav.navigate('Semana'),
   },
 ];
 
@@ -39,9 +45,7 @@ const GRUPOS: {titulo: string; itens: Atalho[]}[] = [
     titulo: 'Gestão',
     itens: [
       {rotulo: 'Mercado', icone: 'mercado', ir: nav => nav.navigate('TransferMarket')},
-      {rotulo: 'Treino', icone: 'apito', ir: nav => nav.navigate('Semana')},
       {rotulo: 'Contrato', icone: 'dinheiro', ir: nav => nav.navigate('Contratos')},
-      {rotulo: 'Clube', icone: 'clube', ir: nav => nav.navigate('MainTabs', {screen: 'Club'})},
     ],
   },
   {
@@ -59,11 +63,7 @@ function Central(): React.JSX.Element {
 
   return (
     <ScreenContainer scroll>
-      <AppHeader
-        titulo="Central do Técnico"
-        subtitulo="Gestão do clube"
-        onBack={() => nav.goBack()}
-      />
+      <AppHeader titulo="Central do Técnico" subtitulo="Gestão do clube" />
 
       {/* Destaques — uso diário (Elenco / Tática). */}
       <View style={styles.destaquesRow}>

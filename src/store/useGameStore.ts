@@ -32,11 +32,10 @@ import {
 import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
-  CONDICAO_MAX,
-  CONDICAO_MIN,
   INTENSIDADES,
   type IntensidadeTreino,
 } from '../engine/progression/treinoTipos';
+import {aplicarCondicaoPosPartida} from '../engine/progression/condicao';
 import {
   atualizarDerrotasConsecutivas,
   atualizarReputacao,
@@ -188,6 +187,14 @@ export interface ConfigJogo {
   confirmarAcoes: boolean;
   pausarNoIntervalo: boolean;
   som: boolean;
+  /** Volume dos efeitos/narração (0-1). */
+  volumeEfeitos: number;
+  /** Música de fundo (lobby) ligada. */
+  musicaHabilitada: boolean;
+  /** Volume da música (0-1). */
+  volumeMusica: number;
+  /** Faixa de música selecionada (índice em FAIXAS_MUSICA). */
+  musicaSelecionada: number;
   /** Nível de dificuldade (cobrança da diretoria). */
   dificuldade: Dificuldade;
 }
@@ -209,6 +216,10 @@ export const CONFIG_PADRAO: ConfigJogo = {
   confirmarAcoes: true,
   pausarNoIntervalo: true,
   som: true,
+  volumeEfeitos: 1,
+  musicaHabilitada: true,
+  volumeMusica: 0.5,
+  musicaSelecionada: 0,
   dificuldade: 'Normal',
 };
 
@@ -548,17 +559,17 @@ function aplicarResultadoNosJogadores(
       diasLesao = Math.max(diasLesao, sortearDuracaoLesao(rngPartida));
     }
 
-    // Preparo físico (BRASFOOT_MASTER §4): titular gasta ~90' (-20), reserva que
-    // entrou gasta parcial (-10), e quem ficou de fora DESCANSA e recupera (+25).
-    // É o que obriga a rodar o elenco ao longo das 38 rodadas.
+    // Preparo físico (BRASFOOT_MASTER §4/§11): titular joga 90' e cansa (-11),
+    // reserva que entrou cansa leve (-2), quem ficou de fora recupera cheio
+    // (+25). Com a folga + treino leve (+8/rodada), o titular que joga TUDO cai
+    // ~3/rodada e precisa de rodízio; quem descansa volta. Regra em condicao.ts.
     const ehTitular = titularesNoApito.has(jogador.id);
     const participou =
       ehTitular || jogou.has(jogador.id) || jogadorIdsEmCampo.has(jogador.id);
-    const deltaCondicao = ehTitular ? -20 : participou ? -10 : 25;
-    const condicaoFisica = Math.min(
-      CONDICAO_MAX,
-      Math.max(CONDICAO_MIN, jogador.condicaoFisica + deltaCondicao),
-    );
+    const condicaoFisica = aplicarCondicaoPosPartida(jogador.condicaoFisica, {
+      ehTitular,
+      participou,
+    });
 
     const base: Player = {
       ...jogador,

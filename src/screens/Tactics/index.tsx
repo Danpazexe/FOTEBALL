@@ -98,7 +98,11 @@ function Tactics(): React.JSX.Element {
         contentContainerStyle={styles.conteudo}
         scrollEnabled={!arrastando}
         showsVerticalScrollIndicator={false}>
-        <AppHeader titulo="Escalação" subtitulo={clubeUsuario.nome} />
+        <AppHeader
+          titulo="Escalação"
+          subtitulo={clubeUsuario.nome}
+          onBack={() => nav.goBack()}
+        />
 
         <CampoFUT
           clube={clubeUsuario}

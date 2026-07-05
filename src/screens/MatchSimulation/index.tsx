@@ -24,6 +24,7 @@ import {
 import {trocarTitular} from '../../api/database/seed/defaults';
 import {
   definirSomHabilitado,
+  definirVolumeEfeitos,
   iniciarTorcida,
   inicializarSons,
   pararTorcida,
@@ -402,6 +403,7 @@ function MatchSimulation(): React.JSX.Element | null {
     const estado = useGameStore.getState();
     pausarNoIntervaloRef.current = estado.config.pausarNoIntervalo;
     definirSomHabilitado(estado.config.som);
+    definirVolumeEfeitos(estado.config.volumeEfeitos);
     inicializarSons();
     iniciarTorcida();
     tocarInicio();

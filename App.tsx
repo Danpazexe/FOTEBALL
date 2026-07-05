@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {StatusBar, StyleSheet} from 'react-native';
+import {AppState, StatusBar, StyleSheet} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {
   SafeAreaProvider,
@@ -79,27 +79,80 @@ function App(): React.JSX.Element {
       return;
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
+    // Último estado COM carreira ainda não gravado — usado no flush (background).
+    let pendente: ReturnType<typeof useGameStore.getState> | null = null;
+    // Exclusão do save agendada (reinício de carreira) ainda não executada — o
+    // flush precisa saber disso para não engolir o limparSave ao ir pro background.
+    let limparPendente = false;
+
+    const gravar = (
+      estado: ReturnType<typeof useGameStore.getState>,
+    ): void => {
+      const conquistas = conquistasParaSalvar(
+        useAchievementsStore.getState().conquistas,
+      );
+      salvarJogo(estado, conquistas).catch(erro =>
+        console.warn('[save] falha ao gravar:', erro),
+      );
+    };
+
     const cancelar = useGameStore.subscribe(estado => {
       if (timer) {
         clearTimeout(timer);
       }
       if (!estado.clubeUsuarioId) {
+        pendente = null;
+        limparPendente = true;
         timer = setTimeout(() => {
           limparSave().catch(() => {});
+          limparPendente = false;
         }, 300);
         return;
       }
+      limparPendente = false;
+      pendente = estado;
       timer = setTimeout(() => {
-        const conquistas = conquistasParaSalvar(
-          useAchievementsStore.getState().conquistas,
-        );
-        salvarJogo(estado, conquistas).catch(() => {});
+        gravar(estado);
+        pendente = null;
       }, DEBOUNCE_SALVAR_MS);
     });
+
+    // Flush imediato ao mandar o app pro background/inativo (fechar após a
+    // partida): grava JÁ o pendente, sem esperar o debounce — senão o save some.
+    const flush = (proximo: string): void => {
+      if (proximo !== 'background' && proximo !== 'inactive') {
+        return;
+      }
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      if (pendente) {
+        gravar(pendente);
+        pendente = null;
+      }
+      // Exclusão agendada (reinício de carreira) também precisa ir JÁ — senão o
+      // clearTimeout acima a cancelaria e o save antigo voltaria no próximo boot.
+      if (limparPendente) {
+        limparSave().catch(() => {});
+        limparPendente = false;
+      }
+    };
+    const assinaturaApp = AppState.addEventListener('change', flush);
+
     return () => {
       if (timer) {
         clearTimeout(timer);
       }
+      // Grava o pendente ao desmontar também (rede de segurança).
+      if (pendente) {
+        gravar(pendente);
+      }
+      if (limparPendente) {
+        limparSave().catch(() => {});
+        limparPendente = false;
+      }
+      assinaturaApp.remove();
       cancelar();
     };
   }, [carregando]);

@@ -52,7 +52,7 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
   normal: {
     rotulo: 'Normal',
     multiplicadorGanho: 1,
-    deltaCondicao: 2,
+    deltaCondicao: 4,
     deltaForma: 0.4,
     deltaMoral: 0,
     riscoLesaoBase: 0.012,
@@ -61,7 +61,7 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
   forte: {
     rotulo: 'Forte',
     multiplicadorGanho: 1.55,
-    deltaCondicao: -4,
+    deltaCondicao: -1,
     deltaForma: 1,
     deltaMoral: -0.4,
     riscoLesaoBase: 0.032,
@@ -70,7 +70,7 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
   muito_forte: {
     rotulo: 'Muito forte',
     multiplicadorGanho: 2.1,
-    deltaCondicao: -9,
+    deltaCondicao: -4,
     deltaForma: 1.6,
     deltaMoral: -0.9,
     riscoLesaoBase: 0.06,

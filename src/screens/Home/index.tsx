@@ -691,24 +691,6 @@ function Home(): React.JSX.Element {
           </View>
         ) : null}
 
-        {/* Atalho para a Central do Técnico (grade de gestão em tela própria). */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Abrir a Central do Técnico"
-          onPress={() => nav.navigate('Central')}
-          style={({pressed}) => [
-            styles.centralAtalho,
-            pressed ? styles.cardPressed : null,
-          ]}>
-          <Icone nome="clube" tamanho={22} cor={cores.primaria} />
-          <View style={styles.centralAtalhoInfo}>
-            <Text style={styles.centralAtalhoTitulo}>Central do Técnico</Text>
-            <Text style={styles.centralAtalhoSub} numberOfLines={1}>
-              Elenco, mercado, treino, tática, contratos e mais
-            </Text>
-          </View>
-          <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
-        </Pressable>
       </View>
     </ScreenContainer>
   );
@@ -1027,32 +1009,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   copaDetalhe: {
-    color: cores.textoSecundario,
-    fontSize: 12.5,
-  },
-  // Central do Técnico — atalho para a tela própria (grade de gestão).
-  centralAtalho: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.md,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.md,
-    ...sombra.suave,
-  },
-  centralAtalhoInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  centralAtalhoTitulo: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  centralAtalhoSub: {
     color: cores.textoSecundario,
     fontSize: 12.5,
   },
