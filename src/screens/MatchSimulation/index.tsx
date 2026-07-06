@@ -853,7 +853,9 @@ function MatchSimulation(): React.JSX.Element | null {
         novosItens.push({
           minuto: DURACAO,
           tipo: 'acrescimos',
-          descricao: `Acréscimos: +${acrescimos} min`,
+          descricao: `⏱️ O árbitro assinala +${acrescimos} ${
+            acrescimos === 1 ? 'minuto' : 'minutos'
+          } de acréscimo`,
           lado: 'neutro',
         });
       }
