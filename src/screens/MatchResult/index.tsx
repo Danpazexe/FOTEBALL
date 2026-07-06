@@ -32,6 +32,7 @@ import {
 } from '../../engine/simulation/momentos';
 import {acentos, cores, corDoTime, espaco, raio, suaves} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
+import {rotuloMinuto} from '../../utils/minutoPartida';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
 import type {
@@ -960,7 +961,9 @@ function MatchResult(): React.JSX.Element {
                 <View
                   key={`${evento.minuto}-${evento.tipo}-${indice}`}
                   style={styles.timelineLinha}>
-                  <Text style={styles.timelineMinuto}>{evento.minuto}'</Text>
+                  <Text style={styles.timelineMinuto}>
+                    {rotuloMinuto(evento.minuto)}'
+                  </Text>
                   <View
                     style={[
                       styles.timelineFaixa,
