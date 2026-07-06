@@ -239,8 +239,13 @@ export async function carregarJogo(): Promise<ResultadoCarregamento> {
   try {
     const {estado, conquistas} = decodificar(principal);
     return {tipo: 'ok', estado, conquistas, origem: 'principal'};
-  } catch {
-    const backup = await arm.lerBackup();
+  } catch (erroPrincipal) {
+    let backup: string | null = null;
+    try {
+      backup = await arm.lerBackup();
+    } catch {
+      backup = null;
+    }
     if (backup) {
       try {
         const {estado, conquistas} = decodificar(backup);
@@ -249,9 +254,19 @@ export async function carregarJogo(): Promise<ResultadoCarregamento> {
         // backup também ilegível — cai no erro abaixo.
       }
     }
+    // Diagnóstico rico: o erro REAL do decode + tamanho e início do JSON. Se o JSON
+    // estiver truncado (não termina em '}') ou for enorme, é problema de gravação de
+    // string grande; se for SyntaxError com posição, é JSON malformado.
+    const fim = principal.slice(-30);
     return {
       tipo: 'erro',
-      mensagem: 'Save corrompido e sem backup recuperável.',
+      mensagem:
+        `Save corrompido e sem backup recuperável. Detalhe: ${String(
+          erroPrincipal,
+        )} · tamanho=${principal.length} · início="${principal.slice(
+          0,
+          30,
+        )}" · fim="${fim}"`,
     };
   }
 }
