@@ -219,8 +219,8 @@ export const CONFIG_PADRAO: ConfigJogo = {
   som: true,
   volumeEfeitos: 1,
   musicaHabilitada: true,
-  volumeMusica: 0.5,
-  musicaSelecionada: 0,
+  volumeMusica: 0.25,
+  musicaSelecionada: 1,
   dificuldade: 'Normal',
 };
 
