@@ -89,7 +89,7 @@ import {
   suaves,
 } from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
-import {rotuloMinuto} from '../../utils/minutoPartida';
+import {ehMinutoAcrescimo, rotuloMinuto} from '../../utils/minutoPartida';
 import type {
   Clube,
   EventoPartida,
@@ -1172,11 +1172,20 @@ function MatchSimulation(): React.JSX.Element | null {
                       fixture.rodada
                     }`}
                 {' | '}
-                {terminou
-                  ? 'Fim de jogo'
-                  : intervalo
-                  ? 'Intervalo'
-                  : `${minuto}' ao vivo`}
+                {terminou ? (
+                  'Fim de jogo'
+                ) : intervalo ? (
+                  'Intervalo'
+                ) : (
+                  <Text
+                    style={
+                      ehMinutoAcrescimo(minuto)
+                        ? {color: acentos.vermelho}
+                        : undefined
+                    }>
+                    {rotuloMinuto(minuto)}' ao vivo
+                  </Text>
+                )}
               </Text>
               <View style={styles.metaChips}>
                 {estadioCasa ? (
@@ -1305,7 +1314,13 @@ function MatchSimulation(): React.JSX.Element | null {
                 <View
                   style={[styles.jogoFaixa, {backgroundColor: item.corFora}]}
                 />
-                <Text style={styles.jogoMinuto}>
+                <Text
+                  style={[
+                    styles.jogoMinuto,
+                    ehMinutoAcrescimo(minuto) && minuto < duracaoTotal
+                      ? {color: acentos.vermelho}
+                      : null,
+                  ]}>
                   {minuto >= duracaoTotal ? 'FIM' : `${rotuloMinuto(minuto)}'`}
                 </Text>
               </View>
