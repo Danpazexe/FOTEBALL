@@ -52,18 +52,31 @@ function App(): React.JSX.Element {
     let ativo = true;
     carregarJogo()
       .then(resultado => {
-        if (!ativo || resultado.tipo !== 'ok') {
-          // 'vazio' (sem save) e 'erro' (corrompido sem backup) caem no estado
-          // inicial limpo — nunca apagamos o save aqui, para não perder a chance
-          // de recuperação manual de um save danificado.
+        if (!ativo) {
           return;
         }
+        // Log de diagnóstico (visível no Metro/logcat): separa "sem save" (VAZIO)
+        // de "load quebrou" (ERRO) — antes ambos caíam mudos em jogo novo.
+        if (resultado.tipo === 'erro') {
+          console.warn('[boot] load ERRO:', resultado.mensagem);
+          return;
+        }
+        if (resultado.tipo === 'vazio') {
+          console.warn('[boot] load VAZIO — disco sem save');
+          return;
+        }
+        console.warn(
+          '[boot] load OK origem=',
+          resultado.origem,
+          'clubeUsuarioId=',
+          resultado.estado.clubeUsuarioId,
+        );
         useGameStore.setState(resultado.estado);
         useAchievementsStore
           .getState()
           .restaurarConquistas(resultado.conquistas);
       })
-      .catch(() => {})
+      .catch(erro => console.warn('[boot] carregarJogo rejeitou:', erro))
       .finally(() => {
         if (ativo) {
           setCarregando(false);
@@ -96,17 +109,22 @@ function App(): React.JSX.Element {
       );
     };
 
-    const cancelar = useGameStore.subscribe(estado => {
+    const cancelar = useGameStore.subscribe((estado, anterior) => {
       if (timer) {
         clearTimeout(timer);
       }
       if (!estado.clubeUsuarioId) {
         pendente = null;
-        limparPendente = true;
-        timer = setTimeout(() => {
-          limparSave().catch(() => {});
-          limparPendente = false;
-        }, 300);
+        // Só apaga o save quando o usuário SAI de uma carreira (reinício
+        // explícito): transição clubeUsuarioId setado → null. NUNCA apaga por um
+        // null "de boot" (ex.: load que falhou), o que destruiria um save válido.
+        if (anterior.clubeUsuarioId) {
+          limparPendente = true;
+          timer = setTimeout(() => {
+            limparSave().catch(() => {});
+            limparPendente = false;
+          }, 300);
+        }
         return;
       }
       limparPendente = false;

@@ -220,8 +220,19 @@ function decodificar(json: string): {
  * retorna erro (sem nunca apagar nada nem fingir que não há save).
  */
 export async function carregarJogo(): Promise<ResultadoCarregamento> {
-  const arm = await obterArmazenamento();
-  const principal = await arm.ler();
+  // Abrir/ler o save PODE lançar (SQLite indisponível, I/O, import dinâmico). Se
+  // isso ficar fora do try, a exceção sobe e o boot (App.tsx) a engole, iniciando
+  // como jogo novo SEM distinguir "sem save" de "load quebrado". Capturamos aqui e
+  // devolvemos 'erro' tipado (nunca rejeita silencioso) — assim o boot loga e o
+  // save NÃO é tratado como inexistente (evita apagá-lo por engano).
+  let arm: ArmazenamentoSave;
+  let principal: string | null;
+  try {
+    arm = await obterArmazenamento();
+    principal = await arm.ler();
+  } catch (erro) {
+    return {tipo: 'erro', mensagem: `Falha ao abrir/ler o save: ${String(erro)}`};
+  }
   if (!principal) {
     return {tipo: 'vazio'};
   }
