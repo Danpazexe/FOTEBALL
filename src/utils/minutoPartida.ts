@@ -9,3 +9,8 @@ export function rotuloMinuto(minuto: number): string {
   }
   return String(minuto);
 }
+
+/** Se o minuto é de acréscimo (2º tempo) — usado para destacar em cor na UI. */
+export function ehMinutoAcrescimo(minuto: number): boolean {
+  return minuto > 90;
+}
