@@ -119,6 +119,17 @@ describe('persistence', () => {
     expect(await carregarJogo()).toEqual({tipo: 'vazio'});
   });
 
+  it('carregarJogo devolve {tipo:"erro"} (não rejeita) se a LEITURA lançar', async () => {
+    // Regressão do P0 "inicia como novo jogo": se o SQLite falhar ao abrir/ler no
+    // device, carregarJogo NÃO pode propagar a exceção (o boot a engoliria e viraria
+    // jogo novo silencioso). Tem que virar 'erro' tipado, distinto de 'vazio'.
+    const arm = armazenamentoMemoria();
+    arm.ler = () => Promise.reject(new Error('SQLite indisponível'));
+    definirArmazenamentoSave(arm);
+    const resultado = await carregarJogo();
+    expect(resultado.tipo).toBe('erro');
+  });
+
   it('salvarJogo + carregarJogo reidrata o estado e as conquistas', async () => {
     definirArmazenamentoSave(armazenamentoMemoria());
     const estado = useGameStore.getState();

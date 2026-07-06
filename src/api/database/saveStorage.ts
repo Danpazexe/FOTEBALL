@@ -51,6 +51,15 @@ export function criarArmazenamentoSqlite(): ArmazenamentoSave {
         'INSERT OR REPLACE INTO save_state (id, snapshot) VALUES (?, ?)',
         [ID_ATUAL, json],
       );
+      // Verificação pós-escrita: relê o que gravou. Se não bater, o "salvo" seria
+      // MENTIRA — lançamos para o indicador sumir e o log acusar (em vez de o
+      // usuário achar que salvou e perder tudo ao reabrir).
+      const conferido = await lerLinha(base, ID_ATUAL);
+      if (conferido !== json) {
+        throw new Error(
+          'Verificação pós-escrita falhou: o save não persistiu no SQLite.',
+        );
+      }
     },
 
     async ler(): Promise<string | null> {

@@ -22,7 +22,6 @@ import {LOGO_COPA} from '../../assets/escudos';
 const FUNDO_ESTADIO = require('../../assets/planodefundo.jpg');
 import FormaRecente from '../../components/FormaRecente';
 import Icone from '../../components/Icone';
-import DiscoVinil from '../../components/DiscoVinil';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
@@ -721,7 +720,6 @@ function Home(): React.JSX.Element {
           ) : null}
         </View>
       </ScreenContainer>
-      <DiscoVinil />
     </View>
   );
 }
