@@ -27,6 +27,7 @@ import {
 } from './matchStats';
 import {
   criarRNGComSeed,
+  hashString,
   inteiroEntre,
   limitar,
   type RandomGenerator,
@@ -1218,10 +1219,21 @@ export function simularMinuto(
   return novos;
 }
 
+/**
+ * Minutos de acréscimo do 2º tempo (2–5), DETERMINÍSTICOS pela seed da partida.
+ * Fonte única usada por TODOS os caminhos de simulação (headless, ao vivo, preview
+ * dos outros jogos) — garante que a mesma partida tenha sempre a mesma duração e o
+ * mesmo placar, mantendo o invariante "ao vivo == simularPartida".
+ */
+export function acrescimosDaSeed(seed: number): number {
+  return 2 + (hashString(`${seed}_acrescimos`) % 4);
+}
+
 export function simularPartida(input: SimularPartidaInput): Partida {
   const estado = iniciarPartidaAoVivo(input.seed);
+  const totalMinutos = 90 + acrescimosDaSeed(input.seed);
 
-  for (let minuto = 1; minuto <= 90; minuto += 1) {
+  for (let minuto = 1; minuto <= totalMinutos; minuto += 1) {
     // Recalcula o contexto a cada minuto: expulsões, lesões e fadiga passam a
     // valer no resto do jogo (paridade com o modo ao vivo).
     const ctx = calcularContextoMinuto(

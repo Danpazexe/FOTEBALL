@@ -1,6 +1,7 @@
 import type {Clube, Formacao, Player, Position, Tatica} from '../../../types';
 
 import {
+  acrescimosDaSeed,
   calcularContextoMinuto,
   calcularPossePartida,
   disputarPenaltis,
@@ -716,8 +717,10 @@ describe('rodada ao vivo — equivalência incremental × simularPartida', () =>
       });
 
       // Caminho AO VIVO (o que a tela faz: minuto a minuto, contexto por minuto).
+      // Inclui os acréscimos do 2º tempo — mesma fórmula por seed do simularPartida.
       const estado = iniciarPartidaAoVivo(seed);
-      for (let minuto = 1; minuto <= 90; minuto += 1) {
+      const totalMinutos = 90 + acrescimosDaSeed(seed);
+      for (let minuto = 1; minuto <= totalMinutos; minuto += 1) {
         const ctx = calcularContextoMinuto(
           timeCasa,
           timeFora,

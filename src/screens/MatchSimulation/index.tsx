@@ -63,6 +63,7 @@ import {
 } from '../../engine/simulation/narrativeTemplates';
 import {
   calcularContextoMinuto,
+  acrescimosDaSeed,
   calcularEstatisticasFinais,
   calcularPossePartida,
   disputarPenaltis,
@@ -88,6 +89,7 @@ import {
   suaves,
 } from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
+import {rotuloMinuto} from '../../utils/minutoPartida';
 import type {
   Clube,
   EventoPartida,
@@ -118,7 +120,6 @@ const DURACAO = 90;
 // Limite oficial do Brasileirão: 5 substituições por equipe.
 const MAX_SUBSTITUICOES = 5;
 const SEG_INTERVALO = MINUTO_INTERVALO * 60;
-const DURACAO_SEG = DURACAO * 60;
 // Velocidades de tempo (multiplicadores). A cada tick o relógio avança
 // PASSO_BASE × multiplicador segundos de jogo: 1x é o ritmo base, 10x voa.
 const MULTIPLICADORES = [1, 2, 5, 10] as const;
@@ -156,6 +157,8 @@ type JogoAoVivo = {
   /** Estado vivo (placar/eventos evoluem minuto a minuto). */
   estado: EstadoPartidaAoVivo;
   minutoSimulado: number;
+  /** Acréscimos do 2º tempo deste jogo (mesma fórmula por seed do store). */
+  acrescimos: number;
 };
 
 /** Placar de um jogo para render (derivado do estado vivo a cada minuto). */
@@ -219,6 +222,9 @@ function criarJogosAoVivo(
         st.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
       ),
       minutoSimulado: 0,
+      acrescimos: acrescimosDaSeed(
+        st.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
+      ),
     });
   }
   return lista;
@@ -231,7 +237,10 @@ function criarJogosAoVivo(
  */
 function avancarJogosAoVivo(jogos: JogoAoVivo[], alvo: number): void {
   for (const jogo of jogos) {
-    while (jogo.minutoSimulado < alvo) {
+    // Cada jogo tem seu próprio fim (90 + acréscimos dele), então nunca passa do
+    // total mesmo que o relógio da SUA partida vá além.
+    const alvoJogo = Math.min(alvo, DURACAO + jogo.acrescimos);
+    while (jogo.minutoSimulado < alvoJogo) {
       let ctx;
       try {
         ctx = calcularContextoMinuto(
@@ -376,7 +385,12 @@ function MatchSimulation(): React.JSX.Element | null {
   const nomesRef = useRef<Record<string, string>>({});
   const ladoUsuarioRef = useRef<LadoLance>('casa');
   const pausarNoIntervaloRef = useRef(true);
-  const marcosRef = useRef({intervalo: false, segundoTempo: false, fim: false});
+  const marcosRef = useRef({
+    intervalo: false,
+    segundoTempo: false,
+    acrescimos: false,
+    fim: false,
+  });
   const comitadoRef = useRef(false);
 
   const pulsePlacar = useRef(new Animated.Value(1)).current;
@@ -387,6 +401,11 @@ function MatchSimulation(): React.JSX.Element | null {
   const saborGolRef = useRef<'normal' | 'contra' | 'falhaGoleiro'>('normal');
 
   const [relogioSeg, setRelogioSeg] = useState(0);
+  // Acréscimos do 2º tempo (2–5 min), determinísticos pela seed da partida (mesma
+  // fórmula do motor headless → o placar ao vivo bate com o simularPartida do store).
+  const [acrescimos, setAcrescimos] = useState(3);
+  const duracaoTotal = DURACAO + acrescimos;
+  const duracaoTotalSeg = duracaoTotal * 60;
   const [multiplicador, setMultiplicador] = useState<number>(() =>
     useGameStore.getState().config.velocidadeNarracao === 'rapido' ? 5 : 2,
   );
@@ -477,7 +496,9 @@ function MatchSimulation(): React.JSX.Element | null {
         ...estado.jogadores,
         ...advJogadores,
       ]);
-      estadoRef.current = iniciarPartidaAoVivo(hashString(meu.id) % 1_000_000);
+      const seedPartida = hashString(meu.id) % 1_000_000;
+      estadoRef.current = iniciarPartidaAoVivo(seedPartida);
+      setAcrescimos(acrescimosDaSeed(seedPartida));
 
       setSiglaCasa(siglaClube(estado.clubes, userId));
       setSiglaFora(advClube.sigla);
@@ -510,11 +531,11 @@ function MatchSimulation(): React.JSX.Element | null {
       nomeCasaRef.current = nomeClube(estado.clubes, proximo.timeCasa);
       nomeForaRef.current = nomeClube(estado.clubes, proximo.timeFora);
       nomesRef.current = mapearNomesJogadores(estado.jogadores);
-      estadoRef.current = iniciarPartidaAoVivo(
+      const seedPartida =
         estado.rodadaAtual * 1000 +
-          (proximo.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0) %
-            1000),
-      );
+        (proximo.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 1000);
+      estadoRef.current = iniciarPartidaAoVivo(seedPartida);
+      setAcrescimos(acrescimosDaSeed(seedPartida));
       setSiglaCasa(siglaClube(estado.clubes, proximo.timeCasa));
       setSiglaFora(siglaClube(estado.clubes, proximo.timeFora));
       outrosJogosRef.current = criarJogosAoVivo(estado, proximo.id);
@@ -554,8 +575,8 @@ function MatchSimulation(): React.JSX.Element | null {
     }, []),
   );
 
-  const minuto = Math.min(DURACAO, Math.floor(relogioSeg / 60));
-  const terminou = fixture !== null && relogioSeg >= DURACAO_SEG;
+  const minuto = Math.min(duracaoTotal, Math.floor(relogioSeg / 60));
+  const terminou = fixture !== null && relogioSeg >= duracaoTotalSeg;
 
   // Intervalo: ao chegar aos 45:00 para e espera o usuário.
   useEffect(() => {
@@ -578,8 +599,8 @@ function MatchSimulation(): React.JSX.Element | null {
     const passoSeg = PASSO_BASE_SEG * multiplicador;
     const id = setInterval(() => {
       setRelogioSeg(atual => {
-        if (atual >= DURACAO_SEG) {
-          return DURACAO_SEG;
+        if (atual >= duracaoTotalSeg) {
+          return duracaoTotalSeg;
         }
         const prox = atual + passoSeg;
         if (
@@ -589,7 +610,7 @@ function MatchSimulation(): React.JSX.Element | null {
         ) {
           return SEG_INTERVALO;
         }
-        return Math.min(prox, DURACAO_SEG);
+        return Math.min(prox, duracaoTotalSeg);
       });
     }, tickMs);
     return () => clearInterval(id);
@@ -600,6 +621,7 @@ function MatchSimulation(): React.JSX.Element | null {
     intervalo,
     segundoTempoLiberado,
     multiplicador,
+    duracaoTotalSeg,
   ]);
 
   // SIMULAÇÃO AO VIVO: simula os minutos ainda não simulados até o minuto atual,
@@ -609,7 +631,7 @@ function MatchSimulation(): React.JSX.Element | null {
     if (!fixture || !estado) {
       return;
     }
-    const alvo = Math.min(minuto, DURACAO);
+    const alvo = Math.min(minuto, duracaoTotal);
     if (minutoSimuladoRef.current >= alvo) {
       return;
     }
@@ -821,10 +843,24 @@ function MatchSimulation(): React.JSX.Element | null {
           placarPill: `${estado.placarCasa} - ${estado.placarFora}`,
         });
       }
-      if (proximoMinuto === DURACAO && !marcosRef.current.fim) {
-        marcosRef.current.fim = true;
+      // Aos 90': anuncia os minutos de acréscimo (o jogo segue até 90+X).
+      if (
+        proximoMinuto === DURACAO &&
+        acrescimos > 0 &&
+        !marcosRef.current.acrescimos
+      ) {
+        marcosRef.current.acrescimos = true;
         novosItens.push({
           minuto: DURACAO,
+          tipo: 'acrescimos',
+          descricao: `Acréscimos: +${acrescimos} min`,
+          lado: 'neutro',
+        });
+      }
+      if (proximoMinuto === duracaoTotal && !marcosRef.current.fim) {
+        marcosRef.current.fim = true;
+        novosItens.push({
+          minuto: duracaoTotal,
           tipo: 'fim',
           descricao: narrarFim(
             nomeCasaRef.current,
@@ -884,7 +920,16 @@ function MatchSimulation(): React.JSX.Element | null {
       },
     ];
     setTabelaAoVivo(projetarTabela(tabelaBaseRef.current, resultadosParciais));
-  }, [minuto, fixture, siglaCasa, siglaFora, corCasa, corFora]);
+  }, [
+    minuto,
+    fixture,
+    siglaCasa,
+    siglaFora,
+    corCasa,
+    corFora,
+    acrescimos,
+    duracaoTotal,
+  ]);
 
   // Pulso + som quando o placar aumenta.
   const totalGols = placar.casa + placar.fora;
@@ -984,7 +1029,7 @@ function MatchSimulation(): React.JSX.Element | null {
     setSegundoTempoLiberado(true);
     setIntervalo(false);
     setPausado(false);
-    setRelogioSeg(DURACAO_SEG);
+    setRelogioSeg(duracaoTotalSeg);
   };
 
   // Apito do árbitro: encerra o tempo atual. No 1º tempo vai ao intervalo; no
@@ -1259,7 +1304,7 @@ function MatchSimulation(): React.JSX.Element | null {
                   style={[styles.jogoFaixa, {backgroundColor: item.corFora}]}
                 />
                 <Text style={styles.jogoMinuto}>
-                  {minuto >= DURACAO ? 'FIM' : `${minuto}'`}
+                  {minuto >= duracaoTotal ? 'FIM' : `${rotuloMinuto(minuto)}'`}
                 </Text>
               </View>
             )}

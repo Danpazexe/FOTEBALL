@@ -10,6 +10,7 @@ import {StyleSheet, Text, View} from 'react-native';
 
 import Icone, {type IconeNome} from '../Icone';
 import {acentos, cores, espaco, raio} from '../../theme';
+import {rotuloMinuto} from '../../utils/minutoPartida';
 
 export type LadoLance = 'casa' | 'fora' | 'neutro';
 
@@ -98,7 +99,7 @@ export function LanceLimpo({
   return (
     <View style={[styles.linha, ehCasa ? styles.linhaCasa : styles.linhaFora]}>
       <View style={[styles.lance, !ehCasa && styles.lanceInvertido]}>
-        <Text style={styles.minuto}>{minuto}'</Text>
+        <Text style={styles.minuto}>{rotuloMinuto(minuto)}'</Text>
         {cartao ? (
           <View
             style={[
