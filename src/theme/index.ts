@@ -1,25 +1,116 @@
 /**
- * Identidade visual do FOTEBALL (paleta da spec, seção 16 de FOTEBALL.md).
- * Fonte única de cores/espaçamento usada por todas as telas e componentes.
+ * Identidade visual do FOTEBALL — sistema de DOIS temas (dia/noite).
+ *
+ * `temaEscuro` ("Noite de estádio") é o DNA original do app: gramado à noite,
+ * linha de cal e refletor âmbar. `temaClaro` ("Dia", modelo SofaScore) é o
+ * contraponto. Ambos expõem a MESMA forma de tokens — as telas que consomem via
+ * `useTema()`/`useEstilos()` re-tematizam sozinhas ao alternar.
+ *
+ * Compatibilidade: os exports `cores`/`suaves`/`acentos`/`gradientes`/`sombra`
+ * apontam para o tema ESCURO (default). Telas ainda não migradas para o hook
+ * continuam importando-os como constante e renderizam no escuro — a migração
+ * para o toggle é incremental.
+ *
+ * ESTE ARQUIVO É PURO (sem React) — os hooks `useTema`/`useEstilos` vivem em
+ * `./useTema` para não puxar React onde não deve (ex.: engine).
  */
 
-/**
- * Paleta CLARA (modelo SofaScore, a pedido do usuário): fundo cinza-claro,
- * cards brancos, texto azul-marinho e acentos vivos. A API de tokens é a
- * mesma da era escura — as telas que consomem tokens re-tematizam sozinhas.
- */
-export const cores = {
+/** Forma dos tokens de cor — idêntica em ambos os temas. */
+export type PaletaCores = {
+  fundo: string;
+  fundoTopo: string;
+  fundoBase: string;
+  gramado: string;
+  superficie: string;
+  superficieAlt: string;
+  superficieElevada: string;
+  borda: string;
+  bordaClara: string;
+  glass: string;
+  glassForte: string;
+  bordaTransl: string;
+  bordaTranslForte: string;
+  primaria: string;
+  primariaClara: string;
+  primariaEscura: string;
+  primariaGlow: string;
+  secundaria: string;
+  secundariaClara: string;
+  secundariaEscura: string;
+  perigo: string;
+  sucesso: string;
+  aviso: string;
+  texto: string;
+  textoSecundario: string;
+  textoMuted: string;
+  contrastePrimaria: string;
+};
+
+/** Fundos suaves de badge/pill (mesmo matiz do texto de acento). */
+export type PaletaSuaves = {
+  verde: string;
+  amarelo: string;
+  vermelho: string;
+  azul: string;
+  laranja: string;
+  rosa: string;
+};
+
+/** Cores de acento (texto forte sobre `suaves`). */
+export type PaletaAcentos = PaletaSuaves;
+
+/** Listas de stops para gradientes (react-native-svg). */
+export type Gradientes = {
+  fundo: string[];
+  primaria: string[];
+  card: string[];
+  hero: string[];
+  ouro: string[];
+  ouroEscuro: string[];
+  gramado: string[];
+  craque: string[];
+};
+
+/** Sombra/elevação (iOS shadow* + Android elevation). */
+export type EstiloSombra = {
+  shadowColor: string;
+  shadowOffset: {width: number; height: number};
+  shadowOpacity: number;
+  shadowRadius: number;
+  elevation: number;
+};
+
+export type Sombras = {
+  suave: EstiloSombra;
+  card: EstiloSombra;
+  glow: EstiloSombra;
+  ouro: EstiloSombra;
+};
+
+/** Um tema completo — a unidade que o hook entrega às telas. */
+export type Tema = {
+  cores: PaletaCores;
+  suaves: PaletaSuaves;
+  acentos: PaletaAcentos;
+  gradientes: Gradientes;
+  sombra: Sombras;
+};
+
+// ============================================================================
+// TEMA CLARO ("Dia" · modelo SofaScore): fundo cinza-claro, cards brancos,
+// texto azul-marinho e acentos vivos.
+// ============================================================================
+
+const CORES_CLARO: PaletaCores = {
   fundo: '#F1F3F7',
   fundoTopo: '#FFFFFF',
   fundoBase: '#E9EDF3',
-  // Pitch / gramado (telas de jogo e tática) — verde suave sobre o claro.
   gramado: '#E3F2E8',
   superficie: '#FFFFFF',
   superficieAlt: '#F7F9FC',
   superficieElevada: '#FFFFFF',
   borda: '#E5E9F0',
   bordaClara: '#D9DFEA',
-  // "Vidro" no claro: véus azul-marinho sutis (chips, nav, overlays).
   glass: 'rgba(23, 35, 59, 0.045)',
   glassForte: 'rgba(23, 35, 59, 0.075)',
   bordaTransl: 'rgba(23, 35, 59, 0.10)',
@@ -38,90 +129,38 @@ export const cores = {
   textoSecundario: '#7C8698',
   textoMuted: '#9AA4B5',
   contrastePrimaria: '#FFFFFF',
-} as const;
+};
 
-/**
- * Tons SUAVES + acentos (modelo): fundos de badge/pill com texto forte do
- * mesmo matiz — posição do jogador, nota, chips de status.
- */
-export const suaves = {
+const SUAVES_CLARO: PaletaSuaves = {
   verde: '#E4F7EE',
   amarelo: '#FFF4D6',
   vermelho: '#FFECEE',
   azul: '#E7F0FE',
   laranja: '#FFF1DE',
   rosa: '#FBE7F0',
-} as const;
+};
 
-export const acentos = {
+const ACENTOS_CLARO: PaletaAcentos = {
   verde: '#12B76A',
   amarelo: '#C99A06',
   vermelho: '#E5484D',
   azul: '#1D6FE0',
   laranja: '#D97A00',
   rosa: '#D6336C',
-} as const;
+};
 
-export const espaco = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 24,
-  xxl: 32,
-} as const;
-
-export const raio = {
-  sm: 10,
-  md: 14,
-  lg: 18,
-  xl: 22,
-  xxl: 28,
-  pill: 999,
-} as const;
-
-/**
- * Escala tipográfica condensada/forte (Premium UI v0.0.3). Números e títulos
- * grandes e apertados (peso 900, tracking negativo); rótulos de seção minúsculos
- * em CAIXA-ALTA espaçada. Espalhada pelos primitivos para dar "cara de jogo".
- */
-export const tipografia = {
-  display: {fontSize: 44, fontWeight: '900', letterSpacing: -1.2},
-  placar: {fontSize: 38, fontWeight: '900', letterSpacing: -1},
-  titulo: {fontSize: 28, fontWeight: '900', letterSpacing: -0.6},
-  numero: {fontSize: 23, fontWeight: '900', letterSpacing: -0.4},
-  secao: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  corpo: {fontSize: 13, fontWeight: '600'},
-  chip: {fontSize: 11, fontWeight: '800', letterSpacing: 0.4},
-} as const;
-
-/**
- * Gradientes (listas de stops) usados por fundos e emblemas via react-native-svg.
- * Mantidos como `string[]` (não `as const`) para serem passados a props mutáveis.
- */
-export const gradientes = {
+const GRADIENTES_CLARO: Gradientes = {
   fundo: ['#FFFFFF', '#F4F6FA', '#E9EDF3'],
   primaria: ['#3BD68B', '#12B76A', '#0A9153'],
-  // Superfícies claras (3 stops) e acentos do modelo.
-  card: ['#FFFFFF', '#F7F9FC', '#EEF2F7'], // surfacePremium
-  hero: ['#E7F0FE', '#F4F7FC', '#FFFFFF'], // matchHero
-  ouro: ['#FFD883', '#E5A400', '#B7791F'], // goldPrestige
-  ouroEscuro: ['#FFFFFF', '#F6EED9', '#E9EDF3'], // darkGold (claro)
-  gramado: ['#DFF2E5', '#EAF6EE', '#F4FBF6'], // pitch
+  card: ['#FFFFFF', '#F7F9FC', '#EEF2F7'],
+  hero: ['#E7F0FE', '#F4F7FC', '#FFFFFF'],
+  ouro: ['#FFD883', '#E5A400', '#B7791F'],
+  ouroEscuro: ['#FFFFFF', '#F6EED9', '#E9EDF3'],
+  gramado: ['#DFF2E5', '#EAF6EE', '#F4FBF6'],
   craque: ['#E7F0FE', '#F4F7FC'],
 };
 
-/** Sombras/elevação reutilizáveis (iOS shadow* + Android elevation). */
-/**
- * Sombras CLEAN (pedido do usuário): quase planas — uma pluma de profundidade
- * em vez de brilho. Nada de glow forte; a hierarquia vem de borda + fundo.
- */
-export const sombra = {
+const SOMBRA_CLARO: Sombras = {
   suave: {
     shadowColor: '#0F1E3D',
     shadowOffset: {width: 0, height: 1},
@@ -143,7 +182,6 @@ export const sombra = {
     shadowRadius: 8,
     elevation: 3,
   },
-  // Toque dourado discreto para elementos premium.
   ouro: {
     shadowColor: '#E5A400',
     shadowOffset: {width: 0, height: 2},
@@ -153,10 +191,182 @@ export const sombra = {
   },
 };
 
+// ============================================================================
+// TEMA ESCURO ("Noite de estádio" · DEFAULT): gramado à noite (preto-esverdeado),
+// linha de cal (chalk) e refletor âmbar como acento raro. Verde = estrutura/
+// positivo; âmbar = o destaque (craque, gol, o que pede atenção).
+// ============================================================================
+
+const CORES_ESCURO: PaletaCores = {
+  fundo: '#0B120D',
+  fundoTopo: '#0E1712',
+  fundoBase: '#080D0A',
+  gramado: '#0C1611',
+  superficie: '#101A13',
+  superficieAlt: '#152118',
+  superficieElevada: '#16241A',
+  borda: '#25382B',
+  bordaClara: '#2F4736',
+  glass: 'rgba(234, 242, 230, 0.05)',
+  glassForte: 'rgba(234, 242, 230, 0.09)',
+  bordaTransl: 'rgba(234, 242, 230, 0.10)',
+  bordaTranslForte: 'rgba(234, 242, 230, 0.16)',
+  primaria: '#1FA45B',
+  primariaClara: '#3FC97D',
+  primariaEscura: '#14713F',
+  primariaGlow: 'rgba(31, 164, 91, 0.30)',
+  secundaria: '#F4B740',
+  secundariaClara: '#FFD57A',
+  secundariaEscura: '#C98A12',
+  perigo: '#EB5B45',
+  sucesso: '#34C56C',
+  aviso: '#E6B93C',
+  texto: '#EAF2E6',
+  textoSecundario: '#8FA89A',
+  textoMuted: '#5F7567',
+  // Texto/ícone sobre preenchimentos de acento (verde/âmbar) — escuro para o
+  // rótulo "cravar" no acento vivo (visual esportivo). NÃO usar como polegar de
+  // Switch (some no trilho escuro) — lá use branco explícito.
+  contrastePrimaria: '#06140D',
+};
+
+const SUAVES_ESCURO: PaletaSuaves = {
+  verde: 'rgba(52, 197, 108, 0.16)',
+  amarelo: 'rgba(230, 185, 60, 0.16)',
+  vermelho: 'rgba(235, 91, 69, 0.16)',
+  azul: 'rgba(74, 160, 240, 0.16)',
+  laranja: 'rgba(244, 183, 64, 0.16)',
+  rosa: 'rgba(236, 123, 172, 0.16)',
+};
+
+const ACENTOS_ESCURO: PaletaAcentos = {
+  verde: '#3AD07E',
+  amarelo: '#E6B93C',
+  vermelho: '#F0715C',
+  azul: '#4AA0F0',
+  laranja: '#F4B740',
+  rosa: '#EC7BAC',
+};
+
+const GRADIENTES_ESCURO: Gradientes = {
+  fundo: ['#0E1712', '#0A110C', '#070C09'],
+  primaria: ['#3FC97D', '#1FA45B', '#14713F'],
+  card: ['#16241A', '#111C15', '#0D1610'],
+  hero: ['#16281D', '#101E16', '#0B130E'],
+  ouro: ['#FFD57A', '#F4B740', '#C98A12'],
+  ouroEscuro: ['#1A2416', '#241F10', '#0D1610'],
+  gramado: ['#123A26', '#0E2E1E', '#0A2016'],
+  craque: ['#16281D', '#101E16'],
+};
+
+const SOMBRA_ESCURO: Sombras = {
+  suave: {
+    shadowColor: '#000000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  card: {
+    shadowColor: '#000000',
+    shadowOffset: {width: 0, height: 3},
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  glow: {
+    shadowColor: '#1FA45B',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  ouro: {
+    shadowColor: '#F4B740',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+};
+
+// ============================================================================
+// TEMAS montados + exports de compatibilidade (default = escuro).
+// ============================================================================
+
+export const temaClaro: Tema = {
+  cores: CORES_CLARO,
+  suaves: SUAVES_CLARO,
+  acentos: ACENTOS_CLARO,
+  gradientes: GRADIENTES_CLARO,
+  sombra: SOMBRA_CLARO,
+};
+
+export const temaEscuro: Tema = {
+  cores: CORES_ESCURO,
+  suaves: SUAVES_ESCURO,
+  acentos: ACENTOS_ESCURO,
+  gradientes: GRADIENTES_ESCURO,
+  sombra: SOMBRA_ESCURO,
+};
+
+/**
+ * Exports de compatibilidade — apontam para o tema ESCURO (default). Telas ainda
+ * não migradas para `useTema()` os importam como constante e ficam no escuro.
+ */
+export const cores = CORES_ESCURO;
+export const suaves = SUAVES_ESCURO;
+export const acentos = ACENTOS_ESCURO;
+export const gradientes = GRADIENTES_ESCURO;
+export const sombra = SOMBRA_ESCURO;
+
+// ============================================================================
+// Tokens independentes de tema (espaço, raio, tipografia) — únicos.
+// ============================================================================
+
+export const espaco = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  xxl: 32,
+} as const;
+
+export const raio = {
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 22,
+  xxl: 28,
+  pill: 999,
+} as const;
+
+/**
+ * Escala tipográfica condensada/forte. Números e títulos grandes e apertados
+ * (peso 900, tracking negativo); rótulos de seção minúsculos em CAIXA-ALTA
+ * espaçada. Espalhada pelos primitivos para dar "cara de jogo".
+ */
+export const tipografia = {
+  display: {fontSize: 44, fontWeight: '900', letterSpacing: -1.2},
+  placar: {fontSize: 38, fontWeight: '900', letterSpacing: -1},
+  titulo: {fontSize: 28, fontWeight: '900', letterSpacing: -0.6},
+  numero: {fontSize: 23, fontWeight: '900', letterSpacing: -0.4},
+  secao: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+  },
+  corpo: {fontSize: 13, fontWeight: '600'},
+  chip: {fontSize: 11, fontWeight: '800', letterSpacing: 0.4},
+} as const;
+
 /**
  * Nível/raridade da carta por faixa de overall — FONTE ÚNICA de cor e nome do
  * tier, usada tanto pela carta do jogador quanto pelo badge de overall, pela
- * lista de elenco etc. (padroniza tudo).
+ * lista de elenco etc. (padroniza tudo). Independente de tema (uma carta de ouro
+ * é ouro no dia e na noite).
  *
  * Bronze <65 · Prata 65-74 · Ouro 75-84 · Lendário 85-89 · Especial 90+
  */
@@ -273,7 +483,7 @@ export function glowDoTier(overall: number) {
  * Cor que comunica o encaixe do jogador na posição escalada (verde = natural,
  * azul = similar, dourado = adaptado, vermelho = improviso). FONTE ÚNICA usada
  * por TODAS as telas de escalação (DraggablePitch, AjustesPartida) para o anel
- * das fichas. Import type-only do nível — sem acoplamento de runtime.
+ * das fichas. Usa os tokens do tema default (escuro).
  */
 export function corAdaptacao(
   nivel: 'natural' | 'similar' | 'adaptado' | 'improvisado',
@@ -306,9 +516,8 @@ export function corCondicao(valor: number): string {
  * narração (balões/badges). Os dados não trazem cor, então derivamos uma cor
  * estável a partir do id do clube — sempre a mesma para o mesmo clube.
  */
-// Paleta curada para o tema (verde/dourado/azul-noite): tons vivos e legíveis
-// sobre o fundo escuro, espalhados de quente a frio para que dois times num
-// confronto contrastem. Sem roxo/violeta/rosa/marrom (que destoavam da marca).
+// Paleta curada (verde/dourado/azul-noite): tons vivos e legíveis, espalhados de
+// quente a frio para que dois times num confronto contrastem. Sem roxo/rosa/marrom.
 const CORES_TIME = [
   '#E5484D', // vermelho
   '#FF7A5C', // coral
@@ -338,8 +547,7 @@ export function corDoTime(clubeId: string): string {
 /**
  * Cor de camisa/identidade REAL dos clubes (aprox. da cor predominante do
  * escudo/uniforme), usada nas camisas dos cards. Times de uniforme branco usam
- * a cor escura da identidade (senão sumiriam no gramado claro). Fallback:
- * corDoTime (hash) para clubes fora do mapa (ex.: Série B/C).
+ * a cor escura da identidade. Fallback: corDoTime (hash) para clubes fora do mapa.
  */
 const CORES_CLUBE: Record<string, string> = {
   club_flamengo: '#C8102E',
