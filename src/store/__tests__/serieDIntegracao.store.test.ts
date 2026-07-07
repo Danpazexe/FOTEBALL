@@ -220,4 +220,63 @@ describe('carreira jogável na Série D — grupos → mata-mata (store)', () =>
     estado().iniciarNovaCarreira(clubeA.id);
     expect(estado().serieDCarreira).toBeNull();
   });
+
+  /** Leva o usuário da D até um estado terminal do mata-mata (campeão ou não). */
+  function jogarAteFimMataMata(uid: string, vitorias: boolean) {
+    jogarGrupoComUsuarioLider(uid);
+    estado().iniciarMataMataDaCarreira();
+    let guarda = 0;
+    while (
+      (estado().serieDCarreira!.fase === 'mata_mata' ||
+        estado().serieDCarreira!.fase === 'playoff_acesso') &&
+      guarda < 12
+    ) {
+      estado().avancarMataMataDaCarreira(vitorias);
+      guarda += 1;
+    }
+  }
+
+  it('campeão da Série D: fim de temporada promove o usuário à Série C', () => {
+    const clubeD = estado().todosClubes.find(c => c.divisao === 'Série D')!;
+    estado().iniciarNovaCarreira(clubeD.id);
+    jogarAteFimMataMata(clubeD.id, true);
+    expect(estado().serieDCarreira!.fase).toBe('campeao');
+    const temporadaAntes = estado().temporadaAtual;
+
+    estado().finalizarTemporada();
+
+    expect(estado().temporadaAtual).toBe(String(Number(temporadaAntes) + 1));
+    expect(estado().serieDCarreira).toBeNull();
+    // Usuário subiu para a Série C: liga de 20 clubes.
+    expect(
+      estado().todosClubes.find(c => c.id === clubeD.id)?.divisao,
+    ).toBe('Série C');
+    expect(estado().clubes).toHaveLength(20);
+    expect(estado().clubes.every(c => c.divisao === 'Série C')).toBe(true);
+    expect(estado().clubes.some(c => c.id === clubeD.id)).toBe(true);
+    // Histórico registra o usuário como campeão da Série D.
+    expect(estado().historicoSerieD[0]?.campeao).toBe(clubeD.id);
+  });
+
+  it('eliminado na Série D: fim de temporada mantém o usuário na D (novo grupo)', () => {
+    const clubeD = estado().todosClubes.find(c => c.divisao === 'Série D')!;
+    estado().iniciarNovaCarreira(clubeD.id);
+    jogarGrupoComUsuarioLider(clubeD.id);
+    estado().iniciarMataMataDaCarreira();
+    estado().avancarMataMataDaCarreira(false); // perde a 1ª chave → eliminado
+    expect(estado().serieDCarreira!.fase).toBe('eliminado');
+    expect(estado().serieDCarreira!.acessoConquistado).toBe(false);
+
+    estado().finalizarTemporada();
+
+    expect(estado().serieDCarreira).toBeNull();
+    expect(estado().todosClubes.find(c => c.id === clubeD.id)?.divisao).toBe(
+      'Série D',
+    );
+    // Nova temporada = novo grupo de 6 da Série D.
+    expect(estado().clubes).toHaveLength(6);
+    expect(estado().clubes.every(c => c.divisao === 'Série D')).toBe(true);
+    expect(estado().clubes.some(c => c.id === clubeD.id)).toBe(true);
+    expect(estado().copa).toBeNull();
+  });
 });
