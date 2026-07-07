@@ -1,4 +1,4 @@
-package com.foteball
+package com.pazconcept.foteball
 
 import android.app.Application
 import com.facebook.react.PackageList
