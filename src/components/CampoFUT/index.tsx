@@ -32,12 +32,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, {
   Circle,
+  ClipPath,
   Defs,
+  G,
   Line,
-  LinearGradient,
   Path,
   Rect,
-  Stop,
 } from 'react-native-svg';
 
 import {trocarTitular} from '../../api/database/seed/defaults';
@@ -866,18 +866,34 @@ function PitchTopDown({
       pointerEvents="none"
       style={StyleSheet.absoluteFill}>
       <Defs>
-        <LinearGradient id="grama" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#DFF2E5" />
-          <Stop offset="1" stopColor="#ECF7F0" />
-        </LinearGradient>
+        <ClipPath id="campoClip">
+          <Rect x={m} y={m} width={w} height={h} rx={14} />
+        </ClipPath>
       </Defs>
+      {/* Turfa noturna + listras ceifadas verticais (clipadas na borda). */}
+      <G clipPath="url(#campoClip)">
+        <Rect x={m} y={m} width={w} height={h} fill={TURFA} />
+        {Array.from({length: LISTRAS}).map((_, i) =>
+          i % 2 === 1 ? (
+            <Rect
+              key={`listra-${i}`}
+              x={m + (w / LISTRAS) * i}
+              y={m}
+              width={w / LISTRAS}
+              height={h}
+              fill={TURFA_LISTRA}
+            />
+          ) : null,
+        )}
+      </G>
+      {/* Borda de cal */}
       <Rect
         x={m}
         y={m}
         width={w}
         height={h}
         rx={14}
-        fill="url(#grama)"
+        fill="none"
         stroke={LINHA}
         strokeWidth={2}
       />
@@ -941,12 +957,12 @@ function PitchTopDown({
         y1={yLinha}
         x2={largura - m - 8}
         y2={yLinha}
-        stroke={cores.primaria}
+        stroke={cores.primariaClara}
         strokeWidth={3.5}
         strokeDasharray="10 7"
       />
       {xsSeta.map(ax => (
-        <Path key={ax} d={seta(ax)} fill="#FFD400" opacity={0.9} />
+        <Path key={ax} d={seta(ax)} fill={cores.secundaria} opacity={0.95} />
       ))}
     </Svg>
   );
@@ -954,7 +970,13 @@ function PitchTopDown({
 
 export default CampoFUT;
 
-const LINHA = cores.bordaTranslForte;
+// Cal (linhas do campo) e turfa noturna com listras ceifadas — visual "noite de
+// estádio" do mockup. Turfa fixa (o campo fica noturno mesmo no modo dia por
+// enquanto); as fichas e o resto seguem os tokens do tema.
+const LINHA = 'rgba(234, 242, 230, 0.55)';
+const TURFA = '#0F2E1E';
+const TURFA_LISTRA = '#16402A';
+const LISTRAS = 10;
 
 const styles = StyleSheet.create({
   overlay: {
