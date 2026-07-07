@@ -26,7 +26,7 @@ export const N_ACESSO = 4;
  * divisões ADJACENTES que existam — então adicionar a Série C liga o B↔C
  * automaticamente, sem mexer na lógica.
  */
-export const PIRAMIDE_DIVISOES = ['Série A', 'Série B', 'Série C'];
+export const PIRAMIDE_DIVISOES = ['Série A', 'Série B', 'Série C', 'Série D'];
 
 /**
  * Premiação da Copa creditada ao usuário por fase VENCIDA (avançou).

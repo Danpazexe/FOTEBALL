@@ -16,7 +16,7 @@ import {siglaClube} from '../../utils/formatters';
 
 const DIVISAO_PADRAO = 'Série A';
 /** Divisão mais baixa da pirâmide (não tem rebaixamento). */
-const ULTIMA_DIVISAO = 'Série C';
+const ULTIMA_DIVISAO = 'Série D';
 
 function Competition(): React.JSX.Element {
   const tabela = useGameStore(state => state.tabela);

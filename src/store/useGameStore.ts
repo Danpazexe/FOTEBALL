@@ -114,6 +114,7 @@ import {
   PREMIACAO_COPA,
   TEMPORADA_INICIAL,
 } from './setup';
+import {resolverSerieDNaVirada, type ResumoSerieD} from './serieDSeason';
 import type {
   AtributoChave,
   Clube,
@@ -263,6 +264,12 @@ export interface GameState {
   estadoFinanceiro: EstadoFinanceiro;
   /** Motivo da demissão, se o técnico foi demitido (§12); null = empregado. */
   demissao: MotivoDemissao | null;
+  /**
+   * Histórico da Série D por temporada (mais recente primeiro): campeão, vice e
+   * acessos. Alimentado na virada pela engine de competição (a Série D roda em
+   * background); base do palmarés. Vazio em carreiras/saves anteriores.
+   */
+  historicoSerieD: ResumoSerieD[];
   iniciarNovaCarreira: (clubeId: string) => void;
   /** Assume um novo clube após demissão: mantém a reputação, recomeça a temporada. */
   assumirClube: (clubeId: string) => void;
@@ -797,6 +804,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   rodadasNoVermelho: 0,
   estadoFinanceiro: 'SAUDAVEL',
   demissao: null,
+  historicoSerieD: [],
 
   iniciarNovaCarreira: clubeId => {
     // SEMPRE parte do seed limpo (e da temporada inicial): uma "nova carreira"
@@ -826,6 +834,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       rodadasNoVermelho: 0,
       estadoFinanceiro: 'SAUDAVEL',
       demissao: null,
+      historicoSerieD: [],
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -2150,8 +2159,17 @@ export const useGameStore = create<GameState>((set, get) => ({
       ),
     );
 
+    // A Série D roda DE VERDADE na virada (grupos + mata-mata reais via engine),
+    // uma única vez, definindo a ordem de acesso à Série C. `null` = mundo sem os
+    // 96 clubes da Série D (save antigo) → a pirâmide só ignora o par C↔D.
+    const resolucaoSerieD = resolverSerieDNaVirada(
+      clubesComFolha,
+      jogadoresEvoluidos,
+      state.temporadaAtual,
+    );
+
     // Acesso/rebaixamento (4 sobem / 4 descem). A divisão JOGADA usa a tabela
-    // real; a outra é ranqueada por força de elenco (não foi simulada).
+    // real; a Série D usa o resultado da competição; as demais, força de elenco.
     const ordemDivisao = (divisao: string): string[] => {
       const clubesDiv = clubesComFolha.filter(
         clube => (clube.divisao ?? DIVISAO_PADRAO) === divisao,
@@ -2163,6 +2181,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         return clubesDiv
           .map(clube => clube.id)
           .sort((a, b) => (ranque.get(a) ?? 99) - (ranque.get(b) ?? 99));
+      }
+      if (divisao === 'Série D' && resolucaoSerieD) {
+        return resolucaoSerieD.ordem; // ordem da competição: promovidos primeiro
       }
       return ranquearDivisaoPorForca(
         clubesDiv,
@@ -2277,6 +2298,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       mensagens,
       `Temporada ${proximaTemporada} (${divisaoUsuario}) iniciada. ${jovensDisponiveis.length} jovens nas peneiras.`,
     );
+    if (resolucaoSerieD) {
+      const nomeSerieD = (id: string): string =>
+        todosClubesNovos.find(clube => clube.id === id)?.nome ?? id;
+      mensagens = adicionarMensagem(
+        mensagens,
+        `Série D: ${nomeSerieD(
+          resolucaoSerieD.resumo.campeao,
+        )} é campeão e garante o acesso à Série C.`,
+      );
+    }
 
     // Eixo carreira: reputação de fim de temporada + demissão por rebaixamento.
     const campeao = ordemDivisao(divisaoAtiva)[0] === state.clubeUsuarioId;
@@ -2346,6 +2377,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       reputacaoTecnico,
       derrotasConsecutivas: 0,
       demissao,
+      historicoSerieD: resolucaoSerieD
+        ? [resolucaoSerieD.resumo, ...state.historicoSerieD]
+        : state.historicoSerieD,
       jovensDisponiveis,
       propostasRecebidas: [],
       copa: gerarCopaParaTemporada(
@@ -2510,6 +2544,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       rodadasNoVermelho: 0,
       estadoFinanceiro: 'SAUDAVEL',
       demissao: null,
+      historicoSerieD: [],
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

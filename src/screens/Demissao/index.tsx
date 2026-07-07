@@ -19,7 +19,7 @@ import {cores, espaco, raio, sombra} from '../../theme';
 import type {Clube, MotivoDemissao, Player} from '../../types';
 import {moeda} from '../../utils/formatters';
 
-const ORDEM_DIVISOES = ['Série A', 'Série B', 'Série C'];
+const ORDEM_DIVISOES = ['Série A', 'Série B', 'Série C', 'Série D'];
 
 function motivoTexto(motivo: MotivoDemissao): string {
   switch (motivo) {
