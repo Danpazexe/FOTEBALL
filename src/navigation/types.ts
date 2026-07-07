@@ -25,6 +25,8 @@ export type RootStackParamList = {
   MatchResult: {partidaId: string};
   PreJogo: undefined;
   Copa: undefined;
+  /** Chaveamento da Série D (carreira na D): grupos → mata-mata. */
+  SerieD: undefined;
   Semana: undefined;
   Academia: undefined;
   Gabinete: undefined;

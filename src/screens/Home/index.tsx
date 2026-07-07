@@ -17,7 +17,7 @@ import {
 
 import {Botao, ScreenContainer, TextoVazio} from '../../components/ui';
 import AlertasCard, {type Alerta} from '../../components/AlertasCard';
-import {LOGO_COPA} from '../../assets/escudos';
+import {LOGO_COPA, LOGO_SERIE_D} from '../../assets/escudos';
 // Papel de parede do "hero" do Gabinete: estádio noturno (empacotado).
 const FUNDO_ESTADIO = require('../../assets/planodefundo.jpg');
 import FormaRecente from '../../components/FormaRecente';
@@ -132,6 +132,10 @@ function Home(): React.JSX.Element {
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const copa = useGameStore(state => state.copa);
   const todosClubes = useGameStore(state => state.todosClubes);
+  const serieDCarreira = useGameStore(state => state.serieDCarreira);
+  const iniciarMataMataDaCarreira = useGameStore(
+    state => state.iniciarMataMataDaCarreira,
+  );
 
   const finalizarTemporada = useGameStore(state => state.finalizarTemporada);
   const avancarParaData = useGameStore(state => state.avancarParaData);
@@ -453,6 +457,24 @@ function Home(): React.JSX.Element {
     }
   };
 
+  // Carreira na Série D: ao fim da fase de grupos, monta e abre o mata-mata.
+  const ehSerieD = clubeUsuario?.divisao === 'Série D';
+  const mataMataEmAndamento =
+    serieDCarreira?.fase === 'mata_mata' ||
+    serieDCarreira?.fase === 'playoff_acesso';
+  const handleIniciarMataMata = async () => {
+    const ok = await confirmarSe({
+      titulo: 'Encerrar a fase de grupos?',
+      mensagem:
+        'Os outros 15 grupos são resolvidos e a chave nacional do mata-mata é montada.',
+      confirmarLabel: 'Ir ao mata-mata',
+    });
+    if (ok) {
+      iniciarMataMataDaCarreira();
+      nav.navigate('SerieD');
+    }
+  };
+
   return (
     <View style={styles.raiz}>
       <ScreenContainer scroll>
@@ -619,7 +641,44 @@ function Home(): React.JSX.Element {
           ) : null}
 
           {/* Próximo compromisso (sem header duplicado — o card já se rotula). */}
-          {copaNaVez ? (
+          {ehSerieD ? (
+            !serieDCarreira ? (
+              proximoEvento.tipo === 'fim' ? (
+                <Botao
+                  variante="ouro"
+                  icone="trofeu"
+                  titulo="Encerrar grupos e ir ao mata-mata"
+                  onPress={handleIniciarMataMata}
+                />
+              ) : proximoJogo && confronto ? (
+                <ProximoJogoCard
+                  partida={proximoJogo}
+                  clubeCasa={confronto.casa}
+                  clubeFora={confronto.fora}
+                  forcaCasa={confronto.forcaCasa}
+                  forcaFora={confronto.forcaFora}
+                  mandoCasa={mandoCasa}
+                  onJogar={handleJogarPartida}
+                />
+              ) : (
+                <TextoVazio>Nenhum jogo agendado.</TextoVazio>
+              )
+            ) : mataMataEmAndamento ? (
+              <Botao
+                variante="ouro"
+                icone="jogar"
+                titulo="Ir ao mata-mata da Série D"
+                onPress={() => nav.navigate('SerieD')}
+              />
+            ) : (
+              <Botao
+                variante="ouro"
+                icone="trofeu"
+                titulo="Iniciar próxima temporada"
+                onPress={handleFinalizarTemporada}
+              />
+            )
+          ) : copaNaVez ? (
             <View style={styles.copaJogoCard}>
               <Image
                 source={LOGO_COPA}
@@ -685,6 +744,38 @@ function Home(): React.JSX.Element {
                 </Text>
                 <Text style={styles.copaDetalhe} numberOfLines={1}>
                   {resumoCopa(copa, clubeUsuarioId, todosClubes)}
+                </Text>
+              </View>
+              <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
+            </Pressable>
+          ) : null}
+
+          {/* Série D — atalho para o chaveamento (carreira na D). */}
+          {ehSerieD && serieDCarreira ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Ver o chaveamento da Série D"
+              onPress={() => nav.navigate('SerieD')}
+              style={({pressed}) => [
+                styles.copaCard,
+                pressed ? styles.cardPressed : null,
+              ]}
+            >
+              <Image
+                source={LOGO_SERIE_D}
+                style={styles.copaLogo}
+                resizeMode="contain"
+              />
+              <View style={styles.copaInfo}>
+                <Text style={styles.copaFase} numberOfLines={1}>
+                  {serieDCarreira.fase === 'campeao'
+                    ? 'Campeão da Série D!'
+                    : serieDCarreira.fase === 'eliminado'
+                      ? 'Campanha encerrada'
+                      : (serieDCarreira.faseCorrente?.nome ?? 'Mata-mata')}
+                </Text>
+                <Text style={styles.copaDetalhe} numberOfLines={1}>
+                  Chaveamento da Série D
                 </Text>
               </View>
               <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
