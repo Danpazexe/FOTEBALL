@@ -1,4 +1,4 @@
-package com.foteball
+package com.pazconcept.foteball
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
