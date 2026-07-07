@@ -12,6 +12,7 @@
  */
 
 import type {ArmazenamentoSave} from '../../store/persistence';
+import {paraAscii} from './asciiSafe';
 import {getDatabase} from './db';
 
 const CRIAR_TABELA =
@@ -45,8 +46,11 @@ export function criarArmazenamentoSqlite(): ArmazenamentoSave {
   return {
     async escrever(json: string): Promise<void> {
       const base = db();
+      // ASCII-safe: contorna a truncagem do op-sqlite no primeiro não-ASCII.
+      const seguro = paraAscii(json);
       // Backup-before-overwrite: preserva o save anterior antes de sobrescrever,
       // para recuperação caso a próxima gravação corrompa (ou interrompa) o atual.
+      // O anterior já está gravado em ASCII, então vai direto para o backup.
       const anterior = lerLinha(base, ID_ATUAL);
       if (anterior !== null) {
         base.executeSync(
@@ -56,13 +60,13 @@ export function criarArmazenamentoSqlite(): ArmazenamentoSave {
       }
       base.executeSync(
         'INSERT OR REPLACE INTO save_state (id, snapshot) VALUES (?, ?)',
-        [ID_ATUAL, json],
+        [ID_ATUAL, seguro],
       );
       // Verificação pós-escrita: relê o que gravou. Se não bater, o "salvo" seria
       // MENTIRA — lançamos para o indicador sumir e o log acusar (em vez de o
       // usuário achar que salvou e perder tudo ao reabrir).
       const conferido = lerLinha(base, ID_ATUAL);
-      if (conferido !== json) {
+      if (conferido !== seguro) {
         throw new Error(
           'Verificação pós-escrita falhou: o save não persistiu no SQLite.',
         );
