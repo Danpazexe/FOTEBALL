@@ -52,7 +52,7 @@ import {
   useGameStore,
 } from '../../store/useGameStore';
 import {limiteDerrotasPorDivisao} from '../../store/helpers';
-import {cores, espaco, raio, sombra} from '../../theme';
+import {cores, espaco, raio, sombra, tabular} from '../../theme';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Clube, Partida} from '../../types';
 
@@ -796,6 +796,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '900',
     letterSpacing: 0.3,
+    ...tabular,
   },
   saldoNegativo: {
     color: cores.perigo,
@@ -811,6 +812,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     fontSize: 13,
     fontWeight: '600',
+    ...tabular,
   },
   blocoTitulo: {
     color: cores.textoSecundario,
