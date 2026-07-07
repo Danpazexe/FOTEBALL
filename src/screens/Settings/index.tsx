@@ -14,11 +14,19 @@ import {useGameStore, type VelocidadeNarracao} from '../../store/useGameStore';
 import {DIFICULDADES} from '../../engine/carreira/dificuldade';
 import {definirSomHabilitado, definirVolumeEfeitos} from '../../audio/sons';
 import {FAIXAS_MUSICA} from '../../audio/musica';
-import {cores, espaco, raio, sombra} from '../../theme';
+import {espaco, raio, type Tema} from '../../theme';
+import {useEstilos, useTema} from '../../theme/useTema';
+import {useTemaStore, type ModoTema} from '../../store/useTemaStore';
 import {VERSAO_APP} from '../../version';
 
 /** Níveis de volume oferecidos (sem lib de slider — controle em degraus). */
 const NIVEIS_VOLUME = [0, 0.25, 0.5, 0.75, 1] as const;
+
+/** Opções de tema visual (dia/noite). */
+const OPCOES_TEMA: {valor: ModoTema; rotulo: string}[] = [
+  {valor: 'escuro', rotulo: 'Noite'},
+  {valor: 'claro', rotulo: 'Dia'},
+];
 
 /** Resumo do efeito de cada dificuldade (cobrança da diretoria). */
 const DIFICULDADE_DESC: Record<string, string> = {
@@ -32,6 +40,10 @@ function Settings(): React.JSX.Element {
   const nav = useAppNavigation();
   const confirm = useConfirm();
   const toast = useToast();
+  const styles = useEstilos(criarEstilos);
+
+  const modoTema = useTemaStore(estado => estado.modo);
+  const definirModoTema = useTemaStore(estado => estado.definirModo);
 
   const config = useGameStore(state => state.config);
   const atualizarConfig = useGameStore(state => state.atualizarConfig);
@@ -62,6 +74,26 @@ function Settings(): React.JSX.Element {
   return (
     <ScreenContainer scroll>
       <Text style={styles.titulo}>Ajustes</Text>
+
+      <Section titulo="Aparência">
+        <Text style={styles.descricao}>
+          Tema visual do app. Noite é o "estádio à noite"; Dia é o tema claro.
+        </Text>
+        <View style={styles.chipRow}>
+          {OPCOES_TEMA.map(opcao => {
+            const ativo = modoTema === opcao.valor;
+            return (
+              <View key={opcao.valor} style={styles.chipWrap}>
+                <Botao
+                  titulo={opcao.rotulo}
+                  variante={ativo ? 'primaria' : 'secundaria'}
+                  onPress={() => definirModoTema(opcao.valor)}
+                />
+              </View>
+            );
+          })}
+        </View>
+      </Section>
 
       <Section titulo="Narração da partida">
         <Text style={styles.descricao}>Velocidade padrão da narração.</Text>
@@ -209,6 +241,7 @@ function SeletorVolume({
   valor: number;
   onChange: (valor: number) => void;
 }): React.JSX.Element {
+  const styles = useEstilos(criarEstilos);
   return (
     <View style={styles.volumeRow}>
       {NIVEIS_VOLUME.map(nivel => {
@@ -248,6 +281,8 @@ function LinhaSwitch({
   valor,
   onValueChange,
 }: LinhaSwitchProps): React.JSX.Element {
+  const {cores} = useTema();
+  const styles = useEstilos(criarEstilos);
   return (
     <View style={styles.linhaSwitch}>
       <View style={styles.linhaSwitchTexto}>
@@ -258,93 +293,94 @@ function LinhaSwitch({
         value={valor}
         onValueChange={onValueChange}
         trackColor={{false: cores.borda, true: cores.primaria}}
-        // Polegar branco (padrão de switch no tema claro) — cores.texto agora é
-        // azul-marinho e deixaria o polegar escuro demais.
-        thumbColor={cores.contrastePrimaria}
+        // Polegar branco em ambos os temas: cores.texto/contrastePrimaria ficam
+        // escuros demais e sumiriam no trilho (claro OU escuro).
+        thumbColor="#FFFFFF"
       />
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  titulo: {
-    color: cores.texto,
-    fontSize: 26,
-    fontWeight: '800',
-    marginBottom: espaco.lg,
-  },
-  descricao: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-  },
-  versao: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  rotuloControle: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '800',
-    marginTop: espaco.xs,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  chipWrap: {
-    flex: 1,
-  },
-  volumeRow: {
-    flexDirection: 'row',
-    gap: espaco.xs,
-    marginTop: espaco.xs,
-  },
-  volumeChip: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaClara,
-    borderRadius: raio.md,
-    borderWidth: 1,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 36,
-    paddingHorizontal: 2,
-  },
-  volumeChipAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  volumeChipTxt: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  volumeChipTxtAtivo: {
-    color: cores.contrastePrimaria,
-  },
-  linhaSwitch: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.md,
-    justifyContent: 'space-between',
-    padding: espaco.md,
-    ...sombra.card,
-  },
-  linhaSwitchTexto: {
-    flex: 1,
-    gap: espaco.xs,
-  },
-  linhaSwitchRotulo: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-});
+const criarEstilos = (t: Tema) =>
+  StyleSheet.create({
+    titulo: {
+      color: t.cores.texto,
+      fontSize: 26,
+      fontWeight: '800',
+      marginBottom: espaco.lg,
+    },
+    descricao: {
+      color: t.cores.textoSecundario,
+      fontSize: 13,
+    },
+    versao: {
+      color: t.cores.texto,
+      fontSize: 14,
+      fontWeight: '800',
+      marginBottom: 2,
+    },
+    rotuloControle: {
+      color: t.cores.texto,
+      fontSize: 13,
+      fontWeight: '800',
+      marginTop: espaco.xs,
+    },
+    chipRow: {
+      flexDirection: 'row',
+      gap: espaco.sm,
+    },
+    chipWrap: {
+      flex: 1,
+    },
+    volumeRow: {
+      flexDirection: 'row',
+      gap: espaco.xs,
+      marginTop: espaco.xs,
+    },
+    volumeChip: {
+      alignItems: 'center',
+      backgroundColor: t.cores.superficieElevada,
+      borderColor: t.cores.bordaClara,
+      borderRadius: raio.md,
+      borderWidth: 1,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 36,
+      paddingHorizontal: 2,
+    },
+    volumeChipAtivo: {
+      backgroundColor: t.cores.primaria,
+      borderColor: t.cores.primaria,
+    },
+    volumeChipTxt: {
+      color: t.cores.textoSecundario,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    volumeChipTxtAtivo: {
+      color: t.cores.contrastePrimaria,
+    },
+    linhaSwitch: {
+      alignItems: 'center',
+      backgroundColor: t.cores.superficieElevada,
+      borderColor: t.cores.bordaTransl,
+      borderRadius: raio.lg,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: espaco.md,
+      justifyContent: 'space-between',
+      padding: espaco.md,
+      ...t.sombra.card,
+    },
+    linhaSwitchTexto: {
+      flex: 1,
+      gap: espaco.xs,
+    },
+    linhaSwitchRotulo: {
+      color: t.cores.texto,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+  });
 
 export default Settings;

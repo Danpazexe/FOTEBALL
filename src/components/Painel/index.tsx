@@ -11,7 +11,8 @@ import React from 'react';
 import {StyleSheet, View, type ViewStyle} from 'react-native';
 import Svg, {Defs, LinearGradient, Rect, Stop} from 'react-native-svg';
 
-import {cores, espaco, gradientes, raio, sombra} from '../../theme';
+import {espaco, raio, type Tema} from '../../theme';
+import {useEstilos, useTema} from '../../theme/useTema';
 
 type PainelProps = {
   children: React.ReactNode;
@@ -41,6 +42,8 @@ function Painel({
   preencher,
   style,
 }: PainelProps): React.JSX.Element {
+  const {gradientes} = useTema();
+  const styles = useEstilos(criarEstilos);
   const [tamanho, setTamanho] = React.useState({largura: 0, altura: 0});
   // id único do gradiente por instância (evita colisão entre vários painéis).
   const gid = `pnl${React.useId().replace(/[^a-zA-Z0-9]/g, '')}`;
@@ -124,36 +127,37 @@ function Painel({
 
 export default Painel;
 
-const styles = StyleSheet.create({
+const criarEstilos = (t: Tema) =>
+  StyleSheet.create({
   base: {
     // bg sólido (coberto pelo clip) garante a sombra/elevation no Android.
-    backgroundColor: cores.superficie,
+    backgroundColor: t.cores.superficie,
     borderRadius: raio.xl,
   },
   preencher: {
     flex: 1,
   },
   sombraPadrao: {
-    ...sombra.card,
+    ...t.sombra.card,
   },
   glowPrimaria: {
-    ...sombra.glow,
+    ...t.sombra.glow,
   },
   glowOuro: {
-    ...sombra.ouro,
+    ...t.sombra.ouro,
   },
   clip: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaTransl,
+    backgroundColor: t.cores.superficie,
+    borderColor: t.cores.bordaTransl,
     borderRadius: raio.xl,
     borderWidth: 1,
     overflow: 'hidden',
   },
   bordaPrimaria: {
-    borderColor: cores.primaria,
+    borderColor: t.cores.primaria,
   },
   bordaOuro: {
-    borderColor: cores.secundaria,
+    borderColor: t.cores.secundaria,
   },
   acento: {
     height: 3,
