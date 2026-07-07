@@ -109,6 +109,7 @@ import {
   DIVISAO_PADRAO,
   gerarCopaParaTemporada,
   gerarLiga,
+  gerarLigaSerieDGrupo,
   N_ACESSO,
   PIRAMIDE_DIVISOES,
   PREMIACAO_COPA,
@@ -814,12 +815,21 @@ export const useGameStore = create<GameState>((set, get) => ({
     const base = criarEstadoInicial();
     const escolhido = base.todosClubes.find(clube => clube.id === clubeId);
     const divisao = escolhido?.divisao ?? DIVISAO_PADRAO;
-    const liga = gerarLiga(
-      base.todosClubes,
-      base.todosJogadores,
-      divisao,
-      TEMPORADA_INICIAL,
-    );
+    // Série D: a liga ativa é o GRUPO de 6 do clube (não a divisão inteira de 96).
+    const liga =
+      divisao === 'Série D'
+        ? gerarLigaSerieDGrupo(
+            base.todosClubes,
+            base.todosJogadores,
+            clubeId,
+            TEMPORADA_INICIAL,
+          )
+        : gerarLiga(
+            base.todosClubes,
+            base.todosJogadores,
+            divisao,
+            TEMPORADA_INICIAL,
+          );
     set({
       todosClubes: base.todosClubes,
       todosJogadores: base.todosJogadores,

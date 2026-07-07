@@ -9,12 +9,39 @@
  */
 import {
   filtrarClubesSerieD,
+  montarGruposRegionais,
   SERIE_D_2026,
   simularSerieD,
+  type GrupoCompeticao,
   type RegulamentoSerieD,
 } from '../engine/competitions';
-import {hashString} from '../engine/simulation/rng';
+import {criarRNGComSeed, hashString} from '../engine/simulation/rng';
 import type {Clube, Player} from '../types';
+
+/**
+ * Sorteio de grupos da Série D de uma temporada — SEED ÚNICA e determinística,
+ * usada tanto na carreira jogável (o grupo do usuário) quanto na resolução de
+ * fundo, para que os dois enxerguem exatamente os mesmos 16 grupos.
+ */
+export function gruposSerieDDaTemporada(
+  clubesD: Clube[],
+  temporada: string,
+  regra: RegulamentoSerieD = SERIE_D_2026,
+): GrupoCompeticao[] {
+  return montarGruposRegionais(
+    clubesD,
+    regra,
+    criarRNGComSeed(hashString(`${temporada}_serie_d_grupos`)),
+  );
+}
+
+/** O grupo que contém `clubeId` (null se não estiver em nenhum). */
+export function grupoDoClube(
+  grupos: GrupoCompeticao[],
+  clubeId: string,
+): GrupoCompeticao | null {
+  return grupos.find(grupo => grupo.clubeIds.includes(clubeId)) ?? null;
+}
 
 /** Resumo persistível da Série D de uma temporada (palmarés/histórico). */
 export interface ResumoSerieD {

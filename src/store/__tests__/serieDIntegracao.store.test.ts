@@ -121,3 +121,38 @@ describe('finalizarTemporada — acesso C↔D pela Série D real', () => {
     expect(estado().historicoSerieD).toHaveLength(0);
   });
 });
+
+describe('carreira jogável na Série D — fase de grupos', () => {
+  beforeEach(() => {
+    estado().reiniciarCarreira();
+  });
+
+  it('começar carreira na Série D monta o GRUPO de 6 como liga ativa', () => {
+    const clubeD = estado().todosClubes.find(c => c.divisao === 'Série D')!;
+    estado().iniciarNovaCarreira(clubeD.id);
+
+    // Liga ativa = grupo de 6 (não a divisão inteira de 96), todos da Série D.
+    expect(estado().clubes).toHaveLength(6);
+    expect(estado().clubes.every(c => c.divisao === 'Série D')).toBe(true);
+    expect(estado().clubes.some(c => c.id === clubeD.id)).toBe(true);
+    expect(estado().clubeUsuarioId).toBe(clubeD.id);
+
+    // Turno e returno de 6 clubes = 30 jogos em 10 rodadas, nada jogado.
+    expect(estado().partidas).toHaveLength(30);
+    expect(new Set(estado().partidas.map(p => p.rodada)).size).toBe(10);
+    expect(estado().partidas.every(p => !p.jogada)).toBe(true);
+    expect(estado().tabela).toHaveLength(6);
+  });
+
+  it('o grupo do clube é determinístico (mesmo clube → mesmo grupo)', () => {
+    const clubeD = estado().todosClubes.find(c => c.divisao === 'Série D')!;
+    estado().iniciarNovaCarreira(clubeD.id);
+    const grupo = estado()
+      .clubes.map(c => c.id)
+      .sort();
+
+    estado().reiniciarCarreira();
+    estado().iniciarNovaCarreira(clubeD.id);
+    expect(estado().clubes.map(c => c.id).sort()).toEqual(grupo);
+  });
+});

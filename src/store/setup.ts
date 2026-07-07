@@ -5,6 +5,7 @@
  * apenas as importa ao iniciar/reiniciar carreira e ao virar a temporada.
  */
 import {loadSeedData} from '../api/database/seed/loadSeed';
+import {filtrarClubesSerieD} from '../engine/competitions';
 import {gerarCalendarioLiga} from '../engine/season/calendarGenerator';
 import {calcularTabela} from '../engine/season/classification';
 import {gerarCopaDoBrasil, type EstadoCopa} from '../engine/season/copaEngine';
@@ -13,6 +14,7 @@ import type {Clube, Partida, Player} from '../types';
 import {adicionarDias} from '../utils/datas';
 
 import {dataInicialDeTemporada} from './helpers';
+import {grupoDoClube, gruposSerieDDaTemporada} from './serieDSeason';
 
 export const DIVISAO_PADRAO = 'Série A';
 /** Ano em que toda carreira começa (fonte única — usada em criar/reiniciar). */
@@ -54,10 +56,17 @@ export function gerarLiga(
   todosJogadores: Player[],
   divisao: string,
   temporada: string,
+  opcoes: {clubeIds?: string[]; competicaoId?: string} = {},
 ) {
-  const clubesDivisao = todosClubes.filter(
-    clube => (clube.divisao ?? DIVISAO_PADRAO) === divisao,
-  );
+  // Por padrão a liga é a divisão inteira; `clubeIds` restringe a um subconjunto
+  // (ex.: o GRUPO da Série D que o usuário disputa), preservando a ordem dada.
+  const clubesDivisao = opcoes.clubeIds
+    ? opcoes.clubeIds
+        .map(id => todosClubes.find(clube => clube.id === id))
+        .filter((clube): clube is Clube => clube !== undefined)
+    : todosClubes.filter(
+        clube => (clube.divisao ?? DIVISAO_PADRAO) === divisao,
+      );
   const idsLiga = new Set(clubesDivisao.map(clube => clube.id));
   const jogadores = todosJogadores.filter(
     // Inclui agentes livres (clubeId null) — pertencem ao jogo, não à divisão.
@@ -80,6 +89,7 @@ export function gerarLiga(
   const partidas = gerarCalendarioLiga(
     clubes.map(clube => clube.id),
     temporada,
+    opcoes.competicaoId,
   );
   return {
     clubes,
@@ -88,6 +98,31 @@ export function gerarLiga(
     tabela: calcularTabela(clubes, partidas),
     dataAtual: dataInicialDeTemporada(partidas, temporada),
   };
+}
+
+/**
+ * Monta a liga ativa quando o usuário disputa a SÉRIE D: a "liga" é o GRUPO de 6
+ * do clube (turno e returno = 10 rodadas). Reaproveita `gerarLiga` restringindo
+ * aos clubes do grupo. Fora do grupo, o resto da Série D roda em background.
+ */
+export function gerarLigaSerieDGrupo(
+  todosClubes: Clube[],
+  todosJogadores: Player[],
+  clubeUsuarioId: string,
+  temporada: string,
+) {
+  const clubesD = filtrarClubesSerieD(todosClubes);
+  const grupos = gruposSerieDDaTemporada(clubesD, temporada);
+  const grupo = grupoDoClube(grupos, clubeUsuarioId);
+  if (!grupo) {
+    // Defensivo: clube da D fora de qualquer grupo (dados incompletos) — cai na
+    // liga da divisão inteira (comportamento antigo).
+    return gerarLiga(todosClubes, todosJogadores, 'Série D', temporada);
+  }
+  return gerarLiga(todosClubes, todosJogadores, 'Série D', temporada, {
+    clubeIds: grupo.clubeIds,
+    competicaoId: `serie_d_${temporada}_grupo_${grupo.id}`,
+  });
 }
 
 export function criarEstadoInicial() {
