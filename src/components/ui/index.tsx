@@ -1,6 +1,6 @@
 /**
  * Primitivos de UI compartilhados do FOTEBALL.
- * Portados do App.tsx monolítico, trocando cores hardcoded pelo theme.
+ * Migrados para dia/noite: estilos montados via `useEstilos(criarEstilos)`.
  */
 
 import React from 'react';
@@ -15,7 +15,8 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import {cores, espaco, raio, sombra, tipografia} from '../../theme';
+import {espaco, raio, tipografia, type Tema} from '../../theme';
+import {useEstilos, useTema} from '../../theme/useTema';
 import GradienteFundo from '../GradienteFundo';
 import Icone, {type IconeNome} from '../Icone';
 import Painel from '../Painel';
@@ -26,6 +27,7 @@ type ScreenContainerProps = {
 };
 
 export function ScreenContainer({children, scroll}: ScreenContainerProps) {
+  const styles = useEstilos(criarEstilos);
   return (
     <View style={styles.screen}>
       <GradienteFundo />
@@ -52,6 +54,7 @@ type AppHeaderProps = {
 };
 
 export function AppHeader({titulo, subtitulo, onBack, right}: AppHeaderProps) {
+  const styles = useEstilos(criarEstilos);
   return (
     <View style={styles.headerWrap}>
       {onBack ? (
@@ -81,6 +84,7 @@ type SectionProps = {
 };
 
 export function Section({titulo, children}: SectionProps) {
+  const styles = useEstilos(criarEstilos);
   return (
     <View style={styles.section}>
       {titulo ? <Text style={styles.sectionTitle}>{titulo}</Text> : null}
@@ -107,6 +111,7 @@ type MetricsRowProps = {
 };
 
 export function MetricsRow({children}: MetricsRowProps) {
+  const styles = useEstilos(criarEstilos);
   return <View style={styles.metricsRow}>{children}</View>;
 }
 
@@ -116,6 +121,7 @@ type MetricProps = {
 };
 
 export function Metric({label, valor}: MetricProps) {
+  const styles = useEstilos(criarEstilos);
   return (
     <View style={styles.metric}>
       <Text style={styles.metricValue}>{valor}</Text>
@@ -132,6 +138,7 @@ type OptionGroupProps = {
 };
 
 export function OptionGroup({titulo, valor, opcoes, onSelect}: OptionGroupProps) {
+  const styles = useEstilos(criarEstilos);
   return (
     <Section titulo={titulo}>
       <View style={styles.optionRow}>
@@ -184,6 +191,8 @@ export function Botao({
   style,
   icone,
 }: BotaoProps) {
+  const {cores} = useTema();
+  const styles = useEstilos(criarEstilos);
   const ehGrande = variante === 'grande' || variante === 'ouro';
 
   const estiloContainer: ViewStyle =
@@ -249,211 +258,213 @@ type TextoVazioProps = {
 };
 
 export function TextoVazio({children}: TextoVazioProps) {
+  const styles = useEstilos(criarEstilos);
   return <Text style={styles.textoVazio}>{children}</Text>;
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: cores.fundoBase,
-  },
-  safe: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: espaco.lg,
-    paddingBottom: espaco.xl * 2,
-  },
-  headerWrap: {
-    gap: espaco.sm,
-  },
-  backButton: {
-    alignSelf: 'flex-start',
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 34,
-    paddingHorizontal: espaco.md,
-  },
-  backButtonText: {
-    color: cores.texto,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  headerRow: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: espaco.md,
-  },
-  headerTitleWrap: {
-    flex: 1,
-  },
-  headerTitle: {
-    color: cores.texto,
-    ...tipografia.titulo,
-  },
-  headerSubtitle: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginTop: espaco.xs,
-    textTransform: 'uppercase',
-  },
-  section: {
-    gap: espaco.md,
-    marginBottom: espaco.lg,
-  },
-  sectionTitle: {
-    color: cores.textoSecundario,
-    ...tipografia.secao,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    gap: espaco.md,
-    marginBottom: espaco.lg,
-  },
-  metric: {
-    backgroundColor: cores.glass,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flex: 1,
-    justifyContent: 'center',
-    minHeight: 74,
-    padding: espaco.md,
-  },
-  metricValue: {
-    color: cores.texto,
-    ...tipografia.numero,
-  },
-  metricLabel: {
-    color: cores.textoSecundario,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginTop: espaco.xs,
-    textTransform: 'uppercase',
-  },
-  optionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.sm,
-  },
-  option: {
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 38,
-    paddingHorizontal: espaco.md,
-  },
-  optionActive: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  optionText: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  optionTextActive: {
-    color: cores.contrastePrimaria,
-  },
-  botaoBase: {
-    alignItems: 'center',
-    borderRadius: raio.md,
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  botaoConteudo: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-    justifyContent: 'center',
-  },
-  botaoPrimaria: {
-    backgroundColor: cores.primaria,
-    minHeight: 46,
-    paddingHorizontal: espaco.lg,
-    ...sombra.glow,
-  },
-  botaoGrande: {
-    backgroundColor: cores.primaria,
-    minHeight: 54,
-    paddingHorizontal: espaco.xl,
-    ...sombra.glow,
-  },
-  botaoOuro: {
-    backgroundColor: cores.secundaria,
-    minHeight: 54,
-    paddingHorizontal: espaco.xl,
-    ...sombra.ouro,
-  },
-  botaoPerigo: {
-    backgroundColor: cores.perigo,
-    minHeight: 46,
-    paddingHorizontal: espaco.lg,
-  },
-  botaoSecundaria: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.bordaClara,
-    borderWidth: 1,
-    minHeight: 46,
-    paddingHorizontal: espaco.lg,
-  },
-  botaoPequena: {
-    borderColor: cores.primaria,
-    borderWidth: 1,
-    minHeight: 34,
-    paddingHorizontal: espaco.md,
-  },
-  botaoPressed: {
-    opacity: 0.92,
-    transform: [{scale: 0.975}],
-  },
-  // Estado desabilitado "glass": sem cor de ação, sem glow (dourado/verde).
-  botaoDisabledGlass: {
-    backgroundColor: cores.glass,
-    borderColor: cores.bordaTransl,
-    borderWidth: 1,
-    elevation: 0,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-  },
-  botaoTextoPrimaria: {
-    color: cores.contrastePrimaria,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  botaoTextoGrande: {
-    color: cores.contrastePrimaria,
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  botaoTextoSecundaria: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  botaoTextoPerigo: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  botaoTextoPequena: {
-    color: cores.primaria,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  botaoTextoDisabled: {
-    color: cores.textoMuted,
-  },
-  textoVazio: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-});
+const criarEstilos = (t: Tema) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: t.cores.fundoBase,
+    },
+    safe: {
+      flex: 1,
+    },
+    scrollContent: {
+      padding: espaco.lg,
+      paddingBottom: espaco.xl * 2,
+    },
+    headerWrap: {
+      gap: espaco.sm,
+    },
+    backButton: {
+      alignSelf: 'flex-start',
+      borderColor: t.cores.borda,
+      borderRadius: raio.sm,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 34,
+      paddingHorizontal: espaco.md,
+    },
+    backButtonText: {
+      color: t.cores.texto,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    headerRow: {
+      alignItems: 'flex-start',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: espaco.md,
+    },
+    headerTitleWrap: {
+      flex: 1,
+    },
+    headerTitle: {
+      color: t.cores.texto,
+      ...tipografia.titulo,
+    },
+    headerSubtitle: {
+      color: t.cores.textoSecundario,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      marginTop: espaco.xs,
+      textTransform: 'uppercase',
+    },
+    section: {
+      gap: espaco.md,
+      marginBottom: espaco.lg,
+    },
+    sectionTitle: {
+      color: t.cores.textoSecundario,
+      ...tipografia.secao,
+    },
+    metricsRow: {
+      flexDirection: 'row',
+      gap: espaco.md,
+      marginBottom: espaco.lg,
+    },
+    metric: {
+      backgroundColor: t.cores.glass,
+      borderColor: t.cores.bordaTransl,
+      borderRadius: raio.lg,
+      borderWidth: 1,
+      flex: 1,
+      justifyContent: 'center',
+      minHeight: 74,
+      padding: espaco.md,
+    },
+    metricValue: {
+      color: t.cores.texto,
+      ...tipografia.numero,
+    },
+    metricLabel: {
+      color: t.cores.textoSecundario,
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 1,
+      marginTop: espaco.xs,
+      textTransform: 'uppercase',
+    },
+    optionRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: espaco.sm,
+    },
+    option: {
+      borderColor: t.cores.borda,
+      borderRadius: raio.sm,
+      borderWidth: 1,
+      justifyContent: 'center',
+      minHeight: 38,
+      paddingHorizontal: espaco.md,
+    },
+    optionActive: {
+      backgroundColor: t.cores.primaria,
+      borderColor: t.cores.primaria,
+    },
+    optionText: {
+      color: t.cores.texto,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    optionTextActive: {
+      color: t.cores.contrastePrimaria,
+    },
+    botaoBase: {
+      alignItems: 'center',
+      borderRadius: raio.md,
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    botaoConteudo: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: espaco.sm,
+      justifyContent: 'center',
+    },
+    botaoPrimaria: {
+      backgroundColor: t.cores.primaria,
+      minHeight: 46,
+      paddingHorizontal: espaco.lg,
+      ...t.sombra.glow,
+    },
+    botaoGrande: {
+      backgroundColor: t.cores.primaria,
+      minHeight: 54,
+      paddingHorizontal: espaco.xl,
+      ...t.sombra.glow,
+    },
+    botaoOuro: {
+      backgroundColor: t.cores.secundaria,
+      minHeight: 54,
+      paddingHorizontal: espaco.xl,
+      ...t.sombra.ouro,
+    },
+    botaoPerigo: {
+      backgroundColor: t.cores.perigo,
+      minHeight: 46,
+      paddingHorizontal: espaco.lg,
+    },
+    botaoSecundaria: {
+      backgroundColor: t.cores.superficie,
+      borderColor: t.cores.bordaClara,
+      borderWidth: 1,
+      minHeight: 46,
+      paddingHorizontal: espaco.lg,
+    },
+    botaoPequena: {
+      borderColor: t.cores.primaria,
+      borderWidth: 1,
+      minHeight: 34,
+      paddingHorizontal: espaco.md,
+    },
+    botaoPressed: {
+      opacity: 0.92,
+      transform: [{scale: 0.975}],
+    },
+    // Estado desabilitado "glass": sem cor de ação, sem glow (dourado/verde).
+    botaoDisabledGlass: {
+      backgroundColor: t.cores.glass,
+      borderColor: t.cores.bordaTransl,
+      borderWidth: 1,
+      elevation: 0,
+      shadowOpacity: 0,
+      shadowRadius: 0,
+    },
+    botaoTextoPrimaria: {
+      color: t.cores.contrastePrimaria,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    botaoTextoGrande: {
+      color: t.cores.contrastePrimaria,
+      fontSize: 16,
+      fontWeight: '800',
+      letterSpacing: 0.3,
+    },
+    botaoTextoSecundaria: {
+      color: t.cores.texto,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    botaoTextoPerigo: {
+      color: '#FFFFFF',
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    botaoTextoPequena: {
+      color: t.cores.primaria,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    botaoTextoDisabled: {
+      color: t.cores.textoMuted,
+    },
+    textoVazio: {
+      color: t.cores.textoSecundario,
+      fontSize: 12,
+    },
+  });

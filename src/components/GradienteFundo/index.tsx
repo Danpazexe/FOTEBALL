@@ -14,10 +14,11 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
-import {cores, gradientes} from '../../theme';
+import {useTema} from '../../theme/useTema';
 
 function GradienteFundo(): React.JSX.Element {
   const {width, height} = useWindowDimensions();
+  const {cores, gradientes} = useTema();
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
