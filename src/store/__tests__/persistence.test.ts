@@ -174,10 +174,15 @@ describe('persistence', () => {
     const arm = armazenamentoMemoria();
     definirArmazenamentoSave(arm);
     arm.corromper(); // só há principal corrompido, sem backup
-    expect(await carregarJogo()).toEqual({
-      tipo: 'erro',
-      mensagem: 'Save corrompido e sem backup recuperável.',
-    });
+    const resultado = await carregarJogo();
+    // A mensagem carrega diagnóstico rico (erro real do decode, tamanho, trecho),
+    // então validamos o prefixo estável em vez da string exata.
+    expect(resultado.tipo).toBe('erro');
+    if (resultado.tipo === 'erro') {
+      expect(resultado.mensagem).toContain(
+        'Save corrompido e sem backup recuperável.',
+      );
+    }
   });
 
   it('lê save legado v1 (sem config/propostas/conquistas) preenchendo padrões', async () => {
