@@ -53,6 +53,17 @@ export interface EstadoSerieDCarreira {
 
 const NOME_PLAYOFF = 'Playoff de acesso';
 
+/** Mapa de força (top-11 do elenco) de todos os clubes da Série D. */
+export function forcaSerieD(
+  todosClubes: Clube[],
+  jogadores: Player[],
+): Map<string, number> {
+  return mapaDeForca(
+    filtrarClubesSerieD(todosClubes).map(clube => clube.id),
+    jogadores,
+  );
+}
+
 function rngConfronto(temporada: string, confrontoId: string) {
   return criarRNGComSeed(hashString(`${temporada}_${confrontoId}`));
 }

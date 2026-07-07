@@ -156,3 +156,68 @@ describe('carreira jogável na Série D — fase de grupos', () => {
     expect(estado().clubes.map(c => c.id).sort()).toEqual(grupo);
   });
 });
+
+describe('carreira jogável na Série D — grupos → mata-mata (store)', () => {
+  beforeEach(() => {
+    estado().reiniciarCarreira();
+  });
+
+  /** Preenche o grupo do usuário como jogado, com o usuário vencendo tudo. */
+  function jogarGrupoComUsuarioLider(uid: string) {
+    const jogadas = estado().partidas.map(partida => {
+      const base = {...partida, jogada: true, eventos: []};
+      if (partida.timeCasa === uid) {
+        return {...base, placarCasa: 2, placarFora: 0};
+      }
+      if (partida.timeFora === uid) {
+        return {...base, placarCasa: 0, placarFora: 2};
+      }
+      return {...base, placarCasa: 0, placarFora: 0};
+    });
+    useGameStore.setState({partidas: jogadas, rodadaAtual: 11});
+  }
+
+  it('classifica o líder do grupo e o leva ao mata-mata; vencendo tudo, é campeão', () => {
+    const clubeD = estado().todosClubes.find(c => c.divisao === 'Série D')!;
+    estado().iniciarNovaCarreira(clubeD.id);
+    jogarGrupoComUsuarioLider(clubeD.id);
+
+    estado().iniciarMataMataDaCarreira();
+    const carreira = estado().serieDCarreira;
+    expect(carreira).not.toBeNull();
+    expect(carreira!.fase).toBe('mata_mata'); // líder do grupo → classificado
+
+    // Vence todas as chaves → campeão + acesso.
+    let guarda = 0;
+    while (estado().serieDCarreira!.fase === 'mata_mata' && guarda < 10) {
+      estado().avancarMataMataDaCarreira(true);
+      guarda += 1;
+    }
+    expect(estado().serieDCarreira!.fase).toBe('campeao');
+    expect(estado().serieDCarreira!.campeao).toBe(clubeD.id);
+    expect(estado().serieDCarreira!.acessoConquistado).toBe(true);
+  });
+
+  it('o estado do mata-mata sobrevive ao snapshot', () => {
+    const clubeD = estado().todosClubes.find(c => c.divisao === 'Série D')!;
+    estado().iniciarNovaCarreira(clubeD.id);
+    jogarGrupoComUsuarioLider(clubeD.id);
+    estado().iniciarMataMataDaCarreira();
+
+    const snap = montarSnapshot(estado());
+    expect(snap.serieDCarreira).toEqual(estado().serieDCarreira);
+    expect(aplicarSnapshot(snap).serieDCarreira).toEqual(estado().serieDCarreira);
+  });
+
+  it('nova carreira (em A/B/C) zera o mata-mata da Série D', () => {
+    const clubeD = estado().todosClubes.find(c => c.divisao === 'Série D')!;
+    estado().iniciarNovaCarreira(clubeD.id);
+    jogarGrupoComUsuarioLider(clubeD.id);
+    estado().iniciarMataMataDaCarreira();
+    expect(estado().serieDCarreira).not.toBeNull();
+
+    const clubeA = estado().todosClubes.find(c => c.divisao === 'Série A')!;
+    estado().iniciarNovaCarreira(clubeA.id);
+    expect(estado().serieDCarreira).toBeNull();
+  });
+});

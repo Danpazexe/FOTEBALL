@@ -115,6 +115,13 @@ import {
   PREMIACAO_COPA,
   TEMPORADA_INICIAL,
 } from './setup';
+import {
+  avancarMataMataSerieDCarreira,
+  classificadosSerieDCarreira,
+  forcaSerieD,
+  iniciarMataMataSerieDCarreira,
+  type EstadoSerieDCarreira,
+} from './serieDCarreira';
 import {resolverSerieDNaVirada, type ResumoSerieD} from './serieDSeason';
 import type {
   AtributoChave,
@@ -271,6 +278,11 @@ export interface GameState {
    * background); base do palmarés. Vazio em carreiras/saves anteriores.
    */
   historicoSerieD: ResumoSerieD[];
+  /**
+   * Mata-mata da Série D quando o USUÁRIO disputa a D. null fora de uma carreira
+   * na D ou durante a fase de grupos (que roda como liga ativa de 6 clubes).
+   */
+  serieDCarreira: EstadoSerieDCarreira | null;
   iniciarNovaCarreira: (clubeId: string) => void;
   /** Assume um novo clube após demissão: mantém a reputação, recomeça a temporada. */
   assumirClube: (clubeId: string) => void;
@@ -298,6 +310,10 @@ export interface GameState {
    * informado ou simulando) e simula os demais, avança a chave e paga premiação.
    */
   avancarFaseCopa: (resultadoUsuario?: ResultadoConfrontoUsuario) => void;
+  /** Fecha a fase de grupos da Série D (carreira na D) e monta o mata-mata do usuário. */
+  iniciarMataMataDaCarreira: () => void;
+  /** Avança uma fase do mata-mata da Série D (resultado do usuário ou simulado). */
+  avancarMataMataDaCarreira: (vitoriaUsuario?: boolean) => void;
   /** Tira um retrato da escalação do usuário ao entrar numa partida ao vivo. */
   prepararPartidaAoVivo: () => void;
   /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
@@ -806,6 +822,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   estadoFinanceiro: 'SAUDAVEL',
   demissao: null,
   historicoSerieD: [],
+  serieDCarreira: null,
 
   iniciarNovaCarreira: clubeId => {
     // SEMPRE parte do seed limpo (e da temporada inicial): uma "nova carreira"
@@ -845,6 +862,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       estadoFinanceiro: 'SAUDAVEL',
       demissao: null,
       historicoSerieD: [],
+      serieDCarreira: null,
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -920,6 +938,49 @@ export const useGameStore = create<GameState>((set, get) => ({
       mensagens: adicionarMensagem(
         state.mensagens,
         `Contratado pelo ${escolhido.nome} (${divisao}). Hora de provar seu valor.`,
+      ),
+    });
+  },
+
+  iniciarMataMataDaCarreira: () => {
+    const state = get();
+    if (!state.clubeUsuarioId) {
+      return;
+    }
+    const {sementes, usuarioClassificado, grupoId} = classificadosSerieDCarreira(
+      state.todosClubes,
+      state.todosJogadores,
+      state.temporadaAtual,
+      state.clubeUsuarioId,
+      state.partidas,
+    );
+    set({
+      serieDCarreira: iniciarMataMataSerieDCarreira(
+        sementes,
+        state.clubeUsuarioId,
+        state.temporadaAtual,
+        grupoId,
+      ),
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        usuarioClassificado
+          ? 'Classificado! Começa o mata-mata da Série D.'
+          : 'Eliminado na fase de grupos da Série D.',
+      ),
+    });
+  },
+
+  avancarMataMataDaCarreira: vitoriaUsuario => {
+    const state = get();
+    if (!state.serieDCarreira || !state.clubeUsuarioId) {
+      return;
+    }
+    set({
+      serieDCarreira: avancarMataMataSerieDCarreira(
+        state.serieDCarreira,
+        state.clubeUsuarioId,
+        forcaSerieD(state.todosClubes, state.todosJogadores),
+        vitoriaUsuario,
       ),
     });
   },
@@ -2555,6 +2616,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       estadoFinanceiro: 'SAUDAVEL',
       demissao: null,
       historicoSerieD: [],
+      serieDCarreira: null,
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

@@ -24,6 +24,7 @@ import {REPUTACAO_INICIAL} from '../engine/carreira/carreiraEngine';
 import {sugerirCapitao} from '../engine/carreira/capitao';
 import {comHabilidades} from '../engine/progression/habilidades';
 import {comTipo} from '../engine/progression/tipoJogador';
+import type {EstadoSerieDCarreira} from './serieDCarreira';
 import type {ResumoSerieD} from './serieDSeason';
 import {CONFIG_PADRAO, type ConfigJogo, type GameState} from './useGameStore';
 import {migrarSnapshot, VERSAO_SAVE} from './saveMigrations';
@@ -62,6 +63,8 @@ export interface SnapshotJogo {
   todosJogadores?: Player[];
   /** Histórico da Série D por temporada (aditivo; ausente em saves anteriores). */
   historicoSerieD?: ResumoSerieD[];
+  /** Mata-mata da Série D em andamento (carreira na D). Aditivo. */
+  serieDCarreira?: EstadoSerieDCarreira | null;
 }
 
 /**
@@ -98,6 +101,7 @@ export function montarSnapshot(
     todosClubes: state.todosClubes,
     todosJogadores: state.todosJogadores,
     historicoSerieD: state.historicoSerieD,
+    serieDCarreira: state.serieDCarreira,
   };
 }
 
@@ -141,6 +145,7 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     estadoFinanceiro: snapshot.estadoFinanceiro ?? 'SAUDAVEL',
     demissao: snapshot.demissao ?? null,
     historicoSerieD: snapshot.historicoSerieD ?? [],
+    serieDCarreira: snapshot.serieDCarreira ?? null,
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
     // só a Série A). Aplica a migração de habilidades/tipo também aqui.
