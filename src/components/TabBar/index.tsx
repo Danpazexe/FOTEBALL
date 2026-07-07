@@ -14,7 +14,8 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {BottomTabBarProps} from '@react-navigation/bottom-tabs';
 
 import Icone, {type IconeNome} from '../Icone';
-import {cores, raio, sombra, suaves} from '../../theme';
+import {raio, type Tema} from '../../theme';
+import {useEstilos, useTema} from '../../theme/useTema';
 
 const ICONES: Record<string, IconeNome> = {
   Central: 'central',
@@ -45,6 +46,8 @@ function TabItem({
   badge?: number | string;
   onPress: () => void;
 }): React.JSX.Element {
+  const {cores} = useTema();
+  const styles = useEstilos(criarEstilos);
   const p = useDerivedValue(() => withSpring(focado ? 1 : 0, MOLA), [focado]);
 
   const pilulaStyle = useAnimatedStyle(() => ({
@@ -94,6 +97,7 @@ export default function TabBar({
   descriptors,
 }: BottomTabBarProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const styles = useEstilos(criarEstilos);
   return (
     <View style={[styles.barra, {paddingBottom: Math.max(insets.bottom, 10)}]}>
       {state.routes.map((route, index) => {
@@ -126,55 +130,57 @@ export default function TabBar({
   );
 }
 
-const styles = StyleSheet.create({
-  barra: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderTopColor: cores.bordaTransl,
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    paddingTop: 10,
-    ...sombra.suave,
-  },
-  item: {
-    alignItems: 'center',
-    flex: 1,
-    gap: 3,
-    justifyContent: 'center',
-  },
-  iconeWrap: {
-    alignItems: 'center',
-    height: 34,
-    justifyContent: 'center',
-    width: 56,
-  },
-  pilula: {
-    backgroundColor: suaves.verde,
-    borderRadius: raio.pill,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
-  rotulo: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  badge: {
-    alignItems: 'center',
-    backgroundColor: cores.perigo,
-    borderRadius: 999,
-    minWidth: 16,
-    paddingHorizontal: 4,
-    position: 'absolute',
-    right: 6,
-    top: -2,
-  },
-  badgeTxt: {
-    color: cores.superficie,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-});
+const criarEstilos = (t: Tema) =>
+  StyleSheet.create({
+    barra: {
+      alignItems: 'center',
+      backgroundColor: t.cores.superficieElevada,
+      borderTopColor: t.cores.bordaTransl,
+      borderTopWidth: 1,
+      flexDirection: 'row',
+      paddingTop: 10,
+      ...t.sombra.suave,
+    },
+    item: {
+      alignItems: 'center',
+      flex: 1,
+      gap: 3,
+      justifyContent: 'center',
+    },
+    iconeWrap: {
+      alignItems: 'center',
+      height: 34,
+      justifyContent: 'center',
+      width: 56,
+    },
+    pilula: {
+      backgroundColor: t.suaves.verde,
+      borderRadius: raio.pill,
+      bottom: 0,
+      left: 0,
+      position: 'absolute',
+      right: 0,
+      top: 0,
+    },
+    rotulo: {
+      fontSize: 10.5,
+      fontWeight: '800',
+      letterSpacing: 0.3,
+    },
+    badge: {
+      alignItems: 'center',
+      backgroundColor: t.cores.perigo,
+      borderRadius: 999,
+      minWidth: 16,
+      paddingHorizontal: 4,
+      position: 'absolute',
+      right: 6,
+      top: -2,
+    },
+    // Branco fixo: texto sobre o badge vermelho, legível nos dois temas.
+    badgeTxt: {
+      color: '#FFFFFF',
+      fontSize: 10,
+      fontWeight: '800',
+    },
+  });

@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {AppState, StatusBar, StyleSheet} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {
@@ -23,22 +23,30 @@ import {
   conquistasParaSalvar,
   useAchievementsStore,
 } from './src/store/useAchievementsStore';
-import {cores} from './src/theme';
+import {type Tema} from './src/theme';
+import {useTemaStore} from './src/store/useTemaStore';
+import {
+  carregarModoTema,
+  salvarModoTema,
+} from './src/api/database/preferencias';
 
 const DEBOUNCE_SALVAR_MS = 800;
 
-const temaFoteball: Theme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: cores.primaria,
-    background: cores.fundo,
-    card: cores.superficie,
-    text: cores.texto,
-    border: cores.borda,
-    notification: cores.secundaria,
-  },
-};
+/** Tema de navegação derivado da paleta ativa (dia/noite). */
+function criarTemaNav(tema: Tema): Theme {
+  return {
+    ...DefaultTheme,
+    colors: {
+      ...DefaultTheme.colors,
+      primary: tema.cores.primaria,
+      background: tema.cores.fundo,
+      card: tema.cores.superficie,
+      text: tema.cores.texto,
+      border: tema.cores.borda,
+      notification: tema.cores.secundaria,
+    },
+  };
+}
 
 /**
  * App = apenas o controlador de telas. Toda a UI vive em src/screens (telas)
@@ -46,6 +54,35 @@ const temaFoteball: Theme = {
  */
 function App(): React.JSX.Element {
   const [carregando, setCarregando] = useState(true);
+
+  // Tema visual (dia/noite): paleta ativa + tema de navegação derivado.
+  const temaAtivo = useTemaStore(estado => estado.tema);
+  const modoTema = useTemaStore(estado => estado.modo);
+  const temaFoteball = useMemo(() => criarTemaNav(temaAtivo), [temaAtivo]);
+
+  // Hidrata a preferência de tema salva (fora do save da carreira).
+  useEffect(() => {
+    let ativo = true;
+    carregarModoTema()
+      .then(modo => {
+        if (ativo && modo) {
+          useTemaStore.getState().definirModo(modo);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  // Persiste o tema a cada troca (idempotente na hidratação).
+  useEffect(
+    () =>
+      useTemaStore.subscribe(estado => {
+        salvarModoTema(estado.modo);
+      }),
+    [],
+  );
 
   // Boot: hidrata o save (se houver) antes de montar a navegação.
   useEffect(() => {
@@ -205,7 +242,10 @@ function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <StatusBar barStyle="dark-content" backgroundColor={cores.fundo} />
+        <StatusBar
+          barStyle={modoTema === 'escuro' ? 'light-content' : 'dark-content'}
+          backgroundColor={temaAtivo.cores.fundo}
+        />
         <NavigationContainer theme={temaFoteball}>
           <FeedbackProvider>
             <RootNavigator />
