@@ -40,6 +40,7 @@ export type {
   PremiacaoCompeticao,
   TabelaClassificacao,
 } from './competition';
+export type {Federacao, Regiao} from './federacao';
 export type {
   EstadoFinanceiro,
   MotivoDemissao,
