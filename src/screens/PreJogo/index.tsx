@@ -44,10 +44,8 @@ import {
   useJogadoresUsuario,
 } from '../../store/useGameStore';
 import {
-  acentos,
   cores,
   comAlfa,
-  corCondicao,
   corDoClube,
   espaco,
   raio,
@@ -76,21 +74,6 @@ const OPCOES_LINHA: Tatica['linhaDefensiva'][] = [
   'Adiantada',
 ];
 const OPCOES_RITMO: Tatica['ritmo'][] = ['Lento', 'Normal', 'Intenso'];
-
-/** Cor da moral (verde alta · amarelo média · vermelho baixa). */
-function corMoral(valor: number): string {
-  if (valor >= 70) {
-    return acentos.verde;
-  }
-  if (valor >= 45) {
-    return acentos.amarelo;
-  }
-  return acentos.vermelho;
-}
-
-function nomeCurto(jogador: Player): string {
-  return jogador.apelido ?? jogador.nome;
-}
 
 const NIVEL_TEXTO: Record<NivelConfronto, string> = {
   favoravel: 'Confronto favorável a você',
@@ -272,6 +255,22 @@ function PreJogo(): React.JSX.Element {
       return;
     }
     atualizarFormacaoUsuario(montarFormacao(jogadoresUsuario, tipo));
+  }
+
+  // Preenche o XI com os melhores jogadores disponíveis para a formação atual.
+  async function escalarMelhores(): Promise<void> {
+    const ok = await confirm({
+      titulo: 'Escalar os 11 melhores?',
+      mensagem:
+        'Preenche a escalação automaticamente com os melhores jogadores disponíveis para a formação atual, desfazendo ajustes manuais de posição.',
+      confirmarLabel: 'Escalar',
+    });
+    if (!ok) {
+      return;
+    }
+    const preset = formacaoTipo === 'Personalizada' ? '4-3-3' : formacaoTipo;
+    atualizarFormacaoUsuario(montarFormacao(jogadoresUsuario, preset));
+    toast('Escalados os 11 melhores.', 'sucesso');
   }
 
   return (
@@ -457,6 +456,15 @@ function PreJogo(): React.JSX.Element {
             }
           />
 
+          <View style={styles.melhoresWrap}>
+            <Botao
+              titulo="Escalar os 11 melhores"
+              variante="secundaria"
+              icone="tatica"
+              onPress={escalarMelhores}
+            />
+          </View>
+
           <Text style={styles.subTitulo}>Trocar formação</Text>
           <View style={styles.chipRow}>
             {FORMACOES_DISPONIVEIS.map(tipo => (
@@ -467,48 +475,6 @@ function PreJogo(): React.JSX.Element {
                 onPress={() => trocarFormacao(tipo)}
               />
             ))}
-          </View>
-        </Section>
-
-        {/* CONDIÇÃO & MORAL */}
-        <Section titulo="Condição & moral do time">
-          <View style={styles.card}>
-            {titulares.map(jogador => (
-              <View key={jogador.id} style={styles.jogadorLinha}>
-                <Text style={styles.jogadorPos}>{jogador.posicaoPrincipal}</Text>
-                <Text style={styles.jogadorNome} numberOfLines={1}>
-                  {nomeCurto(jogador)}
-                </Text>
-                <View style={styles.condTrack}>
-                  <View
-                    style={[
-                      styles.condFill,
-                      {
-                        width: `${jogador.condicaoFisica}%`,
-                        backgroundColor: corCondicao(jogador.condicaoFisica),
-                      },
-                    ]}
-                  />
-                </View>
-                <Text style={[styles.condNum, tabular]}>
-                  {jogador.condicaoFisica}
-                </Text>
-                <View
-                  style={[
-                    styles.moralPonto,
-                    {backgroundColor: corMoral(jogador.moral)},
-                  ]}
-                />
-              </View>
-            ))}
-            <View style={styles.legenda}>
-              <Icone nome="relogio" tamanho={12} cor={cores.textoSecundario} />
-              <Text style={styles.legendaTexto}>condição física</Text>
-              <View
-                style={[styles.moralPonto, {backgroundColor: acentos.verde}]}
-              />
-              <Text style={styles.legendaTexto}>moral</Text>
-            </View>
           </View>
         </Section>
 
@@ -757,13 +723,8 @@ const styles = StyleSheet.create({
     lineHeight: 17,
   },
   // ESCALAÇÃO
-  card: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    padding: espaco.md,
-    ...sombra.suave,
+  melhoresWrap: {
+    marginTop: espaco.md,
   },
   subTitulo: {
     color: cores.textoSecundario,
@@ -774,63 +735,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: espaco.sm,
-  },
-  // CONDIÇÃO & MORAL
-  jogadorLinha: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-    paddingVertical: 5,
-  },
-  jogadorPos: {
-    color: cores.textoSecundario,
-    fontSize: 10,
-    fontWeight: '800',
-    minWidth: 26,
-  },
-  jogadorNome: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  condTrack: {
-    backgroundColor: cores.fundoBase,
-    borderRadius: raio.pill,
-    height: 6,
-    overflow: 'hidden',
-    width: 70,
-  },
-  condFill: {
-    borderRadius: raio.pill,
-    height: '100%',
-  },
-  condNum: {
-    color: cores.texto,
-    fontSize: 12,
-    fontWeight: '800',
-    minWidth: 24,
-    textAlign: 'right',
-  },
-  moralPonto: {
-    borderRadius: 5,
-    height: 10,
-    width: 10,
-  },
-  legenda: {
-    alignItems: 'center',
-    borderTopColor: cores.borda,
-    borderTopWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.xs,
-    marginTop: espaco.sm,
-    paddingTop: espaco.sm,
-  },
-  legendaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '600',
-    marginRight: espaco.sm,
   },
   // CONFIRMAR
   acoes: {

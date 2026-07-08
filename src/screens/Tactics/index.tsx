@@ -21,8 +21,8 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 
 import CampoFUT from '../../components/CampoFUT';
 import Chip from '../../components/Chip';
-import {useConfirm} from '../../components/feedback';
-import {AppHeader, OptionGroup, Section} from '../../components/ui';
+import {useConfirm, useToast} from '../../components/feedback';
+import {AppHeader, Botao, OptionGroup, Section} from '../../components/ui';
 import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
@@ -70,6 +70,7 @@ const OPCOES_AMPLIDAO: NonNullable<Tatica['amplidao']>[] = [
 function Tactics(): React.JSX.Element {
   const nav = useAppNavigation();
   const confirm = useConfirm();
+  const toast = useToast();
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const jogadores = useJogadoresUsuario();
   const forca = useForcaUsuario();
@@ -120,6 +121,22 @@ function Tactics(): React.JSX.Element {
     atualizarFormacaoUsuario(montarFormacao(jogadores, tipo));
   }
 
+  // Preenche o XI com os melhores jogadores disponíveis para a formação atual.
+  async function escalarMelhores(): Promise<void> {
+    const ok = await confirm({
+      titulo: 'Escalar os 11 melhores?',
+      mensagem:
+        'Preenche a escalação automaticamente com os melhores jogadores disponíveis para a formação atual, desfazendo ajustes manuais de posição.',
+      confirmarLabel: 'Escalar',
+    });
+    if (!ok) {
+      return;
+    }
+    const preset = formacaoTipo === 'Personalizada' ? '4-3-3' : formacaoTipo;
+    atualizarFormacaoUsuario(montarFormacao(jogadores, preset));
+    toast('Escalados os 11 melhores.', 'sucesso');
+  }
+
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView
@@ -144,6 +161,15 @@ function Tactics(): React.JSX.Element {
           onArrastandoChange={setArrastando}
           onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
         />
+
+        <View style={styles.melhoresWrap}>
+          <Botao
+            titulo="Escalar os 11 melhores"
+            variante="secundaria"
+            icone="tatica"
+            onPress={escalarMelhores}
+          />
+        </View>
 
         <Section titulo="Estratégia">
           <View style={styles.chipRow}>
@@ -259,6 +285,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: espaco.sm,
+  },
+  melhoresWrap: {
+    marginTop: espaco.md,
   },
   vazio: {
     alignItems: 'center',
