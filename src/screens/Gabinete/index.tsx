@@ -7,6 +7,8 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import {IconeGlifo} from '../../components/Icone';
+import Chip from '../../components/Chip';
+import StatCard from '../../components/StatCard';
 import {AppHeader, Botao, ScreenContainer} from '../../components/ui';
 import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
@@ -18,7 +20,7 @@ import {
 } from '../../engine/season/retrospectiva';
 import {calcularJornada} from '../../engine/carreira/jornada';
 import {proporEmpregos} from '../../engine/carreira/propostas';
-import {cores, espaco, raio, sombra, tipografia} from '../../theme';
+import {cores, espaco, raio, sombra, tabular, tipografia} from '../../theme';
 import {nomeClube} from '../../utils/formatters';
 import type {EstadoFinanceiro} from '../../types';
 
@@ -26,8 +28,10 @@ const ESTADO_FINANCEIRO: Record<
   EstadoFinanceiro,
   {rotulo: string; cor: string}
 > = {
+  // Cor de ESTADO (não o acento âmbar): aviso amarelo para atenção, vermelho
+  // para crítico/falência — o âmbar-refletor fica reservado ao que decide.
   SAUDAVEL: {rotulo: 'Saudável', cor: cores.primaria},
-  ATENCAO: {rotulo: 'Atenção', cor: cores.secundaria},
+  ATENCAO: {rotulo: 'Atenção', cor: cores.aviso},
   CRITICO: {rotulo: 'Crítico', cor: cores.perigo},
   FALENCIA: {rotulo: 'Falência', cor: cores.perigo},
 };
@@ -48,6 +52,7 @@ function Gabinete(): React.JSX.Element {
 
   const desbloqueadas = conquistas.filter(c => c.desbloqueada).length;
   const total = conquistas.length;
+  const conquistasPct = total > 0 ? Math.round((desbloqueadas / total) * 100) : 0;
   const financeiro = ESTADO_FINANCEIRO[estadoFinanceiro];
 
   // Jornada do técnico — estágio de carreira pela reputação + próximo marco.
@@ -133,8 +138,11 @@ function Gabinete(): React.JSX.Element {
       {clubeUsuarioId ? (
         <View style={styles.carreiraCard}>
           <View style={styles.carreiraItem}>
-            <Text style={styles.carreiraRotulo}>Reputação do técnico</Text>
-            <Text style={styles.carreiraValor}>{reputacaoTecnico}/100</Text>
+            <Text style={styles.secaoRotulo}>Reputação do técnico</Text>
+            <Text style={styles.carreiraValor}>
+              <Text style={tabular}>{reputacaoTecnico}</Text>
+              <Text style={styles.carreiraDe}>/100</Text>
+            </Text>
             <View style={styles.barraFundo}>
               <View
                 style={[
@@ -145,21 +153,34 @@ function Gabinete(): React.JSX.Element {
             </View>
           </View>
           <View style={styles.carreiraItem}>
-            <Text style={styles.carreiraRotulo}>Finanças</Text>
-            <View
-              style={[styles.estadoChip, {backgroundColor: `${financeiro.cor}22`}]}>
-              <Text style={[styles.estadoTexto, {color: financeiro.cor}]}>
-                {financeiro.rotulo}
-              </Text>
-            </View>
+            <Text style={styles.secaoRotulo}>Finanças</Text>
+            <Chip
+              label={financeiro.rotulo}
+              tom="suave"
+              cor={financeiro.cor}
+              style={styles.financasChip}
+            />
           </View>
         </View>
-      ) : null}
+      ) : (
+        <View style={styles.vazioCard}>
+          <IconeGlifo
+            nome="briefcase-outline"
+            tamanho={30}
+            cor={cores.textoMuted}
+          />
+          <Text style={styles.vazioTitulo}>Nenhum clube no comando</Text>
+          <Text style={styles.vazioTexto}>
+            Assuma um clube para acompanhar reputação, finanças, jornada e a
+            retrospectiva da temporada.
+          </Text>
+        </View>
+      )}
 
       {jornada ? (
         <View style={styles.retroCard}>
           <View style={styles.jornadaTopo}>
-            <Text style={styles.retroTitulo}>Jornada do técnico</Text>
+            <Text style={styles.secaoRotulo}>Jornada do técnico</Text>
             <Text style={styles.jornadaEstagio}>{jornada.estagioAtual}</Text>
           </View>
           <Text style={styles.jornadaDescricao}>{jornada.descricaoAtual}</Text>
@@ -172,16 +193,24 @@ function Gabinete(): React.JSX.Element {
             />
           </View>
           <Text style={styles.jornadaProximo}>
-            {jornada.proximoMarco
-              ? `Próximo: ${jornada.proximoMarco.estagio} (rep. ${jornada.proximoMarco.reputacaoMinima})`
-              : 'Auge da carreira alcançado.'}
+            {jornada.proximoMarco ? (
+              <>
+                Próximo: {jornada.proximoMarco.estagio} (rep.{' '}
+                <Text style={tabular}>
+                  {jornada.proximoMarco.reputacaoMinima}
+                </Text>
+                )
+              </>
+            ) : (
+              'Auge da carreira alcançado.'
+            )}
           </Text>
         </View>
       ) : null}
 
       {propostas.length > 0 ? (
         <View style={styles.retroCard}>
-          <Text style={styles.retroTitulo}>Propostas de clubes</Text>
+          <Text style={styles.secaoRotulo}>Propostas de clubes</Text>
           {propostas.map(proposta => (
             <View key={proposta.clubeId} style={styles.propostaLinha}>
               <View style={styles.propostaInfo}>
@@ -189,7 +218,8 @@ function Gabinete(): React.JSX.Element {
                   {proposta.nome}
                 </Text>
                 <Text style={styles.propostaSub} numberOfLines={1}>
-                  {proposta.divisao} · reputação {proposta.reputacao}
+                  {proposta.divisao} · reputação{' '}
+                  <Text style={tabular}>{proposta.reputacao}</Text>
                 </Text>
               </View>
               <View style={styles.propostaAcao}>
@@ -206,62 +236,82 @@ function Gabinete(): React.JSX.Element {
         </View>
       ) : null}
 
-      {retro ? (
+      {clubeUsuarioId ? (
         <View style={styles.retroCard}>
-          <Text style={styles.retroTitulo}>Retrospectiva da temporada</Text>
-          <View style={styles.retroLinha}>
-            <Text style={styles.retroRotulo}>Campanha</Text>
-            <Text style={styles.retroValor}>
-              {retro.vitorias}V {retro.empates}E {retro.derrotas}D ·{' '}
-              {retro.aproveitamento}%
+          <Text style={styles.secaoRotulo}>Retrospectiva da temporada</Text>
+          {retro ? (
+            <>
+              <View style={styles.statRow}>
+                <StatCard
+                  label="Aproveitamento"
+                  valor={`${retro.aproveitamento}%`}
+                  sub={`${retro.vitorias}V · ${retro.empates}E · ${retro.derrotas}D`}
+                />
+                <StatCard
+                  label="Saldo de gols"
+                  valor={`${retro.saldo >= 0 ? '+' : ''}${retro.saldo}`}
+                  sub={`${retro.golsPro} pró · ${retro.golsContra} contra`}
+                  corValor={retro.saldo >= 0 ? cores.sucesso : cores.perigo}
+                />
+              </View>
+              {retro.maiorVitoria ? (
+                <View style={styles.retroLinha}>
+                  <Text style={styles.retroRotulo}>Maior vitória</Text>
+                  <Text style={[styles.retroValor, tabular]} numberOfLines={1}>
+                    {retro.maiorVitoria.golsFavor}x
+                    {retro.maiorVitoria.golsContra} vs{' '}
+                    {nomeClube(clubes, retro.maiorVitoria.adversarioId)}
+                  </Text>
+                </View>
+              ) : null}
+              {retro.maiorDerrota ? (
+                <View style={styles.retroLinha}>
+                  <Text style={styles.retroRotulo}>Maior derrota</Text>
+                  <Text style={[styles.retroValor, tabular]} numberOfLines={1}>
+                    {retro.maiorDerrota.golsFavor}x
+                    {retro.maiorDerrota.golsContra} vs{' '}
+                    {nomeClube(clubes, retro.maiorDerrota.adversarioId)}
+                  </Text>
+                </View>
+              ) : null}
+              {retro.maiorSequenciaVitorias >= 2 ? (
+                <View style={styles.retroLinha}>
+                  <Text style={styles.retroRotulo}>Melhor sequência</Text>
+                  <Text style={styles.retroValor}>
+                    <Text style={tabular}>{retro.maiorSequenciaVitorias}</Text>{' '}
+                    vitórias seguidas
+                  </Text>
+                </View>
+              ) : null}
+              {retro.artilheiro && artilheiroNome ? (
+                <View style={styles.retroLinha}>
+                  <Text style={styles.retroRotulo}>Artilheiro</Text>
+                  <Text
+                    style={[styles.retroValor, styles.retroDestaque]}
+                    numberOfLines={1}>
+                    {artilheiroNome} (
+                    <Text style={tabular}>{retro.artilheiro.gols}</Text>{' '}
+                    {retro.artilheiro.gols === 1 ? 'gol' : 'gols'})
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <Text style={styles.vazioTexto}>
+              Jogue a primeira partida da temporada para ver seu balanço e
+              recordes aqui.
             </Text>
-          </View>
-          <View style={styles.retroLinha}>
-            <Text style={styles.retroRotulo}>Gols</Text>
-            <Text style={styles.retroValor}>
-              {retro.golsPro} pró · {retro.golsContra} contra (
-              {retro.saldo >= 0 ? '+' : ''}
-              {retro.saldo})
-            </Text>
-          </View>
-          {retro.maiorVitoria ? (
-            <View style={styles.retroLinha}>
-              <Text style={styles.retroRotulo}>Maior vitória</Text>
-              <Text style={styles.retroValor} numberOfLines={1}>
-                {retro.maiorVitoria.golsFavor}x{retro.maiorVitoria.golsContra} vs{' '}
-                {nomeClube(clubes, retro.maiorVitoria.adversarioId)}
-              </Text>
-            </View>
-          ) : null}
-          {retro.maiorDerrota ? (
-            <View style={styles.retroLinha}>
-              <Text style={styles.retroRotulo}>Maior derrota</Text>
-              <Text style={styles.retroValor} numberOfLines={1}>
-                {retro.maiorDerrota.golsFavor}x{retro.maiorDerrota.golsContra} vs{' '}
-                {nomeClube(clubes, retro.maiorDerrota.adversarioId)}
-              </Text>
-            </View>
-          ) : null}
-          {retro.maiorSequenciaVitorias >= 2 ? (
-            <View style={styles.retroLinha}>
-              <Text style={styles.retroRotulo}>Melhor sequência</Text>
-              <Text style={styles.retroValor}>
-                {retro.maiorSequenciaVitorias} vitórias seguidas
-              </Text>
-            </View>
-          ) : null}
-          {retro.artilheiro && artilheiroNome ? (
-            <View style={styles.retroLinha}>
-              <Text style={styles.retroRotulo}>Artilheiro</Text>
-              <Text style={styles.retroValor} numberOfLines={1}>
-                {artilheiroNome} ({retro.artilheiro.gols}{' '}
-                {retro.artilheiro.gols === 1 ? 'gol' : 'gols'})
-              </Text>
-            </View>
-          ) : null}
+          )}
         </View>
       ) : null}
 
+      <View style={styles.conquistasTopo}>
+        <Text style={styles.secaoRotulo}>Conquistas</Text>
+        <Text style={styles.conquistasPct}>{conquistasPct}%</Text>
+      </View>
+      <View style={[styles.barraFundo, styles.barraConquistas]}>
+        <View style={[styles.barraPreenchida, {width: `${conquistasPct}%`}]} />
+      </View>
       <View style={styles.grade}>
         {conquistas.map(conquista => (
           <View
@@ -303,21 +353,23 @@ function Gabinete(): React.JSX.Element {
 export default Gabinete;
 
 const styles = StyleSheet.create({
+  secaoRotulo: {
+    color: cores.textoSecundario,
+    ...tipografia.secao,
+  },
   retroCard: {
     backgroundColor: cores.superficieElevada,
     borderColor: cores.bordaTransl,
     borderRadius: raio.lg,
     borderWidth: 1,
-    gap: espaco.xs,
+    gap: espaco.sm,
     marginBottom: espaco.md,
     padding: espaco.md,
     ...sombra.card,
   },
-  retroTitulo: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-    marginBottom: espaco.xs,
+  statRow: {
+    flexDirection: 'row',
+    gap: espaco.sm,
   },
   jornadaTopo: {
     alignItems: 'center',
@@ -332,13 +384,11 @@ const styles = StyleSheet.create({
   jornadaDescricao: {
     color: cores.textoSecundario,
     fontSize: 12.5,
-    marginBottom: espaco.xs,
   },
   jornadaProximo: {
     color: cores.textoMuted,
     fontSize: 11.5,
     fontWeight: '700',
-    marginTop: 2,
   },
   propostaLinha: {
     alignItems: 'center',
@@ -348,7 +398,7 @@ const styles = StyleSheet.create({
   },
   propostaInfo: {
     flex: 1,
-    gap: 2,
+    gap: espaco.xs,
   },
   propostaNome: {
     color: cores.texto,
@@ -380,6 +430,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'right',
   },
+  retroDestaque: {
+    color: cores.secundaria,
+  },
   carreiraCard: {
     backgroundColor: cores.superficieElevada,
     borderColor: cores.bordaTransl,
@@ -395,14 +448,17 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: espaco.xs,
   },
-  carreiraRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '700',
-  },
   carreiraValor: {
     color: cores.texto,
     ...tipografia.numero,
+  },
+  carreiraDe: {
+    color: cores.textoMuted,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  financasChip: {
+    alignSelf: 'flex-start',
   },
   barraFundo: {
     backgroundColor: cores.fundo,
@@ -410,19 +466,46 @@ const styles = StyleSheet.create({
     height: 6,
     overflow: 'hidden',
   },
+  barraConquistas: {
+    marginBottom: espaco.md,
+  },
   barraPreenchida: {
     backgroundColor: cores.primaria,
     height: 6,
   },
-  estadoChip: {
-    alignSelf: 'flex-start',
-    borderRadius: raio.sm,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: espaco.xs,
+  vazioCard: {
+    alignItems: 'center',
+    backgroundColor: cores.superficieElevada,
+    borderColor: cores.bordaTransl,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.xs,
+    marginBottom: espaco.md,
+    padding: espaco.xl,
+    ...sombra.card,
   },
-  estadoTexto: {
+  vazioTitulo: {
+    color: cores.texto,
     fontSize: 14,
     fontWeight: '800',
+    marginTop: espaco.xs,
+  },
+  vazioTexto: {
+    color: cores.textoSecundario,
+    fontSize: 12.5,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  conquistasTopo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: espaco.sm,
+  },
+  conquistasPct: {
+    color: cores.texto,
+    ...tipografia.numero,
+    ...tabular,
   },
   grade: {
     flexDirection: 'row',
@@ -466,6 +549,7 @@ const styles = StyleSheet.create({
     color: cores.primaria,
     fontSize: 10,
     fontWeight: '700',
-    marginTop: 2,
+    marginTop: espaco.xs,
+    ...tabular,
   },
 });
