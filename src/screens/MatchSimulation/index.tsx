@@ -66,13 +66,12 @@ import {
   acrescimosDaSeed,
   calcularEstatisticasFinais,
   calcularPossePartida,
-  disputarPenaltis,
   iniciarPartidaAoVivo,
   simularMinuto,
   type EstadoPartidaAoVivo,
 } from '../../engine/simulation/matchSimulator';
 import {confrontoDoClube} from '../../engine/season/copaEngine';
-import {criarRNGComSeed, hashString} from '../../engine/simulation/rng';
+import {hashString} from '../../engine/simulation/rng';
 import {
   selecionarClubeUsuario,
   selecionarCopaNaVez,
@@ -986,26 +985,23 @@ function MatchSimulation(): React.JSX.Element | null {
     tocarFimDeJogo();
     const e = estadoRef.current;
     if (modoCopaRef.current) {
-      // Usuário manda o jogo: gols dele = placar da casa. Empate → pênaltis.
+      // Usuário manda o jogo: gols dele = placar da casa.
       const golsUsuario = e.placarCasa;
       const golsAdversario = e.placarFora;
-      let vencedorPenaltis: string | undefined;
       if (golsUsuario === golsAdversario) {
-        const meus = useGameStore
-          .getState()
-          .jogadores.filter(j => j.clubeId === fixture.timeCasa);
-        vencedorPenaltis = disputarPenaltis(
-          criarRNGComSeed(hashString(`${fixture.id}_pen`)),
-          mediaOverall(meus),
-          mediaOverall(jogadoresAdversarioRef.current),
-          fixture.timeCasa,
-          fixture.timeFora,
-        );
+        // Empate → disputa de pênaltis INTERATIVA (o usuário bate). A tela
+        // Penaltis resolve o confronto (avancarFaseCopa) e volta para a Copa.
+        nav.replace('Penaltis', {
+          fixtureId: fixture.id,
+          clubeAdversarioId: fixture.timeFora,
+          forcaAdversario: mediaOverall(jogadoresAdversarioRef.current),
+          golsUsuario,
+          golsAdversario,
+        });
+      } else {
+        useGameStore.getState().avancarFaseCopa({golsUsuario, golsAdversario});
+        nav.navigate('Copa');
       }
-      useGameStore
-        .getState()
-        .avancarFaseCopa({golsUsuario, golsAdversario, vencedorPenaltis});
-      nav.navigate('Copa');
     } else {
       useGameStore
         .getState()

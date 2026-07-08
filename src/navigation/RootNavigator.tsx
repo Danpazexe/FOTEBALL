@@ -10,6 +10,7 @@ import MatchSimulation from '../screens/MatchSimulation';
 import MatchResult from '../screens/MatchResult';
 import PreJogo from '../screens/PreJogo';
 import Copa from '../screens/Copa';
+import Penaltis from '../screens/Penaltis';
 import SerieD from '../screens/SerieD';
 import Semana from '../screens/Semana';
 import Academia from '../screens/Academia';
@@ -47,6 +48,11 @@ export function RootNavigator() {
       <Stack.Screen name="MatchResult" component={MatchResult} />
       <Stack.Screen name="PreJogo" component={PreJogo} />
       <Stack.Screen name="Copa" component={Copa} />
+      <Stack.Screen
+        name="Penaltis"
+        component={Penaltis}
+        options={{gestureEnabled: false}}
+      />
       <Stack.Screen name="SerieD" component={SerieD} />
       <Stack.Screen name="Semana" component={Semana} />
       <Stack.Screen name="Academia" component={Academia} />

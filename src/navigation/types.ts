@@ -25,6 +25,21 @@ export type RootStackParamList = {
   MatchResult: {partidaId: string};
   PreJogo: undefined;
   Copa: undefined;
+  /**
+   * Disputa de pênaltis interativa. Sem params (ou `teste: true`) = modo teste,
+   * aberto pelo Central. Com `fixtureId` = jogo de Copa empatado: ao fim resolve
+   * o confronto e volta para a Copa.
+   */
+  Penaltis:
+    | {
+        teste?: boolean;
+        fixtureId?: string;
+        clubeAdversarioId?: string;
+        forcaAdversario?: number;
+        golsUsuario?: number;
+        golsAdversario?: number;
+      }
+    | undefined;
   /** Chaveamento da Série D (carreira na D): grupos → mata-mata. */
   SerieD: undefined;
   Semana: undefined;
