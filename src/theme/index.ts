@@ -12,8 +12,11 @@
  * para o toggle é incremental.
  *
  * ESTE ARQUIVO É PURO (sem React) — os hooks `useTema`/`useEstilos` vivem em
- * `./useTema` para não puxar React onde não deve (ex.: engine).
+ * `./useTema` para não puxar React onde não deve (ex.: engine). O único import é
+ * de TIPO (`TextStyle`, apagado em build), então não puxa runtime de RN/React.
  */
+
+import type {TextStyle} from 'react-native';
 
 /** Forma dos tokens de cor — idêntica em ambos os temas. */
 export type PaletaCores = {
@@ -341,6 +344,15 @@ export const raio = {
   xxl: 28,
   pill: 999,
 } as const;
+
+/**
+ * "O número é sagrado" — ative `tabular` (tabular-nums) em QUALQUER texto onde
+ * dígitos se alinham em coluna: placar, overall, saldo, minuto, tabela. Garante
+ * que cada dígito ocupe a mesma largura (colunas que casam), usando a fonte de
+ * sistema — sem precisar embarcar uma fonte mono. Compose: `[styles.x, tabular]`
+ * ou `{...tipografia.numero, ...tabular}`.
+ */
+export const tabular: TextStyle = {fontVariant: ['tabular-nums']};
 
 /**
  * Escala tipográfica condensada/forte. Números e títulos grandes e apertados

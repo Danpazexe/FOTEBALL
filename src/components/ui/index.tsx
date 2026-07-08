@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
-import {espaco, raio, tipografia, type Tema} from '../../theme';
+import {espaco, raio, tabular, tipografia, type Tema} from '../../theme';
 import {useEstilos, useTema} from '../../theme/useTema';
 import GradienteFundo from '../GradienteFundo';
 import Icone, {type IconeNome} from '../Icone';
@@ -339,6 +339,7 @@ const criarEstilos = (t: Tema) =>
     metricValue: {
       color: t.cores.texto,
       ...tipografia.numero,
+      ...tabular,
     },
     metricLabel: {
       color: t.cores.textoSecundario,

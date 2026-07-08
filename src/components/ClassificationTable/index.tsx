@@ -2,7 +2,7 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import Escudo from '../Escudo';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco, raio, suaves, tabular} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {Clube, TabelaClassificacao} from '../../types';
 
@@ -85,6 +85,7 @@ export function ClassificationTable({
             <Text
               style={[
                 styles.stat,
+                styles.statPontos,
                 styles.colStat,
                 destaque ? styles.textoDestaque : null,
               ]}>
@@ -104,6 +105,7 @@ export function ClassificationTable({
                 styles.colStat,
                 destaque ? styles.textoDestaque : null,
               ]}>
+              {linha.saldoGols > 0 ? '+' : ''}
               {linha.saldoGols}
             </Text>
           </View>
@@ -135,8 +137,9 @@ const styles = StyleSheet.create({
   headerRow: {
     backgroundColor: cores.superficieAlt,
   },
+  // Time do usuário: destacado em âmbar (o acento raro marca "o seu time").
   rowDestaque: {
-    backgroundColor: cores.superficieAlt,
+    backgroundColor: suaves.laranja,
   },
   headerText: {
     color: cores.textoSecundario,
@@ -147,6 +150,7 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 13,
     fontWeight: '700',
+    ...tabular,
   },
   club: {
     color: cores.texto,
@@ -157,9 +161,14 @@ const styles = StyleSheet.create({
   stat: {
     color: cores.texto,
     fontSize: 12,
+    ...tabular,
+  },
+  // PTS é a coluna que decide — peso maior para ler no relance.
+  statPontos: {
+    fontWeight: '800',
   },
   textoDestaque: {
-    color: cores.primaria,
+    color: cores.secundaria,
   },
   colPos: {
     width: 28,
