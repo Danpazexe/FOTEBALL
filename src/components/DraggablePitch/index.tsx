@@ -611,9 +611,9 @@ function PecaReserva({
 
 export default DraggablePitch;
 
-// Gramado claro do tema + marcações em véu azul-marinho (legíveis no claro).
-const VERDE_CAMPO = cores.gramado;
-const LINHA = cores.bordaTranslForte;
+// Turfa noturna + linhas de cal visíveis — consistente com a prancheta (CampoFUT).
+const VERDE_CAMPO = '#0F2E1E';
+const LINHA = 'rgba(234, 242, 230, 0.55)';
 
 const styles = StyleSheet.create({
   overlay: {

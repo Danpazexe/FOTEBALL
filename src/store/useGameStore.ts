@@ -109,11 +109,20 @@ import {
   DIVISAO_PADRAO,
   gerarCopaParaTemporada,
   gerarLiga,
+  gerarLigaSerieDGrupo,
   N_ACESSO,
   PIRAMIDE_DIVISOES,
   PREMIACAO_COPA,
   TEMPORADA_INICIAL,
 } from './setup';
+import {
+  avancarMataMataSerieDCarreira,
+  classificadosSerieDCarreira,
+  forcaSerieD,
+  iniciarMataMataSerieDCarreira,
+  type EstadoSerieDCarreira,
+} from './serieDCarreira';
+import {resolverSerieDNaVirada, type ResumoSerieD} from './serieDSeason';
 import type {
   AtributoChave,
   Clube,
@@ -263,6 +272,17 @@ export interface GameState {
   estadoFinanceiro: EstadoFinanceiro;
   /** Motivo da demissão, se o técnico foi demitido (§12); null = empregado. */
   demissao: MotivoDemissao | null;
+  /**
+   * Histórico da Série D por temporada (mais recente primeiro): campeão, vice e
+   * acessos. Alimentado na virada pela engine de competição (a Série D roda em
+   * background); base do palmarés. Vazio em carreiras/saves anteriores.
+   */
+  historicoSerieD: ResumoSerieD[];
+  /**
+   * Mata-mata da Série D quando o USUÁRIO disputa a D. null fora de uma carreira
+   * na D ou durante a fase de grupos (que roda como liga ativa de 6 clubes).
+   */
+  serieDCarreira: EstadoSerieDCarreira | null;
   iniciarNovaCarreira: (clubeId: string) => void;
   /** Assume um novo clube após demissão: mantém a reputação, recomeça a temporada. */
   assumirClube: (clubeId: string) => void;
@@ -290,6 +310,10 @@ export interface GameState {
    * informado ou simulando) e simula os demais, avança a chave e paga premiação.
    */
   avancarFaseCopa: (resultadoUsuario?: ResultadoConfrontoUsuario) => void;
+  /** Fecha a fase de grupos da Série D (carreira na D) e monta o mata-mata do usuário. */
+  iniciarMataMataDaCarreira: () => void;
+  /** Avança uma fase do mata-mata da Série D (resultado do usuário ou simulado). */
+  avancarMataMataDaCarreira: (vitoriaUsuario?: boolean) => void;
   /** Tira um retrato da escalação do usuário ao entrar numa partida ao vivo. */
   prepararPartidaAoVivo: () => void;
   /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
@@ -797,6 +821,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   rodadasNoVermelho: 0,
   estadoFinanceiro: 'SAUDAVEL',
   demissao: null,
+  historicoSerieD: [],
+  serieDCarreira: null,
 
   iniciarNovaCarreira: clubeId => {
     // SEMPRE parte do seed limpo (e da temporada inicial): uma "nova carreira"
@@ -806,12 +832,21 @@ export const useGameStore = create<GameState>((set, get) => ({
     const base = criarEstadoInicial();
     const escolhido = base.todosClubes.find(clube => clube.id === clubeId);
     const divisao = escolhido?.divisao ?? DIVISAO_PADRAO;
-    const liga = gerarLiga(
-      base.todosClubes,
-      base.todosJogadores,
-      divisao,
-      TEMPORADA_INICIAL,
-    );
+    // Série D: a liga ativa é o GRUPO de 6 do clube (não a divisão inteira de 96).
+    const liga =
+      divisao === 'Série D'
+        ? gerarLigaSerieDGrupo(
+            base.todosClubes,
+            base.todosJogadores,
+            clubeId,
+            TEMPORADA_INICIAL,
+          )
+        : gerarLiga(
+            base.todosClubes,
+            base.todosJogadores,
+            divisao,
+            TEMPORADA_INICIAL,
+          );
     set({
       todosClubes: base.todosClubes,
       todosJogadores: base.todosJogadores,
@@ -826,6 +861,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       rodadasNoVermelho: 0,
       estadoFinanceiro: 'SAUDAVEL',
       demissao: null,
+      historicoSerieD: [],
+      serieDCarreira: null,
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -833,13 +870,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       jovensDisponiveis: [],
       propostasRecebidas: [],
       formacaoPreLive: null,
-      copa: gerarCopaParaTemporada(
-        base.todosClubes,
-        base.todosJogadores,
-        TEMPORADA_INICIAL,
-        clubeId,
-        calcularDatasFasesCopa(liga.partidas),
-      ),
+      copa:
+        divisao === 'Série D'
+          ? null
+          : gerarCopaParaTemporada(
+              base.todosClubes,
+              base.todosJogadores,
+              TEMPORADA_INICIAL,
+              clubeId,
+              calcularDatasFasesCopa(liga.partidas),
+            ),
       clubes: liga.clubes.map(clube => ({
         ...clube,
         controladoPorIA: clube.id !== clubeId,
@@ -863,15 +903,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
     const divisao = escolhido.divisao ?? DIVISAO_PADRAO;
-    const liga = gerarLiga(
-      state.todosClubes,
-      state.todosJogadores,
-      divisao,
-      state.temporadaAtual,
-    );
+    const liga =
+      divisao === 'Série D'
+        ? gerarLigaSerieDGrupo(
+            state.todosClubes,
+            state.todosJogadores,
+            clubeId,
+            state.temporadaAtual,
+          )
+        : gerarLiga(
+            state.todosClubes,
+            state.todosJogadores,
+            divisao,
+            state.temporadaAtual,
+          );
     set({
       clubeUsuarioId: clubeId,
       rodadaAtual: 1,
+      serieDCarreira: null,
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -887,13 +936,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       jovensDisponiveis: [],
       propostasRecebidas: [],
       formacaoPreLive: null,
-      copa: gerarCopaParaTemporada(
-        state.todosClubes,
-        state.todosJogadores,
-        state.temporadaAtual,
-        clubeId,
-        calcularDatasFasesCopa(liga.partidas),
-      ),
+      copa:
+        divisao === 'Série D'
+          ? null
+          : gerarCopaParaTemporada(
+              state.todosClubes,
+              state.todosJogadores,
+              state.temporadaAtual,
+              clubeId,
+              calcularDatasFasesCopa(liga.partidas),
+            ),
       clubes: liga.clubes.map(clube => ({
         ...clube,
         controladoPorIA: clube.id !== clubeId,
@@ -901,6 +953,49 @@ export const useGameStore = create<GameState>((set, get) => ({
       mensagens: adicionarMensagem(
         state.mensagens,
         `Contratado pelo ${escolhido.nome} (${divisao}). Hora de provar seu valor.`,
+      ),
+    });
+  },
+
+  iniciarMataMataDaCarreira: () => {
+    const state = get();
+    if (!state.clubeUsuarioId) {
+      return;
+    }
+    const {sementes, usuarioClassificado, grupoId} = classificadosSerieDCarreira(
+      state.todosClubes,
+      state.todosJogadores,
+      state.temporadaAtual,
+      state.clubeUsuarioId,
+      state.partidas,
+    );
+    set({
+      serieDCarreira: iniciarMataMataSerieDCarreira(
+        sementes,
+        state.clubeUsuarioId,
+        state.temporadaAtual,
+        grupoId,
+      ),
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        usuarioClassificado
+          ? 'Classificado! Começa o mata-mata da Série D.'
+          : 'Eliminado na fase de grupos da Série D.',
+      ),
+    });
+  },
+
+  avancarMataMataDaCarreira: vitoriaUsuario => {
+    const state = get();
+    if (!state.serieDCarreira || !state.clubeUsuarioId) {
+      return;
+    }
+    set({
+      serieDCarreira: avancarMataMataSerieDCarreira(
+        state.serieDCarreira,
+        state.clubeUsuarioId,
+        forcaSerieD(state.todosClubes, state.todosJogadores),
+        vitoriaUsuario,
       ),
     });
   },
@@ -2069,7 +2164,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   finalizarTemporada: () => {
     const state = get();
 
-    if (state.rodadaAtual <= 38) {
+    // Numa carreira na Série D a temporada termina pelo MATA-MATA (não pela
+    // rodada 38 da liga): exige a chave do usuário resolvida (campeão/eliminado).
+    const carreiraSerieD = state.serieDCarreira;
+    if (carreiraSerieD) {
+      if (
+        carreiraSerieD.fase !== 'campeao' &&
+        carreiraSerieD.fase !== 'eliminado'
+      ) {
+        return;
+      }
+    } else if (state.rodadaAtual <= 38) {
       return;
     }
 
@@ -2150,9 +2255,35 @@ export const useGameStore = create<GameState>((set, get) => ({
       ),
     );
 
-    // Acesso/rebaixamento (4 sobem / 4 descem). A divisão JOGADA usa a tabela
-    // real; a outra é ranqueada por força de elenco (não foi simulada).
+    // A Série D roda DE VERDADE na virada (grupos + mata-mata reais via engine),
+    // uma única vez, definindo a ordem de acesso à Série C. `null` = mundo sem os
+    // 96 clubes da Série D (save antigo) → a pirâmide só ignora o par C↔D.
+    const resolucaoSerieD = resolverSerieDNaVirada(
+      clubesComFolha,
+      jogadoresEvoluidos,
+      state.temporadaAtual,
+    );
+
+    // Ordem da Série D para o acesso (promovidos primeiro). Numa carreira na D, o
+    // destino REAL do clube do usuário manda: sobe (entra no top-N) se conquistou
+    // o acesso; senão fica fora do top-N (a D é a última divisão, não rebaixa).
+    let ordemSerieDFinal: string[] | null = resolucaoSerieD
+      ? resolucaoSerieD.ordem
+      : null;
+    if (resolucaoSerieD && carreiraSerieD && state.clubeUsuarioId) {
+      const uid = state.clubeUsuarioId;
+      const resto = resolucaoSerieD.ordem.filter(id => id !== uid);
+      ordemSerieDFinal = carreiraSerieD.acessoConquistado
+        ? [uid, ...resto]
+        : [...resto.slice(0, N_ACESSO), uid, ...resto.slice(N_ACESSO)];
+    }
+
+    // Acesso/rebaixamento (4 sobem / 4 descem). A Série D usa o resultado da
+    // competição; a divisão JOGADA (não-D), a tabela real; as demais, a força.
     const ordemDivisao = (divisao: string): string[] => {
+      if (divisao === 'Série D' && ordemSerieDFinal) {
+        return ordemSerieDFinal;
+      }
       const clubesDiv = clubesComFolha.filter(
         clube => (clube.divisao ?? DIVISAO_PADRAO) === divisao,
       );
@@ -2218,12 +2349,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       ? todosClubesNovos.find(clube => clube.id === state.clubeUsuarioId)
       : undefined;
     const divisaoUsuario = clubeUsuario?.divisao ?? divisaoAtiva;
-    const liga = gerarLiga(
-      todosClubesNovos,
-      jogadoresEvoluidos,
-      divisaoUsuario,
-      proximaTemporada,
-    );
+    // Indo para a Série D (ficou na D, ou caiu da C): a liga ativa é o GRUPO de 6
+    // do clube — não a divisão inteira de 96.
+    const liga =
+      divisaoUsuario === 'Série D' && state.clubeUsuarioId
+        ? gerarLigaSerieDGrupo(
+            todosClubesNovos,
+            jogadoresEvoluidos,
+            state.clubeUsuarioId,
+            proximaTemporada,
+          )
+        : gerarLiga(
+            todosClubesNovos,
+            jogadoresEvoluidos,
+            divisaoUsuario,
+            proximaTemporada,
+          );
 
     // Academia (Módulo 14): novas peneiras determinísticas para a temporada.
     const necessidades = state.clubeUsuarioId
@@ -2254,7 +2395,11 @@ export const useGameStore = create<GameState>((set, get) => ({
         `Acesso à ${divisaoUsuario}! O clube subiu de divisão.`,
       );
     }
-    const rebaixadosMinha = ordemDivisao(divisaoAtiva).slice(-N_ACESSO);
+    const ehUltimaDivisao =
+      PIRAMIDE_DIVISOES.indexOf(divisaoAtiva) === PIRAMIDE_DIVISOES.length - 1;
+    const rebaixadosMinha = ehUltimaDivisao
+      ? []
+      : ordemDivisao(divisaoAtiva).slice(-N_ACESSO);
     if (rebaixadosMinha.length > 0) {
       mensagens = adicionarMensagem(
         mensagens,
@@ -2277,9 +2422,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       mensagens,
       `Temporada ${proximaTemporada} (${divisaoUsuario}) iniciada. ${jovensDisponiveis.length} jovens nas peneiras.`,
     );
+    // Campeão da Série D: o clube do usuário se ele venceu a final; senão o da
+    // competição de fundo.
+    const campeaoSerieD =
+      carreiraSerieD?.fase === 'campeao' && state.clubeUsuarioId
+        ? state.clubeUsuarioId
+        : resolucaoSerieD?.resumo.campeao;
+    if (resolucaoSerieD && campeaoSerieD) {
+      const nomeSerieD = (id: string): string =>
+        todosClubesNovos.find(clube => clube.id === id)?.nome ?? id;
+      mensagens = adicionarMensagem(
+        mensagens,
+        `Série D: ${nomeSerieD(campeaoSerieD)} é campeão e garante o acesso à Série C.`,
+      );
+    }
 
     // Eixo carreira: reputação de fim de temporada + demissão por rebaixamento.
-    const campeao = ordemDivisao(divisaoAtiva)[0] === state.clubeUsuarioId;
+    // Na carreira na D o título é vencer o mata-mata (não liderar a tabela do grupo).
+    const campeao = carreiraSerieD
+      ? carreiraSerieD.fase === 'campeao'
+      : ordemDivisao(divisaoAtiva)[0] === state.clubeUsuarioId;
     const eventoTemporada: 'titulo' | 'acesso' | 'rebaixamento' | 'meio' =
       campeao
         ? 'titulo'
@@ -2297,7 +2459,9 @@ export const useGameStore = create<GameState>((set, get) => ({
     const clubeUsuarioFim = state.clubes.find(
       clube => clube.id === state.clubeUsuarioId,
     );
-    if (clubeUsuarioFim && state.clubeUsuarioId) {
+    // A meta da diretoria é por posição na liga; na carreira na D (grupo+chave)
+    // o resultado já está no `eventoTemporada`, então pula-se o ajuste de meta.
+    if (clubeUsuarioFim && state.clubeUsuarioId && !carreiraSerieD) {
       // divisaoAtiva = divisão em que a temporada foi disputada (state.tabela),
       // NÃO a nova divisão pós acesso/rebaixamento (divisaoUsuario).
       const dificuldade = state.config.dificuldade;
@@ -2346,15 +2510,27 @@ export const useGameStore = create<GameState>((set, get) => ({
       reputacaoTecnico,
       derrotasConsecutivas: 0,
       demissao,
+      historicoSerieD:
+        resolucaoSerieD && campeaoSerieD
+          ? [
+              {...resolucaoSerieD.resumo, campeao: campeaoSerieD},
+              ...state.historicoSerieD,
+            ]
+          : state.historicoSerieD,
+      // A carreira na D recomeça na fase de grupos (mata-mata montado só ao fim).
+      serieDCarreira: null,
       jovensDisponiveis,
       propostasRecebidas: [],
-      copa: gerarCopaParaTemporada(
-        todosClubesNovos,
-        jogadoresEvoluidos,
-        proximaTemporada,
-        state.clubeUsuarioId,
-        calcularDatasFasesCopa(liga.partidas),
-      ),
+      copa:
+        divisaoUsuario === 'Série D'
+          ? null // grupo de 10 rodadas não comporta as fases da Copa
+          : gerarCopaParaTemporada(
+              todosClubesNovos,
+              jogadoresEvoluidos,
+              proximaTemporada,
+              state.clubeUsuarioId,
+              calcularDatasFasesCopa(liga.partidas),
+            ),
       mensagens,
     });
   },
@@ -2510,6 +2686,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       rodadasNoVermelho: 0,
       estadoFinanceiro: 'SAUDAVEL',
       demissao: null,
+      historicoSerieD: [],
+      serieDCarreira: null,
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

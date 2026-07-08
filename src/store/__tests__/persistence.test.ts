@@ -87,7 +87,8 @@ describe('persistence', () => {
   it('save antigo sem mundo mestre: NÃO sobrescreve (mantém o mundo do seed)', () => {
     const estado = useGameStore.getState();
     const snap = montarSnapshot(estado);
-    // Simula um save anterior, sem os campos do mundo mestre.
+    // Simula um save anterior, sem os campos do mundo mestre (rest-omit).
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const {todosClubes: _c, todosJogadores: _j, ...semMundo} = snap;
     const aplicado = aplicarSnapshot(semMundo);
     // Ausentes no snapshot → omitidos do partial → setState mantém o seed
@@ -174,15 +175,11 @@ describe('persistence', () => {
     const arm = armazenamentoMemoria();
     definirArmazenamentoSave(arm);
     arm.corromper(); // só há principal corrompido, sem backup
-    const resultado = await carregarJogo();
-    // A mensagem carrega diagnóstico rico (erro real do decode, tamanho, trecho),
-    // então validamos o prefixo estável em vez da string exata.
-    expect(resultado.tipo).toBe('erro');
-    if (resultado.tipo === 'erro') {
-      expect(resultado.mensagem).toContain(
-        'Save corrompido e sem backup recuperável.',
-      );
-    }
+    // A mensagem carrega um diagnóstico rico anexado (0.31.2); basta conter a base.
+    expect(await carregarJogo()).toEqual({
+      tipo: 'erro',
+      mensagem: expect.stringContaining('Save corrompido e sem backup recuperável.'),
+    });
   });
 
   it('lê save legado v1 (sem config/propostas/conquistas) preenchendo padrões', async () => {

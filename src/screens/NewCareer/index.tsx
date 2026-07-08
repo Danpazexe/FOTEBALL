@@ -24,7 +24,7 @@ import {classificarCenario} from '../../engine/carreira/cenarios';
 import {cores, espaco, raio, sombra} from '../../theme';
 import type {Clube} from '../../types';
 
-const ORDEM_DIVISOES = ['Série A', 'Série B', 'Série C'];
+const ORDEM_DIVISOES = ['Série A', 'Série B', 'Série C', 'Série D'];
 
 /** Desafio de carreira do clube (reputação + caixa + divisão). */
 function cenarioDoClube(clube: Clube) {
@@ -77,7 +77,11 @@ function NewCareer(): React.JSX.Element {
     const cenario = cenarioDoClube(clube);
     const ok = await confirm({
       titulo: `Comandar o ${clube.nome}?`,
-      mensagem: `${cenario.descricao} Os outros 19 clubes são controlados pela IA.`,
+      mensagem: `${cenario.descricao} ${
+        divisao === 'Série D'
+          ? 'Você disputa o grupo de 6 do clube e, avançando, o mata-mata nacional. Os demais clubes são controlados pela IA.'
+          : 'Os outros 19 clubes são controlados pela IA.'
+      }`,
       detalhes: [
         {rotulo: 'Desafio', valor: cenario.nome},
         {rotulo: 'Divisão', valor: divisao},

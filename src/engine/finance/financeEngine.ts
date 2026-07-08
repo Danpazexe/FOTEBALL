@@ -118,6 +118,16 @@ export function cotaTV(divisao: string, posicaoFinal: number): number {
     }
     return 1_500_000;
   }
+  if (divisao === 'Série D') {
+    // Receita modesta (4ª divisão): o valor real está no ACESSO, não na cota.
+    if (posicaoFinal === 1) {
+      return 800_000;
+    }
+    if (posicaoFinal <= 4) {
+      return 500_000;
+    }
+    return 250_000;
+  }
   // Série A (padrão).
   if (posicaoFinal === 1) {
     return 120_000_000;

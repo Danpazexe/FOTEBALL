@@ -17,7 +17,12 @@ import {
   type ImageSourcePropType,
 } from 'react-native';
 
-import {LOGO_SERIE_A, LOGO_SERIE_B, LOGO_SERIE_C} from '../../assets/escudos';
+import {
+  LOGO_SERIE_A,
+  LOGO_SERIE_B,
+  LOGO_SERIE_C,
+  LOGO_SERIE_D,
+} from '../../assets/escudos';
 import {AppHeader, ScreenContainer} from '../../components/ui';
 import Icone from '../../components/Icone';
 import {useAppNavigation} from '../../navigation/types';
@@ -69,6 +74,15 @@ const COMPETICOES: Pais[] = [
         ativa: true,
         logo: LOGO_SERIE_C,
         divisaoSeed: 'Série C',
+      },
+      {
+        id: 'br_serie_d',
+        nome: 'Brasileirão Série D',
+        divisao: '4ª Divisão · grupos + mata-mata',
+        clubes: 96,
+        ativa: true,
+        logo: LOGO_SERIE_D,
+        divisaoSeed: 'Série D',
       },
       {id: 'br_copa', nome: 'Copa do Brasil', divisao: 'Mata-mata', ativa: false},
     ],
