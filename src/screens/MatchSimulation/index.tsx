@@ -1016,6 +1016,10 @@ function MatchSimulation(): React.JSX.Element | null {
     }
     // Salva JÁ o resultado — não espera o debounce do autosave (se o app fechar
     // logo após a partida, o progresso não pode se perder).
+    // Obs.: no empate de Copa, o confronto ainda NÃO foi resolvido aqui (quem
+    // resolve é a tela Penaltis, via avancarFaseCopa). O save reflete a Copa não
+    // resolvida de propósito: fechar o app durante a disputa faz rejogar a
+    // partida (sem corromper o chaveamento) — aceito para esta fase.
     salvarAgora();
   }, [terminou, fixture, nav]);
 

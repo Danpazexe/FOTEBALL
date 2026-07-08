@@ -13,7 +13,7 @@
  * A tela é a máquina de estados visível: reage à `fase` do `usePenaltiStore` e
  * agenda as transições (animar chute → CPU → próxima cobrança).
  */
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -30,6 +30,7 @@ import {useAppNavigation, useAppRoute} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
 import {usePenaltiStore} from '../../store/usePenaltiStore';
 import {cores, espaco, raio, tabular} from '../../theme';
+import type {ResultadoCobranca} from '../../types';
 import {nomeClube} from '../../utils/formatters';
 import AlvoGol, {type Lance} from './components/AlvoGol';
 import PlacarPenaltis from './components/PlacarPenaltis';
@@ -38,6 +39,33 @@ import PlacarPenaltis from './components/PlacarPenaltis';
 const DURACAO_CHUTE = 1100;
 /** Tempo (ms) exibindo o resultado da cobrança da CPU. */
 const DURACAO_CPU = 1200;
+
+/**
+ * Lance COSMÉTICO da CPU (sem gesto): mira/goleiro sintéticos só para a animação
+ * ficar coerente com o desfecho já decidido pela probabilidade. Alterna o lado
+ * pelo índice para não repetir sempre o mesmo canto. Não afeta a lógica de jogo.
+ */
+function lanceCpu(resultado: ResultadoCobranca, indice: number): Lance {
+  const lado = indice % 2 === 0 ? 1 : -1;
+  if (resultado === 'GOL') {
+    return {
+      cobrador: 'CPU',
+      resultado: 'GOL',
+      posicaoChute: {x: 0.82 * lado, y: 0.62},
+      potencia: 0.85,
+      goleiroX: -0.5 * lado, // mergulha para o lado errado
+      goleiroY: 0.25,
+    };
+  }
+  return {
+    cobrador: 'CPU',
+    resultado: 'DEFESA',
+    posicaoChute: {x: 0.35 * lado, y: 0.3},
+    potencia: 0.7,
+    goleiroX: 0.4 * lado, // vai na direção da bola → defende
+    goleiroY: 0.3,
+  };
+}
 
 function Penaltis(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -60,6 +88,11 @@ function Penaltis(): React.JSX.Element {
 
   const [lance, setLance] = useState<Lance | null>(null);
   const [tentativa, setTentativa] = useState(0);
+  const [finalizando, setFinalizando] = useState(false);
+  // Trava síncrona anti-duplo-toque: garante que avancarFaseCopa rode UMA vez
+  // (o mesmo cuidado do comitadoRef no MatchSimulation) — sem isso, dois toques
+  // rápidos em "Continuar" avançariam a Copa uma fase a mais.
+  const finalizandoRef = useRef(false);
 
   const ehTeste = params.teste === true || !params.fixtureId;
   const forcaAdversario = params.forcaAdversario ?? 72;
@@ -91,6 +124,8 @@ function Penaltis(): React.JSX.Element {
 
     usePenaltiStore.getState().iniciar({forcaAdversario, atributosBatedores, seed});
     setLance(null);
+    finalizandoRef.current = false;
+    setFinalizando(false);
     tocarPenalti();
     return () => usePenaltiStore.getState().encerrar();
   }, [seed, forcaAdversario, clubeUsuarioId]);
@@ -99,20 +134,34 @@ function Penaltis(): React.JSX.Element {
   useEffect(() => {
     if (fase === 'ANIMANDO') {
       const id = setTimeout(() => {
-        const res = usePenaltiStore.getState().resolverCpu();
-        if (res === 'GOL') {
-          tocarGol(false);
-        } else if (res === 'DEFESA') {
-          tocarPenaltiPerdido(false);
+        const st = usePenaltiStore.getState();
+        if (st.vencedor) {
+          // O chute do usuário decidiu: anima e encerra (sem cobrança da CPU).
+          st.concluir();
+          return;
+        }
+        const res = st.resolverCpu();
+        if (res) {
+          if (res === 'GOL') {
+            tocarGol(false);
+          } else {
+            tocarPenaltiPerdido(false);
+          }
+          const idx = usePenaltiStore.getState().cobradasCpu - 1;
+          setLance(lanceCpu(res, idx));
         }
       }, DURACAO_CHUTE);
       return () => clearTimeout(id);
     }
     if (fase === 'RESULTADO_CPU') {
-      const id = setTimeout(
-        () => usePenaltiStore.getState().proximaCobranca(),
-        DURACAO_CPU,
-      );
+      const id = setTimeout(() => {
+        const st = usePenaltiStore.getState();
+        if (st.vencedor) {
+          st.concluir();
+        } else {
+          st.proximaCobranca();
+        }
+      }, DURACAO_CPU);
       return () => clearTimeout(id);
     }
     return undefined;
@@ -138,6 +187,11 @@ function Penaltis(): React.JSX.Element {
   }, []);
 
   const finalizarReal = useCallback(() => {
+    if (finalizandoRef.current) {
+      return;
+    }
+    finalizandoRef.current = true;
+    setFinalizando(true);
     const venceuUsuario = vencedor === 'USUARIO';
     const vencedorPenaltis = venceuUsuario
       ? clubeUsuarioId ?? undefined
@@ -259,6 +313,7 @@ function Penaltis(): React.JSX.Element {
                 icone="jogar"
                 titulo="Continuar"
                 onPress={finalizarReal}
+                disabled={finalizando}
               />
             )}
           </View>

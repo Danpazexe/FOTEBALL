@@ -72,8 +72,9 @@ describe('resolverCobrancaUsuario', () => {
       atributosBatedor: atributos(60),
       rng: rngNormal,
     });
-    // Se ambos consumiram exatamente 3 valores, o próximo saque coincide.
-    expect(rngPerfeito()).toBeCloseTo(rngNormal());
+    // Se ambos consumiram exatamente 3 valores, o próximo saque é BIT-IDÊNTICO
+    // (mesma aritmética sobre o mesmo estado) — igualdade exata, não aproximada.
+    expect(rngPerfeito()).toBe(rngNormal());
   });
 
   it('goleiro mais difícil defende mais (mesma seed, chute central)', () => {
@@ -223,6 +224,14 @@ describe('disputaDecidida', () => {
     expect(disputaDecidida(3, 2, 4, 3).decidido).toBe(false);
   });
 
+  it('encerra a fase regular a favor da CPU com contagem assimétrica', () => {
+    // Usuário já bateu as 5 (2 gols); CPU fez 4 em 4 → usuário não alcança.
+    expect(disputaDecidida(2, 4, 5, 4)).toEqual({
+      decidido: true,
+      vencedor: 'CPU',
+    });
+  });
+
   it('fim da fase regular com diferença decide', () => {
     expect(disputaDecidida(5, 3, COBRANCAS_REGULARES, COBRANCAS_REGULARES)).toEqual(
       {decidido: true, vencedor: 'USUARIO'},
@@ -240,6 +249,13 @@ describe('disputaDecidida', () => {
     expect(disputaDecidida(5, 4, 6, 6)).toEqual({
       decidido: true,
       vencedor: 'USUARIO',
+    });
+  });
+
+  it('morte súbita: CPU vence quando abre vantagem com cobranças iguais', () => {
+    expect(disputaDecidida(4, 5, 6, 6)).toEqual({
+      decidido: true,
+      vencedor: 'CPU',
     });
   });
 });

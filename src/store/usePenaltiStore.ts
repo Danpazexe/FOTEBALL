@@ -55,6 +55,8 @@ interface PenaltiStore extends EstadoDisputaPenaltis {
   resolverCpu: () => ResultadoCobranca | null;
   /** Volta o turno para o usuário (após animar a cobrança da CPU). */
   proximaCobranca: () => void;
+  /** Fecha a disputa (após animar a cobrança que a decidiu). */
+  concluir: () => void;
   /** Encerra e limpa a disputa (ao sair da tela). */
   encerrar: () => void;
 }
@@ -127,12 +129,14 @@ export const usePenaltiStore = create<PenaltiStore>((set, get) => ({
       s.cobradasCpu,
     );
 
+    // Sempre passa por ANIMANDO (a bola/goleiro animam); a tela transiciona para
+    // FIM depois — assim a cobrança que DECIDE a disputa também é vista.
     set({
       cobrancas: [...s.cobrancas, cobranca],
       marcadosUsuario,
       cobradasUsuario,
       nivelDificuldadeGoleiro,
-      fase: decisao.decidido ? 'FIM' : 'ANIMANDO',
+      fase: 'ANIMANDO',
       vencedor: decisao.decidido ? decisao.vencedor ?? null : null,
     });
     return detalhe;
@@ -162,11 +166,12 @@ export const usePenaltiStore = create<PenaltiStore>((set, get) => ({
       cobradasCpu,
     );
 
+    // Idem: passa por RESULTADO_CPU (anima) e a tela decide FIM vs próxima.
     set({
       cobrancas: [...s.cobrancas, cobranca],
       marcadosCpu,
       cobradasCpu,
-      fase: decisao.decidido ? 'FIM' : 'RESULTADO_CPU',
+      fase: 'RESULTADO_CPU',
       vencedor: decisao.decidido ? decisao.vencedor ?? null : null,
     });
     return resultado;
@@ -178,6 +183,14 @@ export const usePenaltiStore = create<PenaltiStore>((set, get) => ({
       return;
     }
     set({fase: 'BATENDO_USUARIO'});
+  },
+
+  concluir: () => {
+    const s = get();
+    if (!s.ativo || (s.fase !== 'ANIMANDO' && s.fase !== 'RESULTADO_CPU')) {
+      return;
+    }
+    set({fase: 'FIM'});
   },
 
   encerrar: () => {
