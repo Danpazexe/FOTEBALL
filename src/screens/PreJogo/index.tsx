@@ -1,11 +1,9 @@
 /**
- * Central de PRÉ-JOGO. Reúne tudo que o técnico faz antes do apito:
- *  - ver o adversário (forças, favoritismo, comparativo);
- *  - ajustar a escalação / trocar formação / escolher titulares e reservas
- *    (via DraggablePitch — arrastar);
- *  - conferir condição física e moral do time titular;
- *  - ajustar a tática (estilo, marcação, linha, ritmo);
- *  - confirmar o início: Simular ou Jogar ao vivo.
+ * Central de PRÉ-JOGO (redesenho). Uma tela de decisão: primeiro o CONFRONTO,
+ * depois a SUA PRONTIDÃO (o que libera/bloqueia entrar em campo — validação,
+ * fadiga, desfalques), o DOSSIÊ do adversário (intel acionável, não números
+ * soltos), a escalação no campo, condição/moral do time, o ajuste de tática e,
+ * por fim, o gate Simular / Jogar ao vivo.
  *
  * A escalação e a tática são persistidas na hora (mesmas actions da tela de
  * Tática); o MatchSimulation tira um retrato antes do jogo, então mexer aqui
@@ -48,6 +46,7 @@ import {
 import {
   acentos,
   cores,
+  comAlfa,
   corCondicao,
   corDoClube,
   espaco,
@@ -100,29 +99,19 @@ const NIVEL_TEXTO: Record<NivelConfronto, string> = {
 };
 
 const SETOR_LABEL: Record<Setor, string> = {
-  ataque: 'o ataque',
-  meio: 'o meio-campo',
-  defesa: 'a defesa',
+  ataque: 'o ataque deles',
+  meio: 'o meio-campo deles',
+  defesa: 'a defesa deles',
 };
 
 function nivelCor(n: NivelConfronto): string {
   if (n === 'favoravel') {
-    return cores.primariaEscura;
+    return cores.sucesso;
   }
   if (n === 'arriscado') {
     return cores.perigo;
   }
-  return cores.secundariaEscura;
-}
-
-function nivelFundo(n: NivelConfronto): string {
-  if (n === 'favoravel') {
-    return suaves.verde;
-  }
-  if (n === 'arriscado') {
-    return suaves.vermelho;
-  }
-  return suaves.amarelo;
+  return cores.aviso;
 }
 
 function PreJogo(): React.JSX.Element {
@@ -200,7 +189,7 @@ function PreJogo(): React.JSX.Element {
     }
   }, [advInfo, definirTaticaAdversario]);
 
-  // Scout do adversário — força por setor + craque + ponto fraco do elenco dele.
+  // Scout do adversário — craque + ponto fraco do elenco dele.
   const scout = useMemo(() => {
     if (!advInfo) {
       return null;
@@ -227,9 +216,13 @@ function PreJogo(): React.JSX.Element {
       .filter((j): j is Player => j !== undefined);
   }, [formacao, jogadoresUsuario]);
 
-  // Titulares em risco de fadiga (condição baixa) — alimenta o alerta de prontidão.
+  // Prontidão do time: titulares em risco de fadiga e indisponíveis (lesão/susp.).
   const emFadiga = useMemo(
     () => titulares.filter(j => j.condicaoFisica < 70),
+    [titulares],
+  );
+  const indisponiveis = useMemo(
+    () => titulares.filter(j => j.lesionado || j.suspenso),
     [titulares],
   );
 
@@ -245,19 +238,21 @@ function PreJogo(): React.JSX.Element {
   const mandoCasa = proximo.timeCasa === clubeUsuario.id;
   const forcaMinha = mandoCasa ? confronto.forcaCasa : confronto.forcaFora;
   const forcaDele = mandoCasa ? confronto.forcaFora : confronto.forcaCasa;
+  const adversario = mandoCasa ? confronto.fora : confronto.casa;
   const advTatica = advInfo?.tatica ?? null;
   const leitura = advTatica ? avaliarConfronto(taticaAtual, advTatica) : null;
   const diff = forcaMinha.overall + (mandoCasa ? 3 : 0) - forcaDele.overall;
   const favoritismo =
     Math.abs(diff) < 2
-      ? 'Confronto equilibrado'
+      ? 'Equilíbrio'
       : `${diff > 0 ? 'Favorito' : 'Azarão'}${
           Math.abs(diff) >= 6 ? '' : ' leve'
         }`;
+  const corFavoritismo =
+    diff >= 2 ? cores.sucesso : diff <= -2 ? cores.perigo : cores.textoSecundario;
 
   const podeJogar = validacao?.valido ?? false;
-  const errosEscalacao = validacao?.erros ?? [];
-  const avisosEscalacao = validacao?.avisos ?? [];
+  const erros = validacao?.erros ?? [];
   const formacaoTipo = formacao.tipo;
 
   // Trocar de esquema remonta a escalação (desfaz o arraste manual) — confirma.
@@ -291,137 +286,158 @@ function PreJogo(): React.JSX.Element {
           onBack={() => nav.goBack()}
         />
 
-        {/* ADVERSÁRIO */}
-        <View style={styles.versusCard}>
-          <View style={styles.confronto}>
-            <View style={styles.time}>
+        {/* CONFRONTO — hero */}
+        <View style={styles.heroCard}>
+          <View style={styles.heroConfronto}>
+            <View style={styles.heroTime}>
               <Escudo
                 clubeId={confronto.casa.id}
                 sigla={confronto.casa.sigla}
-                tamanho={50}
+                tamanho={54}
               />
-              <Text style={styles.timeNome} numberOfLines={1}>
+              <Text style={styles.heroNome} numberOfLines={1}>
                 {confronto.casa.nome}
               </Text>
-              <Text style={styles.forca}>
+              <Text style={[styles.heroOverall, tabular]}>
                 {Math.round(confronto.forcaCasa.overall)}
               </Text>
-              <Text style={styles.mando}>Casa</Text>
+              <Text style={[styles.heroMando, mandoCasa && styles.heroVoce]}>
+                {mandoCasa ? 'VOCÊ · CASA' : 'CASA'}
+              </Text>
             </View>
-            <Text style={styles.vs}>VS</Text>
-            <View style={styles.time}>
+
+            <View style={styles.heroCentro}>
+              <Text style={styles.heroVs}>VS</Text>
+              <Chip label={favoritismo} tom="suave" cor={corFavoritismo} pequeno />
+            </View>
+
+            <View style={styles.heroTime}>
               <Escudo
                 clubeId={confronto.fora.id}
                 sigla={confronto.fora.sigla}
-                tamanho={50}
+                tamanho={54}
               />
-              <Text style={styles.timeNome} numberOfLines={1}>
+              <Text style={styles.heroNome} numberOfLines={1}>
                 {confronto.fora.nome}
               </Text>
-              <Text style={styles.forca}>
+              <Text style={[styles.heroOverall, tabular]}>
                 {Math.round(confronto.forcaFora.overall)}
               </Text>
-              <Text style={styles.mando}>Fora</Text>
+              <Text style={[styles.heroMando, !mandoCasa && styles.heroVoce]}>
+                {!mandoCasa ? 'VOCÊ · FORA' : 'FORA'}
+              </Text>
             </View>
           </View>
-          <View style={styles.favoritismoWrap}>
-            <Chip
-              label={favoritismo}
-              tom="suave"
-              cor={
-                diff >= 2
-                  ? cores.sucesso
-                  : diff <= -2
-                  ? cores.perigo
-                  : cores.textoSecundario
-              }
-            />
-          </View>
-          <View style={styles.barras}>
-            <BarrasForca
-              casa={confronto.forcaCasa}
-              fora={confronto.forcaFora}
-              corCasa={corDoClube(confronto.casa.id)}
-              corFora={corDoClube(confronto.fora.id)}
-            />
-          </View>
+          <BarrasForca
+            casa={confronto.forcaCasa}
+            fora={confronto.forcaFora}
+            corCasa={corDoClube(confronto.casa.id)}
+            corFora={corDoClube(confronto.fora.id)}
+          />
         </View>
 
-        {/* LEITURA DO ADVERSÁRIO (preview tático) */}
-        {advTatica && leitura ? (
-          <View style={styles.leituraCard}>
-            <View style={styles.leituraHeader}>
-              <Icone nome="tatica" tamanho={15} cor={cores.primaria} />
-              <Text style={styles.leituraTitulo}>Leitura do adversário</Text>
-            </View>
-            <Text style={styles.leituraSub}>Provável postura dele:</Text>
-            <View style={styles.leituraChips}>
-              <Chip label={advTatica.estiloOfensivo} pequeno />
-              <Chip
-                label={`Linha ${advTatica.linhaDefensiva.toLowerCase()}`}
-                pequeno
-              />
-              <Chip label={advTatica.marcacao} pequeno />
-            </View>
-            <View
-              style={[
-                styles.nivelBadge,
-                {
-                  backgroundColor: nivelFundo(leitura.nivel),
-                  borderColor: nivelCor(leitura.nivel),
-                },
-              ]}>
-              <Text style={[styles.nivelTxt, {color: nivelCor(leitura.nivel)}]}>
-                {NIVEL_TEXTO[leitura.nivel]}
-              </Text>
-            </View>
-            {leitura.riscos.slice(0, 2).map(risco => (
-              <Text key={risco} style={[styles.linhaLeitura, styles.risco]}>
-                Risco: {risco}
-              </Text>
-            ))}
-            {leitura.vantagens.slice(0, 1).map(vantagem => (
-              <Text key={vantagem} style={[styles.linhaLeitura, styles.vantagem]}>
-                Vantagem: {vantagem}
-              </Text>
-            ))}
-            {leitura.sugestao ? (
-              <Text style={[styles.linhaLeitura, styles.sugestaoTxt]}>
-                Sugestão: {leitura.sugestao}
-              </Text>
-            ) : null}
+        {/* SUA PRONTIDÃO — o que libera/bloqueia entrar em campo */}
+        <Section titulo="Sua prontidão">
+          <View style={styles.prontidaoRow}>
+            <StatCard
+              label="Escalação"
+              valor={podeJogar ? 'OK' : String(erros.length)}
+              sub={podeJogar ? '11 em campo' : erros.length === 1 ? 'erro' : 'erros'}
+              corValor={podeJogar ? cores.sucesso : cores.perigo}
+            />
+            <StatCard
+              label="Fadiga"
+              valor={String(emFadiga.length)}
+              sub={emFadiga.length > 0 ? 'em risco' : 'inteiro'}
+              corValor={emFadiga.length > 0 ? cores.aviso : cores.texto}
+            />
+            <StatCard
+              label="Desfalques"
+              valor={String(indisponiveis.length)}
+              sub={indisponiveis.length > 0 ? 'lesão/susp.' : 'nenhum'}
+              corValor={indisponiveis.length > 0 ? cores.perigo : cores.texto}
+            />
           </View>
-        ) : null}
-
-        {/* SCOUT DO ADVERSÁRIO (força por setor + craque + ponto fraco) */}
-        {scout ? (
-          <View style={styles.leituraCard}>
-            <View style={styles.leituraHeader}>
-              <Icone nome="olho" tamanho={15} cor={cores.primaria} />
-              <Text style={styles.leituraTitulo}>Scout do adversário</Text>
-            </View>
-            <View style={styles.scoutSetores}>
-              <StatCard label="ATA" valor={String(scout.forcaAtaque)} />
-              <StatCard label="MEI" valor={String(scout.forcaMeio)} />
-              <StatCard label="DEF" valor={String(scout.forcaDefesa)} />
-            </View>
-            {scout.melhorJogador ? (
-              <Text style={styles.linhaLeitura} numberOfLines={1}>
-                Craque:{' '}
-                <Text style={styles.craqueNome}>
-                  {scout.melhorJogador.nome}
-                </Text>{' '}
-                ({scout.melhorJogador.posicao} ·{' '}
-                <Text style={[styles.craqueNome, tabular]}>
-                  {scout.melhorJogador.overall}
+          {!podeJogar ? (
+            <View style={styles.errosCard}>
+              <View style={styles.errosHeader}>
+                <Icone nome="apito" tamanho={14} cor={cores.perigo} />
+                <Text style={styles.errosTitulo}>Escalação bloqueada</Text>
+              </View>
+              {erros.map(erro => (
+                <Text key={erro} style={styles.erroTexto}>
+                  • {erro}
                 </Text>
-                )
-              </Text>
-            ) : null}
-            <Text style={[styles.linhaLeitura, styles.vantagem]}>
-              Ponto fraco: {SETOR_LABEL[scout.setorFraco]}
-            </Text>
-          </View>
+              ))}
+            </View>
+          ) : null}
+        </Section>
+
+        {/* DOSSIÊ DO ADVERSÁRIO — intel acionável (sem caixa de números soltos) */}
+        {advTatica || scout ? (
+          <Section titulo={`Dossiê · ${adversario.nome}`}>
+            <View style={styles.dossieCard}>
+              {advTatica ? (
+                <View style={styles.dossieLinha}>
+                  <Text style={styles.dossieRotulo}>Como jogam</Text>
+                  <View style={styles.dossieChips}>
+                    <Chip label={advTatica.estiloOfensivo} pequeno />
+                    <Chip
+                      label={`Linha ${advTatica.linhaDefensiva.toLowerCase()}`}
+                      pequeno
+                    />
+                    <Chip label={advTatica.marcacao} pequeno />
+                  </View>
+                </View>
+              ) : null}
+
+              {scout?.melhorJogador ? (
+                <View style={styles.dossieLinha}>
+                  <Text style={styles.dossieRotulo}>Vigie</Text>
+                  <Text style={styles.dossieValor} numberOfLines={1}>
+                    <Text style={styles.craque}>★ {scout.melhorJogador.nome}</Text>
+                    <Text style={styles.dossieDetalhe}>
+                      {'  '}
+                      {scout.melhorJogador.posicao} ·{' '}
+                    </Text>
+                    <Text style={[styles.craque, tabular]}>
+                      {scout.melhorJogador.overall}
+                    </Text>
+                  </Text>
+                </View>
+              ) : null}
+
+              {scout ? (
+                <View style={styles.dossieLinha}>
+                  <Text style={styles.dossieRotulo}>Ataque por</Text>
+                  <Text style={[styles.dossieValor, styles.pontoFraco]}>
+                    {SETOR_LABEL[scout.setorFraco]}
+                  </Text>
+                </View>
+              ) : null}
+
+              {leitura ? (
+                <View style={styles.leituraBox}>
+                  <View
+                    style={[
+                      styles.nivelBadge,
+                      {
+                        backgroundColor: comAlfa(nivelCor(leitura.nivel), 0.14),
+                        borderColor: comAlfa(nivelCor(leitura.nivel), 0.4),
+                      },
+                    ]}>
+                    <Text
+                      style={[styles.nivelTxt, {color: nivelCor(leitura.nivel)}]}>
+                      {NIVEL_TEXTO[leitura.nivel]}
+                    </Text>
+                  </View>
+                  {leitura.sugestao ? (
+                    <Text style={styles.sugestao}>{leitura.sugestao}</Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          </Section>
         ) : null}
 
         {/* ESCALAÇÃO */}
@@ -457,33 +473,9 @@ function PreJogo(): React.JSX.Element {
         {/* CONDIÇÃO & MORAL */}
         <Section titulo="Condição & moral do time">
           <View style={styles.card}>
-            {emFadiga.length > 0 ? (
-              <View style={styles.alertaLinha}>
-                <Icone nome="relogio" tamanho={13} cor={cores.aviso} />
-                <Text style={styles.alertaTexto}>
-                  <Text style={[styles.alertaForte, tabular]}>
-                    {emFadiga.length}
-                  </Text>{' '}
-                  titular(es) em risco de fadiga (condição baixa)
-                </Text>
-              </View>
-            ) : null}
-            {avisosEscalacao.map(aviso => (
-              <View key={aviso} style={styles.alertaLinha}>
-                <Icone nome="apito" tamanho={13} cor={cores.perigo} />
-                <Text style={[styles.alertaTexto, styles.alertaPerigo]}>
-                  {aviso}
-                </Text>
-              </View>
-            ))}
-            {emFadiga.length > 0 || avisosEscalacao.length > 0 ? (
-              <View style={styles.alertaDivisor} />
-            ) : null}
             {titulares.map(jogador => (
               <View key={jogador.id} style={styles.jogadorLinha}>
-                <Text style={styles.jogadorPos}>
-                  {jogador.posicaoPrincipal}
-                </Text>
+                <Text style={styles.jogadorPos}>{jogador.posicaoPrincipal}</Text>
                 <Text style={styles.jogadorNome} numberOfLines={1}>
                   {nomeCurto(jogador)}
                 </Text>
@@ -498,7 +490,9 @@ function PreJogo(): React.JSX.Element {
                     ]}
                   />
                 </View>
-                <Text style={styles.condNum}>{jogador.condicaoFisica}</Text>
+                <Text style={[styles.condNum, tabular]}>
+                  {jogador.condicaoFisica}
+                </Text>
                 <View
                   style={[
                     styles.moralPonto,
@@ -510,7 +504,9 @@ function PreJogo(): React.JSX.Element {
             <View style={styles.legenda}>
               <Icone nome="relogio" tamanho={12} cor={cores.textoSecundario} />
               <Text style={styles.legendaTexto}>condição física</Text>
-              <View style={[styles.moralPonto, {backgroundColor: acentos.verde}]} />
+              <View
+                style={[styles.moralPonto, {backgroundColor: acentos.verde}]}
+              />
               <Text style={styles.legendaTexto}>moral</Text>
             </View>
           </View>
@@ -565,19 +561,6 @@ function PreJogo(): React.JSX.Element {
         </Section>
 
         {/* CONFIRMAR INÍCIO */}
-        {!podeJogar ? (
-          <View style={styles.errosCard}>
-            <View style={styles.errosHeader}>
-              <Icone nome="apito" tamanho={14} cor={cores.perigo} />
-              <Text style={styles.errosTitulo}>Escalação bloqueada</Text>
-            </View>
-            {errosEscalacao.map(erro => (
-              <Text key={erro} style={styles.erroTexto}>
-                • {erro}
-              </Text>
-            ))}
-          </View>
-        ) : null}
         <View style={styles.acoes}>
           <View style={styles.acaoSimular}>
             <Botao
@@ -626,6 +609,154 @@ const styles = StyleSheet.create({
     padding: espaco.lg,
     textAlign: 'center',
   },
+  // CONFRONTO — hero
+  heroCard: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.lg,
+    marginBottom: espaco.md,
+    padding: espaco.lg,
+    ...sombra.card,
+  },
+  heroConfronto: {
+    alignItems: 'flex-start',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  heroTime: {
+    alignItems: 'center',
+    flex: 1,
+    gap: espaco.xs,
+  },
+  heroNome: {
+    color: cores.texto,
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  heroOverall: {
+    color: cores.primaria,
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: -1,
+  },
+  heroMando: {
+    color: cores.textoMuted,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  heroVoce: {
+    color: cores.secundaria,
+  },
+  heroCentro: {
+    alignItems: 'center',
+    gap: espaco.sm,
+    paddingTop: espaco.xl,
+  },
+  heroVs: {
+    color: cores.textoSecundario,
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  // PRONTIDÃO
+  prontidaoRow: {
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  errosCard: {
+    backgroundColor: suaves.vermelho,
+    borderColor: cores.perigo,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.xs,
+    marginTop: espaco.sm,
+    padding: espaco.md,
+  },
+  errosHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.xs,
+  },
+  errosTitulo: {
+    color: cores.perigo,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  erroTexto: {
+    color: cores.texto,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  // DOSSIÊ
+  dossieCard: {
+    backgroundColor: cores.superficie,
+    borderColor: cores.borda,
+    borderRadius: raio.lg,
+    borderWidth: 1,
+    gap: espaco.sm,
+    padding: espaco.lg,
+    ...sombra.suave,
+  },
+  dossieLinha: {
+    gap: espaco.xs,
+  },
+  dossieRotulo: {
+    color: cores.textoMuted,
+    ...tipografia.secao,
+  },
+  dossieValor: {
+    color: cores.texto,
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  dossieDetalhe: {
+    color: cores.textoSecundario,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  dossieChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espaco.xs,
+  },
+  craque: {
+    color: cores.secundaria,
+    fontWeight: '900',
+  },
+  pontoFraco: {
+    color: cores.sucesso,
+  },
+  leituraBox: {
+    borderTopColor: cores.borda,
+    borderTopWidth: 1,
+    gap: espaco.xs,
+    marginTop: espaco.xs,
+    paddingTop: espaco.sm,
+  },
+  nivelBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    paddingHorizontal: espaco.sm,
+    paddingVertical: 3,
+  },
+  nivelTxt: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  sugestao: {
+    color: cores.textoSecundario,
+    fontSize: 12.5,
+    fontWeight: '600',
+    lineHeight: 17,
+  },
+  // ESCALAÇÃO
   card: {
     backgroundColor: cores.superficie,
     borderColor: cores.borda,
@@ -634,126 +765,6 @@ const styles = StyleSheet.create({
     padding: espaco.md,
     ...sombra.suave,
   },
-  // ADVERSÁRIO
-  versusCard: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.md,
-    marginBottom: espaco.md,
-    padding: espaco.lg,
-    ...sombra.suave,
-  },
-  confronto: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  time: {
-    alignItems: 'center',
-    flex: 1,
-    gap: espaco.xs,
-  },
-  timeNome: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  forca: {
-    color: cores.primaria,
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.6,
-    ...tabular,
-  },
-  mando: {
-    color: cores.textoSecundario,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  vs: {
-    color: cores.textoSecundario,
-    fontSize: 16,
-    fontWeight: '900',
-    paddingHorizontal: espaco.sm,
-    paddingTop: espaco.xl,
-  },
-  favoritismoWrap: {
-    alignItems: 'center',
-  },
-  barras: {
-    alignItems: 'center',
-  },
-  // LEITURA DO ADVERSÁRIO
-  leituraCard: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.xs,
-    marginBottom: espaco.md,
-    padding: espaco.lg,
-    ...sombra.suave,
-  },
-  scoutSetores: {
-    flexDirection: 'row',
-    gap: espaco.sm,
-    marginVertical: espaco.xs,
-  },
-  craqueNome: {
-    color: cores.secundaria,
-    fontWeight: '800',
-  },
-  leituraHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  leituraTitulo: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  leituraSub: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  leituraChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.xs,
-  },
-  nivelBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    marginTop: 2,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 3,
-  },
-  nivelTxt: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  linhaLeitura: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  risco: {
-    color: cores.perigo,
-  },
-  vantagem: {
-    color: cores.primariaEscura,
-  },
-  sugestaoTxt: {
-    color: cores.secundariaEscura,
-    fontWeight: '800',
-  },
-  // ESCALAÇÃO
   subTitulo: {
     color: cores.textoSecundario,
     ...tipografia.secao,
@@ -800,31 +811,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     minWidth: 24,
     textAlign: 'right',
-    ...tabular,
-  },
-  // Alertas de prontidão (fadiga = aviso; indisponível = perigo).
-  alertaLinha: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-    paddingBottom: espaco.xs,
-  },
-  alertaTexto: {
-    color: cores.aviso,
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  alertaForte: {
-    fontWeight: '900',
-  },
-  alertaPerigo: {
-    color: cores.perigo,
-  },
-  alertaDivisor: {
-    backgroundColor: cores.borda,
-    height: 1,
-    marginBottom: espaco.xs,
   },
   moralPonto: {
     borderRadius: 5,
@@ -847,32 +833,6 @@ const styles = StyleSheet.create({
     marginRight: espaco.sm,
   },
   // CONFIRMAR
-  errosCard: {
-    backgroundColor: suaves.vermelho,
-    borderColor: cores.perigo,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.xs,
-    marginTop: espaco.md,
-    padding: espaco.md,
-  },
-  errosHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  errosTitulo: {
-    color: cores.perigo,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  erroTexto: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '600',
-  },
   acoes: {
     flexDirection: 'row',
     gap: espaco.sm,
