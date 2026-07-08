@@ -67,7 +67,7 @@ const FORMACOES: FormacaoPreset[] = [
   '4-2-3-1',
   '3-5-2',
   '5-3-2',
-  '4-1-4-1',
+  '4-5-1',
 ];
 
 const OPCOES_ESTILO: Tatica['estiloOfensivo'][] = [

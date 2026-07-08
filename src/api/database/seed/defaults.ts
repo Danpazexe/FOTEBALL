@@ -20,7 +20,10 @@ export const TEMPLATES_FORMACAO: Record<FormacaoPreset, Position[]> = {
   '3-5-2': ['GOL', 'ZAG', 'ZAG', 'ZAG', 'VOL', 'MC', 'MC', 'MEI', 'MEI', 'CA', 'SA'],
   '4-2-3-1': ['GOL', 'LD', 'ZAG', 'ZAG', 'LE', 'VOL', 'VOL', 'MEI', 'PD', 'PE', 'CA'],
   '5-3-2': ['GOL', 'LD', 'ZAG', 'ZAG', 'ZAG', 'LE', 'VOL', 'MC', 'MEI', 'CA', 'SA'],
-  '4-1-4-1': ['GOL', 'LD', 'ZAG', 'ZAG', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'CA'],
+  // 4-5-1: 4 zagueiros, meio-campo de 5 (1 volante + 4 meias) e 1 centroavante.
+  // Num campo de 3 linhas é a forma real do "4-1-4-1" (o volante e os 4 meias
+  // ocupam a mesma faixa de meio). Só 1 atacante — por isso NÃO usa PD/PE (pontas).
+  '4-5-1': ['GOL', 'LD', 'ZAG', 'ZAG', 'LE', 'VOL', 'MEI', 'MC', 'MC', 'MEI', 'CA'],
 };
 
 export const FORMACOES_DISPONIVEIS = Object.keys(
