@@ -1,15 +1,12 @@
 /**
- * Identidade visual do FOTEBALL — sistema de DOIS temas (dia/noite).
+ * Identidade visual do FOTEBALL — UM só tema: "Noite de estádio".
  *
- * `temaEscuro` ("Noite de estádio") é o DNA original do app: gramado à noite,
- * linha de cal e refletor âmbar. `temaClaro` ("Dia", modelo SofaScore) é o
- * contraponto. Ambos expõem a MESMA forma de tokens — as telas que consomem via
- * `useTema()`/`useEstilos()` re-tematizam sozinhas ao alternar.
+ * `temaEscuro` é o mundo do jogo: gramado à noite, linha de cal e refletor
+ * âmbar. Não há mais modo dia — o produto "não pisca entre temas".
  *
- * Compatibilidade: os exports `cores`/`suaves`/`acentos`/`gradientes`/`sombra`
- * apontam para o tema ESCURO (default). Telas ainda não migradas para o hook
- * continuam importando-os como constante e renderizam no escuro — a migração
- * para o toggle é incremental.
+ * Os exports `cores`/`suaves`/`acentos`/`gradientes`/`sombra` apontam para esse
+ * tema; as telas podem importá-los como constante OU consumir via `useTema()`/
+ * `useEstilos()` (que leem exatamente do mesmo tema).
  *
  * ESTE ARQUIVO É PURO (sem React) — os hooks `useTema`/`useEstilos` vivem em
  * `./useTema` para não puxar React onde não deve (ex.: engine). O único import é
@@ -100,102 +97,7 @@ export type Tema = {
 };
 
 // ============================================================================
-// TEMA CLARO ("Dia" · modelo SofaScore): fundo cinza-claro, cards brancos,
-// texto azul-marinho e acentos vivos.
-// ============================================================================
-
-const CORES_CLARO: PaletaCores = {
-  fundo: '#F1F3F7',
-  fundoTopo: '#FFFFFF',
-  fundoBase: '#E9EDF3',
-  gramado: '#E3F2E8',
-  superficie: '#FFFFFF',
-  superficieAlt: '#F7F9FC',
-  superficieElevada: '#FFFFFF',
-  borda: '#E5E9F0',
-  bordaClara: '#D9DFEA',
-  glass: 'rgba(23, 35, 59, 0.045)',
-  glassForte: 'rgba(23, 35, 59, 0.075)',
-  bordaTransl: 'rgba(23, 35, 59, 0.10)',
-  bordaTranslForte: 'rgba(23, 35, 59, 0.16)',
-  primaria: '#12B76A',
-  primariaClara: '#3BD68B',
-  primariaEscura: '#0A9153',
-  primariaGlow: 'rgba(18, 183, 106, 0.22)',
-  secundaria: '#E5A400',
-  secundariaClara: '#FFC93C',
-  secundariaEscura: '#B7791F',
-  perigo: '#E5484D',
-  sucesso: '#12B76A',
-  aviso: '#E08700',
-  texto: '#17233B',
-  textoSecundario: '#7C8698',
-  textoMuted: '#9AA4B5',
-  contrastePrimaria: '#FFFFFF',
-};
-
-const SUAVES_CLARO: PaletaSuaves = {
-  verde: '#E4F7EE',
-  amarelo: '#FFF4D6',
-  vermelho: '#FFECEE',
-  azul: '#E7F0FE',
-  laranja: '#FFF1DE',
-  rosa: '#FBE7F0',
-};
-
-const ACENTOS_CLARO: PaletaAcentos = {
-  verde: '#12B76A',
-  amarelo: '#C99A06',
-  vermelho: '#E5484D',
-  azul: '#1D6FE0',
-  laranja: '#D97A00',
-  rosa: '#D6336C',
-};
-
-const GRADIENTES_CLARO: Gradientes = {
-  fundo: ['#FFFFFF', '#F4F6FA', '#E9EDF3'],
-  primaria: ['#3BD68B', '#12B76A', '#0A9153'],
-  card: ['#FFFFFF', '#F7F9FC', '#EEF2F7'],
-  hero: ['#E7F0FE', '#F4F7FC', '#FFFFFF'],
-  ouro: ['#FFD883', '#E5A400', '#B7791F'],
-  ouroEscuro: ['#FFFFFF', '#F6EED9', '#E9EDF3'],
-  gramado: ['#DFF2E5', '#EAF6EE', '#F4FBF6'],
-  craque: ['#E7F0FE', '#F4F7FC'],
-};
-
-const SOMBRA_CLARO: Sombras = {
-  suave: {
-    shadowColor: '#0F1E3D',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  card: {
-    shadowColor: '#0F1E3D',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.07,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  glow: {
-    shadowColor: '#12B76A',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  ouro: {
-    shadowColor: '#E5A400',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.14,
-    shadowRadius: 7,
-    elevation: 3,
-  },
-};
-
-// ============================================================================
-// TEMA ESCURO ("Noite de estádio" · DEFAULT): gramado à noite (preto-esverdeado),
+// TEMA ESCURO ("Noite de estádio" · ÚNICO): gramado à noite (preto-esverdeado),
 // linha de cal (chalk) e refletor âmbar como acento raro. Verde = estrutura/
 // positivo; âmbar = o destaque (craque, gol, o que pede atenção).
 // ============================================================================
@@ -294,16 +196,8 @@ const SOMBRA_ESCURO: Sombras = {
 };
 
 // ============================================================================
-// TEMAS montados + exports de compatibilidade (default = escuro).
+// TEMA montado (único = "noite de estádio") + exports de compatibilidade.
 // ============================================================================
-
-export const temaClaro: Tema = {
-  cores: CORES_CLARO,
-  suaves: SUAVES_CLARO,
-  acentos: ACENTOS_CLARO,
-  gradientes: GRADIENTES_CLARO,
-  sombra: SOMBRA_CLARO,
-};
 
 export const temaEscuro: Tema = {
   cores: CORES_ESCURO,

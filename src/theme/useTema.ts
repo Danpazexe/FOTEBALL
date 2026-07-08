@@ -13,7 +13,7 @@ import {useMemo} from 'react';
 import {useTemaStore} from '../store/useTemaStore';
 import type {Tema} from './index';
 
-/** Tema ativo (re-renderiza ao alternar dia/noite). */
+/** Tema ativo — único ("noite de estádio"); vem do store para um só ponto de leitura. */
 export function useTema(): Tema {
   return useTemaStore(estado => estado.tema);
 }
