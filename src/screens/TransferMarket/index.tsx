@@ -22,6 +22,7 @@ import {
   useGameStore,
 } from '../../store/useGameStore';
 import {acentos, cores, espaco, raio, sombra, tipografia} from '../../theme';
+import Chip from '../../components/Chip';
 import {moeda, nomeClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
@@ -155,19 +156,14 @@ function TransferMarket(): React.JSX.Element {
       {aba === 'contratar' || aba === 'emprestar' ? (
         <View style={styles.filtros}>
           {POSICOES.map(pos => (
-            <Pressable
-              accessibilityRole="button"
+            <Chip
               key={pos}
+              label={pos}
+              ativo={filtro === pos}
+              cor={cores.primaria}
+              pequeno
               onPress={() => setFiltro(pos)}
-              style={[styles.chip, filtro === pos ? styles.chipAtivo : null]}>
-              <Text
-                style={[
-                  styles.chipTexto,
-                  filtro === pos ? styles.chipTextoAtivo : null,
-                ]}>
-                {pos}
-              </Text>
-            </Pressable>
+            />
           ))}
         </View>
       ) : null}
@@ -340,25 +336,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: espaco.xs,
     marginBottom: espaco.md,
-  },
-  chip: {
-    borderColor: cores.borda,
-    borderRadius: raio.pill,
-    borderWidth: 1,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: espaco.xs,
-  },
-  chipAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  chipTexto: {
-    color: cores.texto,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  chipTextoAtivo: {
-    color: cores.contrastePrimaria,
   },
   lista: {
     gap: espaco.sm,
