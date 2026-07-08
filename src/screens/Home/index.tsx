@@ -23,6 +23,7 @@ const FUNDO_ESTADIO = require('../../assets/planodefundo.jpg');
 import FormaRecente from '../../components/FormaRecente';
 import Icone from '../../components/Icone';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
+import StatCard from '../../components/StatCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
 import {
@@ -79,6 +80,26 @@ function corDoTom(tom: TomManchete): string {
     return cores.perigo;
   }
   return cores.textoMuted;
+}
+
+/**
+ * Reputação do técnico (0-100) → estrelas + rótulo curto para o StatCard.
+ * 5 estrelas mapeiam a faixa; mínimo 1 (um técnico contratado nunca é 0 estrela).
+ */
+function reputacaoResumo(rep: number): {estrelas: string; label: string} {
+  const cheias = Math.max(1, Math.min(5, Math.round(rep / 20)));
+  const estrelas = '★'.repeat(cheias) + '☆'.repeat(5 - cheias);
+  const label =
+    rep >= 80
+      ? 'Ídolo da torcida'
+      : rep >= 60
+      ? 'Respeitado'
+      : rep >= 40
+      ? 'Em construção'
+      : rep >= 20
+      ? 'Contestado'
+      : 'Ameaçado';
+  return {estrelas, label};
 }
 
 type ResultadoForma = 'V' | 'E' | 'D';
@@ -142,6 +163,7 @@ function Home(): React.JSX.Element {
   );
   const rodadasNoVermelho = useGameStore(state => state.rodadasNoVermelho);
   const dificuldade = useGameStore(state => state.config.dificuldade);
+  const propostasRecebidas = useGameStore(state => state.propostasRecebidas);
 
   // Demissão: assim que a diretoria demite, leva o técnico à tela de recontratação.
   React.useEffect(() => {
@@ -270,6 +292,23 @@ function Home(): React.JSX.Element {
     }
     return lista.slice(0, MAX_ALERTAS);
   }, [clubeUsuario, clubeUsuarioId, jogadores]);
+
+  // Estado no relance (StatCards do topo): moral médio do elenco, reputação e
+  // propostas recebidas — resumo antes do detalhe.
+  const moralMedia = useMemo(() => {
+    if (!clubeUsuarioId) {
+      return 0;
+    }
+    const elenco = jogadores.filter(j => j.clubeId === clubeUsuarioId);
+    if (elenco.length === 0) {
+      return 0;
+    }
+    return Math.round(
+      elenco.reduce((soma, j) => soma + j.moral, 0) / elenco.length,
+    );
+  }, [jogadores, clubeUsuarioId]);
+  const reputacao = reputacaoResumo(reputacaoTecnico);
+  const numPropostas = propostasRecebidas.length;
 
   const confronto = useMemo(() => {
     if (!proximoJogo) {
@@ -494,6 +533,46 @@ function Home(): React.JSX.Element {
               ) : null}
             </View>
           </ImageBackground>
+
+          {/* Estado no relance — moral do elenco, reputação do técnico e propostas. */}
+          <View style={styles.relanceRow}>
+            <StatCard
+              label="Moral"
+              valor={`${moralMedia}%`}
+              sub={
+                moralMedia >= 75
+                  ? 'Confiante'
+                  : moralMedia >= 50
+                  ? 'Equilibrado'
+                  : 'Tenso'
+              }
+              corValor={
+                moralMedia >= 75
+                  ? cores.sucesso
+                  : moralMedia >= 50
+                  ? cores.texto
+                  : cores.perigo
+              }
+            />
+            <StatCard
+              label="Reputação"
+              valor={reputacao.estrelas}
+              sub={reputacao.label}
+              corValor={cores.secundaria}
+            />
+            <StatCard
+              label="Propostas"
+              valor={String(numPropostas)}
+              sub={numPropostas > 0 ? 'Aguardando' : 'Nenhuma'}
+              corValor={numPropostas > 0 ? cores.secundaria : cores.texto}
+              icone={numPropostas > 0 ? 'mercado' : undefined}
+              onPress={
+                numPropostas > 0
+                  ? () => nav.navigate('TransferMarket')
+                  : undefined
+              }
+            />
+          </View>
 
           {/* Ultimato — exigência concreta da diretoria no fio da navalha. */}
           {ultimato ? (
@@ -734,6 +813,11 @@ const styles = StyleSheet.create({
     // Sem padding próprio: o ScreenContainer (scroll) já aplica o padding
     // padrão — antes duplicava (32px de cada lado), deixando a tela apertada.
     gap: espaco.md,
+  },
+  // Grade "estado no relance" — StatCards de moral/reputação/propostas.
+  relanceRow: {
+    flexDirection: 'row',
+    gap: espaco.sm,
   },
   hero: {
     borderRadius: raio.lg,
