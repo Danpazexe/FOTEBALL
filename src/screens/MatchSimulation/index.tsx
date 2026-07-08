@@ -87,6 +87,7 @@ import {
   raio,
   sombra,
   suaves,
+  tabular,
 } from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {ehMinutoAcrescimo, rotuloMinuto} from '../../utils/minutoPartida';
@@ -1664,6 +1665,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '900',
     letterSpacing: -0.5,
+    ...tabular,
   },
   placarTraco: {
     color: cores.textoSecundario,
@@ -1673,6 +1675,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
+    ...tabular,
   },
   metaChips: {
     flexDirection: 'row',
@@ -1717,6 +1720,7 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 12,
     fontWeight: '700',
+    ...tabular,
   },
   lista: {
     flex: 1,
@@ -1787,6 +1791,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     minWidth: 30,
     textAlign: 'right',
+    ...tabular,
   },
   tabelaLinha: {
     alignItems: 'center',
