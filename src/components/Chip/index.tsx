@@ -14,7 +14,7 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
 
-import {espaco, raio, type Tema} from '../../theme';
+import {comAlfa, espaco, raio, type Tema} from '../../theme';
 import {useEstilos, useTema} from '../../theme/useTema';
 import Icone, {type IconeNome} from '../Icone';
 
@@ -31,6 +31,12 @@ type ChipProps = {
   cor?: string;
   /** Ícone opcional antes do rótulo. */
   icone?: IconeNome;
+  /**
+   * 'solido' (padrão) = seleção preenchida no acento. 'suave' = SELO DE ESTADO:
+   * fundo/borda tingidos + texto colorido (status bom/ruim/aviso), sem gastar o
+   * preenchimento cheio — reserva o acento cheio para a seleção de fato.
+   */
+  tom?: 'solido' | 'suave';
   /** Densidade compacta (chips em faixa apertada). */
   pequeno?: boolean;
   disabled?: boolean;
@@ -43,6 +49,7 @@ function Chip({
   onPress,
   cor,
   icone,
+  tom = 'solido',
   pequeno = false,
   disabled = false,
   style,
@@ -50,7 +57,12 @@ function Chip({
   const {cores} = useTema();
   const styles = useEstilos(criarEstilos);
   const acento = cor ?? cores.secundaria;
-  const corTexto = ativo ? cores.contrastePrimaria : cores.textoSecundario;
+  const suave = tom === 'suave';
+  const corTexto = suave
+    ? acento
+    : ativo
+      ? cores.contrastePrimaria
+      : cores.textoSecundario;
 
   const conteudo = (
     <>
@@ -66,7 +78,11 @@ function Chip({
   const estiloBase = [
     styles.base,
     pequeno ? styles.basePequeno : null,
-    ativo ? {backgroundColor: acento, borderColor: acento} : null,
+    suave
+      ? {backgroundColor: comAlfa(acento, 0.14), borderColor: comAlfa(acento, 0.4)}
+      : ativo
+        ? {backgroundColor: acento, borderColor: acento}
+        : null,
     disabled ? styles.disabled : null,
     style,
   ];

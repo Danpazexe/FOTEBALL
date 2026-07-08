@@ -589,6 +589,24 @@ export function corDoClube(clubeId: string): string {
   return CORES_CLUBE[clubeId] ?? corDoTime(clubeId);
 }
 
+/**
+ * Cor sólida (#RRGGBB) → string rgba() com alfa. Serve para derivar tints de
+ * estado (fundo/borda suaves) a partir de um token do tema, sem hardcodar rgba
+ * nem concatenar hex opaco (`${cor}22`) — anti-padrão espalhado pelas telas.
+ * "O acento é raro": use tints fracos (0.10–0.16) para o fundo de selos/chips
+ * de estado e reserve a cor cheia para o texto/borda.
+ */
+export function comAlfa(corHex: string, alfa: number): string {
+  const hex = corHex.replace('#', '');
+  const n = hex.length === 3
+    ? hex.split('').map(c => c + c).join('')
+    : hex;
+  const r = parseInt(n.slice(0, 2), 16);
+  const g = parseInt(n.slice(2, 4), 16);
+  const b = parseInt(n.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alfa})`;
+}
+
 /** Texto legível (claro/escuro) sobre uma cor de fundo sólida. */
 export function contrasteTexto(corHex: string): string {
   const hex = corHex.replace('#', '');
