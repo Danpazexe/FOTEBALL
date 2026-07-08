@@ -1,6 +1,7 @@
 import React, {useMemo, useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 
+import Chip from '../../components/Chip';
 import MiniPlayerCard from '../../components/MiniPlayerCard';
 import Painel from '../../components/Painel';
 import StatBar from '../../components/StatBar';
@@ -19,7 +20,7 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco} from '../../theme';
 import {forcaDoClube} from '../../utils/forca';
 import {moedaCompacta} from '../../utils/formatters';
 import type {Position} from '../../types';
@@ -74,6 +75,17 @@ function Squad() {
     return {total, media, valor, indisponiveis, folha};
   }, [jogadores]);
 
+  // Contagem por posição — alimenta o número no chip de filtro (ver carências
+  // do elenco de relance, ex.: "ZAG 4").
+  const contagem = useMemo(() => {
+    const mapa: Partial<Record<Position, number>> = {};
+    for (const jogador of jogadores) {
+      mapa[jogador.posicaoPrincipal] =
+        (mapa[jogador.posicaoPrincipal] ?? 0) + 1;
+    }
+    return mapa;
+  }, [jogadores]);
+
   const forca = useMemo(
     () => (clubeUsuario ? forcaDoClube(clubeUsuario, todosJogadores) : null),
     [clubeUsuario, todosJogadores],
@@ -103,21 +115,16 @@ function Squad() {
       <Section>
         <View style={styles.chipsRow}>
           {FILTROS.map(opcao => {
-            const ativo = filtro === opcao;
+            const n =
+              opcao === 'Todos' ? jogadores.length : contagem[opcao] ?? 0;
             return (
-              <Pressable
-                accessibilityRole="button"
+              <Chip
                 key={opcao}
+                label={`${opcao} ${n}`}
+                ativo={filtro === opcao}
+                cor={cores.primaria}
                 onPress={() => setFiltro(opcao)}
-                style={[styles.chip, ativo ? styles.chipAtivo : null]}>
-                <Text
-                  style={[
-                    styles.chipTexto,
-                    ativo ? styles.chipTextoAtivo : null,
-                  ]}>
-                  {opcao}
-                </Text>
-              </Pressable>
+              />
             );
           })}
         </View>
@@ -189,33 +196,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: espaco.sm,
   },
-  chip: {
-    borderColor: cores.bordaClara,
-    borderRadius: raio.pill,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 34,
-    paddingHorizontal: espaco.md,
-  },
-  chipAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  chipTexto: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  chipTextoAtivo: {
-    color: cores.contrastePrimaria,
-  },
   grade: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: espaco.sm,
   },
   aviso: {
-    color: cores.secundaria,
+    color: cores.aviso,
     fontSize: 12,
     fontWeight: '600',
     marginBottom: espaco.md,
