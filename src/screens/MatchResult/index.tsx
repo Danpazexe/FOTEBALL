@@ -30,7 +30,7 @@ import {
   analisarMomentos,
   type TomMomento,
 } from '../../engine/simulation/momentos';
-import {acentos, cores, corDoTime, espaco, raio, suaves} from '../../theme';
+import {acentos, cores, corDoTime, espaco, raio, suaves, tabular} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {ehMinutoAcrescimo, rotuloMinuto} from '../../utils/minutoPartida';
 import {useGameStore} from '../../store/useGameStore';
@@ -46,10 +46,10 @@ import type {
 
 const DURACAO = 90;
 
-/** Tons utilitários da súmula sem equivalente exato nos tokens globais
- * (`src/theme`): divisor de linhas e trilho de barras/abas do modelo. */
-const DIVISOR = '#EFF2F6';
-const TRACK = '#EDF0F4';
+/** Divisor de linhas e trilho de barras/abas — tokens NOTURNOS (antes eram
+ * cinza-claro herdado do modelo "SofaScore"). */
+const DIVISOR = cores.borda;
+const TRACK = cores.superficieAlt;
 
 type LinhaJogador = {
   jogador: Player;
@@ -67,22 +67,10 @@ function nomeCurto(jogador: Player): string {
   return jogador.apelido ?? jogador.nome;
 }
 
-/** Cores do badge de POSIÇÃO por setor (modelo: GOL amarelo, defesa azul,
- * meio laranja, pontas rosa, centroavante vermelho). */
-function corPosicao(posicao: Position): {fundo: string; texto: string} {
-  if (posicao === 'GOL') {
-    return {fundo: suaves.amarelo, texto: acentos.amarelo};
-  }
-  if (['ZAG', 'LD', 'LE'].includes(posicao)) {
-    return {fundo: suaves.azul, texto: acentos.azul};
-  }
-  if (['VOL', 'MC', 'MEI'].includes(posicao)) {
-    return {fundo: suaves.laranja, texto: acentos.laranja};
-  }
-  if (['PD', 'PE', 'SA'].includes(posicao)) {
-    return {fundo: suaves.rosa, texto: acentos.rosa};
-  }
-  return {fundo: suaves.vermelho, texto: acentos.vermelho};
+/** Badge de POSIÇÃO — NEUTRO. A v2 não usa cor por setor (arco-íris fora da
+ * paleta); o rótulo (GOL/ZAG/...) já basta e libera o âmbar para o craque. */
+function corPosicao(_posicao: Position): {fundo: string; texto: string} {
+  return {fundo: cores.superficieAlt, texto: cores.textoSecundario};
 }
 
 /** Pill de nota (modelo): verde para boa, amarelo regular, vermelho ruim. */
@@ -1247,9 +1235,9 @@ const styles = StyleSheet.create({
   },
   abaAtiva: {
     backgroundColor: cores.superficie,
-    shadowColor: '#0F1E3D',
+    shadowColor: '#000000',
     shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.35,
     shadowRadius: 3,
     elevation: 2,
   },
@@ -1649,7 +1637,7 @@ const styles = StyleSheet.create({
   },
   botaoContinuar: {
     alignItems: 'center',
-    backgroundColor: acentos.azul,
+    backgroundColor: cores.primaria,
     borderRadius: raio.md,
     paddingVertical: 14,
   },
