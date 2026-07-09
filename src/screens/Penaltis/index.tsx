@@ -211,7 +211,7 @@ function Penaltis(): React.JSX.Element {
     nav.goBack();
   }, [nav]);
 
-  const largura = Math.min(width - espaco.lg * 2, 400);
+  const largura = Math.min(width - espaco.lg * 2, 360);
 
   const ultimaCpu = useMemo(
     () => [...cobrancas].reverse().find(c => c.cobrador === 'CPU'),
