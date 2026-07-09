@@ -56,6 +56,16 @@ const GRUPOS: {titulo: string; itens: Atalho[]}[] = [
       {rotulo: 'Troféus', icone: 'medalha', ir: nav => nav.navigate('Gabinete')},
     ],
   },
+  {
+    titulo: 'Testes',
+    itens: [
+      {
+        rotulo: 'Pênaltis',
+        icone: 'jogar',
+        ir: nav => nav.navigate('Penaltis', {teste: true}),
+      },
+    ],
+  },
 ];
 
 function Central(): React.JSX.Element {
