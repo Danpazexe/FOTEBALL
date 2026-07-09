@@ -21,6 +21,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import {REACH_GOLEIRO} from '../../../engine/competitions/knockout/penaltisInterativos';
 import {cores} from '../../../theme';
 import type {Cobrador, PosicaoChute, ResultadoCobranca} from '../../../types';
 import Bola from './Bola';
@@ -53,9 +54,9 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
 
   // Geometria (px) — gol ao fundo (perto do horizonte), bola no ponto (frente).
   const golCentroX = sceneW / 2;
-  const gw = sceneW * 0.62;
+  const gw = sceneW * 0.74;
   const gh = gw * GOL_RATIO;
-  const golBaseY = sceneH * 0.31; // linha do gol
+  const golBaseY = sceneH * 0.33; // linha do gol
   const golTopY = golBaseY - gh;
   // Pés do goleiro um pouco ABAIXO da linha do gol, para a cabeça não passar do
   // travessão (a caixa da figura é mais alta que a boca do gol).
@@ -67,7 +68,9 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const bolaHomeY = sceneH * 0.82;
   const ballSize = sceneW * 0.17;
   const arco = sceneH * 0.06;
-  const keeperW = gh * 1.05;
+  // Meia-largura visual do goleiro = REACH_GOLEIRO (x-units), pois meia = gw*0.4.
+  // Assim a cobertura do sprite CASA com a área de defesa do engine.
+  const keeperW = 0.8 * gw * REACH_GOLEIRO;
   const keeperBoxH = keeperW * 1.15;
 
   const alvoPx = useMemo(
@@ -99,7 +102,9 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
 
   const sensX = largura * 0.34;
   const sensY = largura * 0.5;
-  const dragMax = largura * 0.5;
+  // Velocidade (px/s) do arrasto para potência MÁXIMA — a força vem do quão
+  // RÁPIDO o usuário puxa a bola (flick), não da distância.
+  const velMax = largura * 7;
 
   const gesto = useMemo(
     () =>
@@ -117,10 +122,10 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
           'worklet';
           const x = Math.min(1, Math.max(-1, e.translationX / sensX));
           const y = Math.min(1, Math.max(0, -e.translationY / sensY));
-          const dist = Math.sqrt(
-            e.translationX * e.translationX + e.translationY * e.translationY,
+          const vel = Math.sqrt(
+            e.velocityX * e.velocityX + e.velocityY * e.velocityY,
           );
-          const potencia = Math.min(1, Math.max(0.15, dist / dragMax));
+          const potencia = Math.min(1, Math.max(0.2, vel / velMax));
           aimVis.value = 0;
           runOnJS(onChutar)(x, y, potencia);
         }),
@@ -129,7 +134,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       onChutar,
       sensX,
       sensY,
-      dragMax,
+      velMax,
       golCentroX,
       meia,
       groundY,

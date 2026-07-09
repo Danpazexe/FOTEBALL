@@ -25,14 +25,17 @@ import type {
 // --- Ajuste do goleiro (cresce com o nível de dificuldade) --------------------
 
 /** Alcance horizontal base do goleiro (em unidades de x; o gol vai de -1 a 1). */
-const ALCANCE_BASE = 0.55;
-/** Ganho de alcance por nível de dificuldade. */
-const ALCANCE_POR_NIVEL = 0.05;
-/** Teto de alcance — mantém o canto alto sempre defensável só pelo "perfeito". */
-const ALCANCE_MAX = 1.05;
+/**
+ * Meia-largura da COBERTURA do goleiro (em x-units, -1..1). É FIXA (o corpo do
+ * goleiro tem tamanho fixo) e CASA com o tamanho visual do sprite na tela — o
+ * AlvoGol dimensiona o goleiro por este mesmo valor, então "bola que encosta no
+ * goleiro" = defesa (visual == lógica). A dificuldade NÃO aumenta a cobertura;
+ * aumenta a LEITURA (o goleiro mergulha mais perto do chute).
+ */
+export const REACH_GOLEIRO = 0.42;
 
 /** Quão bem o goleiro lê a direção (0 = palpite puro, 1 = leitura perfeita). */
-const LEITURA_BASE = 0.3;
+const LEITURA_BASE = 0.32;
 const LEITURA_POR_NIVEL = 0.06;
 const LEITURA_MAX = 0.9;
 
@@ -41,20 +44,29 @@ export const NIVEL_MAX_GOLEIRO = 10;
 
 // --- Física do chute ----------------------------------------------------------
 
-/** Chute alto é mais difícil de defender: reduz o alcance efetivo do goleiro. */
-const FATOR_ALTURA = 0.6;
+/**
+ * Peso do eixo Y na distância até o goleiro (y∈[0,1] vs x∈[-1,1]). A defesa é
+ * decidida em 2D: "bola perto de ONDE o goleiro mergulhou (x E y) = defesa".
+ * Chute alto continua difícil porque exige o goleiro LER a altura (goleiroY),
+ * não só o lado — e some o caso de a bola atravessar o corpo do goleiro no alto.
+ */
+const PESO_Y = 0.7;
 
 /** Ângulo perfeito: |x| alto (canto) + y alto → impossível defender. */
 const LIMIAR_CANTO = 0.8;
 const LIMIAR_ALTO = 0.8;
 
-/** Peso do atributo de finalização (coloca melhor a bola). Efeito modesto. */
-const PESO_FINALIZACAO = 0.15;
+/**
+ * Peso da finalização — modesto de propósito: desloca pouco a fronteira de
+ * defesa para ela seguir COLADA no tamanho visual do goleiro (senão "bola perto
+ * do goleiro" viraria gol para bons finalizadores).
+ */
+const PESO_FINALIZACAO = 0.08;
 /** Finalização de referência (efeito neutro). */
 const FINALIZACAO_NEUTRA = 60;
 
-/** Amplitude do ruído semeado — determinismo/replay, não mecânica visível. */
-const RUIDO = 0.08;
+/** Amplitude do ruído semeado — pequena, para não descolar do visual. */
+const RUIDO = 0.05;
 
 // --- Regras da disputa --------------------------------------------------------
 
@@ -102,7 +114,6 @@ export function resolverCobrancaUsuario(
     0,
     LEITURA_MAX,
   );
-  const alcance = Math.min(ALCANCE_MAX, ALCANCE_BASE + nivel * ALCANCE_POR_NIVEL);
 
   // Goleiro mergulha: mistura de palpite aleatório e leitura da direção do chute.
   const goleiroX = leitura * x + (1 - leitura) * palpiteX;
@@ -117,11 +128,11 @@ export function resolverCobrancaUsuario(
   const finalizacao = atributosBatedor?.finalizacao ?? FINALIZACAO_NEUTRA;
   const bonus = ((finalizacao - FINALIZACAO_NEUTRA) / 40) * PESO_FINALIZACAO;
 
-  // Alcance efetivo diminui com a altura do chute; a finalização afasta a bola
-  // do goleiro (bônus positivo empurra o desfecho para gol).
-  const alcanceEfetivo = alcance * (1 - y * FATOR_ALTURA);
-  const distancia = Math.abs(x - goleiroX);
-  const defendido = distancia + bonus + ruido <= alcanceEfetivo;
+  // Distância 2D até ONDE o goleiro mergulhou (x e y). Cobertura FIXA = tamanho
+  // visual do goleiro; a finalização afasta a bola (bônus empurra para gol).
+  const dy = PESO_Y * (y - goleiroY);
+  const distancia = Math.sqrt((x - goleiroX) ** 2 + dy * dy);
+  const defendido = distancia + bonus + ruido <= REACH_GOLEIRO;
 
   return {
     resultado: defendido ? 'DEFESA' : 'GOL',

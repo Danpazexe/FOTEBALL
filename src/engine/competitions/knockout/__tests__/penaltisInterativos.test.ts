@@ -108,6 +108,39 @@ describe('resolverCobrancaUsuario', () => {
     expect(golsFacil).toBeGreaterThan(golsDificil);
   });
 
+  it('chute alto não-canto: goleiro forte lê a altura e defende mais (defesa 2D)', () => {
+    // A defesa é 2D (x e y): no alto do gol, o goleiro forte precisa LER a altura
+    // para defender — então defende mais que o goleiro fraco (que erra o mergulho).
+    let golsFacil = 0;
+    let golsDificil = 0;
+    for (let seed = 0; seed < 200; seed += 1) {
+      const base = {
+        posicaoChute: {x: 0.3, y: 0.75}, // alto, mas NÃO canto (|x| < 0.8)
+        potencia: 0.8,
+        atributosBatedor: atributos(60),
+      } as const;
+      if (
+        resolverCobrancaUsuario({
+          ...base,
+          nivelDificuldadeGoleiro: 0,
+          rng: criarRNGComSeed(seed),
+        }).resultado === 'GOL'
+      ) {
+        golsFacil += 1;
+      }
+      if (
+        resolverCobrancaUsuario({
+          ...base,
+          nivelDificuldadeGoleiro: NIVEL_MAX_GOLEIRO,
+          rng: criarRNGComSeed(seed),
+        }).resultado === 'GOL'
+      ) {
+        golsDificil += 1;
+      }
+    }
+    expect(golsFacil).toBeGreaterThan(golsDificil);
+  });
+
   it('finalizador converte mais que perna-de-pau (mesma seed e gesto)', () => {
     let golsBom = 0;
     let golsRuim = 0;
