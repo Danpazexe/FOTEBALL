@@ -57,6 +57,9 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const gh = gw * GOL_RATIO;
   const golBaseY = sceneH * 0.31; // linha do gol
   const golTopY = golBaseY - gh;
+  // Pés do goleiro um pouco ABAIXO da linha do gol, para a cabeça não passar do
+  // travessão (a caixa da figura é mais alta que a boca do gol).
+  const keeperPesY = golBaseY + gh * 0.22;
   const meia = gw * 0.4; // metade útil da boca (dentro das traves)
   const groundY = golBaseY - gh * 0.08;
   const topY = golTopY + gh * 0.18;
@@ -81,7 +84,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const ballLift = useSharedValue(0);
   const ballOp = useSharedValue(1);
   const keeperX = useSharedValue(golCentroX);
-  const keeperY = useSharedValue(golBaseY);
+  const keeperY = useSharedValue(keeperPesY);
   const keeperRot = useSharedValue(0);
   const keeperPop = useSharedValue(1); // salto de escala no desfecho
   const aimX = useSharedValue(golCentroX);
@@ -91,6 +94,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const golPop = useSharedValue(0);
 
   const [estado, setEstado] = useState<EstadoGoleiro>('idle');
+  const [bolaGirando, setBolaGirando] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensX = largura * 0.34;
@@ -153,10 +157,11 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       ballScale.value = 1;
       ballLift.value = 0;
       keeperX.value = golCentroX;
-      keeperY.value = golBaseY;
+      keeperY.value = keeperPesY;
       keeperRot.value = 0;
     }
     setEstado('dive');
+    setBolaGirando(true);
     ballOp.value = 1;
 
     ballX.value = withTiming(alvo.x, {duration: dur, easing: Easing.out(Easing.quad)});
@@ -167,7 +172,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       withTiming(0, {duration: dur * 0.55, easing: Easing.in(Easing.quad)}),
     );
     keeperX.value = withTiming(kx, {duration: dur * 0.8, easing: Easing.out(Easing.cubic)});
-    keeperY.value = withTiming(golBaseY - kLift, {duration: dur * 0.8, easing: Easing.out(Easing.cubic)});
+    keeperY.value = withTiming(keeperPesY - kLift, {duration: dur * 0.8, easing: Easing.out(Easing.cubic)});
     keeperRot.value = withTiming(rot, {duration: dur * 0.8, easing: Easing.out(Easing.cubic)});
 
     if (timerRef.current) {
@@ -176,6 +181,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     const marcou = lance.resultado === 'GOL';
     timerRef.current = setTimeout(() => {
       keeperRot.value = withTiming(0, {duration: 160});
+      setBolaGirando(false); // bola aterrissou — para de girar
       keeperPop.value = withSequence(
         withTiming(1.16, {duration: 110}),
         withTiming(1, {duration: 220}),
@@ -210,18 +216,19 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       return;
     }
     setEstado('idle');
+    setBolaGirando(false);
     ballX.value = withTiming(bolaHomeX, {duration: 220});
     ballY.value = withTiming(bolaHomeY, {duration: 220});
     ballScale.value = withTiming(1, {duration: 220});
     ballLift.value = 0;
     ballOp.value = withTiming(1, {duration: 160});
     keeperX.value = withTiming(golCentroX, {duration: 240});
-    keeperY.value = withTiming(golBaseY, {duration: 240});
+    keeperY.value = withTiming(keeperPesY, {duration: 240});
     keeperRot.value = withTiming(0, {duration: 240});
     golPop.value = 0;
     flash.value = 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [podeChutar, bolaHomeX, bolaHomeY, golCentroX, golBaseY]);
+  }, [podeChutar, bolaHomeX, bolaHomeY, golCentroX, keeperPesY]);
 
   const estiloBola = useAnimatedStyle(() => ({
     opacity: ballOp.value,
@@ -296,7 +303,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
         <Animated.View
           pointerEvents="none"
           style={[styles.camada, {width: ballSize, height: ballSize}, estiloBola]}>
-          <Bola tamanho={ballSize} />
+          <Bola tamanho={ballSize} girando={bolaGirando} />
         </Animated.View>
 
         {/* Juice. */}
