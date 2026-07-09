@@ -1,120 +1,114 @@
 /**
- * AlvoGol — o gol, a bola e o gesto ÚNICO de cobrança (fiel ao Mini Cup do
- * Google): o usuário arrasta a bola do ponto de pênalti em direção ao gol; o
- * VETOR do arrasto define a mira (x/y contínuos, sem grade visível) e a
- * DISTÂNCIA define a potência (que só acelera a animação, não é risco de errar).
+ * AlvoGol — a cena jogável da disputa (visão atrás da bola, estilo doodle).
+ * Compõe o estádio estático (Estadio) com camadas ANIMADAS por cima: goleiro
+ * (mergulho), bola (voo em arco até o gol, encolhendo pela perspectiva), mira
+ * (segue o dedo) e o "juice" (flash + GOL!). Toda a geometria vive no espaço
+ * 0..440 de `CENA`, escalado para a largura real.
  *
- * Ao soltar, avisa a tela (`onChutar`) com {x, y, potencia}; a tela resolve na
- * engine e devolve o `lance`, que este componente anima (bola até o alvo +
- * mergulho do goleiro). Sem lógica de jogo aqui.
+ * Gesto ÚNICO (fiel ao Mini Cup): arrasta a bola em direção ao gol — o VETOR
+ * define a mira (x/y contínuos), a DISTÂNCIA define a potência (só acelera a
+ * animação). Ao soltar, avisa `onChutar`; a engine resolve e devolve o `lance`,
+ * que este componente anima.
  */
 import React, {useEffect, useMemo} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {StyleSheet, Text, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {
   Easing,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
-import {cores, raio} from '../../../theme';
+import {cores} from '../../../theme';
 import type {Cobrador, PosicaoChute, ResultadoCobranca} from '../../../types';
-import Batedor from './Batedor';
-import Goleiro from './Goleiro';
+import Bola, {BOLA_VIEWBOX} from './Bola';
+import Estadio, {CENA} from './Estadio';
+import Goleiro, {GOLEIRO_VIEWBOX} from './Goleiro';
 
 export type Lance = {
   posicaoChute: PosicaoChute;
   potencia: number;
-  /** Mergulho do goleiro (-1..1 em x, 0..1 em y) devolvido pela engine. */
   goleiroX: number;
   goleiroY: number;
   resultado: ResultadoCobranca;
-  /** Quem cobrou (default USUÁRIO). A CPU cobra do ponto (recoloca a bola). */
   cobrador?: Cobrador;
 };
 
 type Props = {
   largura: number;
-  altura: number;
-  /** Habilita o gesto (só na vez do usuário). */
   podeChutar: boolean;
-  /** Última cobrança resolvida a animar (null enquanto aguarda o chute). */
   lance: Lance | null;
   onChutar: (x: number, y: number, potencia: number) => void;
 };
 
-function AlvoGol({
-  largura,
-  altura,
-  podeChutar,
-  lance,
-  onChutar,
-}: Props): React.JSX.Element {
-  // Geometria (primitivos — capturados por valor nos worklets do reanimated).
-  const GW = largura * 0.84; // largura do gol
-  const GH = GW * 0.42; // altura do gol
-  const golLeft = (largura - GW) / 2;
-  const golTop = altura * 0.16;
-  const golBase = golTop + GH; // linha do gol (base das redes)
-  const ballR = largura * 0.05;
-  const pad = ballR * 1.25; // mantém a bola dentro das traves
-  const spotX = largura / 2;
-  const spotY = golBase + (altura - golBase) * 0.6; // marca da cal
-  const keeperW = GW * 0.16;
-  const centroGolX = golLeft + GW / 2;
-  const baseGoleiro = golBase - pad;
+function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Element {
+  // Escala do espaço da cena (0..440) para px, e pontos-chave em px.
+  const esc = largura / CENA.lado;
+  const pad = 8 * esc;
+  const golCentroX = CENA.golCentroX * esc;
+  const meia = CENA.golMeiaLargura * esc - pad;
+  const groundY = CENA.golLinhaY * esc;
+  const topY = CENA.golTravessaoY * esc + pad;
+  const bolaHomeX = CENA.bolaPontoX * esc;
+  const bolaHomeY = CENA.bolaPontoY * esc;
 
-  // px do alvo dentro do gol a partir das coordenadas contínuas (-1..1, 0..1).
+  const ballSize = BOLA_VIEWBOX * esc;
+  const arco = 30 * esc;
+  const keeperW = 76 * esc;
+  const keeperH = (keeperW * GOLEIRO_VIEWBOX.altura) / GOLEIRO_VIEWBOX.largura;
+  const keeperPesOffY = (GOLEIRO_VIEWBOX.pesY / GOLEIRO_VIEWBOX.altura) * keeperH;
+
   const alvoPx = useMemo(
     () => (x: number, y: number) => ({
-      x: centroGolX + x * (GW / 2 - pad),
-      y: golBase - pad - y * (GH - 2 * pad),
+      x: golCentroX + x * meia,
+      y: groundY - y * (groundY - topY),
     }),
-    [centroGolX, GW, GH, golBase, pad],
+    [golCentroX, meia, groundY, topY],
   );
 
-  const aimX = useSharedValue(centroGolX);
-  const aimY = useSharedValue(golTop + pad);
-  const aimVisivel = useSharedValue(0);
-  const ballX = useSharedValue(spotX);
-  const ballY = useSharedValue(spotY);
+  const ballX = useSharedValue(bolaHomeX);
+  const ballY = useSharedValue(bolaHomeY);
   const ballScale = useSharedValue(1);
-  const goleiroX = useSharedValue(centroGolX);
-  const goleiroY = useSharedValue(baseGoleiro);
-  const chutando = useSharedValue(0);
+  const ballLift = useSharedValue(0);
+  const keeperX = useSharedValue(golCentroX);
+  const keeperY = useSharedValue(groundY);
+  const keeperRot = useSharedValue(0);
+  const aimX = useSharedValue(golCentroX);
+  const aimY = useSharedValue(topY);
+  const aimVis = useSharedValue(0);
+  const flash = useSharedValue(0);
+  const golPop = useSharedValue(0);
 
-  // Sensibilidade do gesto (px de arrasto → coordenada / potência).
-  const sensX = GW * 0.55;
-  const sensY = GH * 2.2;
-  const dragMax = altura * 0.42;
-  const meiaLargUtil = GW / 2 - pad;
-  const alturaUtil = GH - 2 * pad;
+  // Sensibilidade do gesto.
+  const sensX = largura * 0.34;
+  const sensY = largura * 0.5;
+  const dragMax = largura * 0.5;
 
   const gesto = useMemo(
     () =>
       Gesture.Pan()
         .enabled(podeChutar)
-        .onUpdate(evento => {
+        .onUpdate(e => {
           'worklet';
-          const x = Math.min(1, Math.max(-1, evento.translationX / sensX));
-          const y = Math.min(1, Math.max(0, -evento.translationY / sensY));
-          aimX.value = centroGolX + x * meiaLargUtil;
-          aimY.value = golBase - pad - y * alturaUtil;
-          aimVisivel.value = 1;
+          const x = Math.min(1, Math.max(-1, e.translationX / sensX));
+          const y = Math.min(1, Math.max(0, -e.translationY / sensY));
+          aimX.value = golCentroX + x * meia;
+          aimY.value = groundY - y * (groundY - topY);
+          aimVis.value = 1;
         })
-        .onEnd(evento => {
+        .onEnd(e => {
           'worklet';
-          const x = Math.min(1, Math.max(-1, evento.translationX / sensX));
-          const y = Math.min(1, Math.max(0, -evento.translationY / sensY));
+          const x = Math.min(1, Math.max(-1, e.translationX / sensX));
+          const y = Math.min(1, Math.max(0, -e.translationY / sensY));
           const dist = Math.sqrt(
-            evento.translationX * evento.translationX +
-              evento.translationY * evento.translationY,
+            e.translationX * e.translationX + e.translationY * e.translationY,
           );
           const potencia = Math.min(1, Math.max(0.15, dist / dragMax));
-          aimVisivel.value = 0;
+          aimVis.value = 0;
           runOnJS(onChutar)(x, y, potencia);
         }),
     [
@@ -123,111 +117,161 @@ function AlvoGol({
       sensX,
       sensY,
       dragMax,
-      centroGolX,
-      golBase,
-      pad,
-      meiaLargUtil,
-      alturaUtil,
+      golCentroX,
+      meia,
+      groundY,
+      topY,
       aimX,
       aimY,
-      aimVisivel,
+      aimVis,
     ],
   );
 
-  // Anima a cobrança resolvida: bola até o alvo + mergulho do goleiro.
+  // Anima a cobrança resolvida.
   useEffect(() => {
     if (!lance) {
       return;
     }
-    const dur = 620 - lance.potencia * 260; // mais potência = animação mais rápida
+    const dur = 620 - lance.potencia * 260;
     const alvo = alvoPx(lance.posicaoChute.x, lance.posicaoChute.y);
-    const kp = alvoPx(lance.goleiroX, lance.goleiroY);
+    // Mergulho: pés deslocam na horizontal, sobem um pouco, e a figura inclina.
+    const kx = golCentroX + lance.goleiroX * meia;
+    const ky = groundY - lance.goleiroY * 0.35 * (groundY - topY);
+    const rot = lance.goleiroX * 32;
+
     if (lance.cobrador === 'CPU') {
-      // A CPU cobra do ponto: recoloca bola/goleiro antes de animar (a bola do
-      // usuário tinha ficado "no gol" da cobrança anterior).
-      ballX.value = spotX;
-      ballY.value = spotY;
+      // A CPU cobra do ponto: recoloca bola/goleiro antes de animar.
+      ballX.value = bolaHomeX;
+      ballY.value = bolaHomeY;
       ballScale.value = 1;
-      goleiroX.value = centroGolX;
-      goleiroY.value = baseGoleiro;
-    } else {
-      chutando.value = withSequence(
-        withTiming(1, {duration: 130}),
-        withTiming(0, {duration: 320}),
-      );
+      ballLift.value = 0;
+      keeperX.value = golCentroX;
+      keeperY.value = groundY;
+      keeperRot.value = 0;
     }
+
     ballX.value = withTiming(alvo.x, {duration: dur, easing: Easing.out(Easing.quad)});
     ballY.value = withTiming(alvo.y, {duration: dur, easing: Easing.out(Easing.quad)});
-    ballScale.value = withTiming(0.55, {duration: dur});
-    goleiroX.value = withTiming(kp.x, {duration: dur * 0.85, easing: Easing.out(Easing.cubic)});
-    goleiroY.value = withTiming(kp.y, {duration: dur * 0.85, easing: Easing.out(Easing.cubic)});
+    ballScale.value = withTiming(0.42, {duration: dur});
+    ballLift.value = withSequence(
+      withTiming(arco, {duration: dur * 0.45, easing: Easing.out(Easing.quad)}),
+      withTiming(0, {duration: dur * 0.55, easing: Easing.in(Easing.quad)}),
+    );
+    keeperX.value = withTiming(kx, {duration: dur * 0.8, easing: Easing.out(Easing.cubic)});
+    keeperY.value = withTiming(ky, {duration: dur * 0.8, easing: Easing.out(Easing.cubic)});
+    keeperRot.value = withTiming(rot, {duration: dur * 0.8, easing: Easing.out(Easing.cubic)});
+
+    if (lance.resultado === 'GOL') {
+      flash.value = withDelay(
+        dur * 0.7,
+        withSequence(
+          withTiming(0.45, {duration: 90}),
+          withTiming(0, {duration: 320}),
+        ),
+      );
+      golPop.value = withDelay(
+        dur * 0.7,
+        withSequence(withTiming(1, {duration: 150}), withTiming(0, {duration: 650})),
+      );
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lance]);
 
-  // Novo turno do usuário: volta bola e goleiro para a posição inicial. Reage
-  // também à geometria (largura/altura) para reancorar após mudança de dimensão
-  // (ex.: rotação) enquanto o usuário está para bater.
+  // Novo turno: volta bola e goleiro ao lugar (reage à geometria p/ rotação).
   useEffect(() => {
     if (!podeChutar) {
       return;
     }
-    ballX.value = withTiming(spotX, {duration: 200});
-    ballY.value = withTiming(spotY, {duration: 200});
-    ballScale.value = withTiming(1, {duration: 200});
-    goleiroX.value = withTiming(centroGolX, {duration: 220});
-    goleiroY.value = withTiming(baseGoleiro, {duration: 220});
+    ballX.value = withTiming(bolaHomeX, {duration: 220});
+    ballY.value = withTiming(bolaHomeY, {duration: 220});
+    ballScale.value = withTiming(1, {duration: 220});
+    ballLift.value = 0;
+    keeperX.value = withTiming(golCentroX, {duration: 240});
+    keeperY.value = withTiming(groundY, {duration: 240});
+    keeperRot.value = withTiming(0, {duration: 240});
+    golPop.value = 0;
+    flash.value = 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [podeChutar, spotX, spotY, centroGolX, baseGoleiro]);
+  }, [podeChutar, bolaHomeX, bolaHomeY, golCentroX, groundY]);
 
   const estiloBola = useAnimatedStyle(() => ({
     transform: [
-      {translateX: ballX.value - ballR},
-      {translateY: ballY.value - ballR},
+      {translateX: ballX.value - ballSize / 2},
+      {translateY: ballY.value - ballLift.value - ballSize / 2},
       {scale: ballScale.value},
     ],
   }));
+  const estiloGoleiro = useAnimatedStyle(() => ({
+    transform: [
+      {translateX: keeperX.value - keeperW / 2},
+      {translateY: keeperY.value - keeperPesOffY},
+      {rotateZ: `${keeperRot.value}deg`},
+    ],
+  }));
   const estiloMira = useAnimatedStyle(() => ({
-    opacity: aimVisivel.value,
-    transform: [{translateX: aimX.value - 14}, {translateY: aimY.value - 14}],
+    opacity: aimVis.value,
+    transform: [{translateX: aimX.value - 15}, {translateY: aimY.value - 15}],
+  }));
+  const estiloLinha = useAnimatedStyle(() => {
+    const dx = aimX.value - bolaHomeX;
+    const dy = aimY.value - bolaHomeY;
+    const comprimento = Math.sqrt(dx * dx + dy * dy);
+    const angulo = Math.atan2(dy, dx);
+    return {
+      opacity: aimVis.value * 0.85,
+      width: comprimento,
+      transform: [{rotateZ: `${angulo}rad`}],
+    };
+  });
+  const estiloFlash = useAnimatedStyle(() => ({opacity: flash.value}));
+  const estiloGolTexto = useAnimatedStyle(() => ({
+    opacity: golPop.value,
+    transform: [{scale: 0.6 + golPop.value * 0.6}],
   }));
 
   return (
     <GestureDetector gesture={gesto}>
-      <View style={[styles.campo, {width: largura, height: altura}]}>
-        {/* Gol: traves + travessão + linha do gol. */}
-        <View
-          style={[
-            styles.gol,
-            {left: golLeft, top: golTop, width: GW, height: GH},
-          ]}
-        />
-        <View
-          style={[styles.linhaGol, {left: golLeft, top: golBase, width: GW}]}
-        />
+      <View style={[styles.cena, {width: largura, height: largura}]}>
+        <Estadio largura={largura} />
 
-        <Goleiro x={goleiroX} y={goleiroY} tamanho={keeperW} />
-
-        {/* Mira (some quando não está arrastando). */}
-        <Animated.View pointerEvents="none" style={[styles.mira, estiloMira]}>
-          <View style={styles.miraInterna} />
+        {/* Goleiro (mergulha). */}
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.camada, {width: keeperW, height: keeperH}, estiloGoleiro]}>
+          <Goleiro tamanho={keeperW} />
         </Animated.View>
 
-        <Batedor
-          x={spotX - ballR * 2.4}
-          y={spotY + ballR * 0.6}
-          tamanho={ballR * 1.5}
-          chutando={chutando}
-        />
-
-        {/* Bola. */}
+        {/* Linha + alvo da mira. */}
         <Animated.View
           pointerEvents="none"
           style={[
-            styles.bola,
-            {width: ballR * 2, height: ballR * 2, borderRadius: ballR},
-            estiloBola,
+            styles.linhaMira,
+            {left: bolaHomeX, top: bolaHomeY - 1.5},
+            estiloLinha,
           ]}
         />
+        <Animated.View pointerEvents="none" style={[styles.mira, estiloMira]}>
+          <View style={styles.miraAnel} />
+          <View style={styles.miraPonto} />
+        </Animated.View>
+
+        {/* Bola (voa até o alvo). */}
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.camada, {width: ballSize, height: ballSize}, estiloBola]}>
+          <Bola tamanho={ballSize} />
+        </Animated.View>
+
+        {/* Flash do gol. */}
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.flash, estiloFlash]}
+        />
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.golTextoWrap, estiloGolTexto]}>
+          <Text style={styles.golTexto}>GOL!</Text>
+        </Animated.View>
       </View>
     </GestureDetector>
   );
@@ -235,50 +279,70 @@ function AlvoGol({
 
 export default AlvoGol;
 
-const VERDE_CAMPO = '#0F2E1E';
-const LINHA = 'rgba(234, 242, 230, 0.75)';
-
 const styles = StyleSheet.create({
-  campo: {
-    backgroundColor: VERDE_CAMPO,
-    borderRadius: raio.md,
+  cena: {
+    borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
   },
-  gol: {
-    borderColor: LINHA,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    borderWidth: 4,
+  camada: {
+    left: 0,
     position: 'absolute',
+    top: 0,
   },
-  linhaGol: {
-    backgroundColor: LINHA,
-    height: 2,
+  linhaMira: {
+    backgroundColor: cores.secundaria,
+    height: 3,
     position: 'absolute',
+    transformOrigin: 'left center',
+    width: 1,
   },
   mira: {
     alignItems: 'center',
-    height: 28,
+    height: 30,
     justifyContent: 'center',
     left: 0,
     position: 'absolute',
     top: 0,
-    width: 28,
+    width: 30,
   },
-  miraInterna: {
+  miraAnel: {
     borderColor: cores.secundaria,
-    borderRadius: 14,
+    borderRadius: 15,
     borderWidth: 3,
-    height: 28,
-    width: 28,
+    height: 30,
+    position: 'absolute',
+    width: 30,
   },
-  bola: {
-    backgroundColor: '#F5F7FA',
-    borderColor: '#11161C',
-    borderWidth: 2,
+  miraPonto: {
+    backgroundColor: cores.secundaria,
+    borderRadius: 3,
+    height: 6,
+    width: 6,
+  },
+  flash: {
+    backgroundColor: '#FFFFFF',
+    bottom: 0,
     left: 0,
     position: 'absolute',
+    right: 0,
     top: 0,
+  },
+  golTextoWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    left: 0,
+    position: 'absolute',
+    right: 0,
+    top: '22%',
+  },
+  golTexto: {
+    color: cores.secundaria,
+    fontSize: 52,
+    fontWeight: '900',
+    letterSpacing: 2,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: {width: 0, height: 2},
+    textShadowRadius: 6,
   },
 });

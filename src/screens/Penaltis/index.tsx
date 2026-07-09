@@ -211,8 +211,7 @@ function Penaltis(): React.JSX.Element {
     nav.goBack();
   }, [nav]);
 
-  const largura = Math.min(width - espaco.lg * 2, 420);
-  const altura = Math.round(largura * 1.18);
+  const largura = Math.min(width - espaco.lg * 2, 400);
 
   const ultimaCpu = useMemo(
     () => [...cobrancas].reverse().find(c => c.cobrador === 'CPU'),
@@ -256,7 +255,6 @@ function Penaltis(): React.JSX.Element {
       <View style={styles.centro}>
         <AlvoGol
           largura={largura}
-          altura={altura}
           podeChutar={fase === 'BATENDO_USUARIO'}
           lance={lance}
           onChutar={onChutar}
