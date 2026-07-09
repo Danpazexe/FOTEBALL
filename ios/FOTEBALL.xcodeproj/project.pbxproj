@@ -34,6 +34,13 @@
 		FB6D10000000000000000020 /* lobby1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000020 /* lobby1.mp3 */; };
 		FB6D10000000000000000021 /* lobby2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000021 /* lobby2.mp3 */; };
 		FB6D10000000000000000022 /* lobby3.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000022 /* lobby3.mp3 */; };
+		FB6D10000000000000000023 /* pk_chute.m4a in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000023 /* pk_chute.m4a */; };
+		FB6D10000000000000000024 /* pk_gol.m4a in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000024 /* pk_gol.m4a */; };
+		FB6D10000000000000000025 /* pk_gol2.m4a in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000025 /* pk_gol2.m4a */; };
+		FB6D10000000000000000026 /* pk_defesa.m4a in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000026 /* pk_defesa.m4a */; };
+		FB6D10000000000000000027 /* pk_trave.m4a in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000027 /* pk_trave.m4a */; };
+		FB6D10000000000000000028 /* pk_torcida.m4a in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000028 /* pk_torcida.m4a */; };
+		FB6D10000000000000000029 /* pk_festa.m4a in Resources */ = {isa = PBXBuildFile; fileRef = FA6D10000000000000000029 /* pk_festa.m4a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -69,6 +76,13 @@
 		FA6D10000000000000000020 /* lobby1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = lobby1.mp3; path = ../src/audio/lobby/lobby1.mp3; sourceTree = "<group>"; };
 		FA6D10000000000000000021 /* lobby2.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = lobby2.mp3; path = ../src/audio/lobby/lobby2.mp3; sourceTree = "<group>"; };
 		FA6D10000000000000000022 /* lobby3.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; name = lobby3.mp3; path = ../src/audio/lobby/lobby3.mp3; sourceTree = "<group>"; };
+		FA6D10000000000000000023 /* pk_chute.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; name = pk_chute.m4a; path = ../src/audio/pk_chute.m4a; sourceTree = "<group>"; };
+		FA6D10000000000000000024 /* pk_gol.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; name = pk_gol.m4a; path = ../src/audio/pk_gol.m4a; sourceTree = "<group>"; };
+		FA6D10000000000000000025 /* pk_gol2.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; name = pk_gol2.m4a; path = ../src/audio/pk_gol2.m4a; sourceTree = "<group>"; };
+		FA6D10000000000000000026 /* pk_defesa.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; name = pk_defesa.m4a; path = ../src/audio/pk_defesa.m4a; sourceTree = "<group>"; };
+		FA6D10000000000000000027 /* pk_trave.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; name = pk_trave.m4a; path = ../src/audio/pk_trave.m4a; sourceTree = "<group>"; };
+		FA6D10000000000000000028 /* pk_torcida.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; name = pk_torcida.m4a; path = ../src/audio/pk_torcida.m4a; sourceTree = "<group>"; };
+		FA6D10000000000000000029 /* pk_festa.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; name = pk_festa.m4a; path = ../src/audio/pk_festa.m4a; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -168,6 +182,13 @@
 				FA6D10000000000000000020 /* lobby1.mp3 */,
 				FA6D10000000000000000021 /* lobby2.mp3 */,
 				FA6D10000000000000000022 /* lobby3.mp3 */,
+				FA6D10000000000000000023 /* pk_chute.m4a */,
+				FA6D10000000000000000024 /* pk_gol.m4a */,
+				FA6D10000000000000000025 /* pk_gol2.m4a */,
+				FA6D10000000000000000026 /* pk_defesa.m4a */,
+				FA6D10000000000000000027 /* pk_trave.m4a */,
+				FA6D10000000000000000028 /* pk_torcida.m4a */,
+				FA6D10000000000000000029 /* pk_festa.m4a */,
 			);
 			name = Audio;
 			sourceTree = "<group>";
@@ -257,6 +278,13 @@
 				FB6D10000000000000000020 /* lobby1.mp3 in Resources */,
 				FB6D10000000000000000021 /* lobby2.mp3 in Resources */,
 				FB6D10000000000000000022 /* lobby3.mp3 in Resources */,
+				FB6D10000000000000000023 /* pk_chute.m4a in Resources */,
+				FB6D10000000000000000024 /* pk_gol.m4a in Resources */,
+				FB6D10000000000000000025 /* pk_gol2.m4a in Resources */,
+				FB6D10000000000000000026 /* pk_defesa.m4a in Resources */,
+				FB6D10000000000000000027 /* pk_trave.m4a in Resources */,
+				FB6D10000000000000000028 /* pk_torcida.m4a in Resources */,
+				FB6D10000000000000000029 /* pk_festa.m4a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
