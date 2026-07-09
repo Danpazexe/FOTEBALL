@@ -7,7 +7,7 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
-import {AppHeader, ScreenContainer} from '../../components/ui';
+import {AppHeader, Botao, ScreenContainer} from '../../components/ui';
 import Icone, {type IconeNome} from '../../components/Icone';
 import {useAppNavigation, type RootNavigation} from '../../navigation/types';
 import {cores, espaco, raio, sombra} from '../../theme';
@@ -75,6 +75,16 @@ function Central(): React.JSX.Element {
     <ScreenContainer scroll>
       <AppHeader titulo="Central do Técnico" subtitulo="Gestão do clube" />
 
+      {/* Atalho em destaque para testar a disputa de pênaltis (modo teste). */}
+      <View style={styles.testeWrap}>
+        <Botao
+          variante="ouro"
+          icone="jogar"
+          titulo="Testar pênaltis (Mini Cup)"
+          onPress={() => nav.navigate('Penaltis', {teste: true})}
+        />
+      </View>
+
       {/* Destaques — uso diário (Elenco / Tática). */}
       <View style={styles.destaquesRow}>
         {DESTAQUES.map(item => (
@@ -128,6 +138,10 @@ function Central(): React.JSX.Element {
 export default Central;
 
 const styles = StyleSheet.create({
+  testeWrap: {
+    paddingHorizontal: espaco.lg,
+    paddingTop: espaco.md,
+  },
   destaquesRow: {
     flexDirection: 'row',
     gap: espaco.md,
