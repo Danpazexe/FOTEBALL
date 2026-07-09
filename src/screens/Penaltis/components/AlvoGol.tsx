@@ -110,6 +110,8 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     () =>
       Gesture.Pan()
         .enabled(podeChutar)
+        // Ativa com pouco movimento — um flick curto também chuta.
+        .minDistance(3)
         .onUpdate(e => {
           'worklet';
           const x = Math.min(1, Math.max(-1, e.translationX / sensX));
@@ -122,10 +124,20 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
           'worklet';
           const x = Math.min(1, Math.max(-1, e.translationX / sensX));
           const y = Math.min(1, Math.max(0, -e.translationY / sensY));
-          const vel = Math.sqrt(
-            e.velocityX * e.velocityX + e.velocityY * e.velocityY,
+          // Força pela velocidade do flick, com PISO pela distância do arrasto —
+          // assim tanto um flick rápido quanto um arrasto lento chutam de fato.
+          const vx = e.velocityX || 0;
+          const vy = e.velocityY || 0;
+          const vel = Math.sqrt(vx * vx + vy * vy);
+          const dist = Math.sqrt(
+            e.translationX * e.translationX + e.translationY * e.translationY,
           );
-          const potencia = Math.min(1, Math.max(0.2, vel / velMax));
+          const potVel = vel / velMax;
+          const potDist = dist / (largura * 0.55);
+          const potencia = Math.min(
+            1,
+            Math.max(0.3, Math.max(potVel, potDist)),
+          );
           aimVis.value = 0;
           runOnJS(onChutar)(x, y, potencia);
         }),
@@ -135,6 +147,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       sensX,
       sensY,
       velMax,
+      largura,
       golCentroX,
       meia,
       groundY,
