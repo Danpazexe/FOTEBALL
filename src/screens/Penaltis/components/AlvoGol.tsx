@@ -17,6 +17,7 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -83,6 +84,8 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const keeperX = useSharedValue(golCentroX);
   const keeperY = useSharedValue(golBaseY);
   const keeperRot = useSharedValue(0);
+  const keeperBob = useSharedValue(0); // balanço contínuo de "pronto"
+  const keeperPop = useSharedValue(1); // salto de escala no desfecho
   const aimX = useSharedValue(golCentroX);
   const aimY = useSharedValue(topY);
   const aimVis = useSharedValue(0);
@@ -175,6 +178,10 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     const marcou = lance.resultado === 'GOL';
     timerRef.current = setTimeout(() => {
       keeperRot.value = withTiming(0, {duration: 160});
+      keeperPop.value = withSequence(
+        withTiming(1.16, {duration: 110}),
+        withTiming(1, {duration: 220}),
+      );
       if (marcou) {
         setEstado('beaten');
         flash.value = withSequence(
@@ -218,6 +225,16 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [podeChutar, bolaHomeX, bolaHomeY, golCentroX, golBaseY]);
 
+  // Balanço contínuo de "pronto" (respiração) — suave, feito no reanimated.
+  useEffect(() => {
+    keeperBob.value = withRepeat(
+      withTiming(1, {duration: 760, easing: Easing.inOut(Easing.quad)}),
+      -1,
+      true,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const estiloBola = useAnimatedStyle(() => ({
     opacity: ballOp.value,
     transform: [
@@ -229,7 +246,8 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const estiloGoleiro = useAnimatedStyle(() => ({
     transform: [
       {translateX: keeperX.value - keeperW / 2},
-      {translateY: keeperY.value - keeperBoxH},
+      {translateY: keeperY.value - keeperBoxH + (keeperBob.value - 0.5) * 7},
+      {scale: keeperPop.value},
       {rotateZ: `${keeperRot.value}deg`},
     ],
   }));
