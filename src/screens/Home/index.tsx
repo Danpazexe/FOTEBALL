@@ -21,6 +21,7 @@ import {LOGO_COPA, LOGO_SERIE_D} from '../../assets/escudos';
 // Papel de parede do "hero" do Gabinete: estádio noturno (empacotado).
 const FUNDO_ESTADIO = require('../../assets/planodefundo.jpg');
 import FormaRecente from '../../components/FormaRecente';
+import Chip from '../../components/Chip';
 import Icone from '../../components/Icone';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
 import StatCard from '../../components/StatCard';
@@ -53,7 +54,7 @@ import {
   useGameStore,
 } from '../../store/useGameStore';
 import {limiteDerrotasPorDivisao} from '../../store/helpers';
-import {cores, espaco, raio, sombra, tabular} from '../../theme';
+import {comAlfa, cores, espaco, raio, sombra, tabular} from '../../theme';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Clube, Partida} from '../../types';
 
@@ -575,12 +576,16 @@ function Home(): React.JSX.Element {
                   ? cores.texto
                   : cores.perigo
               }
+              onPress={() => nav.navigate('Squad')}
             />
             <StatCard
               label="Reputação"
               valor={reputacao.estrelas}
               sub={reputacao.label}
-              corValor={cores.secundaria}
+              corValor={
+                reputacaoTecnico >= 60 ? cores.secundaria : cores.texto
+              }
+              onPress={() => nav.navigate('Gabinete')}
             />
             <StatCard
               label="Propostas"
@@ -685,26 +690,13 @@ function Home(): React.JSX.Element {
           {sequencias.length > 0 ? (
             <View style={styles.sequenciasRow}>
               {sequencias.map(seq => (
-                <View
+                <Chip
                   key={seq.tipo}
-                  style={[
-                    styles.seqChip,
-                    seq.destaque === 'bom'
-                      ? styles.seqChipBom
-                      : styles.seqChipRuim,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.seqChipTexto,
-                      seq.destaque === 'bom'
-                        ? styles.seqTextoBom
-                        : styles.seqTextoRuim,
-                    ]}
-                  >
-                    {seq.rotulo}
-                  </Text>
-                </View>
+                  label={seq.rotulo}
+                  tom="suave"
+                  cor={seq.destaque === 'bom' ? cores.sucesso : cores.perigo}
+                  pequeno
+                />
               ))}
             </View>
           ) : null}
@@ -919,9 +911,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     padding: espaco.lg,
   },
-  // Véu navy sobre o estádio: garante legibilidade do texto claro por cima.
+  // Véu de noite (verde-escuro) sobre o estádio: legibilidade do texto claro por
+  // cima, pertencendo ao mundo "noite de estádio" (não ao navy do tema dia).
   heroVeu: {
-    backgroundColor: 'rgba(11, 30, 63, 0.5)',
+    backgroundColor: comAlfa(cores.fundoBase, 0.55),
     bottom: 0,
     left: 0,
     position: 'absolute',
@@ -929,10 +922,10 @@ const styles = StyleSheet.create({
     top: 0,
   },
   heroTexto: {
-    color: '#FFFFFF',
+    color: cores.texto,
   },
   heroSub: {
-    color: 'rgba(233, 240, 251, 0.9)',
+    color: comAlfa(cores.texto, 0.85),
   },
   heroPill: {
     backgroundColor: 'rgba(255, 255, 255, 0.16)',
@@ -1056,7 +1049,7 @@ const styles = StyleSheet.create({
   },
   // Ultimato — banner urgente (vermelho) no fio da navalha.
   ultimatoBanner: {
-    backgroundColor: 'rgba(229, 72, 77, 0.10)',
+    backgroundColor: comAlfa(cores.perigo, 0.1),
     borderColor: cores.perigo,
     borderRadius: raio.lg,
     borderWidth: 1,
@@ -1085,8 +1078,8 @@ const styles = StyleSheet.create({
   // Clássico — banner de rivalidade do próximo jogo.
   classicoBanner: {
     alignItems: 'center',
-    backgroundColor: 'rgba(224, 135, 0, 0.10)',
-    borderColor: 'rgba(224, 135, 0, 0.35)',
+    backgroundColor: comAlfa(cores.aviso, 0.1),
+    borderColor: comAlfa(cores.aviso, 0.35),
     borderRadius: raio.md,
     borderWidth: 1,
     flexDirection: 'row',
@@ -1105,30 +1098,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: espaco.sm,
-  },
-  seqChip: {
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 6,
-  },
-  seqChipBom: {
-    backgroundColor: 'rgba(18, 183, 106, 0.10)',
-    borderColor: 'rgba(18, 183, 106, 0.35)',
-  },
-  seqChipRuim: {
-    backgroundColor: 'rgba(229, 72, 77, 0.10)',
-    borderColor: 'rgba(229, 72, 77, 0.35)',
-  },
-  seqChipTexto: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  seqTextoBom: {
-    color: cores.sucesso,
-  },
-  seqTextoRuim: {
-    color: cores.perigo,
   },
   // Imprensa — painel de manchetes editoriais.
   imprensaBloco: {

@@ -25,14 +25,10 @@ import {
 } from './src/store/useAchievementsStore';
 import {type Tema} from './src/theme';
 import {useTemaStore} from './src/store/useTemaStore';
-import {
-  carregarModoTema,
-  salvarModoTema,
-} from './src/api/database/preferencias';
 
 const DEBOUNCE_SALVAR_MS = 800;
 
-/** Tema de navegação derivado da paleta ativa (dia/noite). */
+/** Tema de navegação derivado da paleta (noite de estádio). */
 function criarTemaNav(tema: Tema): Theme {
   return {
     ...DefaultTheme,
@@ -55,34 +51,9 @@ function criarTemaNav(tema: Tema): Theme {
 function App(): React.JSX.Element {
   const [carregando, setCarregando] = useState(true);
 
-  // Tema visual (dia/noite): paleta ativa + tema de navegação derivado.
+  // Tema visual: o jogo tem um só mundo ("noite de estádio").
   const temaAtivo = useTemaStore(estado => estado.tema);
-  const modoTema = useTemaStore(estado => estado.modo);
   const temaFoteball = useMemo(() => criarTemaNav(temaAtivo), [temaAtivo]);
-
-  // Hidrata a preferência de tema salva (fora do save da carreira).
-  useEffect(() => {
-    let ativo = true;
-    carregarModoTema()
-      .then(modo => {
-        if (ativo && modo) {
-          useTemaStore.getState().definirModo(modo);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      ativo = false;
-    };
-  }, []);
-
-  // Persiste o tema a cada troca (idempotente na hidratação).
-  useEffect(
-    () =>
-      useTemaStore.subscribe(estado => {
-        salvarModoTema(estado.modo);
-      }),
-    [],
-  );
 
   // Boot: hidrata o save (se houver) antes de montar a navegação.
   useEffect(() => {
@@ -243,7 +214,7 @@ function App(): React.JSX.Element {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <StatusBar
-          barStyle={modoTema === 'escuro' ? 'light-content' : 'dark-content'}
+          barStyle="light-content"
           backgroundColor={temaAtivo.cores.fundo}
         />
         <NavigationContainer theme={temaFoteball}>

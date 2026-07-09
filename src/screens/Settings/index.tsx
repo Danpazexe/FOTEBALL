@@ -16,17 +16,10 @@ import {definirSomHabilitado, definirVolumeEfeitos} from '../../audio/sons';
 import {FAIXAS_MUSICA} from '../../audio/musica';
 import {espaco, raio, type Tema} from '../../theme';
 import {useEstilos, useTema} from '../../theme/useTema';
-import {useTemaStore, type ModoTema} from '../../store/useTemaStore';
 import {VERSAO_APP} from '../../version';
 
 /** Níveis de volume oferecidos (sem lib de slider — controle em degraus). */
 const NIVEIS_VOLUME = [0, 0.25, 0.5, 0.75, 1] as const;
-
-/** Opções de tema visual (dia/noite). */
-const OPCOES_TEMA: {valor: ModoTema; rotulo: string}[] = [
-  {valor: 'escuro', rotulo: 'Noite'},
-  {valor: 'claro', rotulo: 'Dia'},
-];
 
 /** Resumo do efeito de cada dificuldade (cobrança da diretoria). */
 const DIFICULDADE_DESC: Record<string, string> = {
@@ -41,9 +34,6 @@ function Settings(): React.JSX.Element {
   const confirm = useConfirm();
   const toast = useToast();
   const styles = useEstilos(criarEstilos);
-
-  const modoTema = useTemaStore(estado => estado.modo);
-  const definirModoTema = useTemaStore(estado => estado.definirModo);
 
   const config = useGameStore(state => state.config);
   const atualizarConfig = useGameStore(state => state.atualizarConfig);
@@ -74,26 +64,6 @@ function Settings(): React.JSX.Element {
   return (
     <ScreenContainer scroll>
       <Text style={styles.titulo}>Ajustes</Text>
-
-      <Section titulo="Aparência">
-        <Text style={styles.descricao}>
-          Tema visual do app. Noite é o "estádio à noite"; Dia é o tema claro.
-        </Text>
-        <View style={styles.chipRow}>
-          {OPCOES_TEMA.map(opcao => {
-            const ativo = modoTema === opcao.valor;
-            return (
-              <View key={opcao.valor} style={styles.chipWrap}>
-                <Botao
-                  titulo={opcao.rotulo}
-                  variante={ativo ? 'primaria' : 'secundaria'}
-                  onPress={() => definirModoTema(opcao.valor)}
-                />
-              </View>
-            );
-          })}
-        </View>
-      </Section>
 
       <Section titulo="Narração da partida">
         <Text style={styles.descricao}>Velocidade padrão da narração.</Text>

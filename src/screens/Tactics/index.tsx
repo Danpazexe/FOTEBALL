@@ -12,7 +12,6 @@
 import React, {useState} from 'react';
 import {
   Dimensions,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,7 +20,9 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import CampoFUT from '../../components/CampoFUT';
-import {AppHeader, OptionGroup, Section} from '../../components/ui';
+import Chip from '../../components/Chip';
+import {useConfirm, useToast} from '../../components/feedback';
+import {AppHeader, Botao, OptionGroup, Section} from '../../components/ui';
 import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
@@ -34,7 +35,7 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {cores, espaco, raio} from '../../theme';
+import {cores, espaco} from '../../theme';
 import type {Tatica} from '../../types';
 
 const OPCOES_ESTILO: Tatica['estiloOfensivo'][] = [
@@ -68,6 +69,8 @@ const OPCOES_AMPLIDAO: NonNullable<Tatica['amplidao']>[] = [
 
 function Tactics(): React.JSX.Element {
   const nav = useAppNavigation();
+  const confirm = useConfirm();
+  const toast = useToast();
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const jogadores = useJogadoresUsuario();
   const forca = useForcaUsuario();
@@ -87,10 +90,52 @@ function Tactics(): React.JSX.Element {
   const largura = Math.min(Dimensions.get('window').width - espaco.lg * 2, 360);
 
   if (!clubeUsuario || !taticaAtual || !formacao) {
-    return <SafeAreaView style={styles.screen} />;
+    return (
+      <SafeAreaView style={styles.screen}>
+        <View style={styles.vazio}>
+          <Text style={styles.vazioTexto}>Carregando escalação…</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   const estrategia = estrategiaAtiva(taticaAtual);
+  const formacaoTipo = formacao.tipo;
+
+  // Trocar de esquema remonta TODA a escalação (ação destrutiva) — confirma antes.
+  async function aplicarFormacao(
+    tipo: (typeof FORMACOES_DISPONIVEIS)[number],
+  ): Promise<void> {
+    if (tipo === formacaoTipo) {
+      return;
+    }
+    const ok = await confirm({
+      titulo: `Trocar para ${tipo}?`,
+      mensagem:
+        'Isso remonta toda a escalação a partir do novo esquema, desfazendo ajustes manuais de posição.',
+      confirmarLabel: 'Trocar',
+    });
+    if (!ok) {
+      return;
+    }
+    atualizarFormacaoUsuario(montarFormacao(jogadores, tipo));
+  }
+
+  // Preenche o XI com os melhores jogadores disponíveis para a formação atual.
+  async function escalarMelhores(): Promise<void> {
+    const ok = await confirm({
+      titulo: 'Escalar os 11 melhores?',
+      mensagem:
+        'Preenche a escalação automaticamente com os melhores jogadores disponíveis para a formação atual, desfazendo ajustes manuais de posição.',
+      confirmarLabel: 'Escalar',
+    });
+    if (!ok) {
+      return;
+    }
+    const preset = formacaoTipo === 'Personalizada' ? '4-3-3' : formacaoTipo;
+    atualizarFormacaoUsuario(montarFormacao(jogadores, preset));
+    toast('Escalados os 11 melhores.', 'sucesso');
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -117,41 +162,37 @@ function Tactics(): React.JSX.Element {
           onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
         />
 
+        <View style={styles.melhoresWrap}>
+          <Botao
+            titulo="Escalar os 11 melhores"
+            variante="secundaria"
+            icone="tatica"
+            onPress={escalarMelhores}
+          />
+        </View>
+
         <Section titulo="Estratégia">
           <View style={styles.chipRow}>
-            {ESTRATEGIAS.map(estr => {
-              const ativa = estr.nome === estrategia;
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  key={estr.nome}
-                  onPress={() => atualizarTaticaUsuario(estr.tatica)}
-                  style={[styles.chip, ativa ? styles.chipAtivo : null]}>
-                  <Text
-                    style={[
-                      styles.chipTexto,
-                      ativa ? styles.chipTextoAtivo : null,
-                    ]}>
-                    {estr.nome}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {ESTRATEGIAS.map(estr => (
+              <Chip
+                key={estr.nome}
+                label={estr.nome}
+                ativo={estr.nome === estrategia}
+                onPress={() => atualizarTaticaUsuario(estr.tatica)}
+              />
+            ))}
           </View>
         </Section>
 
         <Section titulo="Formação">
           <View style={styles.chipRow}>
             {FORMACOES_DISPONIVEIS.map(tipo => (
-              <Pressable
-                accessibilityRole="button"
+              <Chip
                 key={tipo}
-                onPress={() =>
-                  atualizarFormacaoUsuario(montarFormacao(jogadores, tipo))
-                }
-                style={styles.chip}>
-                <Text style={styles.chipTexto}>{tipo}</Text>
-              </Pressable>
+                label={tipo}
+                ativo={tipo === formacaoTipo}
+                onPress={() => aplicarFormacao(tipo)}
+              />
             ))}
           </View>
         </Section>
@@ -245,24 +286,18 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: espaco.sm,
   },
-  chip: {
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
+  melhoresWrap: {
+    marginTop: espaco.md,
+  },
+  vazio: {
+    alignItems: 'center',
+    flex: 1,
     justifyContent: 'center',
-    minHeight: 36,
-    paddingHorizontal: espaco.md,
+    padding: espaco.xl,
   },
-  chipAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  chipTexto: {
-    color: cores.texto,
+  vazioTexto: {
+    color: cores.textoSecundario,
     fontSize: 13,
-    fontWeight: '700',
-  },
-  chipTextoAtivo: {
-    color: cores.contrastePrimaria,
+    fontWeight: '600',
   },
 });

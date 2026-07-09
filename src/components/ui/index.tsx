@@ -310,7 +310,7 @@ const criarEstilos = (t: Tema) =>
       fontSize: 12,
       fontWeight: '700',
       letterSpacing: 0.8,
-      marginTop: espaco.xs,
+      marginTop: espaco.sm,
       textTransform: 'uppercase',
     },
     section: {

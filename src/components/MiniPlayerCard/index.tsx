@@ -7,7 +7,15 @@
 import React from 'react';
 import {Dimensions, Pressable, StyleSheet, Text, View} from 'react-native';
 
-import {cores, espaco, glowDoTier, nivelCarta, raio} from '../../theme';
+import {
+  cores,
+  corCondicao,
+  espaco,
+  glowDoTier,
+  nivelCarta,
+  raio,
+  tabular,
+} from '../../theme';
 import type {Player} from '../../types';
 import Icone from '../Icone';
 import StatBar from '../StatBar';
@@ -84,10 +92,16 @@ function MiniPlayerCard({
         {(jogador.apelido ?? jogador.nome).toUpperCase()}
       </Text>
       <Text style={[styles.tipo, {color: tier.primary}]}>
-        {tier.tipo.toUpperCase()}
+        {tier.tipo.toUpperCase()} · {jogador.idade}A
       </Text>
 
-      <StatBar valor={jogador.overall} cor={cores.primaria} mostrarValor={false} />
+      {/* Barra = CONDIÇÃO FÍSICA (verde→amarelo→vermelho): dado que decide a
+          escalação de relance, no lugar de repetir o overall já gigante acima. */}
+      <StatBar
+        valor={jogador.condicaoFisica}
+        cor={corCondicao(jogador.condicaoFisica)}
+        mostrarValor={false}
+      />
     </Pressable>
   );
 }
@@ -118,6 +132,7 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '900',
     letterSpacing: -0.5,
+    ...tabular,
   },
   posWrap: {
     alignItems: 'center',

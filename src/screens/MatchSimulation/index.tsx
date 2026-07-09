@@ -47,6 +47,7 @@ import {
 import {suprimirMusica} from '../../audio/musica';
 import {salvarAgora} from '../../store/autosave';
 import {Botao, ScreenContainer} from '../../components/ui';
+import Chip from '../../components/Chip';
 import Icone, {type IconeNome} from '../../components/Icone';
 import {
   LanceLimpo,
@@ -87,6 +88,7 @@ import {
   sombra,
   suaves,
   tabular,
+  tipografia,
 } from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {ehMinutoAcrescimo, rotuloMinuto} from '../../utils/minutoPartida';
@@ -1181,7 +1183,7 @@ function MatchSimulation(): React.JSX.Element | null {
                   <Text
                     style={
                       ehMinutoAcrescimo(minuto)
-                        ? {color: acentos.vermelho}
+                        ? {color: cores.secundaria}
                         : undefined
                     }>
                     {rotuloMinuto(minuto)}' ao vivo
@@ -1452,6 +1454,13 @@ function MatchSimulation(): React.JSX.Element | null {
         )}
 
         <View style={styles.controles}>
+          {!terminou ? (
+            <Text style={styles.subsContador}>
+              <Text style={tabular}>{MAX_SUBSTITUICOES - subsFeitas}</Text> de{' '}
+              <Text style={tabular}>{MAX_SUBSTITUICOES}</Text> substituições
+              restantes
+            </Text>
+          ) : null}
           {terminou ? (
             // UM botão só: liga → detalhes da partida (o "Continuar" vive lá);
             // Copa → seguir direto (o confronto não persiste súmula).
@@ -1512,29 +1521,16 @@ function MatchSimulation(): React.JSX.Element | null {
                   tamanho={15}
                   cor={cores.textoSecundario}
                 />
-                {MULTIPLICADORES.map(mult => {
-                  const ativo = multiplicador === mult;
-                  return (
-                    <Pressable
-                      accessibilityRole="button"
-                      key={mult}
-                      onPress={() => setMultiplicador(mult)}
-                      style={[
-                        styles.chipVel,
-                        ativo ? styles.chipVelAtivo : null,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.chipVelTexto,
-                          ativo ? styles.chipVelTextoAtivo : null,
-                        ]}
-                      >
-                        {mult}x
-                      </Text>
-                    </Pressable>
-                  );
-                })}
+                {MULTIPLICADORES.map(mult => (
+                  <Chip
+                    key={mult}
+                    label={`${mult}x`}
+                    ativo={multiplicador === mult}
+                    cor={cores.primaria}
+                    onPress={() => setMultiplicador(mult)}
+                    style={styles.velChip}
+                  />
+                ))}
               </View>
               <View style={styles.linhaBotoes}>
                 <View style={styles.botaoFlex}>
@@ -1651,7 +1647,7 @@ const styles = StyleSheet.create({
   placarNome: {
     color: cores.texto,
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
   },
   placarNomeEsq: {
@@ -1662,9 +1658,7 @@ const styles = StyleSheet.create({
   },
   placarNumeros: {
     color: cores.texto,
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: -0.5,
+    ...tipografia.placar,
     ...tabular,
   },
   placarTraco: {
@@ -1697,6 +1691,7 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 11,
     fontWeight: '700',
+    ...tabular,
   },
   posseRow: {
     alignItems: 'center',
@@ -1784,6 +1779,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     minWidth: 44,
     textAlign: 'center',
+    ...tabular,
   },
   jogoMinuto: {
     color: cores.primaria,
@@ -1830,6 +1826,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     textAlign: 'center',
+    ...tabular,
   },
   tabelaNome: {
     color: cores.texto,
@@ -1843,6 +1840,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     minWidth: 26,
     textAlign: 'center',
+    ...tabular,
   },
   tabelaPts: {
     color: cores.texto,
@@ -1850,6 +1848,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     minWidth: 30,
     textAlign: 'right',
+    ...tabular,
   },
   tabelaLegenda: {
     alignItems: 'center',
@@ -1890,26 +1889,15 @@ const styles = StyleSheet.create({
   botaoFlex: {
     flex: 1,
   },
-  chipVel: {
-    alignItems: 'center',
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.pill,
-    borderWidth: 1,
+  velChip: {
     flex: 1,
     justifyContent: 'center',
-    minHeight: 40,
   },
-  chipVelAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  chipVelTexto: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  chipVelTextoAtivo: {
-    color: cores.contrastePrimaria,
+  subsContador: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   botaoIcone: {
     alignItems: 'center',
