@@ -25,7 +25,7 @@ import {cores} from '../../../theme';
 import type {Cobrador, PosicaoChute, ResultadoCobranca} from '../../../types';
 import Bola from './Bola';
 import Estadio, {ESTADIO_RATIO} from './Estadio';
-import Goleiro, {GOLEIRO_RATIO, type PoseGoleiro} from './Goleiro';
+import Goleiro, {type PoseGoleiro} from './Goleiro';
 
 const GOL_IMG = require('../assets/goal.png');
 /** Proporção do gol (recorte 387x174). */
@@ -64,8 +64,8 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const bolaHomeY = sceneH * 0.82;
   const ballSize = sceneW * 0.17;
   const arco = sceneH * 0.06;
-  const keeperW = gh * 1.0;
-  const keeperBoxH = keeperW * GOLEIRO_RATIO;
+  const keeperW = gh * 1.05;
+  const keeperBoxH = keeperW * 1.15;
 
   const alvoPx = useMemo(
     () => (x: number, y: number) => ({
