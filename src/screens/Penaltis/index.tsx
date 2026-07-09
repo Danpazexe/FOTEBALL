@@ -24,7 +24,15 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {Botao} from '../../components/ui';
-import {tocarGol, tocarPenalti, tocarPenaltiPerdido} from '../../audio/sons';
+import {
+  iniciarPkTorcida,
+  inicializarSons,
+  pararPkTorcida,
+  tocarPkChute,
+  tocarPkDefesa,
+  tocarPkFesta,
+  tocarPkGol,
+} from '../../audio/sons';
 import {hashString} from '../../engine/simulation/rng';
 import {useAppNavigation, useAppRoute} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
@@ -126,8 +134,12 @@ function Penaltis(): React.JSX.Element {
     setLance(null);
     finalizandoRef.current = false;
     setFinalizando(false);
-    tocarPenalti();
-    return () => usePenaltiStore.getState().encerrar();
+    inicializarSons();
+    iniciarPkTorcida();
+    return () => {
+      usePenaltiStore.getState().encerrar();
+      pararPkTorcida();
+    };
   }, [seed, forcaAdversario, clubeUsuarioId]);
 
   // Agenda as transições da máquina de estados.
@@ -142,11 +154,9 @@ function Penaltis(): React.JSX.Element {
         }
         const res = st.resolverCpu();
         if (res) {
-          if (res === 'GOL') {
-            tocarGol(false);
-          } else {
-            tocarPenaltiPerdido(false);
-          }
+          tocarPkChute();
+          const golCpu = res === 'GOL';
+          setTimeout(() => (golCpu ? tocarPkGol() : tocarPkDefesa()), 480);
           const idx = usePenaltiStore.getState().cobradasCpu - 1;
           setLance(lanceCpu(res, idx));
         }
@@ -167,6 +177,16 @@ function Penaltis(): React.JSX.Element {
     return undefined;
   }, [fase]);
 
+  // Fim da disputa: para o ambiente e comemora se o usuário venceu.
+  useEffect(() => {
+    if (fase === 'FIM') {
+      pararPkTorcida();
+      if (vencedor === 'USUARIO') {
+        tocarPkFesta();
+      }
+    }
+  }, [fase, vencedor]);
+
   const onChutar = useCallback((x: number, y: number, potencia: number) => {
     const detalhe = usePenaltiStore.getState().baterUsuario({x, y}, potencia);
     if (!detalhe) {
@@ -179,11 +199,9 @@ function Penaltis(): React.JSX.Element {
       goleiroY: detalhe.goleiroY,
       resultado: detalhe.resultado,
     });
-    if (detalhe.resultado === 'GOL') {
-      tocarGol(true);
-    } else {
-      tocarPenaltiPerdido(true);
-    }
+    tocarPkChute();
+    const marcou = detalhe.resultado === 'GOL';
+    setTimeout(() => (marcou ? tocarPkGol() : tocarPkDefesa()), 480);
   }, []);
 
   const finalizarReal = useCallback(() => {
