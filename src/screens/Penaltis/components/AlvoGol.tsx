@@ -25,7 +25,7 @@ import {cores} from '../../../theme';
 import type {Cobrador, PosicaoChute, ResultadoCobranca} from '../../../types';
 import Bola from './Bola';
 import Estadio, {ESTADIO_RATIO} from './Estadio';
-import Goleiro, {type PoseGoleiro} from './Goleiro';
+import Goleiro, {type EstadoGoleiro} from './Goleiro';
 
 const GOL_IMG = require('../assets/goal.png');
 /** Proporção do gol (recorte 387x174). */
@@ -89,7 +89,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const flash = useSharedValue(0);
   const golPop = useSharedValue(0);
 
-  const [pose, setPose] = useState<PoseGoleiro>('ready');
+  const [estado, setEstado] = useState<EstadoGoleiro>('idle');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensX = largura * 0.34;
@@ -155,7 +155,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       keeperY.value = golBaseY;
       keeperRot.value = 0;
     }
-    setPose('ready');
+    setEstado('dive');
     ballOp.value = 1;
 
     ballX.value = withTiming(alvo.x, {duration: dur, easing: Easing.out(Easing.quad)});
@@ -176,7 +176,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     timerRef.current = setTimeout(() => {
       keeperRot.value = withTiming(0, {duration: 160});
       if (marcou) {
-        setPose('beaten');
+        setEstado('beaten');
         flash.value = withSequence(
           withTiming(0.4, {duration: 90}),
           withTiming(0, {duration: 320}),
@@ -186,7 +186,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
           withTiming(0, {duration: 650}),
         );
       } else {
-        setPose('save');
+        setEstado('save');
         ballOp.value = withTiming(0, {duration: 120}); // vira a bola segurada
       }
     }, dur * 0.9);
@@ -204,7 +204,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     if (!podeChutar) {
       return;
     }
-    setPose('ready');
+    setEstado('idle');
     ballX.value = withTiming(bolaHomeX, {duration: 220});
     ballY.value = withTiming(bolaHomeY, {duration: 220});
     ballScale.value = withTiming(1, {duration: 220});
@@ -271,7 +271,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
         <Animated.View
           pointerEvents="none"
           style={[styles.camada, {width: keeperW, height: keeperBoxH}, estiloGoleiro]}>
-          <Goleiro tamanho={keeperW} pose={pose} />
+          <Goleiro tamanho={keeperW} estado={estado} />
         </Animated.View>
 
         {/* Mira. */}
