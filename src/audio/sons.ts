@@ -46,8 +46,9 @@ const ARQUIVOS = {
   varAnulado: 'varanulado.mp3',
   varChecando: 'varchecando.mp3',
   impedimentoAnulado: 'impedimentolanceanulado.mp3',
-  // Ambiente de estádio (toca em loop durante a partida).
-  torcida: 'torcida.mp3',
+  // Ambiente de estádio (loop durante a partida) — usa o crowd do Mini Cup
+  // (mesmo arquivo do ambiente da disputa de pênaltis, 22s em loop).
+  torcida: 'pk_torcida.m4a',
   // Disputa de pênaltis interativa (áudio do Mini Cup, fatiado do sprite).
   pkChute: 'pk_chute.m4a',
   pkGol: 'pk_gol.m4a',
