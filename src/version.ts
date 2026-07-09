@@ -10,4 +10,4 @@
  * Manter em sincronia com o `versionName` do Android (android/app/build.gradle).
  * O `versionCode` do Android é automático no CI (github.run_number).
  */
-export const VERSAO_APP = '0.32.2';
+export const VERSAO_APP = '0.32.3';

@@ -8,14 +8,23 @@ import {Image} from 'react-native';
 
 export type PoseGoleiro = 'ready' | 'save' | 'beaten';
 
-const FONTES = {
-  ready: require('../assets/keeper_ready.png'),
-  save: require('../assets/keeper_save.png'),
-  beaten: require('../assets/keeper_beaten.png'),
-};
+// require estático por pose (Metro empacota os três) — sem índice dinâmico.
+const READY = require('../assets/keeper_ready.png');
+const SAVE = require('../assets/keeper_save.png');
+const BEATEN = require('../assets/keeper_beaten.png');
 
 /** Proporção da caixa do goleiro (altura/largura). */
 export const GOLEIRO_RATIO = 1.15;
+
+function fonteDe(pose: PoseGoleiro) {
+  if (pose === 'save') {
+    return SAVE;
+  }
+  if (pose === 'beaten') {
+    return BEATEN;
+  }
+  return READY;
+}
 
 function Goleiro({
   tamanho,
@@ -26,7 +35,7 @@ function Goleiro({
 }): React.JSX.Element {
   return (
     <Image
-      source={FONTES[pose]}
+      source={fonteDe(pose)}
       style={{width: tamanho, height: tamanho * GOLEIRO_RATIO}}
       resizeMode="contain"
     />
