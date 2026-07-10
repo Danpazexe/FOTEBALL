@@ -47,6 +47,9 @@ function Bola({
   return (
     <Image
       source={girando ? FRAMES[i] : FRAMES[0]}
+      // fadeDuration={0}: evita o fade-in de 300ms do Fresco (Android) a cada um
+      // dos 12 frames do giro — senão a bola pisca/some no Android.
+      fadeDuration={0}
       style={{width: tamanho, height: tamanho}}
       resizeMode="contain"
     />
