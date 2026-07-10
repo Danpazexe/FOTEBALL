@@ -93,8 +93,6 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const keeperY = useSharedValue(keeperPesY);
   const keeperRot = useSharedValue(0);
   const keeperPop = useSharedValue(1); // salto de escala no desfecho
-  const aimX = useSharedValue(golCentroX);
-  const aimY = useSharedValue(topY);
   const aimVis = useSharedValue(0);
   const aimPow = useSharedValue(0); // força "carregada" no arrasto (0..1)
   const flash = useSharedValue(0);
@@ -117,13 +115,9 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
         .minDistance(3)
         .onUpdate(e => {
           'worklet';
-          const x = Math.min(1, Math.max(-1, e.translationX / sensX));
-          const y = Math.min(1, Math.max(0, -e.translationY / sensY));
-          aimX.value = golCentroX + x * meia;
-          aimY.value = groundY - y * (groundY - topY);
           aimVis.value = 1;
-          // Força "carregada" pela distância do arrasto — feedback visível de
-          // quão forte vai o chute (a linha engrossa/avermelha com a força).
+          // Força "carregada" pela distância do arrasto — o anel em volta da bola
+          // cresce e vai de amarelo→vermelho conforme a força.
           const dist = Math.sqrt(
             e.translationX * e.translationX + e.translationY * e.translationY,
           );
@@ -157,12 +151,6 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       sensY,
       velMax,
       largura,
-      golCentroX,
-      meia,
-      groundY,
-      topY,
-      aimX,
-      aimY,
       aimVis,
       aimPow,
     ],
@@ -298,47 +286,6 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     ),
     transform: [{scale: 0.9 + aimPow.value * 0.35}],
   }));
-  // Linha de mira SEM transformOrigin (que quebra no Android): um âncora 0×0 na
-  // bola que ROTACIONA (pivô = centro do âncora = ponto da bola) e uma barra
-  // interna que só cresce em LARGURA a partir daí. Robusto em iOS e Android.
-  const estiloLinhaRot = useAnimatedStyle(() => {
-    const dx = aimX.value - bolaHomeX;
-    const dy = aimY.value - bolaHomeY;
-    return {
-      opacity: aimVis.value * 0.85,
-      transform: [{rotateZ: `${Math.atan2(dy, dx)}rad`}],
-    };
-  });
-  const estiloLinhaLen = useAnimatedStyle(() => {
-    const dx = aimX.value - bolaHomeX;
-    const dy = aimY.value - bolaHomeY;
-    const h = 3 + aimPow.value * 7; // barra engrossa com a força
-    return {
-      width: Math.sqrt(dx * dx + dy * dy),
-      height: h,
-      top: -h / 2,
-      // amarelo (fraco) → vermelho (forte): "carrega" a força do chute.
-      backgroundColor: interpolateColor(
-        aimPow.value,
-        [0, 1],
-        [cores.secundaria, '#FF4D2E'],
-      ),
-    };
-  });
-  // Ponta da mira (na extremidade da linha) — reforça o "apontando".
-  const estiloPonta = useAnimatedStyle(() => {
-    const dx = aimX.value - bolaHomeX;
-    const dy = aimY.value - bolaHomeY;
-    return {
-      opacity: aimVis.value,
-      transform: [{translateX: Math.sqrt(dx * dx + dy * dy)}],
-      backgroundColor: interpolateColor(
-        aimPow.value,
-        [0, 1],
-        [cores.secundaria, '#FF4D2E'],
-      ),
-    };
-  });
   const estiloFlash = useAnimatedStyle(() => ({opacity: flash.value}));
   const estiloGolTexto = useAnimatedStyle(() => ({
     opacity: golPop.value,
@@ -367,7 +314,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
           <Goleiro tamanho={keeperW} estado={estado} />
         </Animated.View>
 
-        {/* Mira estilo Mini Cup: anel em volta da bola + linha apontando. */}
+        {/* Mira estilo Mini Cup: só o anel em volta da bola (sem linha). */}
         <Animated.View
           pointerEvents="none"
           style={[
@@ -382,12 +329,6 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
             estiloAnelBola,
           ]}
         />
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.linhaAnchor, {left: bolaHomeX, top: bolaHomeY}, estiloLinhaRot]}>
-          <Animated.View style={[styles.linhaBar, estiloLinhaLen]} />
-          <Animated.View style={[styles.pontaMira, estiloPonta]} />
-        </Animated.View>
 
         {/* Bola. */}
         <Animated.View
@@ -423,32 +364,10 @@ const styles = StyleSheet.create({
   golImg: {
     position: 'absolute',
   },
-  linhaAnchor: {
-    height: 0,
-    position: 'absolute',
-    width: 0,
-  },
-  linhaBar: {
-    backgroundColor: cores.secundaria,
-    height: 3,
-    left: 0,
-    position: 'absolute',
-    top: -1.5,
-    width: 1,
-  },
   anelBola: {
     borderColor: cores.secundaria,
     borderWidth: 3,
     position: 'absolute',
-  },
-  pontaMira: {
-    backgroundColor: cores.secundaria,
-    borderRadius: 6,
-    height: 12,
-    left: -6,
-    position: 'absolute',
-    top: -6,
-    width: 12,
   },
   flash: {
     backgroundColor: '#FFFFFF',
