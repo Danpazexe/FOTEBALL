@@ -79,3 +79,6 @@ yarn-error.log
 
 # Pacote de ícones gerado (fonte; assets já instalados em res/ e ios/)
 AppIcons-3/
+
+# Sprite de áudio-fonte do Mini Cup (material de trabalho, não faz parte do app)
+game_audio.ogg
