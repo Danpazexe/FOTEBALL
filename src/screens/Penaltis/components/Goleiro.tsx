@@ -60,6 +60,11 @@ function Goleiro({
   return (
     <Image
       source={src}
+      // fadeDuration={0}: no Android o Fresco faz fade-in de 300ms a cada troca
+      // de source (prop Android-only) — como o voo da bola dura ~360-540ms, a
+      // pose de mergulho entrava semitransparente/atrasada. Zerar deixa a troca
+      // instantânea (igual iOS, onde a prop é ignorada).
+      fadeDuration={0}
       style={{width: tamanho, height: tamanho * GOLEIRO_RATIO}}
       resizeMode="contain"
     />

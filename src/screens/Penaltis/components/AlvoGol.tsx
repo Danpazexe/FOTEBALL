@@ -270,14 +270,21 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     opacity: aimVis.value,
     transform: [{translateX: aimX.value - 15}, {translateY: aimY.value - 15}],
   }));
-  const estiloLinha = useAnimatedStyle(() => {
+  // Linha de mira SEM transformOrigin (que quebra no Android): um âncora 0×0 na
+  // bola que ROTACIONA (pivô = centro do âncora = ponto da bola) e uma barra
+  // interna que só cresce em LARGURA a partir daí. Robusto em iOS e Android.
+  const estiloLinhaRot = useAnimatedStyle(() => {
     const dx = aimX.value - bolaHomeX;
     const dy = aimY.value - bolaHomeY;
     return {
       opacity: aimVis.value * 0.85,
-      width: Math.sqrt(dx * dx + dy * dy),
       transform: [{rotateZ: `${Math.atan2(dy, dx)}rad`}],
     };
+  });
+  const estiloLinhaLen = useAnimatedStyle(() => {
+    const dx = aimX.value - bolaHomeX;
+    const dy = aimY.value - bolaHomeY;
+    return {width: Math.sqrt(dx * dx + dy * dy)};
   });
   const estiloFlash = useAnimatedStyle(() => ({opacity: flash.value}));
   const estiloGolTexto = useAnimatedStyle(() => ({
@@ -310,8 +317,9 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
         {/* Mira. */}
         <Animated.View
           pointerEvents="none"
-          style={[styles.linhaMira, {left: bolaHomeX, top: bolaHomeY - 1.5}, estiloLinha]}
-        />
+          style={[styles.linhaAnchor, {left: bolaHomeX, top: bolaHomeY}, estiloLinhaRot]}>
+          <Animated.View style={[styles.linhaBar, estiloLinhaLen]} />
+        </Animated.View>
         <Animated.View pointerEvents="none" style={[styles.mira, estiloMira]}>
           <View style={styles.miraAnel} />
           <View style={styles.miraPonto} />
@@ -351,11 +359,17 @@ const styles = StyleSheet.create({
   golImg: {
     position: 'absolute',
   },
-  linhaMira: {
+  linhaAnchor: {
+    height: 0,
+    position: 'absolute',
+    width: 0,
+  },
+  linhaBar: {
     backgroundColor: cores.secundaria,
     height: 3,
+    left: 0,
     position: 'absolute',
-    transformOrigin: 'left center',
+    top: -1.5,
     width: 1,
   },
   mira: {
