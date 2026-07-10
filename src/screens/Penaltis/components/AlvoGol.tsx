@@ -85,6 +85,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const ballY = useSharedValue(bolaHomeY);
   const ballScale = useSharedValue(1);
   const ballLift = useSharedValue(0);
+  const ballRot = useSharedValue(0); // giro da bola no ar (via reanimated)
   const ballOp = useSharedValue(1);
   const keeperX = useSharedValue(golCentroX);
   const keeperY = useSharedValue(keeperPesY);
@@ -97,7 +98,6 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const golPop = useSharedValue(0);
 
   const [estado, setEstado] = useState<EstadoGoleiro>('idle');
-  const [bolaGirando, setBolaGirando] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const sensX = largura * 0.34;
@@ -185,9 +185,14 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       keeperRot.value = 0;
     }
     setEstado('dive');
-    setBolaGirando(true);
     ballOp.value = 1;
 
+    // Giro no ar via reanimated (UI thread) — 2 voltas no sentido do chute.
+    ballRot.value = 0;
+    ballRot.value = withTiming(lance.posicaoChute.x >= 0 ? 720 : -720, {
+      duration: dur,
+      easing: Easing.linear,
+    });
     ballX.value = withTiming(alvo.x, {duration: dur, easing: Easing.out(Easing.quad)});
     ballY.value = withTiming(alvo.y, {duration: dur, easing: Easing.out(Easing.quad)});
     ballScale.value = withTiming(0.4, {duration: dur});
@@ -205,7 +210,6 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     const marcou = lance.resultado === 'GOL';
     timerRef.current = setTimeout(() => {
       keeperRot.value = withTiming(0, {duration: 160});
-      setBolaGirando(false); // bola aterrissou — para de girar
       keeperPop.value = withSequence(
         withTiming(1.16, {duration: 110}),
         withTiming(1, {duration: 220}),
@@ -240,11 +244,11 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       return;
     }
     setEstado('idle');
-    setBolaGirando(false);
     ballX.value = withTiming(bolaHomeX, {duration: 220});
     ballY.value = withTiming(bolaHomeY, {duration: 220});
     ballScale.value = withTiming(1, {duration: 220});
     ballLift.value = 0;
+    ballRot.value = 0;
     ballOp.value = withTiming(1, {duration: 160});
     keeperX.value = withTiming(golCentroX, {duration: 240});
     keeperY.value = withTiming(keeperPesY, {duration: 240});
@@ -259,6 +263,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     transform: [
       {translateX: ballX.value - ballSize / 2},
       {translateY: ballY.value - ballLift.value - ballSize / 2},
+      {rotate: `${ballRot.value}deg`},
       {scale: ballScale.value},
     ],
   }));
@@ -335,7 +340,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
         <Animated.View
           pointerEvents="none"
           style={[styles.camada, {width: ballSize, height: ballSize}, estiloBola]}>
-          <Bola tamanho={ballSize} girando={bolaGirando} />
+          <Bola tamanho={ballSize} />
         </Animated.View>
 
         {/* Juice. */}
