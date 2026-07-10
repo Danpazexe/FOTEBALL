@@ -68,6 +68,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const bolaHomeX = sceneW / 2;
   const bolaHomeY = sceneH * 0.82;
   const ballSize = sceneW * 0.17;
+  const anelSize = ballSize * 1.5; // anel em volta da bola (mira estilo Mini Cup)
   const arco = sceneH * 0.06;
   // Meia-largura visual do goleiro = REACH_GOLEIRO (x-units), pois meia = gw*0.4.
   // Assim a cobertura do sprite CASA com a área de defesa do engine.
@@ -286,13 +287,16 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       {rotateZ: `${keeperRot.value}deg`},
     ],
   }));
-  const estiloMira = useAnimatedStyle(() => ({
+  // Anel em volta da BOLA (mira estilo Mini Cup): fixo no ponto da bola, cresce e
+  // vai de amarelo→vermelho com a força carregada.
+  const estiloAnelBola = useAnimatedStyle(() => ({
     opacity: aimVis.value,
-    transform: [
-      {translateX: aimX.value - 15},
-      {translateY: aimY.value - 15},
-      {scale: 0.85 + aimPow.value * 0.5}, // anel cresce com a força
-    ],
+    borderColor: interpolateColor(
+      aimPow.value,
+      [0, 1],
+      [cores.secundaria, '#FF4D2E'],
+    ),
+    transform: [{scale: 0.9 + aimPow.value * 0.35}],
   }));
   // Linha de mira SEM transformOrigin (que quebra no Android): um âncora 0×0 na
   // bola que ROTACIONA (pivô = centro do âncora = ponto da bola) e uma barra
@@ -314,6 +318,20 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       height: h,
       top: -h / 2,
       // amarelo (fraco) → vermelho (forte): "carrega" a força do chute.
+      backgroundColor: interpolateColor(
+        aimPow.value,
+        [0, 1],
+        [cores.secundaria, '#FF4D2E'],
+      ),
+    };
+  });
+  // Ponta da mira (na extremidade da linha) — reforça o "apontando".
+  const estiloPonta = useAnimatedStyle(() => {
+    const dx = aimX.value - bolaHomeX;
+    const dy = aimY.value - bolaHomeY;
+    return {
+      opacity: aimVis.value,
+      transform: [{translateX: Math.sqrt(dx * dx + dy * dy)}],
       backgroundColor: interpolateColor(
         aimPow.value,
         [0, 1],
@@ -349,15 +367,26 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
           <Goleiro tamanho={keeperW} estado={estado} />
         </Animated.View>
 
-        {/* Mira. */}
+        {/* Mira estilo Mini Cup: anel em volta da bola + linha apontando. */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.anelBola,
+            {
+              left: bolaHomeX - anelSize / 2,
+              top: bolaHomeY - anelSize / 2,
+              width: anelSize,
+              height: anelSize,
+              borderRadius: anelSize / 2,
+            },
+            estiloAnelBola,
+          ]}
+        />
         <Animated.View
           pointerEvents="none"
           style={[styles.linhaAnchor, {left: bolaHomeX, top: bolaHomeY}, estiloLinhaRot]}>
           <Animated.View style={[styles.linhaBar, estiloLinhaLen]} />
-        </Animated.View>
-        <Animated.View pointerEvents="none" style={[styles.mira, estiloMira]}>
-          <View style={styles.miraAnel} />
-          <View style={styles.miraPonto} />
+          <Animated.View style={[styles.pontaMira, estiloPonta]} />
         </Animated.View>
 
         {/* Bola. */}
@@ -407,28 +436,19 @@ const styles = StyleSheet.create({
     top: -1.5,
     width: 1,
   },
-  mira: {
-    alignItems: 'center',
-    height: 30,
-    justifyContent: 'center',
-    left: 0,
-    position: 'absolute',
-    top: 0,
-    width: 30,
-  },
-  miraAnel: {
+  anelBola: {
     borderColor: cores.secundaria,
-    borderRadius: 15,
     borderWidth: 3,
-    height: 30,
     position: 'absolute',
-    width: 30,
   },
-  miraPonto: {
+  pontaMira: {
     backgroundColor: cores.secundaria,
-    borderRadius: 3,
-    height: 6,
-    width: 6,
+    borderRadius: 6,
+    height: 12,
+    left: -6,
+    position: 'absolute',
+    top: -6,
+    width: 12,
   },
   flash: {
     backgroundColor: '#FFFFFF',
