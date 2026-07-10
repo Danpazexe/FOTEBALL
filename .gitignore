@@ -82,3 +82,6 @@ AppIcons-3/
 
 # Sprite de áudio-fonte do Mini Cup (material de trabalho, não faz parte do app)
 game_audio.ogg
+
+# Vídeos (gravações de tela/WhatsApp — material de trabalho)
+*.mp4
