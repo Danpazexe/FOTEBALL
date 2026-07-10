@@ -163,7 +163,13 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
     if (!lance) {
       return;
     }
-    const dur = 620 - lance.potencia * 260;
+    // Blindagem: potência inválida (NaN/Infinity) tornaria TODAS as durações NaN
+    // e o withTiming não animaria — a bola ficaria parada e o goleiro não
+    // mergulharia (só o placar mudaria). Garante uma duração sempre finita.
+    const potenciaSegura = Number.isFinite(lance.potencia)
+      ? Math.min(1, Math.max(0.2, lance.potencia))
+      : 0.6;
+    const dur = 620 - potenciaSegura * 260;
     const alvo = alvoPx(lance.posicaoChute.x, lance.posicaoChute.y);
     const kx = golCentroX + lance.goleiroX * meia;
     const kLift = lance.goleiroY * 0.3 * (groundY - topY);
