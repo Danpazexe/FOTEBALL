@@ -65,6 +65,15 @@ const PESO_FINALIZACAO = 0.08;
 /** Finalização de referência (efeito neutro). */
 const FINALIZACAO_NEUTRA = 60;
 
+/**
+ * Peso da POTÊNCIA na fronteira de defesa (o "sistema de força"): chute forte
+ * empurra a bola para longe do alcance do goleiro; chute fraco aproxima. Modesto
+ * de propósito — a MIRA ainda decide mais que a força.
+ */
+const PESO_POTENCIA = 0.18;
+/** Potência de referência (efeito neutro); abaixo o goleiro leva vantagem. */
+const POTENCIA_NEUTRA = 0.6;
+
 /** Amplitude do ruído semeado — pequena, para não descolar do visual. */
 const RUIDO = 0.05;
 
@@ -78,8 +87,9 @@ export interface ArgsResolverCobrancaUsuario {
   /** Onde o usuário mirou (coordenada contínua do gol). */
   posicaoChute: PosicaoChute;
   /**
-   * Potência do arrasto (0..1). NÃO altera o desfecho — no Mini Cup a força só
-   * muda a velocidade da animação da bola. Mantida na assinatura para replay/UI.
+   * Potência do arrasto (0..1) — "sistema de força" do Mini Cup. AFETA o desfecho:
+   * chute forte empurra a fronteira de defesa para o gol (mais difícil de defender);
+   * chute fraco dá vantagem ao goleiro. Também alimenta a velocidade da animação.
    */
   potencia: number;
   /** Dificuldade atual do goleiro (0..NIVEL_MAX_GOLEIRO). */
@@ -101,6 +111,7 @@ export function resolverCobrancaUsuario(
   const {posicaoChute, nivelDificuldadeGoleiro, atributosBatedor, rng} = args;
   const x = limitar(posicaoChute.x, -1, 1);
   const y = limitar(posicaoChute.y, 0, 1);
+  const potencia = limitar(args.potencia, 0, 1);
   const nivel = limitar(nivelDificuldadeGoleiro, 0, NIVEL_MAX_GOLEIRO);
 
   // Sorteios feitos SEMPRE (antes de qualquer retorno) para o consumo de RNG ser
@@ -127,12 +138,15 @@ export function resolverCobrancaUsuario(
 
   const finalizacao = atributosBatedor?.finalizacao ?? FINALIZACAO_NEUTRA;
   const bonus = ((finalizacao - FINALIZACAO_NEUTRA) / 40) * PESO_FINALIZACAO;
+  // Força do chute: forte empurra a bola para longe do goleiro; fraco aproxima.
+  const bonusPotencia = (potencia - POTENCIA_NEUTRA) * PESO_POTENCIA;
 
   // Distância 2D até ONDE o goleiro mergulhou (x e y). Cobertura FIXA = tamanho
-  // visual do goleiro; a finalização afasta a bola (bônus empurra para gol).
+  // visual do goleiro; finalização e FORÇA afastam a bola (empurram para gol).
   const dy = PESO_Y * (y - goleiroY);
   const distancia = Math.sqrt((x - goleiroX) ** 2 + dy * dy);
-  const defendido = distancia + bonus + ruido <= REACH_GOLEIRO;
+  const defendido =
+    distancia + bonus + bonusPotencia + ruido <= REACH_GOLEIRO;
 
   return {
     resultado: defendido ? 'DEFESA' : 'GOL',

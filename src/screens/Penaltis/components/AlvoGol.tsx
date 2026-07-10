@@ -14,6 +14,7 @@ import {Image, StyleSheet, Text, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import Animated, {
   Easing,
+  interpolateColor,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -94,6 +95,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const aimX = useSharedValue(golCentroX);
   const aimY = useSharedValue(topY);
   const aimVis = useSharedValue(0);
+  const aimPow = useSharedValue(0); // força "carregada" no arrasto (0..1)
   const flash = useSharedValue(0);
   const golPop = useSharedValue(0);
 
@@ -119,6 +121,12 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
           aimX.value = golCentroX + x * meia;
           aimY.value = groundY - y * (groundY - topY);
           aimVis.value = 1;
+          // Força "carregada" pela distância do arrasto — feedback visível de
+          // quão forte vai o chute (a linha engrossa/avermelha com a força).
+          const dist = Math.sqrt(
+            e.translationX * e.translationX + e.translationY * e.translationY,
+          );
+          aimPow.value = Math.min(1, dist / (largura * 0.55));
         })
         .onEnd(e => {
           'worklet';
@@ -155,6 +163,7 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
       aimX,
       aimY,
       aimVis,
+      aimPow,
     ],
   );
 
@@ -279,7 +288,11 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   }));
   const estiloMira = useAnimatedStyle(() => ({
     opacity: aimVis.value,
-    transform: [{translateX: aimX.value - 15}, {translateY: aimY.value - 15}],
+    transform: [
+      {translateX: aimX.value - 15},
+      {translateY: aimY.value - 15},
+      {scale: 0.85 + aimPow.value * 0.5}, // anel cresce com a força
+    ],
   }));
   // Linha de mira SEM transformOrigin (que quebra no Android): um âncora 0×0 na
   // bola que ROTACIONA (pivô = centro do âncora = ponto da bola) e uma barra
@@ -295,7 +308,18 @@ function AlvoGol({largura, podeChutar, lance, onChutar}: Props): React.JSX.Eleme
   const estiloLinhaLen = useAnimatedStyle(() => {
     const dx = aimX.value - bolaHomeX;
     const dy = aimY.value - bolaHomeY;
-    return {width: Math.sqrt(dx * dx + dy * dy)};
+    const h = 3 + aimPow.value * 7; // barra engrossa com a força
+    return {
+      width: Math.sqrt(dx * dx + dy * dy),
+      height: h,
+      top: -h / 2,
+      // amarelo (fraco) → vermelho (forte): "carrega" a força do chute.
+      backgroundColor: interpolateColor(
+        aimPow.value,
+        [0, 1],
+        [cores.secundaria, '#FF4D2E'],
+      ),
+    };
   });
   const estiloFlash = useAnimatedStyle(() => ({opacity: flash.value}));
   const estiloGolTexto = useAnimatedStyle(() => ({
