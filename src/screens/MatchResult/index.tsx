@@ -30,7 +30,7 @@ import {
   analisarMomentos,
   type TomMomento,
 } from '../../engine/simulation/momentos';
-import {acentos, cores, corDoTime, espaco, raio, suaves, tabular} from '../../theme';
+import {acentos, cores, corDoTime, espaco, raio, suaves} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {ehMinutoAcrescimo, rotuloMinuto} from '../../utils/minutoPartida';
 import {useGameStore} from '../../store/useGameStore';
