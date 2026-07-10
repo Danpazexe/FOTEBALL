@@ -172,6 +172,60 @@ describe('resolverCobrancaUsuario', () => {
     expect(golsBom).toBeGreaterThan(golsRuim);
   });
 
+  it('chute forte fura mais que chute fraco (mesma seed e mira) — sistema de força', () => {
+    // A FORÇA afeta o desfecho: mesma mira e seed, potência alta converte mais
+    // que potência baixa (chute fraco dá vantagem ao goleiro).
+    let golsForte = 0;
+    let golsFraco = 0;
+    for (let seed = 0; seed < 200; seed += 1) {
+      const base = {
+        posicaoChute: {x: 0.5, y: 0.5},
+        nivelDificuldadeGoleiro: 4,
+        atributosBatedor: atributos(60),
+      } as const;
+      if (
+        resolverCobrancaUsuario({
+          ...base,
+          potencia: 1,
+          rng: criarRNGComSeed(seed),
+        }).resultado === 'GOL'
+      ) {
+        golsForte += 1;
+      }
+      if (
+        resolverCobrancaUsuario({
+          ...base,
+          potencia: 0.3,
+          rng: criarRNGComSeed(seed),
+        }).resultado === 'GOL'
+      ) {
+        golsFraco += 1;
+      }
+    }
+    expect(golsForte).toBeGreaterThan(golsFraco);
+  });
+
+  it('a mesma potência é determinística (não consome RNG a mais)', () => {
+    // Blindagem do determinismo: mudar só a força não muda o consumo de RNG.
+    const forte = criarRNGComSeed(123);
+    resolverCobrancaUsuario({
+      posicaoChute: {x: 0.2, y: 0.3},
+      potencia: 1,
+      nivelDificuldadeGoleiro: 3,
+      atributosBatedor: atributos(60),
+      rng: forte,
+    });
+    const fraco = criarRNGComSeed(123);
+    resolverCobrancaUsuario({
+      posicaoChute: {x: 0.2, y: 0.3},
+      potencia: 0.3,
+      nivelDificuldadeGoleiro: 3,
+      atributosBatedor: atributos(60),
+      rng: fraco,
+    });
+    expect(forte()).toBe(fraco());
+  });
+
   it('mira no centro raso com goleiro forte tende à defesa', () => {
     // Não é garantia absoluta (há ruído), mas no nível máximo o centro raso é
     // majoritariamente defendido — sanidade do modelo.
