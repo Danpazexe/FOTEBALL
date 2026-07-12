@@ -18,12 +18,9 @@ import {Dimensions, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 import {AppHeader, Botao, OptionGroup, Section} from '../../components/ui';
-import BarrasForca from '../../components/BarrasForca';
 import CampoFUT from '../../components/CampoFUT';
 import Chip from '../../components/Chip';
 import Escudo from '../../components/Escudo';
-import Icone from '../../components/Icone';
-import StatCard from '../../components/StatCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {
   FORMACOES_DISPONIVEIS,
@@ -42,16 +39,14 @@ import {
 } from '../../store/useGameStore';
 import {
   cores,
-  corDoClube,
   espaco,
   raio,
   sombra,
-  suaves,
   tabular,
   tipografia,
 } from '../../theme';
 import {forcaDoClube} from '../../utils/forca';
-import type {Player, Tatica} from '../../types';
+import type {Tatica} from '../../types';
 
 const OPCOES_ESTILO: Tatica['estiloOfensivo'][] = [
   'Equilibrado',
@@ -153,26 +148,6 @@ function PreJogo(): React.JSX.Element {
     () => (formacao ? validarEscalacao(formacao, jogadoresUsuario) : null),
     [formacao, jogadoresUsuario],
   );
-  // Titulares (na ordem da formação) com o Player resolvido — condição/moral.
-  const titulares = useMemo(() => {
-    if (!formacao) {
-      return [] as Player[];
-    }
-    const porId = new Map(jogadoresUsuario.map(j => [j.id, j]));
-    return formacao.titulares
-      .map(t => porId.get(t.jogadorId))
-      .filter((j): j is Player => j !== undefined);
-  }, [formacao, jogadoresUsuario]);
-
-  // Prontidão do time: titulares em risco de fadiga e indisponíveis (lesão/susp.).
-  const emFadiga = useMemo(
-    () => titulares.filter(j => j.condicaoFisica < 70),
-    [titulares],
-  );
-  const indisponiveis = useMemo(
-    () => titulares.filter(j => j.lesionado || j.suspenso),
-    [titulares],
-  );
 
   if (!proximo || !confronto || !clubeUsuario || !formacao || !taticaAtual) {
     return (
@@ -216,7 +191,6 @@ function PreJogo(): React.JSX.Element {
     diff >= 2 ? cores.sucesso : diff <= -2 ? cores.perigo : cores.textoSecundario;
 
   const podeJogar = validacao?.valido ?? false;
-  const erros = validacao?.erros ?? [];
   const formacaoTipo = formacao.tipo;
 
   // Trocar de esquema remonta a escalação (desfaz o arraste manual) — confirma.
@@ -308,12 +282,6 @@ function PreJogo(): React.JSX.Element {
               </Text>
             </View>
           </View>
-          <BarrasForca
-            casa={confronto.forcaCasa}
-            fora={confronto.forcaFora}
-            corCasa={corDoClube(confronto.casa.id)}
-            corFora={corDoClube(confronto.fora.id)}
-          />
         </View>
 
         {/* QUEM VAI GANHAR? — previsão coerente com o modelo de gols da engine */}
@@ -360,43 +328,6 @@ function PreJogo(): React.JSX.Element {
               </Text>
             </View>
           </View>
-        </Section>
-
-        {/* SUA PRONTIDÃO — o que libera/bloqueia entrar em campo */}
-        <Section titulo="Sua prontidão">
-          <View style={styles.prontidaoRow}>
-            <StatCard
-              label="Escalação"
-              valor={podeJogar ? 'OK' : String(erros.length)}
-              sub={podeJogar ? '11 em campo' : erros.length === 1 ? 'erro' : 'erros'}
-              corValor={podeJogar ? cores.sucesso : cores.perigo}
-            />
-            <StatCard
-              label="Fadiga"
-              valor={String(emFadiga.length)}
-              sub={emFadiga.length > 0 ? 'em risco' : 'inteiro'}
-              corValor={emFadiga.length > 0 ? cores.aviso : cores.texto}
-            />
-            <StatCard
-              label="Desfalques"
-              valor={String(indisponiveis.length)}
-              sub={indisponiveis.length > 0 ? 'lesão/susp.' : 'nenhum'}
-              corValor={indisponiveis.length > 0 ? cores.perigo : cores.texto}
-            />
-          </View>
-          {!podeJogar ? (
-            <View style={styles.errosCard}>
-              <View style={styles.errosHeader}>
-                <Icone nome="apito" tamanho={14} cor={cores.perigo} />
-                <Text style={styles.errosTitulo}>Escalação bloqueada</Text>
-              </View>
-              {erros.map(erro => (
-                <Text key={erro} style={styles.erroTexto}>
-                  • {erro}
-                </Text>
-              ))}
-            </View>
-          ) : null}
         </Section>
 
         {/* ESCALAÇÃO */}
@@ -589,10 +520,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   // PRONTIDÃO
-  prontidaoRow: {
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
   previsaoBarra: {
     flexDirection: 'row',
     gap: 3,
@@ -628,32 +555,6 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 11,
     fontWeight: '700',
-  },
-  errosCard: {
-    backgroundColor: suaves.vermelho,
-    borderColor: cores.perigo,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.xs,
-    marginTop: espaco.sm,
-    padding: espaco.md,
-  },
-  errosHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  errosTitulo: {
-    color: cores.perigo,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  erroTexto: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '600',
   },
   // ESCALAÇÃO
   melhoresWrap: {
