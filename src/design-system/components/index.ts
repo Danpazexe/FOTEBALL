@@ -5,6 +5,7 @@ export {Chip} from './Chip';
 export {Badge} from './Badge';
 export {ListItem} from './ListItem';
 export {AppBar} from './AppBar';
+export {Screen} from './Screen';
 export {StatValue} from './StatValue';
 export {EmptyState} from './EmptyState';
 export {Skeleton} from './Skeleton';
