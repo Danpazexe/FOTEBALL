@@ -16,16 +16,19 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import {TextoVazio} from '../../components/ui';
 import Icone, {type IconeNome} from '../../components/Icone';
+import MapaFinalizacoes from '../../components/MapaFinalizacoes';
 import {
   calcularNotaPartida,
   type ResultadoJogador,
 } from '../../engine/simulation/matchRating';
+import {extrairFinalizacoes} from '../../engine/simulation/finalizacoes';
 import {
   analisarMomentos,
   type TomMomento,
@@ -576,7 +579,11 @@ function MatchResult(): React.JSX.Element {
   const nav = useAppNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'MatchResult'>>();
   const {partidaId} = route.params;
+  const {width} = useWindowDimensions();
   const [aba, setAba] = useState<Aba>('resumo');
+  // Filtros do mapa de finalizações (time + tempo), independentes das abas.
+  const [mapaTime, setMapaTime] = useState<'casa' | 'fora'>('casa');
+  const [mapaTempo, setMapaTempo] = useState<'todos' | '1' | '2'>('todos');
 
   const partida = useGameStore(state =>
     state.partidas.find(item => item.id === partidaId),
@@ -627,6 +634,18 @@ function MatchResult(): React.JSX.Element {
     return {clubeCasa, clubeFora, casa, fora, melhor};
   }, [partida, clubes, jogadores]);
 
+  // Mapa de chutes: reconstruído (puro/determinístico) dos eventos da partida.
+  const finalizacoes = useMemo(() => {
+    if (!partida) {
+      return [];
+    }
+    const posicoes: Record<string, Position> = {};
+    for (const j of jogadores) {
+      posicoes[j.id] = j.posicaoPrincipal;
+    }
+    return extrairFinalizacoes(partida, posicoes);
+  }, [partida, jogadores]);
+
   if (!partida || !dados) {
     return (
       <View style={styles.tela}>
@@ -664,6 +683,15 @@ function MatchResult(): React.JSX.Element {
 
   const pct = (certos: number, tentados: number): number =>
     tentados > 0 ? Math.round((certos / tentados) * 100) : 0;
+
+  // Mapa de chutes filtrado pelos toggles (time + tempo).
+  const timeIdMapa = mapaTime === 'casa' ? partida.timeCasa : partida.timeFora;
+  const finalizacoesMapa = finalizacoes.filter(
+    f =>
+      f.timeId === timeIdMapa &&
+      (mapaTempo === 'todos' || (mapaTempo === '1') === f.primeiroTempo),
+  );
+  const larguraMapa = Math.min(width - 72, 340);
 
   const abas: Array<{chave: Aba; rotulo: string}> = [
     {chave: 'casa', rotulo: siglaCasa},
@@ -920,6 +948,52 @@ function MatchResult(): React.JSX.Element {
             Estatísticas indisponíveis para partidas antigas.
           </TextoVazio>
         )}
+      </Card>
+
+      <Card titulo="Mapa de finalizações">
+        <View style={styles.mapaToggles}>
+          <View style={styles.mapaToggleGrupo}>
+            {(['casa', 'fora'] as const).map(t => (
+              <Pressable
+                key={t}
+                accessibilityRole="button"
+                accessibilityLabel={`Chutes do ${t === 'casa' ? siglaCasa : siglaFora}`}
+                onPress={() => setMapaTime(t)}
+                style={[styles.mapaPill, mapaTime === t && styles.mapaPillAtiva]}>
+                <Text
+                  style={[
+                    styles.mapaPillTexto,
+                    mapaTime === t && styles.mapaPillTextoAtivo,
+                  ]}>
+                  {t === 'casa' ? siglaCasa : siglaFora}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.mapaToggleGrupo}>
+            {([
+              ['todos', 'Todos'],
+              ['1', '1º'],
+              ['2', '2º'],
+            ] as const).map(([valor, rotulo]) => (
+              <Pressable
+                key={valor}
+                accessibilityRole="button"
+                accessibilityLabel={rotulo}
+                onPress={() => setMapaTempo(valor)}
+                style={[styles.mapaPill, mapaTempo === valor && styles.mapaPillAtiva]}>
+                <Text
+                  style={[
+                    styles.mapaPillTexto,
+                    mapaTempo === valor && styles.mapaPillTextoAtivo,
+                  ]}>
+                  {rotulo}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <MapaFinalizacoes finalizacoes={finalizacoesMapa} largura={larguraMapa} />
       </Card>
 
       {est && est.momentumPorMinuto.length > 0 ? (
@@ -1220,6 +1294,40 @@ const styles = StyleSheet.create({
     color: cores.textoSecundario,
     fontSize: 11,
     fontWeight: '700',
+  },
+  mapaToggles: {
+    flexDirection: 'row',
+    gap: espaco.sm,
+    justifyContent: 'space-between',
+    marginBottom: espaco.sm,
+  },
+  mapaToggleGrupo: {
+    backgroundColor: TRACK,
+    borderRadius: raio.pill,
+    flexDirection: 'row',
+    padding: 3,
+  },
+  mapaPill: {
+    alignItems: 'center',
+    borderRadius: raio.pill,
+    paddingHorizontal: espaco.md,
+    paddingVertical: 6,
+  },
+  mapaPillAtiva: {
+    backgroundColor: cores.superficie,
+    elevation: 2,
+    shadowColor: '#000000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.35,
+    shadowRadius: 3,
+  },
+  mapaPillTexto: {
+    color: cores.textoSecundario,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  mapaPillTextoAtivo: {
+    color: cores.texto,
   },
   abas: {
     backgroundColor: TRACK,
