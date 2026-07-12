@@ -1,30 +1,27 @@
 /**
- * Série D — tela de chaveamento do MATA-MATA (carreira na D).
- *
- * Mostra as fases da chave do usuário (fasesResolvidas + fase corrente), com
- * placar agregado, vencedor e pênaltis, destacando o clube do usuário. Quando o
- * usuário tem um confronto em aberto, oferece disputá-lo (simulação por ora — a
- * fase de grupos é que se joga ao vivo). Eliminado/campeão, mostra o desfecho.
+ * Série D — chaveamento do MATA-MATA (carreira na D). Fases com agregado
+ * ida/volta, vencedor e pênaltis, destacando o clube. Migrada ao Design System v2.
  */
 
 import React from 'react';
-import {Image, StyleSheet, Text, View} from 'react-native';
+import {Image, StyleSheet, View} from 'react-native';
 
 import {LOGO_SERIE_D} from '../../assets/escudos';
-import {
-  AppHeader,
-  Botao,
-  ScreenContainer,
-  Section,
-  TextoVazio,
-} from '../../components/ui';
 import Escudo from '../../components/Escudo';
-import Icone from '../../components/Icone';
+import {
+  AppBar,
+  Button,
+  Card,
+  Icon,
+  Screen,
+  Text,
+  espacamento,
+  useTheme,
+} from '../../design-system';
 import {useToast} from '../../components/feedback';
 import type {ConfrontoMataMata} from '../../engine/competitions';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio, sombra, tipografia} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {Clube} from '../../types';
 
@@ -38,10 +35,12 @@ function SerieD(): React.JSX.Element {
 
   if (!carreira) {
     return (
-      <ScreenContainer>
-        <AppHeader titulo="Série D" onBack={() => nav.goBack()} />
-        <TextoVazio>Mata-mata da Série D não iniciado.</TextoVazio>
-      </ScreenContainer>
+      <Screen scroll>
+        <AppBar title="Série D" onBack={() => nav.goBack()} />
+        <Text variant="bodyM" color="textSecondary">
+          Mata-mata da Série D não iniciado.
+        </Text>
+      </Screen>
     );
   }
 
@@ -65,74 +64,79 @@ function SerieD(): React.JSX.Element {
     carreira.fase === 'campeao'
       ? 'Campeão da Série D!'
       : carreira.fase === 'eliminado'
-        ? 'Sua campanha terminou'
-        : (carreira.faseCorrente?.nome ?? 'Mata-mata');
+      ? 'Sua campanha terminou'
+      : carreira.faseCorrente?.nome ?? 'Mata-mata';
 
   return (
-    <ScreenContainer scroll>
-      <AppHeader
-        titulo="Série D · Mata-mata"
-        subtitulo={subtitulo}
+    <Screen scroll>
+      <AppBar
+        title="Série D · Mata-mata"
+        subtitle={subtitulo}
         onBack={() => nav.goBack()}
       />
 
       <Image source={LOGO_SERIE_D} style={styles.logo} resizeMode="contain" />
 
       {carreira.fase === 'campeao' ? (
-        <View style={styles.desfechoCard}>
-          <Icone nome="trofeu" tamanho={28} cor={cores.secundaria} />
-          <Text style={styles.desfechoTexto}>
+        <Card variante="outlined" style={styles.desfechoCard}>
+          <Icon nome="trofeu" size={28} color="accent" />
+          <Text variant="titleM" style={styles.flex}>
             Campeão da Série D e acesso à Série C!
           </Text>
-        </View>
+        </Card>
       ) : carreira.fase === 'eliminado' ? (
-        <View style={styles.desfechoCard}>
-          <Icone
+        <Card variante="outlined" style={styles.desfechoCard}>
+          <Icon
             nome={carreira.acessoConquistado ? 'trofeu' : 'apito'}
-            tamanho={24}
-            cor={carreira.acessoConquistado ? cores.sucesso : cores.textoMuted}
+            size={24}
+            color={carreira.acessoConquistado ? 'success' : 'textMuted'}
           />
-          <Text style={styles.desfechoTexto}>
+          <Text variant="titleM" style={styles.flex}>
             {carreira.acessoConquistado
               ? 'Eliminado, mas com o ACESSO à Série C garantido!'
               : 'Eliminado, sem acesso nesta temporada.'}
           </Text>
-        </View>
+        </Card>
       ) : meuConfronto ? (
-        <Section titulo={`Seu confronto · ${carreira.faseCorrente?.nome ?? ''}`}>
-          <Text style={styles.confrontoDestaque}>
+        <View style={styles.section}>
+          <Text variant="labelM" color="textSecondary" style={styles.caps}>
+            Seu confronto · {carreira.faseCorrente?.nome ?? ''}
+          </Text>
+          <Text variant="titleM">
             {nomeClube(todosClubes, meuConfronto.clubeA)} x{' '}
             {nomeClube(todosClubes, meuConfronto.clubeB)}
           </Text>
-          <Text style={styles.mandoTexto}>
+          <Text variant="caption" color="textSecondary">
             Ida na casa de {siglaClube(todosClubes, meuConfronto.clubeA)} · volta
             na casa de {siglaClube(todosClubes, meuConfronto.clubeB)} (melhor
             campanha)
           </Text>
-          <Botao
-            variante="ouro"
+          <Button
+            variante="primary"
             icone="simular"
             titulo="Disputar confronto"
             onPress={disputar}
+            fullWidth
           />
-        </Section>
+        </View>
       ) : null}
 
       {fasesParaMostrar.map(fase => (
-        <Section key={fase.nome} titulo={fase.nome}>
-          <View style={styles.lista}>
-            {fase.confrontos.map(confronto => (
-              <ConfrontoRow
-                key={confronto.id}
-                confronto={confronto}
-                clubes={todosClubes}
-                clubeUsuarioId={clubeUsuarioId}
-              />
-            ))}
-          </View>
-        </Section>
+        <View key={fase.nome} style={styles.section}>
+          <Text variant="labelM" color="textSecondary" style={styles.caps}>
+            {fase.nome}
+          </Text>
+          {fase.confrontos.map(confronto => (
+            <ConfrontoRow
+              key={confronto.id}
+              confronto={confronto}
+              clubes={todosClubes}
+              clubeUsuarioId={clubeUsuarioId}
+            />
+          ))}
+        </View>
       ))}
-    </ScreenContainer>
+    </Screen>
   );
 }
 
@@ -153,15 +157,17 @@ function Lado({
     <View style={styles.lado}>
       <Escudo clubeId={clubeId} sigla={siglaClube(clubes, clubeId)} tamanho={20} />
       <Text
-        style={[
-          styles.ladoNome,
-          vencedor ? styles.vencedor : null,
-          destaque ? styles.destaque : null,
-        ]}
-        numberOfLines={1}>
+        variant="bodyM"
+        color={vencedor ? 'brand' : 'textPrimary'}
+        numberOfLines={1}
+        style={[styles.flex, vencedor || destaque ? styles.bold : null]}>
         {nomeClube(clubes, clubeId)}
       </Text>
-      <Text style={[styles.gols, vencedor ? styles.vencedor : null]}>
+      <Text
+        variant="titleM"
+        color={vencedor ? 'brand' : 'textPrimary'}
+        tabular
+        style={styles.gols}>
         {gols ?? '–'}
       </Text>
     </View>
@@ -177,6 +183,7 @@ function ConfrontoRow({
   clubes: Clube[];
   clubeUsuarioId: string | null;
 }): React.JSX.Element {
+  const {cores} = useTheme();
   const envolveUsuario =
     !!clubeUsuarioId &&
     (confronto.clubeA === clubeUsuarioId ||
@@ -184,11 +191,10 @@ function ConfrontoRow({
   const temVolta =
     confronto.golsVoltaA !== undefined && confronto.golsVoltaB !== undefined;
   return (
-    <View
-      style={[
-        styles.confronto,
-        envolveUsuario ? styles.confrontoUsuario : null,
-      ]}>
+    <Card
+      variante="outlined"
+      padding={2}
+      style={[styles.confronto, envolveUsuario ? {borderColor: cores.brand} : null]}>
       <Lado
         clubeId={confronto.clubeA}
         clubes={clubes}
@@ -204,103 +210,37 @@ function ConfrontoRow({
         destaque={confronto.clubeB === clubeUsuarioId}
       />
       {confronto.vencedor && temVolta ? (
-        <Text style={styles.detalhe}>
+        <Text variant="caption" color="textSecondary" style={styles.detalhe}>
           ida {confronto.golsIdaA}–{confronto.golsIdaB} · volta{' '}
           {confronto.golsVoltaB}–{confronto.golsVoltaA}
         </Text>
       ) : null}
       {confronto.decididoPor === 'PENALTIS' ? (
-        <Text style={styles.detalhe}>
+        <Text variant="caption" color="textSecondary" style={styles.detalhe}>
           Pênaltis: {confronto.penaltisA}–{confronto.penaltisB} (vence{' '}
           {siglaClube(clubes, confronto.vencedor ?? '')})
         </Text>
       ) : null}
-    </View>
+    </Card>
   );
 }
 
 export default SerieD;
 
 const styles = StyleSheet.create({
-  logo: {
-    alignSelf: 'center',
-    height: 84,
-    marginBottom: espaco.md,
-    width: '60%',
-  },
+  logo: {alignSelf: 'center', height: 84, width: '60%'},
   desfechoCard: {
-    ...sombra.card,
-    alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
     flexDirection: 'row',
-    gap: espaco.sm,
+    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: espaco.lg,
-    padding: espaco.lg,
+    gap: espacamento[2],
   },
-  desfechoTexto: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  confrontoDestaque: {
-    color: cores.texto,
-    fontSize: 16,
-    fontWeight: '800',
-    marginBottom: 4,
-  },
-  mandoTexto: {
-    color: cores.textoSecundario,
-    fontSize: 12.5,
-    marginBottom: espaco.md,
-  },
-  lista: {
-    gap: espaco.sm,
-  },
-  confronto: {
-    ...sombra.card,
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: 4,
-    padding: espaco.sm,
-  },
-  confrontoUsuario: {
-    borderColor: cores.primaria,
-    borderWidth: 1,
-  },
-  lado: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  ladoNome: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  gols: {
-    ...tipografia.numero,
-    color: cores.texto,
-    minWidth: 24,
-    textAlign: 'right',
-  },
-  vencedor: {
-    color: cores.primaria,
-    fontWeight: '900',
-  },
-  destaque: {
-    fontWeight: '900',
-  },
-  detalhe: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontStyle: 'italic',
-  },
+  section: {gap: espacamento[2]},
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  flex: {flex: 1},
+  confronto: {gap: 4},
+  lado: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  bold: {fontWeight: '900'},
+  gols: {minWidth: 24, textAlign: 'right'},
+  detalhe: {fontStyle: 'italic'},
 });

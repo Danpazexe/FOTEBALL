@@ -1,7 +1,7 @@
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
-import {cores, espaco, raio} from '../../theme';
+import {Text, raios, espacamento, useTheme} from '../../design-system';
 
 type StatBarProps = {
   /** Rótulo à esquerda (ex.: "FIN", "ATA"). Omita para barra sem label. */
@@ -9,7 +9,7 @@ type StatBarProps = {
   valor: number;
   /** Escala máxima (default 99, escala FIFA de atributo). */
   max?: number;
-  /** Cor do preenchimento (default verde da marca). */
+  /** Cor do preenchimento (override cru; padrão marca). */
   cor?: string;
   /** Marca de evolução recente (▲ treino). */
   melhoria?: boolean;
@@ -18,30 +18,42 @@ type StatBarProps = {
 };
 
 /**
- * Barra de estatística premium (v0.0.2): trilho escuro + preenchimento em acento,
- * número à direita. Usada para força do time (ATA/MEI/DEF) e atributos do jogador.
+ * Barra de estatística: trilho + preenchimento em acento, número à direita.
+ * Força do time (ATA/MEI/DEF) e atributos do jogador. Migrada ao DS v2.
  */
 function StatBar({
   label,
   valor,
   max = 99,
-  cor = cores.primaria,
+  cor,
   melhoria = false,
   mostrarValor = true,
 }: StatBarProps): React.JSX.Element {
+  const {cores} = useTheme();
   const pct = Math.max(0, Math.min(100, (valor / max) * 100));
   return (
     <View style={styles.linha}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={styles.track}>
+      {label ? (
+        <Text variant="labelM" color="textSecondary" style={styles.label}>
+          {label}
+        </Text>
+      ) : null}
+      <View style={[styles.track, {backgroundColor: cores.surfaceSubtle}]}>
         <View
-          style={[styles.fill, {width: `${pct}%`, backgroundColor: cor}]}
+          style={[
+            styles.fill,
+            {width: `${pct}%`, backgroundColor: cor ?? cores.brand},
+          ]}
         />
       </View>
       {mostrarValor ? (
-        <Text style={styles.valor}>
+        <Text variant="labelL" tabular style={styles.valor}>
           {valor}
-          {melhoria ? <Text style={styles.melhoria}> ▲</Text> : null}
+          {melhoria ? (
+            <Text variant="caption" color="brand">
+              {' ▲'}
+            </Text>
+          ) : null}
         </Text>
       ) : null}
     </View>
@@ -51,38 +63,14 @@ function StatBar({
 export default StatBar;
 
 const styles = StyleSheet.create({
-  linha: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  label: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    width: 34,
-  },
+  linha: {alignItems: 'center', flexDirection: 'row', gap: espacamento[2]},
+  label: {width: 34},
   track: {
-    backgroundColor: cores.fundoBase,
-    borderRadius: raio.pill,
     flex: 1,
     height: 7,
+    borderRadius: raios.full,
     overflow: 'hidden',
   },
-  fill: {
-    borderRadius: raio.pill,
-    height: 7,
-  },
-  valor: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '800',
-    minWidth: 30,
-    textAlign: 'right',
-  },
-  melhoria: {
-    color: cores.primaria,
-    fontSize: 11,
-  },
+  fill: {height: 7, borderRadius: raios.full},
+  valor: {minWidth: 30, textAlign: 'right'},
 });

@@ -1,32 +1,24 @@
 /**
- * StatCard — "peça que se repete" da identidade v2 ("noite de estádio").
- *
- * Tile de estado no relance: rótulo minúsculo em caixa-alta, VALOR grande em
- * fonte tabular ("o número é sagrado") e uma linha de apoio. Usado na Mesa do
- * Técnico para saldo, moral, reputação e propostas; padroniza o que hoje é
- * renderizado inline em cada tela. O acento do valor é raro — só quando o número
- * comunica um estado (saldo positivo/negativo, alerta).
+ * StatCard — tile de estado no relance: rótulo em caixa-alta, VALOR grande
+ * tabular e uma linha de apoio. Migrado ao Design System v2.
  */
 
 import React from 'react';
-import {Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle} from 'react-native';
+import {StyleSheet, View, type StyleProp, type ViewStyle} from 'react-native';
 
-import {espaco, raio, tabular, tipografia, type Tema} from '../../theme';
-import {useEstilos, useTema} from '../../theme/useTema';
-import Icone, {type IconeNome} from '../Icone';
+import {Icon, Pressable, Text, espacamento, raios, useTheme} from '../../design-system';
+import type {IconeNome} from '../Icone';
 
 type StatCardProps = {
   label: string;
   valor: string;
-  /** Linha de apoio abaixo do valor (ex.: "+R$ 3,1M no mês"). */
+  /** Linha de apoio abaixo do valor. */
   sub?: string;
-  /** Acento do valor (ex.: verde para saldo positivo). Padrão: cal (texto). */
+  /** Cor do valor (override cru; padrão texto). */
   corValor?: string;
-  /** Acento da linha de apoio. Padrão: textoSecundario. */
+  /** Cor da linha de apoio (override cru). */
   corSub?: string;
-  /** Ícone no canto (opcional). */
   icone?: IconeNome;
-  /** Torna o card tocável. */
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
 };
@@ -41,25 +33,35 @@ function StatCard({
   onPress,
   style,
 }: StatCardProps): React.JSX.Element {
-  const {cores} = useTema();
-  const styles = useEstilos(criarEstilos);
+  const {cores} = useTheme();
+  const cartao: StyleProp<ViewStyle> = [
+    styles.card,
+    {backgroundColor: cores.surface, borderColor: cores.border},
+    style,
+  ];
 
   const conteudo = (
     <>
       <View style={styles.topo}>
-        <Text style={styles.label}>{label}</Text>
-        {icone ? (
-          <Icone nome={icone} tamanho={14} cor={cores.textoMuted} />
-        ) : null}
+        <Text variant="labelM" color="textMuted" style={styles.caps}>
+          {label}
+        </Text>
+        {icone ? <Icon nome={icone} size={14} color="textMuted" /> : null}
       </View>
       <Text
-        style={[styles.valor, tabular, corValor ? {color: corValor} : null]}
+        variant="titleL"
+        tabular
         numberOfLines={1}
-        adjustsFontSizeToFit>
+        adjustsFontSizeToFit
+        style={corValor ? {color: corValor} : undefined}>
         {valor}
       </Text>
       {sub ? (
-        <Text style={[styles.sub, corSub ? {color: corSub} : null]} numberOfLines={1}>
+        <Text
+          variant="caption"
+          color="textSecondary"
+          numberOfLines={1}
+          style={corSub ? {color: corSub} : undefined}>
           {sub}
         </Text>
       ) : null}
@@ -67,14 +69,10 @@ function StatCard({
   );
 
   if (!onPress) {
-    return <View style={[styles.card, style]}>{conteudo}</View>;
+    return <View style={cartao}>{conteudo}</View>;
   }
-
   return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({pressed}) => [styles.card, pressed ? styles.pressed : null, style]}>
+    <Pressable onPress={onPress} style={cartao}>
       {conteudo}
     </Pressable>
   );
@@ -82,38 +80,20 @@ function StatCard({
 
 export default StatCard;
 
-const criarEstilos = (t: Tema) =>
-  StyleSheet.create({
-    card: {
-      backgroundColor: t.cores.superficie,
-      borderColor: t.cores.bordaTransl,
-      borderRadius: raio.lg,
-      borderWidth: 1,
-      flex: 1,
-      gap: espaco.xs,
-      justifyContent: 'center',
-      minHeight: 82,
-      padding: espaco.md,
-    },
-    topo: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-    },
-    label: {
-      color: t.cores.textoMuted,
-      ...tipografia.secao,
-    },
-    valor: {
-      color: t.cores.texto,
-      ...tipografia.numero,
-    },
-    sub: {
-      color: t.cores.textoSecundario,
-      fontSize: 11,
-      fontWeight: '700',
-    },
-    pressed: {
-      opacity: 0.9,
-    },
-  });
+const styles = StyleSheet.create({
+  card: {
+    borderRadius: raios.lg,
+    borderWidth: 1,
+    flex: 1,
+    gap: espacamento[1],
+    justifyContent: 'center',
+    minHeight: 82,
+    padding: espacamento[3],
+  },
+  topo: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+});

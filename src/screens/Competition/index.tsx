@@ -1,17 +1,15 @@
 /**
- * Tela de competições (aba "Competições"): exibe a tabela de classificação do
- * Brasileirão da divisão do clube do usuário, destacando-o, com legenda das
- * zonas de acesso/Libertadores e de rebaixamento (ajustadas por divisão).
+ * Tela de competições (aba "Competições"): tabela de classificação do Brasileirão
+ * da divisão do clube, com legenda de zonas, e artilheiros. Migrada ao DS v2.
  */
 
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {ClassificationTable} from '../../components/ClassificationTable';
-import {ScreenContainer, Section, TextoVazio} from '../../components/ui';
+import {Screen, Text, espacamento, raios, useTheme} from '../../design-system';
 import {calcularArtilheiros} from '../../engine/season/artilheiros';
 import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio, tipografia} from '../../theme';
 import {siglaClube} from '../../utils/formatters';
 
 const DIVISAO_PADRAO = 'Série A';
@@ -19,6 +17,7 @@ const DIVISAO_PADRAO = 'Série A';
 const ULTIMA_DIVISAO = 'Série D';
 
 function Competition(): React.JSX.Element {
+  const {cores} = useTheme();
   const tabela = useGameStore(state => state.tabela);
   const clubes = useGameStore(state => state.clubes);
   const jogadores = useGameStore(state => state.jogadores);
@@ -38,122 +37,101 @@ function Competition(): React.JSX.Element {
   const rotuloTopo = ehSerieA ? 'Libertadores (1º–4º)' : 'Acesso (1º–4º)';
 
   return (
-    <ScreenContainer scroll>
-      <Section titulo={`Brasileirão ${divisao} ${temporadaAtual}`}>
+    <Screen scroll>
+      <View style={styles.section}>
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          Brasileirão {divisao} {temporadaAtual}
+        </Text>
         <ClassificationTable
           tabela={tabela}
           clubes={clubes}
           clubeDestaqueId={clubeUsuarioId}
           zonaQueda={zonaQueda}
         />
-
         <View style={styles.legenda}>
           <View style={styles.legendaItem}>
-            <View
-              style={[styles.legendaMarca, {backgroundColor: cores.primaria}]}
-            />
-            <Text style={styles.legendaTexto}>{rotuloTopo}</Text>
+            <View style={[styles.legendaMarca, {backgroundColor: cores.brand}]} />
+            <Text variant="labelM" color="textSecondary">
+              {rotuloTopo}
+            </Text>
           </View>
           {zonaQueda !== null ? (
             <View style={styles.legendaItem}>
               <View
-                style={[styles.legendaMarca, {backgroundColor: cores.perigo}]}
+                style={[styles.legendaMarca, {backgroundColor: cores.danger}]}
               />
-              <Text style={styles.legendaTexto}>
+              <Text variant="labelM" color="textSecondary">
                 Rebaixamento ({zonaQueda}º–{tabela.length}º)
               </Text>
             </View>
           ) : null}
         </View>
-      </Section>
+      </View>
 
-      <Section titulo="Artilheiros">
+      <View style={styles.section}>
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          Artilheiros
+        </Text>
         {artilheiros.length === 0 ? (
-          <TextoVazio>Nenhum gol marcado na temporada ainda.</TextoVazio>
+          <Text variant="bodyM" color="textSecondary">
+            Nenhum gol marcado na temporada ainda.
+          </Text>
         ) : (
           artilheiros.map((linha, indice) => {
             const ehUsuario = linha.clubeId === clubeUsuarioId;
             return (
               <View
                 key={linha.jogadorId}
-                style={[styles.artLinha, ehUsuario ? styles.artDestaque : null]}>
-                <Text style={styles.artPos}>{indice + 1}º</Text>
-                <View style={styles.artInfo}>
-                  <Text style={styles.artNome} numberOfLines={1}>
+                style={[
+                  styles.artLinha,
+                  ehUsuario ? {backgroundColor: cores.brandSoft} : null,
+                ]}>
+                <Text
+                  variant="labelL"
+                  color="textSecondary"
+                  tabular
+                  style={styles.artPos}>
+                  {indice + 1}º
+                </Text>
+                <View style={styles.flex}>
+                  <Text variant="titleM" numberOfLines={1}>
                     {linha.nome}
                   </Text>
-                  <Text style={styles.artClube}>
+                  <Text variant="caption" color="textSecondary">
                     {linha.clubeId ? siglaClube(clubes, linha.clubeId) : '—'}
                     {linha.assistencias > 0
                       ? ` · ${linha.assistencias} assist.`
                       : ''}
                   </Text>
                 </View>
-                <Text style={styles.artGols}>{linha.gols}</Text>
+                <Text variant="titleM" color="brand" tabular>
+                  {linha.gols}
+                </Text>
               </View>
             );
           })
         )}
-      </Section>
-    </ScreenContainer>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  legenda: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.lg,
-  },
-  legendaItem: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  legendaMarca: {
-    borderRadius: 2,
-    height: 12,
-    width: 4,
-  },
-  legendaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '700',
-  },
+  section: {gap: espacamento[2]},
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  legenda: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[4]},
+  legendaItem: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  legendaMarca: {width: 4, height: 12, borderRadius: 2},
   artLinha: {
-    alignItems: 'center',
-    borderRadius: raio.sm,
     flexDirection: 'row',
-    gap: espaco.md,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: espaco.sm,
+    alignItems: 'center',
+    gap: espacamento[3],
+    paddingHorizontal: espacamento[2],
+    paddingVertical: espacamento[2],
+    borderRadius: raios.sm,
   },
-  artDestaque: {
-    backgroundColor: `${cores.primaria}1A`,
-  },
-  artPos: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '800',
-    width: 28,
-  },
-  artInfo: {
-    flex: 1,
-  },
-  artNome: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  artClube: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  artGols: {
-    ...tipografia.numero,
-    color: cores.primaria,
-  },
+  artPos: {width: 28},
+  flex: {flex: 1},
 });
 
 export default Competition;

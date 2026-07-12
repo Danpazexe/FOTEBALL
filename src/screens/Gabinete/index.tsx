@@ -1,15 +1,25 @@
 /**
- * Gabinete de troféus (Módulo 15). Grade de conquistas: desbloqueadas em cor,
- * bloqueadas em cinza com descrição oculta. Cabeçalho com % de conclusão.
+ * Gabinete de troféus. Reputação, finanças, jornada do técnico, propostas,
+ * retrospectiva da temporada e grade de conquistas. Migrado ao Design System v2.
  */
 
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import {IconeGlifo} from '../../components/Icone';
-import Chip from '../../components/Chip';
 import StatCard from '../../components/StatCard';
-import {AppHeader, Botao, ScreenContainer} from '../../components/ui';
+import {
+  AppBar,
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Screen,
+  Text,
+  espacamento,
+  raios,
+  useTheme,
+} from '../../design-system';
 import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useAchievementsStore} from '../../store/useAchievementsStore';
@@ -20,26 +30,62 @@ import {
 } from '../../engine/season/retrospectiva';
 import {calcularJornada} from '../../engine/carreira/jornada';
 import {proporEmpregos} from '../../engine/carreira/propostas';
-import {cores, espaco, raio, sombra, tabular, tipografia} from '../../theme';
 import {nomeClube} from '../../utils/formatters';
 import type {EstadoFinanceiro} from '../../types';
 
+type TomBadge = 'success' | 'accent' | 'danger';
+
 const ESTADO_FINANCEIRO: Record<
   EstadoFinanceiro,
-  {rotulo: string; cor: string}
+  {rotulo: string; tom: TomBadge}
 > = {
-  // Cor de ESTADO (não o acento âmbar): aviso amarelo para atenção, vermelho
-  // para crítico/falência — o âmbar-refletor fica reservado ao que decide.
-  SAUDAVEL: {rotulo: 'Saudável', cor: cores.primaria},
-  ATENCAO: {rotulo: 'Atenção', cor: cores.aviso},
-  CRITICO: {rotulo: 'Crítico', cor: cores.perigo},
-  FALENCIA: {rotulo: 'Falência', cor: cores.perigo},
+  SAUDAVEL: {rotulo: 'Saudável', tom: 'success'},
+  ATENCAO: {rotulo: 'Atenção', tom: 'accent'},
+  CRITICO: {rotulo: 'Crítico', tom: 'danger'},
+  FALENCIA: {rotulo: 'Falência', tom: 'danger'},
 };
+
+function Barra({pct}: {pct: number}): React.JSX.Element {
+  const {cores} = useTheme();
+  return (
+    <View style={[styles.barraFundo, {backgroundColor: cores.surfaceSubtle}]}>
+      <View
+        style={[styles.barra, {width: `${pct}%`, backgroundColor: cores.brand}]}
+      />
+    </View>
+  );
+}
+
+function RetroLinha({
+  rotulo,
+  valor,
+  destaque,
+}: {
+  rotulo: string;
+  valor: string;
+  destaque?: boolean;
+}): React.JSX.Element {
+  return (
+    <View style={styles.retroLinha}>
+      <Text variant="bodyM" color="textSecondary">
+        {rotulo}
+      </Text>
+      <Text
+        variant="labelL"
+        color={destaque ? 'accent' : 'textPrimary'}
+        numberOfLines={1}
+        style={styles.retroValor}>
+        {valor}
+      </Text>
+    </View>
+  );
+}
 
 function Gabinete(): React.JSX.Element {
   const nav = useAppNavigation();
   const confirm = useConfirm();
   const toast = useToast();
+  const {cores} = useTheme();
   const conquistas = useAchievementsStore(state => state.conquistas);
   const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
   const estadoFinanceiro = useGameStore(state => state.estadoFinanceiro);
@@ -55,10 +101,8 @@ function Gabinete(): React.JSX.Element {
   const conquistasPct = total > 0 ? Math.round((desbloqueadas / total) * 100) : 0;
   const financeiro = ESTADO_FINANCEIRO[estadoFinanceiro];
 
-  // Jornada do técnico — estágio de carreira pela reputação + próximo marco.
   const jornada = clubeUsuarioId ? calcularJornada(reputacaoTecnico) : null;
 
-  // Propostas de clubes maiores (a reputação abrindo portas).
   const propostas = React.useMemo(() => {
     if (!clubeUsuarioId) {
       return [];
@@ -90,7 +134,6 @@ function Gabinete(): React.JSX.Element {
     nav.navigate('MainTabs');
   }
 
-  // Retrospectiva da temporada — balanço e recordes derivados das partidas.
   const retro = React.useMemo(() => {
     if (!clubeUsuarioId) {
       return null;
@@ -128,117 +171,97 @@ function Gabinete(): React.JSX.Element {
     : null;
 
   return (
-    <ScreenContainer scroll>
-      <AppHeader
-        titulo="Gabinete"
-        subtitulo={`${desbloqueadas}/${total} conquistas`}
+    <Screen scroll>
+      <AppBar
+        title="Gabinete"
+        subtitle={`${desbloqueadas}/${total} conquistas`}
         onBack={() => nav.goBack()}
       />
 
       {clubeUsuarioId ? (
-        <View style={styles.carreiraCard}>
+        <Card variante="outlined" style={styles.carreiraCard}>
           <View style={styles.carreiraItem}>
-            <Text style={styles.secaoRotulo}>Reputação do técnico</Text>
-            <Text style={styles.carreiraValor}>
-              <Text style={tabular}>{reputacaoTecnico}</Text>
-              <Text style={styles.carreiraDe}>/100</Text>
+            <Text variant="labelM" color="textSecondary" style={styles.caps}>
+              Reputação do técnico
             </Text>
-            <View style={styles.barraFundo}>
-              <View
-                style={[
-                  styles.barraPreenchida,
-                  {width: `${reputacaoTecnico}%`},
-                ]}
-              />
+            <Text variant="titleL" tabular>
+              {reputacaoTecnico}
+              <Text variant="labelM" color="textMuted">
+                /100
+              </Text>
+            </Text>
+            <Barra pct={reputacaoTecnico} />
+          </View>
+          <View style={styles.carreiraItem}>
+            <Text variant="labelM" color="textSecondary" style={styles.caps}>
+              Finanças
+            </Text>
+            <View style={styles.selfStart}>
+              <Badge label={financeiro.rotulo} tom={financeiro.tom} />
             </View>
           </View>
-          <View style={styles.carreiraItem}>
-            <Text style={styles.secaoRotulo}>Finanças</Text>
-            <Chip
-              label={financeiro.rotulo}
-              tom="suave"
-              cor={financeiro.cor}
-              style={styles.financasChip}
-            />
-          </View>
-        </View>
+        </Card>
       ) : (
-        <View style={styles.vazioCard}>
-          <IconeGlifo
-            nome="briefcase-outline"
-            tamanho={30}
-            cor={cores.textoMuted}
-          />
-          <Text style={styles.vazioTitulo}>Nenhum clube no comando</Text>
-          <Text style={styles.vazioTexto}>
-            Assuma um clube para acompanhar reputação, finanças, jornada e a
-            retrospectiva da temporada.
-          </Text>
-        </View>
+        <EmptyState
+          icone="clube"
+          title="Nenhum clube no comando"
+          description="Assuma um clube para acompanhar reputação, finanças, jornada e a retrospectiva da temporada."
+        />
       )}
 
       {jornada ? (
-        <View style={styles.retroCard}>
-          <View style={styles.jornadaTopo}>
-            <Text style={styles.secaoRotulo}>Jornada do técnico</Text>
-            <Text style={styles.jornadaEstagio}>{jornada.estagioAtual}</Text>
+        <Card variante="outlined" style={styles.card}>
+          <View style={styles.rowBetween}>
+            <Text variant="labelM" color="textSecondary" style={styles.caps}>
+              Jornada do técnico
+            </Text>
+            <Text variant="labelL" color="brand">
+              {jornada.estagioAtual}
+            </Text>
           </View>
-          <Text style={styles.jornadaDescricao}>{jornada.descricaoAtual}</Text>
-          <View style={styles.barraFundo}>
-            <View
-              style={[
-                styles.barraPreenchida,
-                {width: `${Math.round(jornada.progressoAteProximo * 100)}%`},
-              ]}
-            />
-          </View>
-          <Text style={styles.jornadaProximo}>
-            {jornada.proximoMarco ? (
-              <>
-                Próximo: {jornada.proximoMarco.estagio} (rep.{' '}
-                <Text style={tabular}>
-                  {jornada.proximoMarco.reputacaoMinima}
-                </Text>
-                )
-              </>
-            ) : (
-              'Auge da carreira alcançado.'
-            )}
+          <Text variant="caption" color="textSecondary">
+            {jornada.descricaoAtual}
           </Text>
-        </View>
+          <Barra pct={Math.round(jornada.progressoAteProximo * 100)} />
+          <Text variant="caption" color="textMuted">
+            {jornada.proximoMarco
+              ? `Próximo: ${jornada.proximoMarco.estagio} (rep. ${jornada.proximoMarco.reputacaoMinima})`
+              : 'Auge da carreira alcançado.'}
+          </Text>
+        </Card>
       ) : null}
 
       {propostas.length > 0 ? (
-        <View style={styles.retroCard}>
-          <Text style={styles.secaoRotulo}>Propostas de clubes</Text>
+        <Card variante="outlined" style={styles.card}>
+          <Text variant="labelM" color="textSecondary" style={styles.caps}>
+            Propostas de clubes
+          </Text>
           {propostas.map(proposta => (
             <View key={proposta.clubeId} style={styles.propostaLinha}>
-              <View style={styles.propostaInfo}>
-                <Text style={styles.propostaNome} numberOfLines={1}>
+              <View style={styles.flex}>
+                <Text variant="titleM" numberOfLines={1}>
                   {proposta.nome}
                 </Text>
-                <Text style={styles.propostaSub} numberOfLines={1}>
-                  {proposta.divisao} · reputação{' '}
-                  <Text style={tabular}>{proposta.reputacao}</Text>
+                <Text variant="caption" color="textSecondary" numberOfLines={1}>
+                  {proposta.divisao} · reputação {proposta.reputacao}
                 </Text>
               </View>
-              <View style={styles.propostaAcao}>
-                <Botao
-                  titulo="Assumir"
-                  variante="secundaria"
-                  onPress={() =>
-                    aceitarProposta(proposta.clubeId, proposta.nome)
-                  }
-                />
-              </View>
+              <Button
+                titulo="Assumir"
+                variante="secondary"
+                tamanho="sm"
+                onPress={() => aceitarProposta(proposta.clubeId, proposta.nome)}
+              />
             </View>
           ))}
-        </View>
+        </Card>
       ) : null}
 
       {clubeUsuarioId ? (
-        <View style={styles.retroCard}>
-          <Text style={styles.secaoRotulo}>Retrospectiva da temporada</Text>
+        <Card variante="outlined" style={styles.card}>
+          <Text variant="labelM" color="textSecondary" style={styles.caps}>
+            Retrospectiva da temporada
+          </Text>
           {retro ? (
             <>
               <View style={styles.statRow}>
@@ -251,305 +274,127 @@ function Gabinete(): React.JSX.Element {
                   label="Saldo de gols"
                   valor={`${retro.saldo >= 0 ? '+' : ''}${retro.saldo}`}
                   sub={`${retro.golsPro} pró · ${retro.golsContra} contra`}
-                  corValor={retro.saldo >= 0 ? cores.sucesso : cores.perigo}
+                  corValor={retro.saldo >= 0 ? cores.success : cores.danger}
                 />
               </View>
               {retro.maiorVitoria ? (
-                <View style={styles.retroLinha}>
-                  <Text style={styles.retroRotulo}>Maior vitória</Text>
-                  <Text style={[styles.retroValor, tabular]} numberOfLines={1}>
-                    {retro.maiorVitoria.golsFavor}x
-                    {retro.maiorVitoria.golsContra} vs{' '}
-                    {nomeClube(clubes, retro.maiorVitoria.adversarioId)}
-                  </Text>
-                </View>
+                <RetroLinha
+                  rotulo="Maior vitória"
+                  valor={`${retro.maiorVitoria.golsFavor}x${retro.maiorVitoria.golsContra} vs ${nomeClube(clubes, retro.maiorVitoria.adversarioId)}`}
+                />
               ) : null}
               {retro.maiorDerrota ? (
-                <View style={styles.retroLinha}>
-                  <Text style={styles.retroRotulo}>Maior derrota</Text>
-                  <Text style={[styles.retroValor, tabular]} numberOfLines={1}>
-                    {retro.maiorDerrota.golsFavor}x
-                    {retro.maiorDerrota.golsContra} vs{' '}
-                    {nomeClube(clubes, retro.maiorDerrota.adversarioId)}
-                  </Text>
-                </View>
+                <RetroLinha
+                  rotulo="Maior derrota"
+                  valor={`${retro.maiorDerrota.golsFavor}x${retro.maiorDerrota.golsContra} vs ${nomeClube(clubes, retro.maiorDerrota.adversarioId)}`}
+                />
               ) : null}
               {retro.maiorSequenciaVitorias >= 2 ? (
-                <View style={styles.retroLinha}>
-                  <Text style={styles.retroRotulo}>Melhor sequência</Text>
-                  <Text style={styles.retroValor}>
-                    <Text style={tabular}>{retro.maiorSequenciaVitorias}</Text>{' '}
-                    vitórias seguidas
-                  </Text>
-                </View>
+                <RetroLinha
+                  rotulo="Melhor sequência"
+                  valor={`${retro.maiorSequenciaVitorias} vitórias seguidas`}
+                />
               ) : null}
               {retro.artilheiro && artilheiroNome ? (
-                <View style={styles.retroLinha}>
-                  <Text style={styles.retroRotulo}>Artilheiro</Text>
-                  <Text
-                    style={[styles.retroValor, styles.retroDestaque]}
-                    numberOfLines={1}>
-                    {artilheiroNome} (
-                    <Text style={tabular}>{retro.artilheiro.gols}</Text>{' '}
-                    {retro.artilheiro.gols === 1 ? 'gol' : 'gols'})
-                  </Text>
-                </View>
+                <RetroLinha
+                  rotulo="Artilheiro"
+                  destaque
+                  valor={`${artilheiroNome} (${retro.artilheiro.gols} ${retro.artilheiro.gols === 1 ? 'gol' : 'gols'})`}
+                />
               ) : null}
             </>
           ) : (
-            <Text style={styles.vazioTexto}>
+            <Text variant="bodyM" color="textSecondary">
               Jogue a primeira partida da temporada para ver seu balanço e
               recordes aqui.
             </Text>
           )}
-        </View>
+        </Card>
       ) : null}
 
-      <View style={styles.conquistasTopo}>
-        <Text style={styles.secaoRotulo}>Conquistas</Text>
-        <Text style={styles.conquistasPct}>{conquistasPct}%</Text>
+      <View style={styles.rowBetween}>
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          Conquistas
+        </Text>
+        <Text variant="titleM" tabular>
+          {conquistasPct}%
+        </Text>
       </View>
-      <View style={[styles.barraFundo, styles.barraConquistas]}>
-        <View style={[styles.barraPreenchida, {width: `${conquistasPct}%`}]} />
-      </View>
+      <Barra pct={conquistasPct} />
       <View style={styles.grade}>
         {conquistas.map(conquista => (
-          <View
+          <Card
             key={conquista.id}
-            style={[
-              styles.card,
-              conquista.desbloqueada ? styles.cardAtivo : styles.cardInativo,
-            ]}>
+            variante="outlined"
+            style={[styles.conquistaCard, conquista.desbloqueada ? null : styles.inativo]}>
             <IconeGlifo
               nome={conquista.desbloqueada ? conquista.icone : 'lock-outline'}
               tamanho={32}
               cor={
-                conquista.desbloqueada
-                  ? conquista.corIcone
-                  : cores.textoSecundario
+                conquista.desbloqueada ? conquista.corIcone : cores.textSecondary
               }
             />
             <Text
-              style={[
-                styles.nome,
-                conquista.desbloqueada ? null : styles.textoInativo,
-              ]}
-              numberOfLines={1}>
+              variant="labelL"
+              color={conquista.desbloqueada ? 'textPrimary' : 'textSecondary'}
+              numberOfLines={1}
+              align="center">
               {conquista.nome}
             </Text>
-            <Text style={styles.descricao} numberOfLines={2}>
+            <Text
+              variant="caption"
+              color="textSecondary"
+              numberOfLines={2}
+              align="center">
               {conquista.desbloqueada ? conquista.descricao : '???'}
             </Text>
             {conquista.desbloqueada && conquista.dataDesbloqueio ? (
-              <Text style={styles.data}>{conquista.dataDesbloqueio}</Text>
+              <Text variant="caption" color="brand" tabular>
+                {conquista.dataDesbloqueio}
+              </Text>
             ) : null}
-          </View>
+          </Card>
         ))}
       </View>
-    </ScreenContainer>
+    </Screen>
   );
 }
 
 export default Gabinete;
 
 const styles = StyleSheet.create({
-  secaoRotulo: {
-    color: cores.textoSecundario,
-    ...tipografia.secao,
-  },
-  retroCard: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.sm,
-    marginBottom: espaco.md,
-    padding: espaco.md,
-    ...sombra.card,
-  },
-  statRow: {
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  carreiraCard: {flexDirection: 'row', gap: espacamento[4]},
+  carreiraItem: {flex: 1, gap: espacamento[1]},
+  selfStart: {alignSelf: 'flex-start'},
+  card: {gap: espacamento[2]},
+  rowBetween: {
     flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  jornadaTopo: {
     alignItems: 'center',
-    flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  jornadaEstagio: {
-    color: cores.primaria,
-    fontSize: 14,
-    fontWeight: '900',
-  },
-  jornadaDescricao: {
-    color: cores.textoSecundario,
-    fontSize: 12.5,
-  },
-  jornadaProximo: {
-    color: cores.textoMuted,
-    fontSize: 11.5,
-    fontWeight: '700',
   },
   propostaLinha: {
-    alignItems: 'center',
     flexDirection: 'row',
-    gap: espaco.md,
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: espacamento[3],
   },
-  propostaInfo: {
-    flex: 1,
-    gap: espaco.xs,
-  },
-  propostaNome: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  propostaSub: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  propostaAcao: {
-    minWidth: 110,
-  },
+  flex: {flex: 1},
+  statRow: {flexDirection: 'row', gap: espacamento[2]},
   retroLinha: {
-    alignItems: 'center',
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: espaco.md,
+    gap: espacamento[3],
   },
-  retroRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 12.5,
-    fontWeight: '600',
-  },
-  retroValor: {
-    color: cores.texto,
-    flexShrink: 1,
-    fontSize: 12.5,
-    fontWeight: '800',
-    textAlign: 'right',
-  },
-  retroDestaque: {
-    color: cores.secundaria,
-  },
-  carreiraCard: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.lg,
-    marginBottom: espaco.md,
-    padding: espaco.md,
-    ...sombra.card,
-  },
-  carreiraItem: {
-    flex: 1,
-    gap: espaco.xs,
-  },
-  carreiraValor: {
-    color: cores.texto,
-    ...tipografia.numero,
-  },
-  carreiraDe: {
-    color: cores.textoMuted,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  financasChip: {
-    alignSelf: 'flex-start',
-  },
-  barraFundo: {
-    backgroundColor: cores.fundo,
-    borderRadius: raio.sm,
-    height: 6,
-    overflow: 'hidden',
-  },
-  barraConquistas: {
-    marginBottom: espaco.md,
-  },
-  barraPreenchida: {
-    backgroundColor: cores.primaria,
-    height: 6,
-  },
-  vazioCard: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.xs,
-    marginBottom: espaco.md,
-    padding: espaco.xl,
-    ...sombra.card,
-  },
-  vazioTitulo: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: espaco.xs,
-  },
-  vazioTexto: {
-    color: cores.textoSecundario,
-    fontSize: 12.5,
-    lineHeight: 18,
-    textAlign: 'center',
-  },
-  conquistasTopo: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: espaco.sm,
-  },
-  conquistasPct: {
-    color: cores.texto,
-    ...tipografia.numero,
-    ...tabular,
-  },
-  grade: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.sm,
-  },
-  card: {
-    alignItems: 'center',
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.xs,
-    minHeight: 132,
-    padding: espaco.md,
+  retroValor: {flexShrink: 1, textAlign: 'right'},
+  grade: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
+  conquistaCard: {
     width: '48%',
-    ...sombra.card,
+    minHeight: 132,
+    alignItems: 'center',
+    gap: espacamento[1],
   },
-  cardAtivo: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-  },
-  cardInativo: {
-    backgroundColor: cores.fundo,
-    borderColor: cores.bordaTransl,
-    opacity: 0.75,
-  },
-  nome: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  textoInativo: {
-    color: cores.textoSecundario,
-  },
-  descricao: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    textAlign: 'center',
-  },
-  data: {
-    color: cores.primaria,
-    fontSize: 10,
-    fontWeight: '700',
-    marginTop: espaco.xs,
-    ...tabular,
-  },
+  inativo: {opacity: 0.75},
+  barraFundo: {height: 6, borderRadius: raios.sm, overflow: 'hidden'},
+  barra: {height: 6},
 });

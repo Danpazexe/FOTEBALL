@@ -1,28 +1,33 @@
 /**
- * Aba "Ajustes": preferências do jogo (velocidade da narração, pausa no
- * intervalo, confirmações) e ações de carreira (reiniciar). Persistência fica
- * no store em memória — coerente com o escopo atual do projeto.
+ * Aba "Ajustes": aparência, narração, áudio, dificuldade, geral, carreira e
+ * sobre. Migrada ao Design System v2 (tela reativa ao tema claro/escuro).
  */
 
 import React from 'react';
-import {Pressable, StyleSheet, Switch, Text, View} from 'react-native';
+import {StyleSheet, Switch, View} from 'react-native';
 
-import {Botao, ScreenContainer, Section} from '../../components/ui';
+import {
+  AppBar,
+  Button,
+  Card,
+  Chip,
+  Screen,
+  Text,
+  espacamento,
+  useModoTema,
+  useTheme,
+  type ModoTema,
+} from '../../design-system';
 import {useConfirm, useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, type VelocidadeNarracao} from '../../store/useGameStore';
 import {DIFICULDADES} from '../../engine/carreira/dificuldade';
 import {definirSomHabilitado, definirVolumeEfeitos} from '../../audio/sons';
 import {FAIXAS_MUSICA} from '../../audio/musica';
-import {espaco, raio, type Tema} from '../../theme';
-import {useEstilos, useTema} from '../../theme/useTema';
 import {VERSAO_APP} from '../../version';
-import {useModoTema, type ModoTema} from '../../design-system';
 
-/** Níveis de volume oferecidos (sem lib de slider — controle em degraus). */
 const NIVEIS_VOLUME = [0, 0.25, 0.5, 0.75, 1] as const;
 
-/** Resumo do efeito de cada dificuldade (cobrança da diretoria). */
 const DIFICULDADE_DESC: Record<string, string> = {
   Fácil: 'Meta folgada e diretoria paciente.',
   Normal: 'Cobrança equilibrada da diretoria.',
@@ -30,11 +35,111 @@ const DIFICULDADE_DESC: Record<string, string> = {
   Lendário: 'Meta durríssima; punição máxima por falhar.',
 };
 
+function SettingsSection({
+  titulo,
+  descricao,
+  children,
+}: {
+  titulo: string;
+  descricao?: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <View style={styles.section}>
+      <Text variant="labelM" color="textSecondary" style={styles.caps}>
+        {titulo}
+      </Text>
+      {descricao ? (
+        <Text variant="caption" color="textSecondary">
+          {descricao}
+        </Text>
+      ) : null}
+      {children}
+    </View>
+  );
+}
+
+function ChipGroup<T extends string>({
+  opcoes,
+  valorAtual,
+  onSelect,
+}: {
+  opcoes: {valor: T; rotulo: string}[];
+  valorAtual: T;
+  onSelect: (valor: T) => void;
+}): React.JSX.Element {
+  return (
+    <View style={styles.chipRow}>
+      {opcoes.map(o => (
+        <Chip
+          key={o.valor}
+          label={o.rotulo}
+          selected={valorAtual === o.valor}
+          onPress={() => onSelect(o.valor)}
+          style={styles.flex}
+        />
+      ))}
+    </View>
+  );
+}
+
+function SeletorVolume({
+  valor,
+  onChange,
+}: {
+  valor: number;
+  onChange: (valor: number) => void;
+}): React.JSX.Element {
+  return (
+    <View style={styles.chipRow}>
+      {NIVEIS_VOLUME.map(nivel => (
+        <Chip
+          key={nivel}
+          label={nivel === 0 ? 'Mudo' : `${Math.round(nivel * 100)}%`}
+          selected={Math.abs(valor - nivel) < 0.01}
+          onPress={() => onChange(nivel)}
+          style={styles.flex}
+        />
+      ))}
+    </View>
+  );
+}
+
+function LinhaSwitch({
+  rotulo,
+  descricao,
+  valor,
+  onValueChange,
+}: {
+  rotulo: string;
+  descricao: string;
+  valor: boolean;
+  onValueChange: (valor: boolean) => void;
+}): React.JSX.Element {
+  const {cores} = useTheme();
+  return (
+    <Card variante="outlined" style={styles.linhaSwitch}>
+      <View style={styles.flex}>
+        <Text variant="titleM">{rotulo}</Text>
+        <Text variant="caption" color="textSecondary">
+          {descricao}
+        </Text>
+      </View>
+      <Switch
+        value={valor}
+        onValueChange={onValueChange}
+        accessibilityLabel={rotulo}
+        trackColor={{false: cores.border, true: cores.brand}}
+        thumbColor="#FFFFFF"
+      />
+    </Card>
+  );
+}
+
 function Settings(): React.JSX.Element {
   const nav = useAppNavigation();
   const confirm = useConfirm();
   const toast = useToast();
-  const styles = useEstilos(criarEstilos);
 
   const config = useGameStore(state => state.config);
   const atualizarConfig = useGameStore(state => state.atualizarConfig);
@@ -46,7 +151,6 @@ function Settings(): React.JSX.Element {
     {valor: 'normal', rotulo: 'Normal'},
     {valor: 'rapido', rotulo: 'Rápido'},
   ];
-
   const opcoesModo: {valor: ModoTema; rotulo: string}[] = [
     {valor: 'claro', rotulo: 'Claro'},
     {valor: 'escuro', rotulo: 'Escuro'},
@@ -70,92 +174,58 @@ function Settings(): React.JSX.Element {
   };
 
   return (
-    <ScreenContainer scroll>
-      <Text style={styles.titulo}>Ajustes</Text>
+    <Screen scroll>
+      <AppBar title="Ajustes" onBack={() => nav.goBack()} />
 
-      <Section titulo="Aparência">
-        <Text style={styles.descricao}>
-          Tema do app. "Sistema" acompanha o seu aparelho.
-        </Text>
-        <View style={styles.chipRow}>
-          {opcoesModo.map(opcao => {
-            const ativo = modo === opcao.valor;
-            return (
-              <View key={opcao.valor} style={styles.chipWrap}>
-                <Botao
-                  titulo={opcao.rotulo}
-                  variante={ativo ? 'primaria' : 'secundaria'}
-                  onPress={() => definirModo(opcao.valor)}
-                />
-              </View>
-            );
-          })}
-        </View>
-      </Section>
+      <SettingsSection
+        titulo="Aparência"
+        descricao='Tema do app. "Sistema" acompanha o seu aparelho.'>
+        <ChipGroup opcoes={opcoesModo} valorAtual={modo} onSelect={definirModo} />
+      </SettingsSection>
 
-      <Section titulo="Narração da partida">
-        <Text style={styles.descricao}>Velocidade padrão da narração.</Text>
-        <View style={styles.chipRow}>
-          {opcoesVelocidade.map(opcao => {
-            const ativo = config.velocidadeNarracao === opcao.valor;
-            return (
-              <View key={opcao.valor} style={styles.chipWrap}>
-                <Botao
-                  titulo={opcao.rotulo}
-                  variante={ativo ? 'primaria' : 'secundaria'}
-                  onPress={() =>
-                    atualizarConfig({velocidadeNarracao: opcao.valor})
-                  }
-                />
-              </View>
-            );
-          })}
-        </View>
-
+      <SettingsSection
+        titulo="Narração da partida"
+        descricao="Velocidade padrão da narração.">
+        <ChipGroup
+          opcoes={opcoesVelocidade}
+          valorAtual={config.velocidadeNarracao}
+          onSelect={valor => atualizarConfig({velocidadeNarracao: valor})}
+        />
         <LinhaSwitch
           rotulo="Pausar no intervalo"
           descricao="A partida para aos 45' e só continua quando você apertar."
           valor={config.pausarNoIntervalo}
           onValueChange={valor => atualizarConfig({pausarNoIntervalo: valor})}
         />
-      </Section>
+      </SettingsSection>
 
-      <Section titulo="Áudio">
+      <SettingsSection titulo="Áudio">
         <LinhaSwitch
           rotulo="Música de fundo"
           descricao="Toca em todas as telas do jogo, menos durante a partida."
           valor={config.musicaHabilitada}
           onValueChange={valor => atualizarConfig({musicaHabilitada: valor})}
         />
-
         {config.musicaHabilitada ? (
           <>
-            <Text style={styles.rotuloControle}>Faixa</Text>
+            <Text variant="labelM">Faixa</Text>
             <View style={styles.chipRow}>
-              {FAIXAS_MUSICA.map(faixa => {
-                const ativo = config.musicaSelecionada === faixa.id;
-                return (
-                  <View key={faixa.id} style={styles.chipWrap}>
-                    <Botao
-                      titulo={faixa.titulo}
-                      variante={ativo ? 'primaria' : 'secundaria'}
-                      onPress={() =>
-                        atualizarConfig({musicaSelecionada: faixa.id})
-                      }
-                    />
-                  </View>
-                );
-              })}
+              {FAIXAS_MUSICA.map(faixa => (
+                <Chip
+                  key={faixa.id}
+                  label={faixa.titulo}
+                  selected={config.musicaSelecionada === faixa.id}
+                  onPress={() => atualizarConfig({musicaSelecionada: faixa.id})}
+                />
+              ))}
             </View>
-
-            <Text style={styles.rotuloControle}>Altura da música</Text>
+            <Text variant="labelM">Altura da música</Text>
             <SeletorVolume
               valor={config.volumeMusica}
               onChange={valor => atualizarConfig({volumeMusica: valor})}
             />
           </>
         ) : null}
-
         <LinhaSwitch
           rotulo="Efeitos sonoros"
           descricao="Narração, gols, apitos e ambiente do estádio na partida."
@@ -165,10 +235,9 @@ function Settings(): React.JSX.Element {
             definirSomHabilitado(valor);
           }}
         />
-
         {config.som ? (
           <>
-            <Text style={styles.rotuloControle}>Volume dos efeitos</Text>
+            <Text variant="labelM">Volume dos efeitos</Text>
             <SeletorVolume
               valor={config.volumeEfeitos}
               onChange={valor => {
@@ -178,207 +247,71 @@ function Settings(): React.JSX.Element {
             />
           </>
         ) : null}
-      </Section>
+      </SettingsSection>
 
-      <Section titulo="Dificuldade">
-        <Text style={styles.descricao}>
-          {DIFICULDADE_DESC[config.dificuldade]}
-        </Text>
+      <SettingsSection
+        titulo="Dificuldade"
+        descricao={DIFICULDADE_DESC[config.dificuldade]}>
         <View style={styles.chipRow}>
-          {DIFICULDADES.map(nivel => {
-            const ativo = config.dificuldade === nivel;
-            return (
-              <View key={nivel} style={styles.chipWrap}>
-                <Botao
-                  titulo={nivel}
-                  variante={ativo ? 'primaria' : 'secundaria'}
-                  onPress={() => atualizarConfig({dificuldade: nivel})}
-                />
-              </View>
-            );
-          })}
+          {DIFICULDADES.map(nivel => (
+            <Chip
+              key={nivel}
+              label={nivel}
+              selected={config.dificuldade === nivel}
+              onPress={() => atualizarConfig({dificuldade: nivel})}
+              style={styles.flex}
+            />
+          ))}
         </View>
-      </Section>
+      </SettingsSection>
 
-      <Section titulo="Geral">
+      <SettingsSection titulo="Geral">
         <LinhaSwitch
           rotulo="Confirmar ações"
           descricao="Pede confirmação ao comprar, vender ou avançar."
           valor={config.confirmarAcoes}
           onValueChange={valor => atualizarConfig({confirmarAcoes: valor})}
         />
-      </Section>
+      </SettingsSection>
 
-      <Section titulo="Carreira">
-        <Botao
+      <SettingsSection titulo="Carreira">
+        <Button
           titulo="Reiniciar carreira"
-          variante="perigo"
+          variante="danger"
           onPress={handleReiniciar}
+          fullWidth
         />
         {clubeUsuarioId === null ? (
-          <Text style={styles.descricao}>Nenhuma carreira ativa.</Text>
+          <Text variant="caption" color="textSecondary">
+            Nenhuma carreira ativa.
+          </Text>
         ) : null}
-      </Section>
+      </SettingsSection>
 
-      <Section titulo="Sobre">
-        <Text style={styles.versao}>Versão {VERSAO_APP}</Text>
-        <Text style={styles.descricao}>FOTEBALL · protótipo jogável</Text>
-        <Text style={styles.descricao}>
+      <SettingsSection titulo="Sobre">
+        <Text variant="titleM">Versão {VERSAO_APP}</Text>
+        <Text variant="caption" color="textSecondary">
+          FOTEBALL · protótipo jogável
+        </Text>
+        <Text variant="caption" color="textSecondary">
           Liga de 20 clubes, 38 rodadas, simulação determinística.
         </Text>
-      </Section>
-    </ScreenContainer>
+      </SettingsSection>
+    </Screen>
   );
 }
-
-/** Controle de volume em degraus (mudo a 100%) — sem lib de slider. */
-function SeletorVolume({
-  valor,
-  onChange,
-}: {
-  valor: number;
-  onChange: (valor: number) => void;
-}): React.JSX.Element {
-  const styles = useEstilos(criarEstilos);
-  return (
-    <View style={styles.volumeRow}>
-      {NIVEIS_VOLUME.map(nivel => {
-        const ativo = Math.abs(valor - nivel) < 0.01;
-        return (
-          <Pressable
-            key={nivel}
-            onPress={() => onChange(nivel)}
-            accessibilityRole="button"
-            accessibilityLabel={
-              nivel === 0 ? 'Mudo' : `${Math.round(nivel * 100)} por cento`
-            }
-            style={[styles.volumeChip, ativo && styles.volumeChipAtivo]}
-          >
-            <Text
-              style={[styles.volumeChipTxt, ativo && styles.volumeChipTxtAtivo]}
-            >
-              {nivel === 0 ? 'Mudo' : `${Math.round(nivel * 100)}%`}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
-  );
-}
-
-type LinhaSwitchProps = {
-  rotulo: string;
-  descricao: string;
-  valor: boolean;
-  onValueChange: (valor: boolean) => void;
-};
-
-function LinhaSwitch({
-  rotulo,
-  descricao,
-  valor,
-  onValueChange,
-}: LinhaSwitchProps): React.JSX.Element {
-  const {cores} = useTema();
-  const styles = useEstilos(criarEstilos);
-  return (
-    <View style={styles.linhaSwitch}>
-      <View style={styles.linhaSwitchTexto}>
-        <Text style={styles.linhaSwitchRotulo}>{rotulo}</Text>
-        <Text style={styles.descricao}>{descricao}</Text>
-      </View>
-      <Switch
-        value={valor}
-        onValueChange={onValueChange}
-        trackColor={{false: cores.borda, true: cores.primaria}}
-        // Polegar branco em ambos os temas: cores.texto/contrastePrimaria ficam
-        // escuros demais e sumiriam no trilho (claro OU escuro).
-        thumbColor="#FFFFFF"
-      />
-    </View>
-  );
-}
-
-const criarEstilos = (t: Tema) =>
-  StyleSheet.create({
-    titulo: {
-      color: t.cores.texto,
-      fontSize: 26,
-      fontWeight: '800',
-      marginBottom: espaco.lg,
-    },
-    descricao: {
-      color: t.cores.textoSecundario,
-      fontSize: 13,
-    },
-    versao: {
-      color: t.cores.texto,
-      fontSize: 14,
-      fontWeight: '800',
-      marginBottom: 2,
-    },
-    rotuloControle: {
-      color: t.cores.texto,
-      fontSize: 13,
-      fontWeight: '800',
-      marginTop: espaco.xs,
-    },
-    chipRow: {
-      flexDirection: 'row',
-      gap: espaco.sm,
-    },
-    chipWrap: {
-      flex: 1,
-    },
-    volumeRow: {
-      flexDirection: 'row',
-      gap: espaco.xs,
-      marginTop: espaco.xs,
-    },
-    volumeChip: {
-      alignItems: 'center',
-      backgroundColor: t.cores.superficieElevada,
-      borderColor: t.cores.bordaClara,
-      borderRadius: raio.md,
-      borderWidth: 1,
-      flex: 1,
-      justifyContent: 'center',
-      minHeight: 36,
-      paddingHorizontal: 2,
-    },
-    volumeChipAtivo: {
-      backgroundColor: t.cores.primaria,
-      borderColor: t.cores.primaria,
-    },
-    volumeChipTxt: {
-      color: t.cores.textoSecundario,
-      fontSize: 12,
-      fontWeight: '800',
-    },
-    volumeChipTxtAtivo: {
-      color: t.cores.contrastePrimaria,
-    },
-    linhaSwitch: {
-      alignItems: 'center',
-      backgroundColor: t.cores.superficieElevada,
-      borderColor: t.cores.bordaTransl,
-      borderRadius: raio.lg,
-      borderWidth: 1,
-      flexDirection: 'row',
-      gap: espaco.md,
-      justifyContent: 'space-between',
-      padding: espaco.md,
-      ...t.sombra.card,
-    },
-    linhaSwitchTexto: {
-      flex: 1,
-      gap: espaco.xs,
-    },
-    linhaSwitchRotulo: {
-      color: t.cores.texto,
-      fontSize: 15,
-      fontWeight: '800',
-    },
-  });
 
 export default Settings;
+
+const styles = StyleSheet.create({
+  section: {gap: espacamento[2]},
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  chipRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
+  flex: {flex: 1},
+  linhaSwitch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: espacamento[3],
+  },
+});

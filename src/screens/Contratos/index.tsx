@@ -1,19 +1,26 @@
 /**
- * Renovação de contratos (Módulo 13). Lista jogadores com contrato expirando
- * nesta temporada (urgente, vermelho) ou na próxima (amarelo). O técnico propõe
- * salário e duração; o jogador aceita se o salário cobre ~90% do atual ou se a
- * moral é alta.
+ * Renovação de contratos. Lista jogadores com contrato expirando nesta temporada
+ * (urgente) ou na próxima; o técnico propõe salário e duração. Migrada ao DS v2.
  */
 
 import React, {useMemo, useState} from 'react';
-import {Modal, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Modal, StyleSheet, TextInput, View} from 'react-native';
 
-import {AppHeader, Botao, ScreenContainer, TextoVazio} from '../../components/ui';
 import OverallBadge from '../../components/OverallBadge';
+import {
+  AppBar,
+  Button,
+  Card,
+  Chip,
+  Screen,
+  Text,
+  espacamento,
+  raios,
+  useTheme,
+} from '../../design-system';
 import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, useJogadoresUsuario} from '../../store/useGameStore';
-import {acentos, cores, espaco, raio, sombra} from '../../theme';
 import {moeda} from '../../utils/formatters';
 import type {Player} from '../../types';
 
@@ -26,6 +33,7 @@ function anoContrato(contratoAte: string): number {
 function Contratos(): React.JSX.Element {
   const nav = useAppNavigation();
   const toast = useToast();
+  const {cores} = useTheme();
   const elenco = useJogadoresUsuario();
   const temporadaAtual = useGameStore(state => state.temporadaAtual);
   const renovarContrato = useGameStore(state => state.renovarContrato);
@@ -64,43 +72,43 @@ function Contratos(): React.JSX.Element {
   };
 
   return (
-    <ScreenContainer scroll>
-      <AppHeader
-        titulo="Contratos"
-        subtitulo="Renovações pendentes"
+    <Screen scroll>
+      <AppBar
+        title="Contratos"
+        subtitle="Renovações pendentes"
         onBack={() => nav.goBack()}
       />
 
       {aRenovar.length === 0 ? (
-        <TextoVazio>Nenhum contrato expirando em breve.</TextoVazio>
+        <Text variant="bodyM" color="textSecondary">
+          Nenhum contrato expirando em breve.
+        </Text>
       ) : (
         <View style={styles.lista}>
           {aRenovar.map(jogador => {
             const ano = anoContrato(jogador.contratoAte);
             const urgente = ano <= anoAtual;
             return (
-              <View key={jogador.id} style={styles.card}>
+              <Card key={jogador.id} variante="outlined" style={styles.card}>
                 <OverallBadge overall={jogador.overall} />
                 <View style={styles.main}>
-                  <Text style={styles.nome}>{jogador.apelido ?? jogador.nome}</Text>
-                  <Text style={styles.legenda}>
+                  <Text variant="titleM" numberOfLines={1}>
+                    {jogador.apelido ?? jogador.nome}
+                  </Text>
+                  <Text variant="caption" color="textSecondary">
                     {jogador.posicaoPrincipal} · {moeda(jogador.salario)}/mês
                   </Text>
-                  <Text
-                    style={[
-                      styles.contrato,
-                      {color: urgente ? cores.perigo : acentos.amarelo},
-                    ]}>
+                  <Text variant="caption" color={urgente ? 'danger' : 'warning'}>
                     Contrato até {ano} {urgente ? '· expira já!' : '· próxima'}
                   </Text>
                 </View>
-                <Pressable
-                  accessibilityRole="button"
+                <Button
+                  variante="ghost"
+                  tamanho="sm"
+                  titulo="Renovar"
                   onPress={() => abrir(jogador)}
-                  style={styles.botaoRenovar}>
-                  <Text style={styles.botaoRenovarTexto}>Renovar</Text>
-                </Pressable>
-              </View>
+                />
+              </Card>
             );
           })}
         </View>
@@ -111,171 +119,98 @@ function Contratos(): React.JSX.Element {
         transparent
         animationType="slide"
         onRequestClose={() => setAlvo(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitulo}>
-              Renovar {alvo?.apelido ?? alvo?.nome}
+        <View style={[styles.modalBackdrop, {backgroundColor: cores.overlay}]}>
+          <View
+            style={[
+              styles.modalCard,
+              {backgroundColor: cores.surface, borderColor: cores.border},
+            ]}>
+            <Text variant="titleL">Renovar {alvo?.apelido ?? alvo?.nome}</Text>
+            <Text variant="labelM" color="textSecondary">
+              Salário mensal proposto
             </Text>
-            <Text style={styles.modalLabel}>Salário mensal proposto</Text>
             <TextInput
               keyboardType="numeric"
               value={salario}
               onChangeText={setSalario}
-              style={styles.input}
+              accessibilityLabel="Salário mensal proposto"
+              style={[
+                styles.input,
+                {
+                  backgroundColor: cores.surfaceSubtle,
+                  borderColor: cores.border,
+                  color: cores.textPrimary,
+                },
+              ]}
               placeholder="Salário"
-              placeholderTextColor={cores.textoSecundario}
+              placeholderTextColor={cores.textMuted}
             />
-            <Text style={styles.modalLabel}>Duração</Text>
+            <Text variant="labelM" color="textSecondary">
+              Duração
+            </Text>
             <View style={styles.anosRow}>
               {ANOS_OPCOES.map(opcao => (
-                <Pressable
-                  accessibilityRole="button"
+                <Chip
                   key={opcao}
+                  label={`${opcao} ${opcao === 1 ? 'ano' : 'anos'}`}
+                  selected={anos === opcao}
                   onPress={() => setAnos(opcao)}
-                  style={[styles.anoChip, anos === opcao ? styles.anoChipAtivo : null]}>
-                  <Text
-                    style={[
-                      styles.anoTexto,
-                      anos === opcao ? styles.anoTextoAtivo : null,
-                    ]}>
-                    {opcao} {opcao === 1 ? 'ano' : 'anos'}
-                  </Text>
-                </Pressable>
+                  style={styles.flex}
+                />
               ))}
             </View>
             <View style={styles.modalAcoes}>
-              <View style={styles.modalAcaoFlex}>
-                <Botao
-                  variante="secundaria"
+              <View style={styles.flex}>
+                <Button
+                  variante="secondary"
                   titulo="Cancelar"
                   onPress={() => setAlvo(null)}
+                  fullWidth
                 />
               </View>
-              <View style={styles.modalAcaoFlex}>
-                <Botao variante="ouro" titulo="Propor" onPress={confirmar} />
+              <View style={styles.flex}>
+                <Button
+                  variante="primary"
+                  titulo="Propor"
+                  onPress={confirmar}
+                  fullWidth
+                />
               </View>
             </View>
           </View>
         </View>
       </Modal>
-    </ScreenContainer>
+    </Screen>
   );
 }
 
 export default Contratos;
 
 const styles = StyleSheet.create({
-  lista: {
-    gap: espaco.sm,
-  },
-  card: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.md,
-    padding: espaco.md,
-    ...sombra.card,
-  },
-  main: {
-    flex: 1,
-    gap: 2,
-  },
-  nome: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  legenda: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  contrato: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  botaoRenovar: {
-    alignItems: 'center',
-    borderColor: cores.primaria,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-  },
-  botaoRenovarTexto: {
-    color: cores.primaria,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  modalBackdrop: {
-    backgroundColor: 'rgba(5,8,14,0.82)',
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
+  lista: {gap: espacamento[2]},
+  card: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  main: {flex: 1, gap: 2},
+  modalBackdrop: {flex: 1, justifyContent: 'flex-end'},
   modalCard: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderTopLeftRadius: raio.lg,
-    borderTopRightRadius: raio.lg,
+    borderTopLeftRadius: raios.lg,
+    borderTopRightRadius: raios.lg,
     borderWidth: 1,
-    gap: espaco.sm,
-    padding: espaco.lg,
-    ...sombra.card,
-  },
-  modalTitulo: {
-    color: cores.texto,
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: espaco.xs,
-  },
-  modalLabel: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '700',
+    gap: espacamento[2],
+    padding: espacamento[5],
   },
   input: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
+    borderRadius: raios.sm,
     borderWidth: 1,
-    color: cores.texto,
     fontSize: 16,
     fontWeight: '700',
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
+    paddingHorizontal: espacamento[3],
+    paddingVertical: espacamento[2],
   },
-  anosRow: {
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  anoChip: {
-    alignItems: 'center',
-    borderColor: cores.borda,
-    borderRadius: raio.pill,
-    borderWidth: 1,
-    flex: 1,
-    paddingVertical: espaco.sm,
-  },
-  anoChipAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  anoTexto: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  anoTextoAtivo: {
-    color: cores.contrastePrimaria,
-  },
+  anosRow: {flexDirection: 'row', gap: espacamento[2]},
   modalAcoes: {
     flexDirection: 'row',
-    gap: espaco.sm,
-    marginTop: espaco.sm,
+    gap: espacamento[2],
+    marginTop: espacamento[2],
   },
-  modalAcaoFlex: {
-    flex: 1,
-  },
+  flex: {flex: 1},
 });
