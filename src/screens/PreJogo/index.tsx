@@ -36,6 +36,8 @@ import {
 } from '../../engine/tactics/preview';
 import {validarEscalacao} from '../../engine/tactics/validacao';
 import {analisarAdversario, type Setor} from '../../engine/simulation/scout';
+import {calcularMando} from '../../engine/simulation/probabilityCalc';
+import {preverResultado} from '../../engine/simulation/probabilidadeResultado';
 import {useAppNavigation} from '../../navigation/types';
 import {
   selecionarClubeUsuario,
@@ -225,6 +227,23 @@ function PreJogo(): React.JSX.Element {
   const advTatica = advInfo?.tatica ?? null;
   const leitura = advTatica ? avaliarConfronto(taticaAtual, advTatica) : null;
   const diff = forcaMinha.overall + (mandoCasa ? 3 : 0) - forcaDele.overall;
+
+  // "Quem vai ganhar?" — coerente com a simulação (mesmo modelo de gols).
+  const mandoFator = calcularMando(
+    confronto.casa.estadio.capacidade,
+    confronto.casa.reputacao,
+  );
+  const previsao = preverResultado(
+    confronto.forcaCasa,
+    confronto.forcaFora,
+    mandoCasa ? taticaAtual : advTatica ?? taticaAtual,
+    mandoCasa ? advTatica ?? taticaAtual : taticaAtual,
+    mandoFator,
+  );
+  const probVoce = mandoCasa ? previsao.vitoriaCasa : previsao.vitoriaFora;
+  const pctVoce = Math.round(probVoce * 100);
+  const pctEmpate = Math.round(previsao.empate * 100);
+  const pctAdv = Math.max(0, 100 - pctVoce - pctEmpate);
   const favoritismo =
     Math.abs(diff) < 2
       ? 'Equilíbrio'
@@ -334,6 +353,52 @@ function PreJogo(): React.JSX.Element {
             corFora={corDoClube(confronto.fora.id)}
           />
         </View>
+
+        {/* QUEM VAI GANHAR? — previsão coerente com o modelo de gols da engine */}
+        <Section titulo="Quem vai ganhar?">
+          <View style={styles.previsaoBarra}>
+            <View
+              style={[
+                styles.previsaoSeg,
+                {flex: Math.max(1, pctVoce), backgroundColor: cores.primaria},
+              ]}
+            />
+            <View
+              style={[
+                styles.previsaoSeg,
+                {flex: Math.max(1, pctEmpate), backgroundColor: cores.bordaClara},
+              ]}
+            />
+            <View
+              style={[
+                styles.previsaoSeg,
+                {flex: Math.max(1, pctAdv), backgroundColor: cores.perigo},
+              ]}
+            />
+          </View>
+          <View style={styles.previsaoLegenda}>
+            <View style={styles.previsaoItem}>
+              <Text style={[styles.previsaoPct, {color: cores.primariaClara}]}>
+                {pctVoce}%
+              </Text>
+              <Text style={styles.previsaoRotulo}>Você</Text>
+            </View>
+            <View style={styles.previsaoItemCentro}>
+              <Text style={[styles.previsaoPct, {color: cores.textoSecundario}]}>
+                {pctEmpate}%
+              </Text>
+              <Text style={styles.previsaoRotulo}>Empate</Text>
+            </View>
+            <View style={styles.previsaoItemDir}>
+              <Text style={[styles.previsaoPct, {color: cores.perigo}]}>
+                {pctAdv}%
+              </Text>
+              <Text style={styles.previsaoRotulo} numberOfLines={1}>
+                {adversario.sigla}
+              </Text>
+            </View>
+          </View>
+        </Section>
 
         {/* SUA PRONTIDÃO — o que libera/bloqueia entrar em campo */}
         <Section titulo="Sua prontidão">
@@ -632,6 +697,42 @@ const styles = StyleSheet.create({
   prontidaoRow: {
     flexDirection: 'row',
     gap: espaco.sm,
+  },
+  previsaoBarra: {
+    flexDirection: 'row',
+    gap: 3,
+    height: 14,
+  },
+  previsaoSeg: {
+    borderRadius: raio.pill,
+    height: '100%',
+  },
+  previsaoLegenda: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: espaco.sm,
+  },
+  previsaoItem: {
+    alignItems: 'flex-start',
+    flex: 1,
+  },
+  previsaoItemCentro: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  previsaoItemDir: {
+    alignItems: 'flex-end',
+    flex: 1,
+  },
+  previsaoPct: {
+    ...tabular,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  previsaoRotulo: {
+    color: cores.textoSecundario,
+    fontSize: 11,
+    fontWeight: '700',
   },
   errosCard: {
     backgroundColor: suaves.vermelho,
