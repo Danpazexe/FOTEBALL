@@ -1,21 +1,25 @@
 /**
- * Tela de demissão (eixo Meta/Carreira §12). Quando a diretoria demite o técnico
- * (`state.demissao` != null), a carreira NÃO acaba: ele é recontratado por um
- * clube disposto — filtrado pela reputação (`clubeElegivelParaTecnico`). Se a
- * reputação afundou e nenhum clube o quer, aí sim é o fim da linha.
+ * Tela de demissão. A carreira não acaba: o técnico é recontratado por um clube
+ * disposto (filtrado pela reputação). Se ninguém o quer, é o fim. Migrada ao DS v2.
  */
 
 import React from 'react';
-import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
-import {AppHeader, Botao, ScreenContainer, TextoVazio} from '../../components/ui';
 import OverallBadge from '../../components/OverallBadge';
 import Escudo from '../../components/Escudo';
+import {
+  AppBar,
+  Button,
+  Card,
+  Screen,
+  Text,
+  espacamento,
+} from '../../design-system';
 import {useConfirm} from '../../components/feedback';
 import {clubeElegivelParaTecnico} from '../../engine/carreira/carreiraEngine';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import {cores, espaco, raio, sombra} from '../../theme';
 import type {Clube, MotivoDemissao, Player} from '../../types';
 import {moeda} from '../../utils/formatters';
 
@@ -111,52 +115,56 @@ function Demissao(): React.JSX.Element {
   }
 
   return (
-    <ScreenContainer>
-      <View style={styles.headerWrap}>
-        <AppHeader
-          titulo="Você foi demitido"
-          subtitulo={`Reputação ${reputacaoTecnico}/100`}
-        />
-      </View>
+    <Screen scroll>
+      <AppBar
+        title="Você foi demitido"
+        subtitle={`Reputação ${reputacaoTecnico}/100`}
+      />
 
-      <View style={styles.motivoCard}>
-        <Text style={styles.motivoTexto}>
+      <Card variante="status" status="danger" padding={4}>
+        <Text variant="bodyM">
           {demissao ? motivoTexto(demissao) : 'Sua passagem chegou ao fim.'}
         </Text>
-      </View>
+      </Card>
 
       {semPropostas ? (
         <View style={styles.semPropostas}>
-          <Text style={styles.fimTitulo}>Fim da linha</Text>
-          <TextoVazio>
+          <Text variant="titleL">Fim da linha</Text>
+          <Text variant="bodyM" color="textSecondary">
             Sua reputação afundou e nenhum clube fez proposta. É o fim desta
             carreira.
-          </TextoVazio>
-          <Botao
+          </Text>
+          <Button
             icone="jogar"
             titulo="Começar uma nova carreira"
-            variante="ouro"
+            variante="primary"
             onPress={recomecar}
+            fullWidth
           />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.lista}>
-          <Text style={styles.intro}>
+        <>
+          <Text variant="labelM" color="textSecondary">
             Clubes dispostos a te contratar agora:
           </Text>
           {secoes.map(secao => (
             <View key={secao.divisao} style={styles.secao}>
-              <Text style={styles.secaoTitulo}>{secao.divisao}</Text>
+              <Text variant="labelM" color="textSecondary" style={styles.caps}>
+                {secao.divisao}
+              </Text>
               {secao.clubes.map(clube => (
-                <Pressable
-                  accessibilityRole="button"
+                <Card
                   key={clube.id}
+                  variante="interactive"
+                  accessibilityLabel={`Assumir o ${clube.nome}`}
                   onPress={() => assumir(clube)}
                   style={styles.item}>
                   <Escudo clubeId={clube.id} sigla={clube.sigla} tamanho={44} />
-                  <View style={styles.itemInfoWrap}>
-                    <Text style={styles.itemNome}>{clube.nome}</Text>
-                    <Text style={styles.itemInfo}>
+                  <View style={styles.itemInfo}>
+                    <Text variant="titleM" numberOfLines={1}>
+                      {clube.nome}
+                    </Text>
+                    <Text variant="caption" color="textSecondary">
                       Rep. {clube.reputacao} · {moeda(clube.financas.saldo)}
                     </Text>
                   </View>
@@ -164,92 +172,22 @@ function Demissao(): React.JSX.Element {
                     overall={mediaOverall(jogadores, clube.id)}
                     size={40}
                   />
-                </Pressable>
+                </Card>
               ))}
             </View>
           ))}
-        </ScrollView>
+        </>
       )}
-    </ScreenContainer>
+    </Screen>
   );
 }
 
-const styles = StyleSheet.create({
-  headerWrap: {
-    paddingHorizontal: espaco.lg,
-    paddingTop: espaco.lg,
-  },
-  motivoCard: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderLeftColor: cores.perigo,
-    borderLeftWidth: 3,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    marginHorizontal: espaco.lg,
-    marginTop: espaco.md,
-    padding: espaco.md,
-    ...sombra.card,
-  },
-  motivoTexto: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  intro: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  semPropostas: {
-    gap: espaco.lg,
-    padding: espaco.lg,
-  },
-  fimTitulo: {
-    color: cores.texto,
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  lista: {
-    gap: espaco.lg,
-    padding: espaco.lg,
-    paddingBottom: espaco.xl * 2,
-  },
-  secao: {
-    gap: espaco.md,
-  },
-  secaoTitulo: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  item: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.md,
-    padding: espaco.md,
-    ...sombra.card,
-  },
-  itemInfoWrap: {
-    flex: 1,
-    gap: espaco.xs,
-  },
-  itemNome: {
-    color: cores.texto,
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  itemInfo: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-});
-
 export default Demissao;
+
+const styles = StyleSheet.create({
+  semPropostas: {gap: espacamento[4]},
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  secao: {gap: espacamento[2]},
+  item: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  itemInfo: {flex: 1, gap: espacamento[1]},
+});
