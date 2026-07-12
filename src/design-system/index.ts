@@ -15,3 +15,4 @@ export {
 } from './themes/useTheme';
 export {ThemeProvider} from './themes/ThemeProvider';
 export * from './primitives';
+export * from './components';
