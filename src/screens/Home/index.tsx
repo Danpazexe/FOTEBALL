@@ -6,25 +6,24 @@
  */
 
 import React, {useMemo} from 'react';
-import {
-  Image,
-  ImageBackground,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import {Image, Pressable, StyleSheet, View} from 'react-native';
 
-import {Botao, ScreenContainer, TextoVazio} from '../../components/ui';
+import {
+  Box,
+  Button,
+  Card,
+  Chip,
+  Icon,
+  Screen,
+  Text,
+  espacamento,
+  useTheme,
+  type CorTexto,
+} from '../../design-system';
 import AlertasCard, {type Alerta} from '../../components/AlertasCard';
 import {LOGO_COPA, LOGO_SERIE_D} from '../../assets/escudos';
-// Papel de parede do "hero" do Gabinete: estádio noturno (empacotado).
-const FUNDO_ESTADIO = require('../../assets/planodefundo.jpg');
 import FormaRecente from '../../components/FormaRecente';
-import Chip from '../../components/Chip';
-import Icone from '../../components/Icone';
 import ProximoJogoCard from '../../components/ProximoJogoCard';
-import StatCard from '../../components/StatCard';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
 import {
@@ -54,33 +53,32 @@ import {
   useGameStore,
 } from '../../store/useGameStore';
 import {limiteDerrotasPorDivisao} from '../../store/helpers';
-import {comAlfa, cores, espaco, raio, sombra, tabular} from '../../theme';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Clube, Partida} from '../../types';
 
 const MAX_FORMA = 5;
 const MAX_ALERTAS = 5;
 
-/** Cor do termômetro da diretoria por nível de pressão (verde → laranja → vermelho). */
-function corDaPressao(nivel: NivelPressao): string {
+/** Token de cor do termômetro da diretoria por nível de pressão. */
+function corDaPressao(nivel: NivelPressao): CorTexto {
   if (nivel === 'Tranquilo' || nivel === 'Estável') {
-    return cores.sucesso;
+    return 'success';
   }
   if (nivel === 'Pressionado') {
-    return cores.aviso;
+    return 'warning';
   }
-  return cores.perigo;
+  return 'danger';
 }
 
-/** Cor do marcador da manchete pelo tom editorial. */
-function corDoTom(tom: TomManchete): string {
+/** Token de cor do marcador da manchete pelo tom editorial. */
+function corDoTom(tom: TomManchete): CorTexto {
   if (tom === 'positivo') {
-    return cores.sucesso;
+    return 'success';
   }
   if (tom === 'negativo') {
-    return cores.perigo;
+    return 'danger';
   }
-  return cores.textoMuted;
+  return 'textMuted';
 }
 
 /**
@@ -143,6 +141,7 @@ function Home(): React.JSX.Element {
   const nav = useAppNavigation();
   const confirm = useConfirm();
   const toast = useToast();
+  const {cores} = useTheme();
 
   const clubes = useGameStore(state => state.clubes);
   const jogadores = useGameStore(state => state.jogadores);
@@ -516,279 +515,241 @@ function Home(): React.JSX.Element {
   };
 
   return (
-    <View style={styles.raiz}>
-      <ScreenContainer scroll>
-        <View style={styles.container}>
-          {/* Cabeçalho "hero" cinematográfico: estádio ao fundo + véu + texto claro. */}
-          <ImageBackground source={FUNDO_ESTADIO} style={styles.hero}>
-            <View style={styles.heroVeu} />
-            <View style={styles.eyebrowRow}>
-              <Text
-                style={[styles.eyebrow, styles.eyebrowFlex]}
-                numberOfLines={1}>
-                {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
-              </Text>
-              <Pressable
-                onPress={() => nav.navigate('Settings')}
-                hitSlop={8}
-                accessibilityRole="button"
-                accessibilityLabel="Ajustes">
-                <Icone nome="ajustes" tamanho={20} cor={cores.texto} />
-              </Pressable>
-            </View>
-            <View style={styles.tituloRow}>
-              <Text style={[styles.titulo, styles.heroTexto]} numberOfLines={1}>
-                Mesa do Técnico
-              </Text>
-              <View style={[styles.saldoPill, styles.heroPill]}>
-                <Text
-                  style={[
-                    styles.saldoPillTexto,
-                    styles.heroTexto,
-                    (clubeUsuario?.financas.saldo ?? 0) < 0
-                      ? styles.saldoNegativo
-                      : null,
-                  ]}
-                >
-                  {moedaCompacta(clubeUsuario?.financas.saldo ?? 0)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.statusRow}>
-              <Text
-                style={[styles.subtitulo, styles.heroSub]}
-                numberOfLines={1}
-              >
-                {clubeUsuario?.divisao ?? 'Série A'} · {posicao} · {jogos} jogos
-                · {pontos} pts
-              </Text>
-              {forma.length > 0 ? (
-                <FormaRecente resultados={forma} compacto />
-              ) : null}
-            </View>
-          </ImageBackground>
+    <Screen scroll>
+      {/* Cabeçalho — banner da marca (temável: texto onBrand nos dois temas). */}
+      <Box bg="brandStrong" radius="lg" padding={4} gap={2}>
+        <View style={estilos.linhaEntre}>
+          <Text
+            variant="labelM"
+            color="onBrand"
+            numberOfLines={1}
+            style={estilos.flex}>
+            {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
+          </Text>
+          <Pressable
+            onPress={() => nav.navigate('Settings')}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Ajustes">
+            <Icon nome="ajustes" color="onBrand" size="md" />
+          </Pressable>
+        </View>
+        <View style={estilos.linhaEntre}>
+          <Text
+            variant="titleXL"
+            color="onBrand"
+            numberOfLines={1}
+            style={estilos.flex}>
+            Mesa do Técnico
+          </Text>
+          <Box bg="surface" radius="full" px={3} py={1}>
+            <Text
+              variant="labelL"
+              color={
+                (clubeUsuario?.financas.saldo ?? 0) < 0 ? 'danger' : 'textPrimary'
+              }
+              tabular>
+              {moedaCompacta(clubeUsuario?.financas.saldo ?? 0)}
+            </Text>
+          </Box>
+        </View>
+        <View style={estilos.linhaEntre}>
+          <Text
+            variant="labelM"
+            color="onBrand"
+            numberOfLines={1}
+            tabular
+            style={estilos.flex}>
+            {clubeUsuario?.divisao ?? 'Série A'} · {posicao} · {jogos} jogos ·{' '}
+            {pontos} pts
+          </Text>
+          {forma.length > 0 ? (
+            <FormaRecente resultados={forma} compacto />
+          ) : null}
+        </View>
+      </Box>
 
-          {/* Estado no relance — moral do elenco, reputação do técnico e propostas. */}
-          <View style={styles.relanceRow}>
-            <StatCard
-              label="Moral"
-              valor={`${moralMedia}%`}
-              sub={
-                moralMedia >= 75
-                  ? 'Confiante'
-                  : moralMedia >= 50
-                  ? 'Equilibrado'
-                  : 'Tenso'
-              }
-              corValor={
-                moralMedia >= 75
-                  ? cores.sucesso
-                  : moralMedia >= 50
-                  ? cores.texto
-                  : cores.perigo
-              }
-              onPress={() => nav.navigate('MainTabs', {screen: 'Elenco'})}
-            />
-            <StatCard
-              label="Reputação"
-              valor={reputacao.estrelas}
-              sub={reputacao.label}
-              corValor={
-                reputacaoTecnico >= 60 ? cores.secundaria : cores.texto
-              }
-              onPress={() => nav.navigate('Gabinete')}
-            />
-            <StatCard
-              label="Propostas"
-              valor={String(numPropostas)}
-              sub={numPropostas > 0 ? 'Aguardando' : 'Nenhuma'}
-              corValor={numPropostas > 0 ? cores.secundaria : cores.texto}
-              icone={numPropostas > 0 ? 'mercado' : undefined}
-              onPress={
-                numPropostas > 0
-                  ? () => nav.navigate('TransferMarket')
-                  : undefined
-              }
-            />
+      {/* Estado no relance — moral / reputação / propostas. */}
+      <View style={estilos.relanceRow}>
+        <Card
+          variante="interactive"
+          onPress={() => nav.navigate('MainTabs', {screen: 'Elenco'})}
+          style={estilos.statCard}>
+          <Text variant="labelM" color="textSecondary">
+            Moral
+          </Text>
+          <Text
+            variant="titleL"
+            color={
+              moralMedia >= 75
+                ? 'success'
+                : moralMedia >= 50
+                ? 'textPrimary'
+                : 'danger'
+            }
+            tabular>
+            {moralMedia}%
+          </Text>
+          <Text variant="caption" color="textMuted" numberOfLines={1}>
+            {moralMedia >= 75
+              ? 'Confiante'
+              : moralMedia >= 50
+              ? 'Equilibrado'
+              : 'Tenso'}
+          </Text>
+        </Card>
+        <Card
+          variante="interactive"
+          onPress={() => nav.navigate('Gabinete')}
+          style={estilos.statCard}>
+          <Text variant="labelM" color="textSecondary">
+            Reputação
+          </Text>
+          <Text
+            variant="titleM"
+            color={reputacaoTecnico >= 60 ? 'accent' : 'textPrimary'}>
+            {reputacao.estrelas}
+          </Text>
+          <Text variant="caption" color="textMuted" numberOfLines={1}>
+            {reputacao.label}
+          </Text>
+        </Card>
+        <Card
+          variante={numPropostas > 0 ? 'interactive' : 'outlined'}
+          onPress={
+            numPropostas > 0 ? () => nav.navigate('TransferMarket') : undefined
+          }
+          style={estilos.statCard}>
+          <View style={estilos.linhaEntre}>
+            <Text variant="labelM" color="textSecondary">
+              Propostas
+            </Text>
+            {numPropostas > 0 ? (
+              <Icon nome="mercado" size={14} color="accent" />
+            ) : null}
           </View>
+          <Text
+            variant="titleL"
+            color={numPropostas > 0 ? 'accent' : 'textPrimary'}
+            tabular>
+            {numPropostas}
+          </Text>
+          <Text variant="caption" color="textMuted" numberOfLines={1}>
+            {numPropostas > 0 ? 'Aguardando' : 'Nenhuma'}
+          </Text>
+        </Card>
+      </View>
 
-          {/* Ultimato — exigência concreta da diretoria no fio da navalha. */}
-          {ultimato ? (
-            <View style={styles.ultimatoBanner}>
-              <View style={styles.ultimatoTopo}>
-                <Icone nome="apito" tamanho={16} cor={cores.perigo} />
-                <Text style={styles.ultimatoTitulo}>{ultimato.titulo}</Text>
-              </View>
-              <Text style={styles.ultimatoMensagem}>{ultimato.mensagem}</Text>
+      {/* Ultimato — exigência concreta da diretoria. */}
+      {ultimato ? (
+        <Card variante="status" status="danger" padding={4} style={estilos.gap1}>
+          <View style={estilos.linhaIcone}>
+            <Icon nome="apito" size={16} color="danger" />
+            <Text variant="labelL" color="danger" style={estilos.caps}>
+              {ultimato.titulo}
+            </Text>
+          </View>
+          <Text variant="bodyM">{ultimato.mensagem}</Text>
+        </Card>
+      ) : null}
+
+      {/* Objetivo + Diretoria — dois mini-cards lado a lado. */}
+      {objetivo && pressao ? (
+        <View style={estilos.duplaBotoes}>
+          <Card
+            variante="interactive"
+            accessibilityLabel="Ver a tabela"
+            onPress={() => nav.navigate('MainTabs', {screen: 'Competition'})}
+            style={estilos.miniCard}>
+            <View style={estilos.linhaIcone}>
+              <Icon nome="trofeu" size={14} color="warning" />
+              <Text variant="labelM" color="textSecondary" style={estilos.caps}>
+                Objetivo
+              </Text>
             </View>
-          ) : null}
-
-          {/* Objetivo + Diretoria — dois mini-botões lado a lado (compactos). */}
-          {objetivo && pressao ? (
-            <View style={styles.duplaBotoes}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Ver a tabela"
-                onPress={() =>
-                  nav.navigate('MainTabs', {screen: 'Competition'})
-                }
-                style={({pressed}) => [
-                  styles.miniBotao,
-                  pressed ? styles.miniPressed : null,
+            <Text variant="titleM" numberOfLines={1}>
+              {objetivo.tipo}
+            </Text>
+            <Text
+              variant="caption"
+              color={metaNoRumo ? 'success' : 'danger'}
+              numberOfLines={1}>
+              {metaNoRumo ? 'No rumo' : 'Fora da meta'} · até{' '}
+              {objetivo.posicaoAlvo}º
+            </Text>
+          </Card>
+          <Card
+            variante="interactive"
+            accessibilityLabel="Ver o gabinete do técnico"
+            onPress={() => nav.navigate('Gabinete')}
+            style={estilos.miniCard}>
+            <View style={estilos.linhaIcone}>
+              <Icon nome="conversa" size={14} color={corDaPressao(pressao.nivel)} />
+              <Text variant="labelM" color="textSecondary" style={estilos.caps}>
+                Diretoria
+              </Text>
+            </View>
+            <Text
+              variant="titleM"
+              color={corDaPressao(pressao.nivel)}
+              numberOfLines={1}>
+              {pressao.nivel}
+            </Text>
+            <View
+              style={[
+                estilos.pressaoTrilha,
+                {backgroundColor: cores.surfaceSubtle},
+              ]}>
+              <View
+                style={[
+                  estilos.pressaoBarra,
+                  {
+                    width: `${pressao.pontuacao}%`,
+                    backgroundColor: cores[corDaPressao(pressao.nivel)],
+                  },
                 ]}
-              >
-                <View style={styles.miniTopo}>
-                  <Icone nome="trofeu" tamanho={14} cor={cores.aviso} />
-                  <Text style={styles.miniLabel}>Objetivo</Text>
-                </View>
-                <Text style={styles.miniValor} numberOfLines={1}>
-                  {objetivo.tipo}
-                </Text>
-                <Text
-                  style={[
-                    styles.miniStatus,
-                    {color: metaNoRumo ? cores.sucesso : cores.perigo},
-                  ]}
-                  numberOfLines={1}
-                >
-                  {metaNoRumo ? 'No rumo' : 'Fora da meta'} · até{' '}
-                  {objetivo.posicaoAlvo}º
-                </Text>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Ver o gabinete do técnico"
-                onPress={() => nav.navigate('Gabinete')}
-                style={({pressed}) => [
-                  styles.miniBotao,
-                  pressed ? styles.miniPressed : null,
-                ]}
-              >
-                <View style={styles.miniTopo}>
-                  <Icone
-                    nome="conversa"
-                    tamanho={14}
-                    cor={corDaPressao(pressao.nivel)}
-                  />
-                  <Text style={styles.miniLabel}>Diretoria</Text>
-                </View>
-                <Text
-                  style={[
-                    styles.miniValor,
-                    {color: corDaPressao(pressao.nivel)},
-                  ]}
-                  numberOfLines={1}
-                >
-                  {pressao.nivel}
-                </Text>
-                <View style={styles.pressaoTrilha}>
-                  <View
-                    style={[
-                      styles.pressaoBarra,
-                      {
-                        width: `${pressao.pontuacao}%`,
-                        backgroundColor: corDaPressao(pressao.nivel),
-                      },
-                    ]}
-                  />
-                </View>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {/* Sequências (streaks) atuais — forma + defesa. */}
-          {sequencias.length > 0 ? (
-            <View style={styles.sequenciasRow}>
-              {sequencias.map(seq => (
-                <Chip
-                  key={seq.tipo}
-                  label={seq.rotulo}
-                  tom="suave"
-                  cor={seq.destaque === 'bom' ? cores.sucesso : cores.perigo}
-                  pequeno
-                />
-              ))}
-            </View>
-          ) : null}
-
-          {/* Clássico à vista — realça a rivalidade do próximo jogo. */}
-          {classico ? (
-            <View style={styles.classicoBanner}>
-              <Icone nome="apito" tamanho={15} cor={cores.aviso} />
-              <Text style={styles.classicoTexto}>
-                CLÁSSICO · {classico.nome}
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Próximo compromisso (sem header duplicado — o card já se rotula). */}
-          {ehSerieD ? (
-            !serieDCarreira ? (
-              proximoEvento.tipo === 'fim' ? (
-                <Botao
-                  variante="ouro"
-                  icone="trofeu"
-                  titulo="Encerrar grupos e ir ao mata-mata"
-                  onPress={handleIniciarMataMata}
-                />
-              ) : proximoJogo && confronto ? (
-                <ProximoJogoCard
-                  partida={proximoJogo}
-                  clubeCasa={confronto.casa}
-                  clubeFora={confronto.fora}
-                  forcaCasa={confronto.forcaCasa}
-                  forcaFora={confronto.forcaFora}
-                  mandoCasa={mandoCasa}
-                  onJogar={handleJogarPartida}
-                />
-              ) : (
-                <TextoVazio>Nenhum jogo agendado.</TextoVazio>
-              )
-            ) : mataMataEmAndamento ? (
-              <Botao
-                variante="ouro"
-                icone="jogar"
-                titulo="Ir ao mata-mata da Série D"
-                onPress={() => nav.navigate('SerieD')}
-              />
-            ) : (
-              <Botao
-                variante="ouro"
-                icone="trofeu"
-                titulo="Iniciar próxima temporada"
-                onPress={handleFinalizarTemporada}
-              />
-            )
-          ) : copaNaVez ? (
-            <View style={styles.copaJogoCard}>
-              <Image
-                source={LOGO_COPA}
-                style={styles.copaJogoLogo}
-                resizeMode="contain"
-              />
-              <Text style={styles.copaJogoFase}>
-                Copa do Brasil · {copaNaVez.faseNome}
-              </Text>
-              <Text style={styles.copaJogoConfronto} numberOfLines={1}>
-                {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
-              </Text>
-              <Botao
-                variante="ouro"
-                icone="jogar"
-                titulo="Jogar confronto da Copa"
-                onPress={() => {
-                  avancarParaData(copaNaVez.data);
-                  nav.navigate('MatchSimulation', {copa: true});
-                }}
               />
             </View>
-          ) : proximoEvento.tipo === 'fim' ? (
-            <Botao
-              variante="ouro"
+          </Card>
+        </View>
+      ) : null}
+
+      {/* Sequências (streaks). */}
+      {sequencias.length > 0 ? (
+        <View style={estilos.sequenciasRow}>
+          {sequencias.map(seq => (
+            <Chip
+              key={seq.tipo}
+              label={seq.rotulo}
+              tom={seq.destaque === 'bom' ? 'brand' : 'danger'}
+              selected
+            />
+          ))}
+        </View>
+      ) : null}
+
+      {/* Clássico à vista. */}
+      {classico ? (
+        <Card variante="status" status="warning" padding={3}>
+          <View style={estilos.linhaIcone}>
+            <Icon nome="apito" size={15} color="warning" />
+            <Text variant="labelL" color="warning">
+              CLÁSSICO · {classico.nome}
+            </Text>
+          </View>
+        </Card>
+      ) : null}
+
+      {/* Próximo compromisso (o card já se rotula). */}
+      {ehSerieD ? (
+        !serieDCarreira ? (
+          proximoEvento.tipo === 'fim' ? (
+            <Button
+              variante="primary"
               icone="trofeu"
-              titulo="Iniciar próxima temporada"
-              onPress={handleFinalizarTemporada}
+              titulo="Encerrar grupos e ir ao mata-mata"
+              onPress={handleIniciarMataMata}
+              fullWidth
             />
           ) : proximoJogo && confronto ? (
             <ProximoJogoCard
@@ -801,409 +762,196 @@ function Home(): React.JSX.Element {
               onJogar={handleJogarPartida}
             />
           ) : (
-            <TextoVazio>Nenhum jogo agendado.</TextoVazio>
-          )}
-
-          {/* Copa do Brasil — card clean (linha única, sem gradiente). */}
-          {copa ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Ver chave da Copa do Brasil"
-              onPress={() => nav.navigate('Copa')}
-              style={({pressed}) => [
-                styles.copaCard,
-                pressed ? styles.cardPressed : null,
-              ]}
-            >
-              <Image
-                source={LOGO_COPA}
-                style={styles.copaLogo}
-                resizeMode="contain"
-              />
-              <View style={styles.copaInfo}>
-                <Text style={styles.copaFase} numberOfLines={1}>
-                  {copa.campeao ? 'Campeão!' : copa.fases[copa.faseAtual].nome}
-                </Text>
-                <Text style={styles.copaDetalhe} numberOfLines={1}>
-                  {resumoCopa(copa, clubeUsuarioId, todosClubes)}
-                </Text>
-              </View>
-              <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
-            </Pressable>
-          ) : null}
-
-          {/* Série D — atalho para o chaveamento (carreira na D). */}
-          {ehSerieD && serieDCarreira ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Ver o chaveamento da Série D"
-              onPress={() => nav.navigate('SerieD')}
-              style={({pressed}) => [
-                styles.copaCard,
-                pressed ? styles.cardPressed : null,
-              ]}
-            >
-              <Image
-                source={LOGO_SERIE_D}
-                style={styles.copaLogo}
-                resizeMode="contain"
-              />
-              <View style={styles.copaInfo}>
-                <Text style={styles.copaFase} numberOfLines={1}>
-                  {serieDCarreira.fase === 'campeao'
-                    ? 'Campeão da Série D!'
-                    : serieDCarreira.fase === 'eliminado'
-                      ? 'Campanha encerrada'
-                      : (serieDCarreira.faseCorrente?.nome ?? 'Mata-mata')}
-                </Text>
-                <Text style={styles.copaDetalhe} numberOfLines={1}>
-                  Chaveamento da Série D
-                </Text>
-              </View>
-              <Icone nome="avancar" tamanho={20} cor={cores.textoMuted} />
-            </Pressable>
-          ) : null}
-
-          <AlertasCard
-            alertas={alertas}
-            onAbrirJogador={jogadorId =>
-              nav.navigate('PlayerDetail', {jogadorId})
-            }
+            <Text variant="bodyM" color="textSecondary">
+              Nenhum jogo agendado.
+            </Text>
+          )
+        ) : mataMataEmAndamento ? (
+          <Button
+            variante="primary"
+            icone="jogar"
+            titulo="Ir ao mata-mata da Série D"
+            onPress={() => nav.navigate('SerieD')}
+            fullWidth
           />
+        ) : (
+          <Button
+            variante="primary"
+            icone="trofeu"
+            titulo="Iniciar próxima temporada"
+            onPress={handleFinalizarTemporada}
+            fullWidth
+          />
+        )
+      ) : copaNaVez ? (
+        <Card variante="outlined" padding={4} style={estilos.copaJogo}>
+          <Image
+            source={LOGO_COPA}
+            style={estilos.copaJogoLogo}
+            resizeMode="contain"
+          />
+          <Text variant="labelM" color="textMuted">
+            Copa do Brasil · {copaNaVez.faseNome}
+          </Text>
+          <Text variant="titleM" numberOfLines={1}>
+            {clubeUsuario?.nome ?? 'Seu time'} x {copaNaVez.adversario}
+          </Text>
+          <Button
+            variante="primary"
+            icone="jogar"
+            titulo="Jogar confronto da Copa"
+            onPress={() => {
+              avancarParaData(copaNaVez.data);
+              nav.navigate('MatchSimulation', {copa: true});
+            }}
+            fullWidth
+          />
+        </Card>
+      ) : proximoEvento.tipo === 'fim' ? (
+        <Button
+          variante="primary"
+          icone="trofeu"
+          titulo="Iniciar próxima temporada"
+          onPress={handleFinalizarTemporada}
+          fullWidth
+        />
+      ) : proximoJogo && confronto ? (
+        <ProximoJogoCard
+          partida={proximoJogo}
+          clubeCasa={confronto.casa}
+          clubeFora={confronto.fora}
+          forcaCasa={confronto.forcaCasa}
+          forcaFora={confronto.forcaFora}
+          mandoCasa={mandoCasa}
+          onJogar={handleJogarPartida}
+        />
+      ) : (
+        <Text variant="bodyM" color="textSecondary">
+          Nenhum jogo agendado.
+        </Text>
+      )}
 
-          {/* Imprensa — manchetes editoriais derivadas do momento do clube. */}
-          {manchetes.length > 0 ? (
-            <View style={styles.imprensaBloco}>
-              <View style={styles.imprensaTopo}>
-                <Icone nome="conversa" tamanho={15} cor={cores.secundaria} />
-                <Text style={styles.blocoTitulo}>Imprensa</Text>
-              </View>
-              {manchetes.map(manchete => (
-                <View key={manchete.id} style={styles.mancheteLinha}>
-                  <View
-                    style={[
-                      styles.mancheteDot,
-                      {backgroundColor: corDoTom(manchete.tom)},
-                    ]}
-                  />
-                  <Text style={styles.mancheteTexto}>{manchete.texto}</Text>
-                </View>
-              ))}
+      {/* Copa do Brasil — card em linha. */}
+      {copa ? (
+        <Card
+          variante="interactive"
+          onPress={() => nav.navigate('Copa')}
+          style={estilos.linhaCard}>
+          <Image
+            source={LOGO_COPA}
+            style={estilos.miniLogo}
+            resizeMode="contain"
+          />
+          <View style={estilos.flex}>
+            <Text variant="titleM" numberOfLines={1}>
+              {copa.campeao ? 'Campeão!' : copa.fases[copa.faseAtual].nome}
+            </Text>
+            <Text variant="bodyM" color="textSecondary" numberOfLines={1}>
+              {resumoCopa(copa, clubeUsuarioId, todosClubes)}
+            </Text>
+          </View>
+          <Icon nome="avancar" color="textMuted" />
+        </Card>
+      ) : null}
+
+      {/* Série D — atalho para o chaveamento. */}
+      {ehSerieD && serieDCarreira ? (
+        <Card
+          variante="interactive"
+          onPress={() => nav.navigate('SerieD')}
+          style={estilos.linhaCard}>
+          <Image
+            source={LOGO_SERIE_D}
+            style={estilos.miniLogo}
+            resizeMode="contain"
+          />
+          <View style={estilos.flex}>
+            <Text variant="titleM" numberOfLines={1}>
+              {serieDCarreira.fase === 'campeao'
+                ? 'Campeão da Série D!'
+                : serieDCarreira.fase === 'eliminado'
+                ? 'Campanha encerrada'
+                : serieDCarreira.faseCorrente?.nome ?? 'Mata-mata'}
+            </Text>
+            <Text variant="bodyM" color="textSecondary" numberOfLines={1}>
+              Chaveamento da Série D
+            </Text>
+          </View>
+          <Icon nome="avancar" color="textMuted" />
+        </Card>
+      ) : null}
+
+      <AlertasCard
+        alertas={alertas}
+        onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
+      />
+
+      {/* Imprensa — manchetes editoriais. */}
+      {manchetes.length > 0 ? (
+        <Card variante="outlined" padding={4} style={estilos.gap2}>
+          <View style={estilos.linhaIcone}>
+            <Icon nome="conversa" size={15} color="accent" />
+            <Text variant="labelM" color="textSecondary">
+              IMPRENSA
+            </Text>
+          </View>
+          {manchetes.map(manchete => (
+            <View key={manchete.id} style={estilos.mancheteLinha}>
+              <View
+                style={[
+                  estilos.mancheteDot,
+                  {backgroundColor: cores[corDoTom(manchete.tom)]},
+                ]}
+              />
+              <Text variant="bodyM" color="textSecondary" style={estilos.flex}>
+                {manchete.texto}
+              </Text>
             </View>
-          ) : null}
-        </View>
-      </ScreenContainer>
-    </View>
+          ))}
+        </Card>
+      ) : null}
+    </Screen>
   );
 }
 
 export default Home;
 
-const styles = StyleSheet.create({
-  raiz: {
-    flex: 1,
-  },
-  container: {
-    // Sem padding próprio: o ScreenContainer (scroll) já aplica o padding
-    // padrão — antes duplicava (32px de cada lado), deixando a tela apertada.
-    gap: espaco.md,
-  },
-  // Grade "estado no relance" — StatCards de moral/reputação/propostas.
-  relanceRow: {
+const estilos = StyleSheet.create({
+  flex: {flex: 1},
+  gap1: {gap: espacamento[1]},
+  gap2: {gap: espacamento[2]},
+  linhaEntre: {
     flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  hero: {
-    borderRadius: raio.lg,
-    gap: espaco.xs,
-    // Conteúdo ancorado na base, como legenda sobre a foto do estádio.
-    justifyContent: 'flex-end',
-    minHeight: 132,
-    overflow: 'hidden',
-    padding: espaco.lg,
-  },
-  // Véu de noite (verde-escuro) sobre o estádio: legibilidade do texto claro por
-  // cima, pertencendo ao mundo "noite de estádio" (não ao navy do tema dia).
-  heroVeu: {
-    backgroundColor: comAlfa(cores.fundoBase, 0.55),
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-    right: 0,
-    top: 0,
-  },
-  heroTexto: {
-    color: cores.texto,
-  },
-  heroSub: {
-    color: comAlfa(cores.texto, 0.85),
-  },
-  heroPill: {
-    backgroundColor: 'rgba(255, 255, 255, 0.16)',
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  eyebrowRow: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  eyebrowFlex: {flex: 1},
-  eyebrow: {
-    color: cores.primaria,
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  tituloRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.md,
     justifyContent: 'space-between',
+    gap: espacamento[2],
   },
-  titulo: {
-    color: cores.texto,
-    flexShrink: 1,
-    fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: -0.6,
-  },
-  saldoPill: {
-    backgroundColor: cores.glass,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.pill,
-    borderWidth: 1,
-    paddingHorizontal: espaco.md,
-    paddingVertical: 6,
-  },
-  saldoPillTexto: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 0.3,
-    ...tabular,
-  },
-  saldoNegativo: {
-    color: cores.perigo,
-  },
-  statusRow: {
-    alignItems: 'center',
+  linhaIcone: {
     flexDirection: 'row',
-    gap: espaco.sm,
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: espacamento[2],
   },
-  subtitulo: {
-    color: cores.textoSecundario,
-    flexShrink: 1,
-    fontSize: 13,
-    fontWeight: '600',
-    ...tabular,
-  },
-  blocoTitulo: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  cardPressed: {
-    backgroundColor: cores.superficieAlt,
-    transform: [{scale: 0.99}],
-  },
-  // Termômetro da diretoria — barra de pressão (reusada no mini-botão).
+  relanceRow: {flexDirection: 'row', gap: espacamento[2]},
+  statCard: {flex: 1, gap: espacamento[1]},
+  duplaBotoes: {flexDirection: 'row', gap: espacamento[2]},
+  miniCard: {flex: 1, gap: espacamento[1]},
   pressaoTrilha: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: 999,
     height: 8,
-    marginVertical: 2,
+    borderRadius: 999,
     overflow: 'hidden',
-    width: '100%',
+    marginTop: espacamento[1],
   },
-  pressaoBarra: {
-    borderRadius: 999,
-    height: '100%',
-  },
-  // Objetivo + Diretoria — mini-botões lado a lado.
-  duplaBotoes: {
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  miniBotao: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flex: 1,
-    gap: 4,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.md,
-    ...sombra.suave,
-  },
-  miniPressed: {
-    backgroundColor: cores.superficieAlt,
-    transform: [{scale: 0.99}],
-  },
-  miniTopo: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  miniLabel: {
-    color: cores.textoSecundario,
-    fontSize: 10.5,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  miniValor: {
-    color: cores.texto,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  miniStatus: {
-    fontSize: 11.5,
-    fontWeight: '700',
-  },
-  // Ultimato — banner urgente (vermelho) no fio da navalha.
-  ultimatoBanner: {
-    backgroundColor: comAlfa(cores.perigo, 0.1),
-    borderColor: cores.perigo,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: 4,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.md,
-  },
-  ultimatoTopo: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  ultimatoTitulo: {
-    color: cores.perigo,
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  ultimatoMensagem: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 19,
-  },
-  // Clássico — banner de rivalidade do próximo jogo.
-  classicoBanner: {
-    alignItems: 'center',
-    backgroundColor: comAlfa(cores.aviso, 0.1),
-    borderColor: comAlfa(cores.aviso, 0.35),
-    borderRadius: raio.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.xs,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-  },
-  classicoTexto: {
-    color: cores.aviso,
-    fontSize: 12.5,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  // Sequências (streaks) — chips de forma/defesa.
-  sequenciasRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.sm,
-  },
-  // Imprensa — painel de manchetes editoriais.
-  imprensaBloco: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.sm,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.md,
-    ...sombra.suave,
-  },
-  imprensaTopo: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
+  pressaoBarra: {height: '100%', borderRadius: 999},
+  sequenciasRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
+  copaJogo: {alignItems: 'center', gap: espacamento[2]},
+  copaJogoLogo: {height: 56, width: '55%'},
+  linhaCard: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  miniLogo: {height: 36, width: 36},
   mancheteLinha: {
+    flexDirection: 'row',
     alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: espaco.sm,
+    gap: espacamento[2],
   },
-  mancheteDot: {
-    borderRadius: 999,
-    height: 7,
-    marginTop: 6,
-    width: 7,
-  },
-  mancheteTexto: {
-    color: cores.textoSecundario,
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  // Copa "na vez" — card de destaque clean.
-  copaJogoCard: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.sm,
-    padding: espaco.lg,
-    ...sombra.suave,
-  },
-  copaJogoLogo: {
-    height: 56,
-    width: '55%',
-  },
-  copaJogoFase: {
-    color: cores.secundaria,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  copaJogoConfronto: {
-    color: cores.texto,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  // Copa do Brasil — card em linha (clean, tocável).
-  copaCard: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.md,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.md,
-    ...sombra.suave,
-  },
-  copaLogo: {
-    height: 36,
-    width: 36,
-  },
-  copaInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  copaFase: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  copaDetalhe: {
-    color: cores.textoSecundario,
-    fontSize: 12.5,
-  },
+  mancheteDot: {width: 7, height: 7, borderRadius: 999, marginTop: 6},
+  caps: {textTransform: 'uppercase', letterSpacing: 0.8},
 });
