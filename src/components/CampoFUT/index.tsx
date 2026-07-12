@@ -31,16 +31,12 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import Svg, {
-  Circle,
-  ClipPath,
-  Defs,
   Ellipse,
   G,
   Line,
-  LinearGradient,
   Path,
+  Polygon,
   Rect,
-  Stop,
 } from 'react-native-svg';
 
 import {trocarTitular} from '../../api/database/seed/defaults';
@@ -90,38 +86,49 @@ type SharedNum = SharedValue<number>;
 const GHOST_LEVANTA = 0.78;
 
 /**
- * Perspectiva do campo (estádio 3D). O fundo (gol de ataque, longe) fica no TOPO
- * — estreito e com cartas menores; a frente (nosso gol/GK, perto) fica na BASE —
- * larga e com cartas maiores. A MESMA projeção alimenta o desenho do campo, a
- * posição das peças e o hit-test do drag-drop (coerência = arraste não quebra).
+ * Trapézio do campo em coordenadas NATIVAS do SVG do Sofascore (viewBox
+ * 2232×1790). O fundo (gol de ataque, longe) fica no TOPO — estreito; a frente
+ * (nosso gol/GK, perto) na BASE — larga. Valores medidos das linhas laterais do
+ * SVG: linha de fundo em y≈115 (meia-largura ~675), base em y≈1790 (meia-largura
+ * ~1164), centro x≈1110. A MESMA projeção alimenta desenho, peças e hit-test.
  */
-const PERSP = {
-  /** Fração da largura ocupada pelas peças no fundo (longe) e na frente (perto).
-   * SUAVE (estilo Sofascore): peças quase na largura toda, só um leve afunilar
-   * ao fundo. */
-  larguraTopo: 0.86,
-  larguraBase: 0.94,
-  /** Escala das cartas por profundidade (levemente menores ao fundo). */
-  escalaTopo: 0.9,
-  escalaBase: 1.0,
+const VB_LARGURA = 2232;
+const VB_ALTURA = 1790;
+const CAMPO_SVG = {
+  centroX: 1110,
+  topoY: 115,
+  baseY: 1790,
+  hwTopo: 675, // meia-largura da linha de fundo (topo/longe)
+  hwBase: 1164, // meia-largura na base (perto)
+  jogTopoY: 320, // faixa vertical das peças (margem p/ carta caber)
+  jogBaseY: 1700,
+  insetX: 0.82, // peças um pouco dentro das laterais
 };
 
-/** Projeta (x,y ∈ 0..1) → centro da carta na tela + escala por profundidade. */
+/**
+ * Projeta (x,y ∈ 0..1) → centro da carta na tela + escala por profundidade. As
+ * coordenadas nativas do SVG são mapeadas para o container (largura×altura), então
+ * o campo pode ser esticado (preserveAspectRatio="none") que as peças acompanham.
+ */
 function projetarSlot(
   x: number,
   y: number,
   largura: number,
   altura: number,
-  padTopo: number,
-  padBase: number,
 ): {cx: number; cy: number; escala: number} {
-  const t = 1 - y; // 0 = fundo (topo/longe), 1 = frente (base/perto)
-  const cy = padTopo + t * (altura - padTopo - padBase);
-  const larguraFrac =
-    PERSP.larguraTopo + (PERSP.larguraBase - PERSP.larguraTopo) * t;
-  const cx = largura / 2 + (x - 0.5) * largura * larguraFrac;
-  const escala = PERSP.escalaTopo + (PERSP.escalaBase - PERSP.escalaTopo) * t;
-  return {cx, cy, escala};
+  // y=1 (ataque) → topo/longe; y=0 (GK) → base/perto.
+  const nativaY = CAMPO_SVG.jogBaseY - y * (CAMPO_SVG.jogBaseY - CAMPO_SVG.jogTopoY);
+  const frac =
+    (nativaY - CAMPO_SVG.topoY) / (CAMPO_SVG.baseY - CAMPO_SVG.topoY);
+  const meiaLargura =
+    CAMPO_SVG.hwTopo + (CAMPO_SVG.hwBase - CAMPO_SVG.hwTopo) * frac;
+  const nativaX = CAMPO_SVG.centroX + (x - 0.5) * 2 * meiaLargura * CAMPO_SVG.insetX;
+  const escala = 0.72 + 0.42 * frac;
+  return {
+    cx: (nativaX / VB_LARGURA) * largura,
+    cy: (nativaY / VB_ALTURA) * altura,
+    escala,
+  };
 }
 
 /**
@@ -196,9 +203,11 @@ function CampoFUT({
   onArrastandoChange,
   largura,
 }: CampoFUTProps): React.JSX.Element {
-  const altura = Math.round(largura * 1.52);
-  // Cartas do campo (11 no gramado) e do banco — maiores pra leitura no celular.
-  const cardW = Math.round(largura * 0.212);
+  // Campo do SVG do Sofascore (viewBox 2232×1790), esticado para ocupar mais a
+  // tela (pedido: "aumente o tamanho do campo"). O gramado usa
+  // preserveAspectRatio="none" e as peças acompanham via projetarSlot.
+  const altura = Math.round(largura * 1.28);
+  const cardW = Math.round(largura * 0.15);
   const cardH = Math.round(cardW * 1.2);
   const cardBancoW = Math.round(largura * 0.24);
   // Card "fantasma" que segue o dedo no arraste: a CARTA FUT completa, num
@@ -207,9 +216,6 @@ function CampoFUT({
   const ghostH = Math.round(ghostW * 1.2);
   // Quanto o centro visual do fantasma fica ACIMA do dedo (compensado no drop).
   const ghostOffset = Math.round(ghostH * (GHOST_LEVANTA - 0.5));
-  // Margens verticais pra as cartas caberem dentro do gramado sem cortar.
-  const padTopo = Math.round(cardH / 2) + 6;
-  const padBase = Math.round(cardH / 2) + 10;
   // Raio de captura do drop: >= metade da distância vertical entre slots
   // vizinhos, pra não existir "zona morta" entre as cartas maiores.
   const limiarDrop = Math.round(cardH * 0.75);
@@ -269,17 +275,10 @@ function CampoFUT({
     () =>
       titulares.map((titular, slotIndex) => {
         const {x, y} = coordenadaDoTitular(titular);
-        const {cx, cy, escala} = projetarSlot(
-          x,
-          y,
-          largura,
-          altura,
-          padTopo,
-          padBase,
-        );
+        const {cx, cy, escala} = projetarSlot(x, y, largura, altura);
         return {slotIndex, jogadorId: titular.jogadorId, cx, cy, escala};
       }),
-    [titulares, largura, altura, padTopo, padBase],
+    [titulares, largura, altura],
   );
 
   const medirOverlay = useCallback(() => {
@@ -876,10 +875,12 @@ function TaticaStrip({tatica}: {tatica: Tatica}): React.JSX.Element {
 }
 
 /**
- * Campo estilo Sofascore: gramado VERDE ocupando a largura toda (retângulo
- * arredondado, listras ceifadas), com a BALIZA + grande área do FUNDO desenhadas
- * em PERSPECTIVA (trapézio afunilando ao topo) — o único toque 3D, como no
- * Sofascore. Linha defensiva e setas de lado de ataque preservadas. SVG puro.
+ * Campo TRANSCRITO do SVG oficial do Sofascore (viewBox 2232×1790): gramado
+ * trapezoidal em perspectiva, listras ceifadas trapezoidais, grande/pequena área
+ * do fundo, meia-lua, círculo central (elipse) e linhas laterais — coordenadas
+ * NATIVAS do SVG, escaladas pelo viewBox (= idêntico). A linha defensiva e as
+ * setas de lado de ataque (extras do jogo) usam as mesmas coordenadas nativas
+ * via `CAMPO_SVG`. SVG puro.
  */
 function PitchEstadio({
   largura,
@@ -892,39 +893,10 @@ function PitchEstadio({
   linhaDefensiva: Tatica['linhaDefensiva'];
   ladoAtaque: NonNullable<Tatica['ladoAtaque']>;
 }): React.JSX.Element {
-  const cx = largura / 2;
-  const m = 6;
-  const topY = altura * 0.03;
-  const baseY = altura * 0.99;
-  const w = largura - m * 2;
-  const h = baseY - topY;
-  const yMeio = topY + h / 2;
-  const raioCirc = w * 0.16;
-
-  // FUNDO (longe) em perspectiva: grande/pequena área afunilando ao topo + gol.
-  const areaFarTopW = w * 0.34;
-  const areaFarBotW = w * 0.52;
-  const areaFarY = topY + h * 0.13;
-  const areaFar = `M${cx - areaFarTopW / 2} ${topY} L${cx + areaFarTopW / 2} ${topY} L${
-    cx + areaFarBotW / 2
-  } ${areaFarY} L${cx - areaFarBotW / 2} ${areaFarY} Z`;
-  const peqFarTopW = w * 0.18;
-  const peqFarBotW = w * 0.26;
-  const peqFarY = topY + h * 0.06;
-  const peqFar = `M${cx - peqFarTopW / 2} ${topY} L${cx + peqFarTopW / 2} ${topY} L${
-    cx + peqFarBotW / 2
-  } ${peqFarY} L${cx - peqFarBotW / 2} ${peqFarY} Z`;
-  const golW = w * 0.12;
-  const golFar = `M${cx - golW / 2} ${topY} L${cx - golW * 0.4} ${topY - 8} L${
-    cx + golW * 0.4
-  } ${topY - 8} L${cx + golW / 2} ${topY} Z`;
-
-  // NOSSO gol (base/perto): áreas top-down.
-  const areaNearW = w * 0.5;
-  const areaNearH = h * 0.13;
-  const peqNearW = w * 0.24;
-  const peqNearH = h * 0.055;
-  const golNearW = w * 0.16;
+  const hwEmY = (yy: number): number =>
+    CAMPO_SVG.hwTopo +
+    (CAMPO_SVG.hwBase - CAMPO_SVG.hwTopo) *
+      ((yy - CAMPO_SVG.topoY) / (CAMPO_SVG.baseY - CAMPO_SVG.topoY));
 
   const fracLinha =
     linhaDefensiva === 'Adiantada'
@@ -932,143 +904,106 @@ function PitchEstadio({
       : linhaDefensiva === 'Recuada'
       ? 0.66
       : 0.55;
-  const yLinha = topY + h * fracLinha;
+  const yLinha = CAMPO_SVG.topoY + fracLinha * (CAMPO_SVG.baseY - CAMPO_SVG.topoY);
+  const hwLinha = hwEmY(yLinha);
 
-  const setaY = topY + h * 0.055;
-  const setaTip = topY + h * 0.02;
+  const setaBaseY = 360;
+  const setaTip = 150;
+  const hwSeta = hwEmY(setaBaseY);
   const seta = (ax: number): string =>
-    `M${ax - 3} ${setaY} L${ax - 3} ${setaTip + 7} L${ax - 7} ${
-      setaTip + 7
-    } L${ax} ${setaTip} L${ax + 7} ${setaTip + 7} L${ax + 3} ${
-      setaTip + 7
-    } L${ax + 3} ${setaY} Z`;
+    `M${ax - 22} ${setaBaseY} L${ax - 22} ${setaTip + 70} L${ax - 62} ${
+      setaTip + 70
+    } L${ax} ${setaTip} L${ax + 62} ${setaTip + 70} L${ax + 22} ${
+      setaTip + 70
+    } L${ax + 22} ${setaBaseY} Z`;
   const xsSeta =
     ladoAtaque === 'Esquerda'
-      ? [cx - w * 0.22]
+      ? [CAMPO_SVG.centroX - hwSeta * 0.5]
       : ladoAtaque === 'Direita'
-      ? [cx + w * 0.22]
+      ? [CAMPO_SVG.centroX + hwSeta * 0.5]
       : ladoAtaque === 'Centro'
-      ? [cx]
-      : [cx - w * 0.22, cx + w * 0.22];
-
-  const listras = 8;
+      ? [CAMPO_SVG.centroX]
+      : [CAMPO_SVG.centroX - hwSeta * 0.5, CAMPO_SVG.centroX + hwSeta * 0.5];
 
   return (
     <Svg
       width={largura}
       height={altura}
+      viewBox="0 0 2232 1790"
+      preserveAspectRatio="none"
       pointerEvents="none"
       style={StyleSheet.absoluteFill}>
-      <Defs>
-        <ClipPath id="campoClip">
-          <Rect x={m} y={topY} width={w} height={h} rx={16} />
-        </ClipPath>
-        <LinearGradient id="turfaGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={TURFA_LONGE} />
-          <Stop offset="1" stopColor={TURFA} />
-        </LinearGradient>
-      </Defs>
+      {/* Fundo escuro (cantos do topo, atrás do trapézio). */}
+      <Rect x={0} y={0} width={2232} height={1790} fill={FUNDO} />
 
-      {/* Fundo escuro (aparece só na margem arredondada). */}
-      <Rect x={0} y={0} width={largura} height={altura} fill={ARQ_FUNDO} />
-      {/* Gramado full-width + listras ceifadas (clipadas). */}
-      <Rect x={m} y={topY} width={w} height={h} rx={16} fill="url(#turfaGrad)" />
-      <G clipPath="url(#campoClip)">
-        {Array.from({length: listras}).map((_, i) =>
-          i % 2 === 1 ? (
-            <Rect
-              key={`faixa-${i}`}
-              x={m}
-              y={topY + (h / listras) * i}
-              width={w}
-              height={h / listras}
-              fill={TURFA_LISTRA}
-              opacity={0.45}
-            />
-          ) : null,
-        )}
+      {/* GRAMADO trapezoidal + listras ceifadas (coords do SVG do Sofascore). */}
+      <G transform="translate(-101.5 57.927)">
+        <Polygon fill={GRAMA} points="527.028 0 0 1732.074 2433 1732.074 1899.971 0" />
+        <Polygon fill={GRAMA_ESCURA} points="207.778 1202.112 2216.367 1202.112 2287 1448.074 131 1448.074" />
+        <Polygon fill={GRAMA} points="258.98 1022.719 2165.28 1022.719 2217.888 1202.112 206.365 1202.112" />
+        <Polygon fill={GRAMA_ESCURA} points="306.886 859.361 2119.917 859.361 2170.055 1022.719 258.055 1022.719" />
+        <Polygon fill={GRAMA} points="350.576 711.035 2074.885 711.035 2117.9 859.361 307.462 859.361" />
+        <Polygon fill={GRAMA_ESCURA} points="387.793 575.739 2036.14 575.739 2075.578 711.035 351.459 711.035" />
+        <Polygon fill={GRAMA} points="424.133 452.468 2000.064 452.468 2036.433 575.739 389.395 575.739" />
+        <Polygon fill={GRAMA_ESCURA} points="457.92 340.222 1970.335 340.222 2003.357 452.468 425.357 452.468" />
+        <Polygon fill={GRAMA} points="487.706 237.998 1937.524 237.998 1964.557 340.222 461.069 340.222" />
+        <Polygon fill={GRAMA_ESCURA} points="514.747 144.794 1914.915 144.794 1941.022 237.998 489.022 237.998" />
+        <Polygon fill={GRAMA} points="539.521 58.604 1887.269 58.604 1910.166 144.794 516.361 144.794" />
       </G>
-      {/* Contorno + meio-campo. */}
-      <Rect
-        x={m}
-        y={topY}
-        width={w}
-        height={h}
-        rx={16}
-        fill="none"
-        stroke={LINHA}
-        strokeWidth={2}
-      />
-      <Line x1={m} y1={yMeio} x2={largura - m} y2={yMeio} stroke={LINHA} strokeWidth={1.5} />
-      <Ellipse
-        cx={cx}
-        cy={yMeio}
-        rx={raioCirc}
-        ry={raioCirc * 0.62}
-        fill="none"
-        stroke={LINHA}
-        strokeWidth={1.5}
-      />
-      <Circle cx={cx} cy={yMeio} r={2} fill={LINHA} />
 
-      {/* FUNDO (longe) em perspectiva. */}
-      <Path d={golFar} fill="rgba(234,242,230,0.10)" stroke={LINHA} strokeWidth={1.5} />
-      <Path d={areaFar} fill="none" stroke={LINHA} strokeWidth={1.5} />
-      <Path d={peqFar} fill="none" stroke={LINHA} strokeWidth={1.2} />
-      <Path
-        d={`M${cx - areaFarBotW * 0.22} ${areaFarY} Q ${cx} ${
-          areaFarY + h * 0.05
-        } ${cx + areaFarBotW * 0.22} ${areaFarY}`}
-        fill="none"
-        stroke={LINHA}
-        strokeWidth={1.2}
-      />
+      {/* LINHAS do campo (brancas) — coords do SVG do Sofascore. */}
+      <G transform="translate(-101.5 0)">
+        <G transform="translate(45.697 115)">
+          <G transform="translate(670.803 0)">
+            <Path
+              stroke={LINHA_CAMPO}
+              strokeWidth={5}
+              fill="none"
+              d="M965.07147 2.5 L1005.00042 220.462 L2.93778 220.462 L38.25713 2.5296 L965.07147 2.5 Z"
+            />
+            <Path
+              stroke={LINHA_CAMPO}
+              strokeWidth={5}
+              fill="none"
+              d="M747.754858 2.5050774 L757.500562 89.2346 L239.67786 89.2346 L247.766856 2.5050774 L747.754858 2.5050774 Z M295.001085 221.526983 C426.053217 300.824339 563.304447 300.824339 706.754778 221.526983"
+            />
+            <Ellipse cx={496.894} cy={149.948} rx={11.261} ry={5.796} fill={LINHA_CAMPO} />
+          </G>
+          <G transform="translate(189.803 857)">
+            <Rect width={1959} height={6.867} y={192.492} fill={LINHA_CAMPO} />
+            <Ellipse cx={980.458} cy={196.138} rx={26.32} ry={22.904} fill={LINHA_CAMPO} />
+            <Ellipse
+              cx={980.303}
+              cy={203.5}
+              rx={235.696}
+              ry={199.5}
+              stroke={LINHA_CAMPO}
+              strokeWidth={8}
+              fill="none"
+            />
+          </G>
+          <Path
+            stroke={LINHA_CAMPO}
+            strokeWidth={4}
+            fill="none"
+            transform="translate(490.803 3)"
+            d="M0 15 C13.398 13.453 21.325 8.775 23.782 0.968 M1360 14.648 C1352.075 14.344 1347.024 13.491 1344.848 12.09 C1337.704 7.489 1337.256 0 1337.256 0"
+          />
+          <Polygon fill={LINHA_CAMPO} points="491.955 0.001 499 0 7.029 1674.992 0 1675" />
+          <Polygon fill={LINHA_CAMPO} points="1842.58 0.005 1849.467 0.005 2328.584 1674.991 2321.694 1675.005" />
+          <Polygon fill={LINHA_CAMPO} points="498.879 0.005 1844.078 0.005 1844.078 5.054 497.441 5.054" />
+        </G>
+      </G>
 
-      {/* NOSSO gol (base) top-down. */}
+      {/* EXTRAS do jogo: linha defensiva (tracejada) + setas de lado de ataque. */}
       <Line
-        x1={cx - golNearW / 2}
-        y1={baseY}
-        x2={cx + golNearW / 2}
-        y2={baseY}
-        stroke={LINHA_FORTE}
-        strokeWidth={3}
-      />
-      <Rect
-        x={cx - areaNearW / 2}
-        y={baseY - areaNearH}
-        width={areaNearW}
-        height={areaNearH}
-        fill="none"
-        stroke={LINHA}
-        strokeWidth={1.5}
-      />
-      <Rect
-        x={cx - peqNearW / 2}
-        y={baseY - peqNearH}
-        width={peqNearW}
-        height={peqNearH}
-        fill="none"
-        stroke={LINHA}
-        strokeWidth={1.2}
-      />
-      <Path
-        d={`M${cx - areaNearW * 0.22} ${baseY - areaNearH} Q ${cx} ${
-          baseY - areaNearH - h * 0.05
-        } ${cx + areaNearW * 0.22} ${baseY - areaNearH}`}
-        fill="none"
-        stroke={LINHA}
-        strokeWidth={1.2}
-      />
-
-      {/* Linha defensiva tática (tracejada) + setas de lado de ataque. */}
-      <Line
-        x1={m + 10}
+        x1={CAMPO_SVG.centroX - hwLinha + 60}
         y1={yLinha}
-        x2={largura - m - 10}
+        x2={CAMPO_SVG.centroX + hwLinha - 60}
         y2={yLinha}
         stroke={cores.primariaClara}
-        strokeWidth={3}
-        strokeDasharray="10 7"
+        strokeWidth={16}
+        strokeDasharray="60 42"
       />
       {xsSeta.map(ax => (
         <Path key={ax} d={seta(ax)} fill={cores.secundaria} opacity={0.95} />
@@ -1079,18 +1014,12 @@ function PitchEstadio({
 
 export default CampoFUT;
 
-// Cal (linhas do campo) e turfa noturna com listras ceifadas — visual "noite de
-// estádio" do mockup. Turfa fixa (o campo fica noturno mesmo no modo dia por
-// enquanto); as fichas e o resto seguem os tokens do tema.
-const LINHA = 'rgba(234, 242, 230, 0.5)';
-const LINHA_FORTE = 'rgba(234, 242, 230, 0.85)';
-// Verde vivo estilo Sofascore (amostrado do app ~#055228), com fundo levemente
-// mais escuro (perspectiva) e listra ceifada mais clara.
-const TURFA = '#0A5A2E';
-const TURFA_LONGE = '#07421F';
-const TURFA_LISTRA = '#0C6234';
-// Moldura escura que aparece só na margem arredondada do gramado.
-const ARQ_FUNDO = '#0A140D';
+// Cores do gramado e linhas transcritas do SVG do Sofascore: verde base e verde
+// escuro das listras ceifadas, linhas de cal claras, e fundo escuro nos cantos.
+const GRAMA = '#015c2d';
+const GRAMA_ESCURA = '#014522';
+const LINHA_CAMPO = 'rgba(240, 245, 238, 0.9)';
+const FUNDO = '#0A140D';
 
 const styles = StyleSheet.create({
   overlay: {
