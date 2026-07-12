@@ -37,6 +37,31 @@ describe('Copa do Brasil no store', () => {
     expect(saldoDe(usuario.id)).toBe(saldoAntes + 1_575_000);
   });
 
+  it('empate no confronto do usuário é decidido nos pênaltis pela engine (modo manager)', () => {
+    const usuario = estado().clubes[3];
+    estado().iniciarNovaCarreira(usuario.id);
+
+    const confronto = confrontoDoClube(estado().copa!, usuario.id)!;
+    const adversarioId =
+      confronto.timeA === usuario.id ? confronto.timeB : confronto.timeA;
+
+    // Jogo empatado no tempo normal — sem disputa interativa, a engine decide.
+    estado().avancarFaseCopa({golsUsuario: 1, golsAdversario: 1});
+
+    const copa = estado().copa!;
+    const resolvido = copa.fases[0].confrontos.find(
+      c => c.timeA === usuario.id || c.timeB === usuario.id,
+    )!;
+
+    // A fase avançou: o empate NÃO travou o chaveamento.
+    expect(copa.faseAtual).toBe(1);
+    // Empate no tempo normal, decidido nos pênaltis por um dos dois clubes.
+    expect(resolvido.golsA).toBe(resolvido.golsB);
+    expect(resolvido.vencedorPenaltis).toBeDefined();
+    expect([usuario.id, adversarioId]).toContain(resolvido.vencedorPenaltis);
+    expect(resolvido.vencedor).toBe(resolvido.vencedorPenaltis);
+  });
+
   it('simular a copa inteira produz um campeão', () => {
     const usuario = estado().clubes[3];
     estado().iniciarNovaCarreira(usuario.id);

@@ -63,6 +63,7 @@ import {
   type EstadoCopa,
 } from '../engine/season/copaEngine';
 import {
+  disputarPenaltis,
   idsTitularesDisponiveis,
   simularPartida,
 } from '../engine/simulation/matchSimulator';
@@ -159,6 +160,14 @@ export interface ResultadoConfrontoUsuario {
   golsAdversario: number;
   /** Id do clube vencedor nos pênaltis (quando o jogo terminou empatado). */
   vencedorPenaltis?: string;
+}
+
+/** Overall médio de um elenco (0-100). Alimenta a disputa de pênaltis simulada. */
+function overallMedioElenco(jogadores: Player[]): number {
+  if (jogadores.length === 0) {
+    return 60;
+  }
+  return jogadores.reduce((soma, j) => soma + j.overall, 0) / jogadores.length;
 }
 
 
@@ -1586,12 +1595,19 @@ export const useGameStore = create<GameState>((set, get) => ({
         const golsB = usuarioEhA
           ? resultadoUsuario.golsAdversario
           : resultadoUsuario.golsUsuario;
-        return definirResultadoConfronto(
-          confronto,
-          golsA,
-          golsB,
-          resultadoUsuario.vencedorPenaltis,
-        );
+        // Empate → pênaltis resolvidos pela ENGINE (modo manager), como nos
+        // confrontos de CPU. Determinístico: seed a partir do id do confronto.
+        let vencedorPenaltis = resultadoUsuario.vencedorPenaltis;
+        if (golsA === golsB && !vencedorPenaltis) {
+          vencedorPenaltis = disputarPenaltis(
+            criarRNGComSeed(hashString(`${confronto.id}_pen`)),
+            overallMedioElenco(jogadoresDe(confronto.timeA)),
+            overallMedioElenco(jogadoresDe(confronto.timeB)),
+            confronto.timeA,
+            confronto.timeB,
+          );
+        }
+        return definirResultadoConfronto(confronto, golsA, golsB, vencedorPenaltis);
       }
       const clubeA = clubeDe(confronto.timeA);
       const clubeB = clubeDe(confronto.timeB);
