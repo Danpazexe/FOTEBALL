@@ -1,19 +1,24 @@
 /**
- * Treino da Semana. O técnico escolhe O QUE treinar (rotina por posição ou foco
- * num atributo) e COM QUE intensidade (leve → muito forte), vê um resumo do
- * impacto e confirma.
- *
- * UI por disclosure progressivo: em "Por posição" o usuário primeiro escolhe a
- * posição (seletor compacto) e só então vê os treinos daquela função — em vez de
- * exibir o catálogo inteiro de uma vez. O efeito real (evolução por acúmulo de
- * progresso, cansaço, moral e lesões) vive em `treinoAtributos`.
+ * Treino da Semana. O técnico escolhe O QUE treinar (por posição ou habilidade)
+ * e COM QUE intensidade, vê o impacto e confirma. Migrado ao Design System v2.
  */
 
 import React, {useMemo, useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
-import {AppHeader, Botao, ScreenContainer, Section} from '../../components/ui';
-import Icone from '../../components/Icone';
+import {
+  AppBar,
+  Badge,
+  Button,
+  Card,
+  Chip,
+  Icon,
+  Screen,
+  Text,
+  espacamento,
+  useTheme,
+  type CorTexto,
+} from '../../design-system';
 import {useToast} from '../../components/feedback';
 import {calcularEfeitoTreino} from '../../engine/progression/treinoAtributos';
 import {
@@ -25,7 +30,6 @@ import {
   type CategoriaTreino,
   type IntensidadeTreino,
   type SecaoPosicao,
-  type TreinoTipo,
 } from '../../engine/progression/treinoTipos';
 import {grupoDaPosicao} from '../../engine/tactics/posicoes';
 import {useAppNavigation} from '../../navigation/types';
@@ -34,16 +38,6 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {
-  acentos,
-  cores,
-  corCondicao,
-  espaco,
-  raio,
-  sombra,
-  suaves,
-  tipografia,
-} from '../../theme';
 
 const SECOES_POSICAO: SecaoPosicao[] = [
   'Goleiros',
@@ -53,7 +47,6 @@ const SECOES_POSICAO: SecaoPosicao[] = [
   'Atacantes',
 ];
 
-/** Rótulo curto de cada seção para o seletor de posição. */
 const SECAO_CURTA: Record<SecaoPosicao, string> = {
   Goleiros: 'GOL',
   Zagueiros: 'ZAG',
@@ -62,18 +55,18 @@ const SECAO_CURTA: Record<SecaoPosicao, string> = {
   Atacantes: 'ATA',
 };
 
-/** Rótulo de risco de lesão a partir do risco-base da intensidade. */
-function rotuloRisco(risco: number): {texto: string; cor: string} {
+/** Tom (token) de risco de lesão a partir do risco-base da intensidade. */
+function rotuloRisco(risco: number): {texto: string; tom: CorTexto} {
   if (risco <= 0.005) {
-    return {texto: 'Muito baixo', cor: cores.primaria};
+    return {texto: 'Muito baixo', tom: 'success'};
   }
   if (risco <= 0.015) {
-    return {texto: 'Baixo', cor: cores.primaria};
+    return {texto: 'Baixo', tom: 'success'};
   }
   if (risco <= 0.035) {
-    return {texto: 'Médio', cor: acentos.amarelo};
+    return {texto: 'Médio', tom: 'accent'};
   }
-  return {texto: 'Alto', cor: cores.perigo};
+  return {texto: 'Alto', tom: 'danger'};
 }
 
 function media(valores: number[]): number {
@@ -83,20 +76,17 @@ function media(valores: number[]): number {
   return valores.reduce((s, v) => s + v, 0) / valores.length;
 }
 
-/** Cor da moral: alta (verde), média (amarelo), baixa (vermelho). */
-function corMoral(moral: number): string {
-  if (moral >= 75) {
-    return cores.primaria;
-  }
-  if (moral >= 50) {
-    return acentos.amarelo;
-  }
-  return cores.perigo;
+function corMoralTom(moral: number): CorTexto {
+  return moral >= 75 ? 'success' : moral >= 50 ? 'accent' : 'danger';
+}
+function corCondicaoTom(valor: number): CorTexto {
+  return valor >= 75 ? 'success' : valor >= 45 ? 'accent' : 'danger';
 }
 
 function Semana(): React.JSX.Element {
   const nav = useAppNavigation();
   const toast = useToast();
+  const {cores} = useTheme();
   const elenco = useJogadoresUsuario();
   const clube = useGameStore(selecionarClubeUsuario);
   const aplicarTreino = useGameStore(state => state.aplicarTreino);
@@ -121,7 +111,6 @@ function Semana(): React.JSX.Element {
     [],
   );
 
-  // Apenas os treinos relevantes para a escolha atual ficam visíveis.
   const treinosVisiveis = useMemo(
     () =>
       categoria === 'posicao'
@@ -130,7 +119,6 @@ function Semana(): React.JSX.Element {
     [categoria, secao, porPosicao, porHabilidade],
   );
 
-  // Prévia determinística (rng "sem lesão" => sempre 1) do impacto médio.
   const preview = useMemo(() => {
     if (!treino) {
       return null;
@@ -164,12 +152,13 @@ function Semana(): React.JSX.Element {
   const aoConversar = () => {
     const ok = conversarComGrupo();
     toast(
-      ok ? 'Discurso motivacional feito. Moral em alta!' : 'Grupo já reunido esta semana.',
+      ok
+        ? 'Discurso motivacional feito. Moral em alta!'
+        : 'Grupo já reunido esta semana.',
       ok ? 'sucesso' : 'erro',
     );
   };
 
-  // Trocar de categoria/posição re-seleciona um treino válido p/ o novo contexto.
   const trocarCategoria = (cat: CategoriaTreino) => {
     setCategoria(cat);
     if (cat === 'habilidade') {
@@ -197,376 +186,180 @@ function Semana(): React.JSX.Element {
   };
 
   return (
-    <ScreenContainer scroll>
-      <AppHeader
-        titulo="Treino da Semana"
-        subtitulo="Desenvolva os atributos do elenco"
+    <Screen scroll>
+      <AppBar
+        title="Treino da Semana"
+        subtitle="Desenvolva os atributos do elenco"
         onBack={() => nav.goBack()}
       />
 
-      {/* Moral do elenco (card compacto) */}
-      <View style={styles.moralCard}>
-        <View style={styles.moralTopo}>
+      <Card variante="outlined" style={styles.moralCard}>
+        <View style={styles.rowBetween}>
           <View style={styles.moralLabelWrap}>
-            <Icone nome="conversa" tamanho={18} cor={cores.textoSecundario} />
-            <Text style={styles.moralLabel}>Moral do elenco</Text>
+            <Icon nome="conversa" size={18} color="textSecondary" />
+            <Text variant="titleM">Moral do elenco</Text>
           </View>
-          <Text style={[styles.moralValor, {color: corMoral(moralMedia)}]}>
+          <Text variant="titleL" color={corMoralTom(moralMedia)} tabular>
             {moralMedia.toFixed(0)}
           </Text>
         </View>
-        <Botao
+        <Button
           titulo={jaConversou ? 'Grupo já reunido' : 'Conversar com o grupo'}
-          variante="secundaria"
+          variante="secondary"
           disabled={jaConversou}
           onPress={aoConversar}
+          fullWidth
         />
-      </View>
+      </Card>
 
-      {/* O QUE treinar: categoria → (posição) → treino */}
-      <Section titulo="O que treinar">
+      <View style={styles.section}>
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          O que treinar
+        </Text>
         <View style={styles.segment}>
-          {(['posicao', 'habilidade'] as CategoriaTreino[]).map(cat => {
-            const ativo = categoria === cat;
-            return (
-              <Pressable
-                accessibilityRole="button"
-                key={cat}
-                onPress={() => trocarCategoria(cat)}
-                style={[styles.segmentBtn, ativo ? styles.segmentBtnAtivo : null]}>
-                <Text
-                  style={[
-                    styles.segmentTexto,
-                    ativo ? styles.segmentTextoAtivo : null,
-                  ]}>
-                  {cat === 'posicao' ? 'Por posição' : 'Por habilidade'}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {(['posicao', 'habilidade'] as CategoriaTreino[]).map(cat => (
+            <Chip
+              key={cat}
+              label={cat === 'posicao' ? 'Por posição' : 'Por habilidade'}
+              selected={categoria === cat}
+              onPress={() => trocarCategoria(cat)}
+              style={styles.flex}
+            />
+          ))}
         </View>
-
         {categoria === 'posicao' ? (
-          <View style={styles.posPicker}>
-            {SECOES_POSICAO.map(s => {
-              const ativo = s === secao;
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  key={s}
-                  onPress={() => selecionarSecao(s)}
-                  style={[styles.posPill, ativo ? styles.posPillAtivo : null]}>
-                  <Text
-                    style={[
-                      styles.posPillTexto,
-                      ativo ? styles.posPillTextoAtivo : null,
-                    ]}>
-                    {SECAO_CURTA[s]}
-                  </Text>
-                </Pressable>
-              );
-            })}
+          <View style={styles.segment}>
+            {SECOES_POSICAO.map(s => (
+              <Chip
+                key={s}
+                label={SECAO_CURTA[s]}
+                selected={s === secao}
+                onPress={() => selecionarSecao(s)}
+                style={styles.flex}
+              />
+            ))}
           </View>
         ) : null}
-
         <View style={styles.chipRow}>
           {treinosVisiveis.map(t => (
-            <ChipTreino
+            <Chip
               key={t.id}
-              treino={t}
-              ativo={t.id === treinoId}
+              label={t.nome}
+              selected={t.id === treinoId}
               onPress={() => setTreinoId(t.id)}
             />
           ))}
         </View>
-      </Section>
+      </View>
 
-      {/* Intensidade */}
-      <Section titulo="Intensidade">
+      <View style={styles.section}>
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          Intensidade
+        </Text>
         <View style={styles.chipRow}>
-          {INTENSIDADES_ORDEM.map(valor => {
-            const ativo = intensidade === valor;
-            return (
-              <Pressable
-                accessibilityRole="button"
-                key={valor}
-                onPress={() => setIntensidade(valor)}
-                style={[styles.intensChip, ativo ? styles.intensChipAtivo : null]}>
-                <Text
-                  style={[
-                    styles.intensTexto,
-                    ativo ? styles.intensTextoAtivo : null,
-                  ]}>
-                  {INTENSIDADES[valor].rotulo}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {INTENSIDADES_ORDEM.map(valor => (
+            <Chip
+              key={valor}
+              label={INTENSIDADES[valor].rotulo}
+              selected={intensidade === valor}
+              onPress={() => setIntensidade(valor)}
+            />
+          ))}
         </View>
-      </Section>
+      </View>
 
-      {/* Resumo do treino selecionado (detalhe + impacto num só card) */}
       {treino && preview ? (
-        <View style={styles.resumoCard}>
-          <View style={styles.resumoHeader}>
-            <Text style={styles.resumoTitulo}>Treino de {treino.nome}</Text>
-            <View style={styles.afinidadeBadge}>
-              <Text style={styles.afinidadeTexto}>
-                {preview.comAfinidade}/{elenco.length} ideais
-              </Text>
-            </View>
+        <Card variante="outlined" style={styles.resumoCard}>
+          <View style={styles.rowBetween}>
+            <Text variant="titleM" style={styles.flex}>
+              Treino de {treino.nome}
+            </Text>
+            <Badge
+              label={`${preview.comAfinidade}/${elenco.length} ideais`}
+              tom="accent"
+            />
           </View>
 
           <View style={styles.efeitos}>
             {treino.efeitos.map(efeito => (
               <View key={efeito} style={styles.efeitoLinha}>
-                <Icone nome="seta-cima" tamanho={14} cor={cores.primaria} />
-                <Text style={styles.efeitoTexto}>{efeito}</Text>
+                <Icon nome="seta-cima" size={14} color="brand" />
+                <Text variant="bodyM">{efeito}</Text>
               </View>
             ))}
           </View>
 
-          <View style={styles.divisor} />
+          <View style={[styles.divisor, {backgroundColor: cores.border}]} />
 
           <View style={styles.metricaLinha}>
-            <Text style={styles.metricaLabel}>Condição média</Text>
-            <Text style={styles.metricaValor}>
+            <Text variant="bodyM" color="textSecondary">
+              Condição média
+            </Text>
+            <Text variant="labelL" tabular>
               {preview.condAtual.toFixed(0)}%{' '}
-              <Text style={{color: corCondicao(preview.condNova)}}>
+              <Text variant="labelL" color={corCondicaoTom(preview.condNova)}>
                 → {preview.condNova.toFixed(0)}%
               </Text>
             </Text>
           </View>
           <View style={styles.metricaLinha}>
-            <Text style={styles.metricaLabel}>Forma média</Text>
-            <Text style={styles.metricaValor}>
+            <Text variant="bodyM" color="textSecondary">
+              Forma média
+            </Text>
+            <Text variant="labelL" tabular>
               {preview.formaAtual.toFixed(1)}{' '}
-              <Text style={{color: cores.primaria}}>
+              <Text variant="labelL" color="brand">
                 → {preview.formaNova.toFixed(1)}
               </Text>
             </Text>
           </View>
           <View style={styles.metricaLinha}>
-            <Text style={styles.metricaLabel}>Risco de lesão</Text>
-            <Text style={[styles.metricaValor, {color: risco.cor}]}>
+            <Text variant="bodyM" color="textSecondary">
+              Risco de lesão
+            </Text>
+            <Text variant="labelL" color={risco.tom}>
               {risco.texto}
             </Text>
           </View>
-        </View>
+        </Card>
       ) : null}
 
-      <Botao titulo="Confirmar treino" variante="ouro" onPress={confirmar} />
-    </ScreenContainer>
-  );
-}
-
-function ChipTreino({
-  treino,
-  ativo,
-  onPress,
-}: {
-  treino: TreinoTipo;
-  ativo: boolean;
-  onPress: () => void;
-}): React.JSX.Element {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      onPress={onPress}
-      style={[styles.chip, ativo ? styles.chipAtivo : null]}>
-      <Text style={[styles.chipTexto, ativo ? styles.chipTextoAtivo : null]}>
-        {treino.nome}
-      </Text>
-    </Pressable>
+      <Button
+        titulo="Confirmar treino"
+        variante="primary"
+        onPress={confirmar}
+        fullWidth
+      />
+    </Screen>
   );
 }
 
 export default Semana;
 
 const styles = StyleSheet.create({
-  moralCard: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.sm,
-    marginBottom: espaco.lg,
-    padding: espaco.md,
-    ...sombra.card,
-  },
-  moralTopo: {
-    alignItems: 'center',
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  moralCard: {gap: espacamento[2]},
+  rowBetween: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
   moralLabelWrap: {
-    alignItems: 'center',
     flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  moralLabel: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  moralValor: {
-    ...tipografia.numero,
-  },
-  segment: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.pill,
-    borderWidth: 1,
-    flexDirection: 'row',
-    padding: 3,
-    ...sombra.card,
-  },
-  segmentBtn: {
     alignItems: 'center',
-    borderRadius: raio.pill,
-    flex: 1,
-    paddingVertical: espaco.sm,
+    gap: espacamento[1],
   },
-  segmentBtnAtivo: {
-    backgroundColor: cores.primaria,
-  },
-  segmentTexto: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  segmentTextoAtivo: {
-    color: cores.contrastePrimaria,
-  },
-  posPicker: {
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  posPill: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.pill,
-    flex: 1,
-    paddingVertical: espaco.sm,
-  },
-  posPillAtivo: {
-    backgroundColor: cores.secundaria,
-  },
-  posPillTexto: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  posPillTextoAtivo: {
-    color: cores.contrastePrimaria,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.sm,
-  },
-  chip: {
-    borderColor: cores.borda,
-    borderRadius: raio.pill,
-    borderWidth: 1,
-    justifyContent: 'center',
-    minHeight: 38,
-    paddingHorizontal: espaco.md,
-  },
-  chipAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  chipTexto: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  chipTextoAtivo: {
-    color: cores.contrastePrimaria,
-  },
-  intensChip: {
-    alignItems: 'center',
-    borderColor: cores.borda,
-    borderRadius: raio.pill,
-    borderWidth: 1,
-    flexGrow: 1,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-  },
-  intensChipAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  intensTexto: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  intensTextoAtivo: {
-    color: cores.contrastePrimaria,
-  },
-  resumoCard: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.sm,
-    marginBottom: espaco.lg,
-    padding: espaco.md,
-    ...sombra.card,
-  },
-  resumoHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  resumoTitulo: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  // Badge padrão do tema claro: fundo suave + texto do acento (mesmo matiz).
-  afinidadeBadge: {
-    backgroundColor: suaves.amarelo,
-    borderRadius: raio.sm,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 3,
-  },
-  afinidadeTexto: {
-    color: acentos.amarelo,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  efeitos: {
-    gap: espaco.xs,
-  },
+  section: {gap: espacamento[2]},
+  segment: {flexDirection: 'row', gap: espacamento[1]},
+  flex: {flex: 1},
+  chipRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
+  resumoCard: {gap: espacamento[2]},
+  efeitos: {gap: espacamento[1]},
   efeitoLinha: {
+    flexDirection: 'row',
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
+    gap: espacamento[2],
   },
-  efeitoTexto: {
-    color: cores.texto,
-    fontSize: 14,
-  },
-  divisor: {
-    backgroundColor: cores.borda,
-    height: StyleSheet.hairlineWidth,
-    marginVertical: espaco.xs,
-  },
-  metricaLinha: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  metricaLabel: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-  },
-  metricaValor: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-  },
+  divisor: {height: StyleSheet.hairlineWidth},
+  metricaLinha: {flexDirection: 'row', justifyContent: 'space-between'},
 });
