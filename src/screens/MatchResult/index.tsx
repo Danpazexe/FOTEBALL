@@ -646,6 +646,15 @@ function MatchResult(): React.JSX.Element {
     return extrairFinalizacoes(partida, posicoes);
   }, [partida, jogadores]);
 
+  // Nome por id (para o painel do chute selecionado).
+  const nomesJogadores = useMemo(() => {
+    const mapa: Record<string, string> = {};
+    for (const j of jogadores) {
+      mapa[j.id] = j.nome;
+    }
+    return mapa;
+  }, [jogadores]);
+
   if (!partida || !dados) {
     return (
       <View style={styles.tela}>
@@ -993,7 +1002,12 @@ function MatchResult(): React.JSX.Element {
             ))}
           </View>
         </View>
-        <MapaFinalizacoes finalizacoes={finalizacoesMapa} largura={larguraMapa} />
+        <MapaFinalizacoes
+          finalizacoes={finalizacoesMapa}
+          largura={larguraMapa}
+          nomes={nomesJogadores}
+          chaveFiltro={`${mapaTime}-${mapaTempo}`}
+        />
       </Card>
 
       {est && est.momentumPorMinuto.length > 0 ? (
