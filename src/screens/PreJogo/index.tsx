@@ -29,13 +29,8 @@ import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
 } from '../../api/database/seed/defaults';
-import {
-  avaliarConfronto,
-  taticaProvavelIA,
-  type NivelConfronto,
-} from '../../engine/tactics/preview';
+import {taticaProvavelIA} from '../../engine/tactics/preview';
 import {validarEscalacao} from '../../engine/tactics/validacao';
-import {analisarAdversario, type Setor} from '../../engine/simulation/scout';
 import {calcularMando} from '../../engine/simulation/probabilityCalc';
 import {preverResultado} from '../../engine/simulation/probabilidadeResultado';
 import {useAppNavigation} from '../../navigation/types';
@@ -47,7 +42,6 @@ import {
 } from '../../store/useGameStore';
 import {
   cores,
-  comAlfa,
   corDoClube,
   espaco,
   raio,
@@ -76,28 +70,6 @@ const OPCOES_LINHA: Tatica['linhaDefensiva'][] = [
   'Adiantada',
 ];
 const OPCOES_RITMO: Tatica['ritmo'][] = ['Lento', 'Normal', 'Intenso'];
-
-const NIVEL_TEXTO: Record<NivelConfronto, string> = {
-  favoravel: 'Confronto favorável a você',
-  neutro: 'Confronto equilibrado',
-  arriscado: 'Confronto arriscado',
-};
-
-const SETOR_LABEL: Record<Setor, string> = {
-  ataque: 'o ataque deles',
-  meio: 'o meio-campo deles',
-  defesa: 'a defesa deles',
-};
-
-function nivelCor(n: NivelConfronto): string {
-  if (n === 'favoravel') {
-    return cores.sucesso;
-  }
-  if (n === 'arriscado') {
-    return cores.perigo;
-  }
-  return cores.aviso;
-}
 
 function PreJogo(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -174,15 +146,6 @@ function PreJogo(): React.JSX.Element {
     }
   }, [advInfo, definirTaticaAdversario]);
 
-  // Scout do adversário — craque + ponto fraco do elenco dele.
-  const scout = useMemo(() => {
-    if (!advInfo) {
-      return null;
-    }
-    const elenco = jogadores.filter(j => j.clubeId === advInfo.id);
-    return elenco.length > 0 ? analisarAdversario(elenco) : null;
-  }, [advInfo, jogadores]);
-
   const formacao = clubeUsuario?.formacaoAtual ?? null;
   const taticaAtual = clubeUsuario?.taticaAtual ?? null;
 
@@ -225,7 +188,6 @@ function PreJogo(): React.JSX.Element {
   const forcaDele = mandoCasa ? confronto.forcaFora : confronto.forcaCasa;
   const adversario = mandoCasa ? confronto.fora : confronto.casa;
   const advTatica = advInfo?.tatica ?? null;
-  const leitura = advTatica ? avaliarConfronto(taticaAtual, advTatica) : null;
   const diff = forcaMinha.overall + (mandoCasa ? 3 : 0) - forcaDele.overall;
 
   // "Quem vai ganhar?" — coerente com a simulação (mesmo modelo de gols).
@@ -436,73 +398,6 @@ function PreJogo(): React.JSX.Element {
             </View>
           ) : null}
         </Section>
-
-        {/* DOSSIÊ DO ADVERSÁRIO — intel acionável (sem caixa de números soltos) */}
-        {advTatica || scout ? (
-          <Section titulo={`Dossiê · ${adversario.nome}`}>
-            <View style={styles.dossieCard}>
-              {advTatica ? (
-                <View style={styles.dossieLinha}>
-                  <Text style={styles.dossieRotulo}>Como jogam</Text>
-                  <View style={styles.dossieChips}>
-                    <Chip label={advTatica.estiloOfensivo} pequeno />
-                    <Chip
-                      label={`Linha ${advTatica.linhaDefensiva.toLowerCase()}`}
-                      pequeno
-                    />
-                    <Chip label={advTatica.marcacao} pequeno />
-                  </View>
-                </View>
-              ) : null}
-
-              {scout?.melhorJogador ? (
-                <View style={styles.dossieLinha}>
-                  <Text style={styles.dossieRotulo}>Vigie</Text>
-                  <Text style={styles.dossieValor} numberOfLines={1}>
-                    <Text style={styles.craque}>★ {scout.melhorJogador.nome}</Text>
-                    <Text style={styles.dossieDetalhe}>
-                      {'  '}
-                      {scout.melhorJogador.posicao} ·{' '}
-                    </Text>
-                    <Text style={[styles.craque, tabular]}>
-                      {scout.melhorJogador.overall}
-                    </Text>
-                  </Text>
-                </View>
-              ) : null}
-
-              {scout ? (
-                <View style={styles.dossieLinha}>
-                  <Text style={styles.dossieRotulo}>Ataque por</Text>
-                  <Text style={[styles.dossieValor, styles.pontoFraco]}>
-                    {SETOR_LABEL[scout.setorFraco]}
-                  </Text>
-                </View>
-              ) : null}
-
-              {leitura ? (
-                <View style={styles.leituraBox}>
-                  <View
-                    style={[
-                      styles.nivelBadge,
-                      {
-                        backgroundColor: comAlfa(nivelCor(leitura.nivel), 0.14),
-                        borderColor: comAlfa(nivelCor(leitura.nivel), 0.4),
-                      },
-                    ]}>
-                    <Text
-                      style={[styles.nivelTxt, {color: nivelCor(leitura.nivel)}]}>
-                      {NIVEL_TEXTO[leitura.nivel]}
-                    </Text>
-                  </View>
-                  {leitura.sugestao ? (
-                    <Text style={styles.sugestao}>{leitura.sugestao}</Text>
-                  ) : null}
-                </View>
-              ) : null}
-            </View>
-          </Section>
-        ) : null}
 
         {/* ESCALAÇÃO */}
         <Section titulo="Escalação">
@@ -759,69 +654,6 @@ const styles = StyleSheet.create({
     color: cores.texto,
     fontSize: 13,
     fontWeight: '600',
-  },
-  // DOSSIÊ
-  dossieCard: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.sm,
-    padding: espaco.lg,
-    ...sombra.suave,
-  },
-  dossieLinha: {
-    gap: espaco.xs,
-  },
-  dossieRotulo: {
-    color: cores.textoMuted,
-    ...tipografia.secao,
-  },
-  dossieValor: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  dossieDetalhe: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  dossieChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.xs,
-  },
-  craque: {
-    color: cores.secundaria,
-    fontWeight: '900',
-  },
-  pontoFraco: {
-    color: cores.sucesso,
-  },
-  leituraBox: {
-    borderTopColor: cores.borda,
-    borderTopWidth: 1,
-    gap: espaco.xs,
-    marginTop: espaco.xs,
-    paddingTop: espaco.sm,
-  },
-  nivelBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 3,
-  },
-  nivelTxt: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  sugestao: {
-    color: cores.textoSecundario,
-    fontSize: 12.5,
-    fontWeight: '600',
-    lineHeight: 17,
   },
   // ESCALAÇÃO
   melhoresWrap: {
