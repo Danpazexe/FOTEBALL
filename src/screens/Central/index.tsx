@@ -24,7 +24,7 @@ const DESTAQUES: Atalho[] = [
     rotulo: 'Elenco',
     icone: 'elenco',
     descricao: 'Jogadores e status',
-    ir: nav => nav.navigate('Squad'),
+    ir: nav => nav.navigate('MainTabs', {screen: 'Elenco'}),
   },
   {
     rotulo: 'Tática',
@@ -54,6 +54,12 @@ const GRUPOS: {titulo: string; itens: Atalho[]}[] = [
       {rotulo: 'Copa', icone: 'trofeu', ir: nav => nav.navigate('Copa')},
       {rotulo: 'Base', icone: 'base', ir: nav => nav.navigate('Academia')},
       {rotulo: 'Troféus', icone: 'medalha', ir: nav => nav.navigate('Gabinete')},
+    ],
+  },
+  {
+    titulo: 'Sistema',
+    itens: [
+      {rotulo: 'Ajustes', icone: 'ajustes', ir: nav => nav.navigate('Settings')},
     ],
   },
 ];

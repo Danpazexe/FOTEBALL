@@ -522,9 +522,20 @@ function Home(): React.JSX.Element {
           {/* Cabeçalho "hero" cinematográfico: estádio ao fundo + véu + texto claro. */}
           <ImageBackground source={FUNDO_ESTADIO} style={styles.hero}>
             <View style={styles.heroVeu} />
-            <Text style={styles.eyebrow} numberOfLines={1}>
-              {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
-            </Text>
+            <View style={styles.eyebrowRow}>
+              <Text
+                style={[styles.eyebrow, styles.eyebrowFlex]}
+                numberOfLines={1}>
+                {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
+              </Text>
+              <Pressable
+                onPress={() => nav.navigate('Settings')}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Ajustes">
+                <Icone nome="ajustes" tamanho={20} cor={cores.texto} />
+              </Pressable>
+            </View>
             <View style={styles.tituloRow}>
               <Text style={[styles.titulo, styles.heroTexto]} numberOfLines={1}>
                 Mesa do Técnico
@@ -576,7 +587,7 @@ function Home(): React.JSX.Element {
                   ? cores.texto
                   : cores.perigo
               }
-              onPress={() => nav.navigate('Squad')}
+              onPress={() => nav.navigate('MainTabs', {screen: 'Elenco'})}
             />
             <StatCard
               label="Reputação"
@@ -931,6 +942,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.16)',
     borderColor: 'rgba(255, 255, 255, 0.3)',
   },
+  eyebrowRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espaco.sm,
+  },
+  eyebrowFlex: {flex: 1},
   eyebrow: {
     color: cores.primaria,
     fontSize: 12,

@@ -2,13 +2,13 @@ import type {NavigatorScreenParams, RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useNavigation, useRoute} from '@react-navigation/native';
 
-/** Abas inferiores (gestão do clube no dia a dia). */
+/** Abas inferiores: Início · Competições · Central · Elenco · Clube. */
 export type MainTabsParamList = {
-  Central: undefined;
-  Competition: undefined;
   Home: undefined;
+  Competition: undefined;
+  Central: undefined;
+  Elenco: undefined;
   Club: undefined;
-  Settings: undefined;
 };
 
 /** Pilha raiz: menu, criação de carreira, app principal e telas modais. */
@@ -32,9 +32,10 @@ export type RootStackParamList = {
   Gabinete: undefined;
   Calendario: undefined;
   Contratos: undefined;
-  Squad: undefined;
   Tactics: undefined;
   Demissao: undefined;
+  /** Ajustes saiu da tab bar; agora é tela de stack (acessível pela Central). */
+  Settings: undefined;
 };
 
 export type RootNavigation = NativeStackNavigationProp<RootStackParamList>;

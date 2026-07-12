@@ -16,7 +16,7 @@ import Academia from '../screens/Academia';
 import Gabinete from '../screens/Gabinete';
 import Calendario from '../screens/Calendario';
 import Contratos from '../screens/Contratos';
-import Squad from '../screens/Squad';
+import Settings from '../screens/Settings';
 import Tactics from '../screens/Tactics';
 import Demissao from '../screens/Demissao';
 import {TabNavigator} from './TabNavigator';
@@ -53,7 +53,7 @@ export function RootNavigator() {
       <Stack.Screen name="Gabinete" component={Gabinete} />
       <Stack.Screen name="Calendario" component={Calendario} />
       <Stack.Screen name="Contratos" component={Contratos} />
-      <Stack.Screen name="Squad" component={Squad} />
+      <Stack.Screen name="Settings" component={Settings} />
       <Stack.Screen name="Tactics" component={Tactics} />
       <Stack.Screen
         name="Demissao"
