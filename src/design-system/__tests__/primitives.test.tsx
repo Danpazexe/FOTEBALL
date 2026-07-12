@@ -58,11 +58,11 @@ describe('primitives do design system', () => {
     expect(estiloDoNo(r.toJSON()).backgroundColor).toBe(coresEscuras.surface);
   });
 
-  it('Pressable renderiza com alvo de toque acessível', () => {
+  it('Pressable com minSize garante alvo de toque acessível', () => {
     let r!: TestRenderer.ReactTestRenderer;
     act(() => {
       r = TestRenderer.create(
-        <Pressable disabled accessibilityLabel="teste">
+        <Pressable minSize="min" disabled accessibilityLabel="teste">
           <Text>x</Text>
         </Pressable>,
       );
