@@ -46,17 +46,8 @@ const ARQUIVOS = {
   varAnulado: 'varanulado.mp3',
   varChecando: 'varchecando.mp3',
   impedimentoAnulado: 'impedimentolanceanulado.mp3',
-  // Ambiente de estádio (loop durante a partida) — usa o crowd do Mini Cup
-  // (mesmo arquivo do ambiente da disputa de pênaltis, 22s em loop).
+  // Ambiente de estádio (loop durante a partida, 22s em loop).
   torcida: 'pk_torcida.m4a',
-  // Disputa de pênaltis interativa (áudio do Mini Cup, fatiado do sprite).
-  pkChute: 'pk_chute.m4a',
-  pkGol: 'pk_gol.m4a',
-  pkGol2: 'pk_gol2.m4a',
-  pkDefesa: 'pk_defesa.m4a',
-  pkTrave: 'pk_trave.m4a',
-  pkTorcida: 'pk_torcida.m4a',
-  pkFesta: 'pk_festa.m4a',
 } as const;
 
 type NomeSom = keyof typeof ARQUIVOS;
@@ -82,20 +73,6 @@ function reproduzirTorcida(): void {
   }
   som.setNumberOfLoops(-1);
   som.setVolume(VOLUME_TORCIDA * volumeEfeitos);
-  som.play();
-}
-
-/** Ambiente da disputa de pênaltis (loop, volume de fundo). */
-let pkTorcidaAtiva = false;
-const VOLUME_PK_TORCIDA = 0.5;
-
-function reproduzirPkTorcida(): void {
-  const som = sons.get('pkTorcida');
-  if (!habilitado || !som || !prontos.has('pkTorcida')) {
-    return;
-  }
-  som.setNumberOfLoops(-1);
-  som.setVolume(VOLUME_PK_TORCIDA * volumeEfeitos);
   som.play();
 }
 
@@ -137,10 +114,6 @@ export function inicializarSons(): void {
           if (nome === 'torcida') {
             if (torcidaAtiva) {
               reproduzirTorcida();
-            }
-          } else if (nome === 'pkTorcida') {
-            if (pkTorcidaAtiva) {
-              reproduzirPkTorcida();
             }
           } else if (pendentes.delete(nome)) {
             // Lance aconteceu enquanto o som carregava? Toca agora (atraso de
@@ -188,18 +161,6 @@ export function iniciarTorcida(): void {
 export function pararTorcida(): void {
   torcidaAtiva = false;
   sons.get('torcida')?.stop();
-}
-
-/** Inicia o ambiente da disputa de pênaltis em loop (ao abrir a tela). */
-export function iniciarPkTorcida(): void {
-  pkTorcidaAtiva = true;
-  reproduzirPkTorcida();
-}
-
-/** Para o ambiente da disputa (ao sair da tela). */
-export function pararPkTorcida(): void {
-  pkTorcidaAtiva = false;
-  sons.get('pkTorcida')?.stop();
 }
 
 function tocar(nome: NomeSom): void {
@@ -299,33 +260,4 @@ export function tocarIntervalo(): void {
 /** Apito final: varia entre as duas gravações para não enjoar. */
 export function tocarFimDeJogo(): void {
   tocar(Math.random() < 0.5 ? 'fimDeJogo' : 'fimDeJogoAlt');
-}
-
-// --- Disputa de pênaltis interativa (áudio do Mini Cup) ---------------------
-
-const PK_GOLS: NomeSom[] = ['pkGol', 'pkGol2'];
-
-/** Chute do usuário (swipe). */
-export function tocarPkChute(): void {
-  tocar('pkChute');
-}
-
-/** Gol na disputa (varia entre duas gravações). */
-export function tocarPkGol(): void {
-  tocar(PK_GOLS[Math.floor(Math.random() * PK_GOLS.length)]);
-}
-
-/** Defesa do goleiro. */
-export function tocarPkDefesa(): void {
-  tocar('pkDefesa');
-}
-
-/** Bola na trave. */
-export function tocarPkTrave(): void {
-  tocar('pkTrave');
-}
-
-/** Comemoração ao vencer a disputa. */
-export function tocarPkFesta(): void {
-  tocar('pkFesta');
 }

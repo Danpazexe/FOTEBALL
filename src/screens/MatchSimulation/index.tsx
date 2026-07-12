@@ -128,13 +128,6 @@ const MULTIPLICADORES = [1, 2, 5, 10] as const;
 const TICK_MS = 90;
 const PASSO_BASE_SEG = 6;
 
-function mediaOverall(jogadores: Player[]): number {
-  if (jogadores.length === 0) {
-    return 60;
-  }
-  return jogadores.reduce((soma, j) => soma + j.overall, 0) / jogadores.length;
-}
-
 function mapearNomesJogadores(jogadores: Player[]): Record<string, string> {
   const mapa: Record<string, string> = {};
   for (const jogador of jogadores) {
@@ -987,23 +980,13 @@ function MatchSimulation(): React.JSX.Element | null {
     tocarFimDeJogo();
     const e = estadoRef.current;
     if (modoCopaRef.current) {
-      // Usuário manda o jogo: gols dele = placar da casa.
+      // Usuário manda o jogo: gols dele = placar da casa. No empate, os pênaltis
+      // são resolvidos pela ENGINE dentro de avancarFaseCopa (modo manager) —
+      // igual aos confrontos de CPU, sem disputa interativa.
       const golsUsuario = e.placarCasa;
       const golsAdversario = e.placarFora;
-      if (golsUsuario === golsAdversario) {
-        // Empate → disputa de pênaltis INTERATIVA (o usuário bate). A tela
-        // Penaltis resolve o confronto (avancarFaseCopa) e volta para a Copa.
-        nav.replace('Penaltis', {
-          fixtureId: fixture.id,
-          clubeAdversarioId: fixture.timeFora,
-          forcaAdversario: mediaOverall(jogadoresAdversarioRef.current),
-          golsUsuario,
-          golsAdversario,
-        });
-      } else {
-        useGameStore.getState().avancarFaseCopa({golsUsuario, golsAdversario});
-        nav.navigate('Copa');
-      }
+      useGameStore.getState().avancarFaseCopa({golsUsuario, golsAdversario});
+      nav.navigate('Copa');
     } else {
       useGameStore
         .getState()
@@ -1017,11 +1000,8 @@ function MatchSimulation(): React.JSX.Element | null {
         );
     }
     // Salva JÁ o resultado — não espera o debounce do autosave (se o app fechar
-    // logo após a partida, o progresso não pode se perder).
-    // Obs.: no empate de Copa, o confronto ainda NÃO foi resolvido aqui (quem
-    // resolve é a tela Penaltis, via avancarFaseCopa). O save reflete a Copa não
-    // resolvida de propósito: fechar o app durante a disputa faz rejogar a
-    // partida (sem corromper o chaveamento) — aceito para esta fase.
+    // logo após a partida, o progresso não pode se perder). Na Copa o confronto
+    // já foi resolvido acima (avancarFaseCopa), então o save reflete a fase certa.
     salvarAgora();
   }, [terminou, fixture, nav]);
 

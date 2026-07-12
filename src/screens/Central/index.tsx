@@ -7,7 +7,7 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 
-import {AppHeader, Botao, ScreenContainer} from '../../components/ui';
+import {AppHeader, ScreenContainer} from '../../components/ui';
 import Icone, {type IconeNome} from '../../components/Icone';
 import {useAppNavigation, type RootNavigation} from '../../navigation/types';
 import {cores, espaco, raio, sombra} from '../../theme';
@@ -56,16 +56,6 @@ const GRUPOS: {titulo: string; itens: Atalho[]}[] = [
       {rotulo: 'Troféus', icone: 'medalha', ir: nav => nav.navigate('Gabinete')},
     ],
   },
-  {
-    titulo: 'Testes',
-    itens: [
-      {
-        rotulo: 'Pênaltis',
-        icone: 'jogar',
-        ir: nav => nav.navigate('Penaltis', {teste: true}),
-      },
-    ],
-  },
 ];
 
 function Central(): React.JSX.Element {
@@ -74,16 +64,6 @@ function Central(): React.JSX.Element {
   return (
     <ScreenContainer scroll>
       <AppHeader titulo="Central do Técnico" subtitulo="Gestão do clube" />
-
-      {/* Atalho em destaque para testar a disputa de pênaltis (modo teste). */}
-      <View style={styles.testeWrap}>
-        <Botao
-          variante="ouro"
-          icone="jogar"
-          titulo="Testar pênaltis (Mini Cup)"
-          onPress={() => nav.navigate('Penaltis', {teste: true})}
-        />
-      </View>
 
       {/* Destaques — uso diário (Elenco / Tática). */}
       <View style={styles.destaquesRow}>
@@ -138,10 +118,6 @@ function Central(): React.JSX.Element {
 export default Central;
 
 const styles = StyleSheet.create({
-  testeWrap: {
-    paddingHorizontal: espaco.lg,
-    paddingTop: espaco.md,
-  },
   destaquesRow: {
     flexDirection: 'row',
     gap: espaco.md,

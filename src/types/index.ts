@@ -42,16 +42,6 @@ export type {
 } from './competition';
 export type {Federacao, Regiao} from './federacao';
 export type {
-  Cobrador,
-  CobrancaPenalti,
-  DetalheResolucaoCobranca,
-  EstadoDisputaPenaltis,
-  FaseDisputa,
-  PosicaoChute,
-  ResultadoCobranca,
-  VencedorDisputa,
-} from './penaltis';
-export type {
   EstadoFinanceiro,
   MotivoDemissao,
   ResultadoCarreira,
