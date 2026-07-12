@@ -98,7 +98,6 @@ function Squad() {
         subtitulo={`${resumo.total} jogadores · média ${resumo.media} · folha ${moedaCompacta(
           resumo.folha,
         )}`}
-        onBack={() => nav.goBack()}
       />
 
       <MetricsRow>

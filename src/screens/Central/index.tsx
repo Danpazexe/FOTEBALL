@@ -1,16 +1,22 @@
 /**
  * Central do Técnico — hub de atalhos para as telas de gestão, agrupados por
- * contexto: Elenco e Tática em DESTAQUE no topo (uso diário), depois Gestão e
- * Competição & carreira. Movida da Home para descongestioná-la.
+ * contexto: Elenco/Tática/Treino em DESTAQUE no topo (uso diário), depois Gestão,
+ * Competição & carreira e Sistema. Primeira tela migrada ao Design System v2.
  */
 
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
-import {AppHeader, ScreenContainer} from '../../components/ui';
-import Icone, {type IconeNome} from '../../components/Icone';
+import {
+  AppBar,
+  Card,
+  Icon,
+  Screen,
+  Text,
+  espacamento,
+} from '../../design-system';
+import type {IconeNome} from '../../components/Icone';
 import {useAppNavigation, type RootNavigation} from '../../navigation/types';
-import {cores, espaco, raio, sombra} from '../../theme';
 
 type Atalho = {
   rotulo: string;
@@ -24,7 +30,7 @@ const DESTAQUES: Atalho[] = [
     rotulo: 'Elenco',
     icone: 'elenco',
     descricao: 'Jogadores e status',
-    ir: nav => nav.navigate('Squad'),
+    ir: nav => nav.navigate('MainTabs', {screen: 'Elenco'}),
   },
   {
     rotulo: 'Tática',
@@ -56,131 +62,83 @@ const GRUPOS: {titulo: string; itens: Atalho[]}[] = [
       {rotulo: 'Troféus', icone: 'medalha', ir: nav => nav.navigate('Gabinete')},
     ],
   },
+  {
+    titulo: 'Sistema',
+    itens: [
+      {rotulo: 'Ajustes', icone: 'ajustes', ir: nav => nav.navigate('Settings')},
+    ],
+  },
 ];
 
 function Central(): React.JSX.Element {
   const nav = useAppNavigation();
 
   return (
-    <ScreenContainer scroll>
-      <AppHeader titulo="Central do Técnico" subtitulo="Gestão do clube" />
+    <Screen scroll>
+      <AppBar title="Central do Técnico" subtitle="Gestão do clube" />
 
-      {/* Destaques — uso diário (Elenco / Tática). */}
-      <View style={styles.destaquesRow}>
+      {/* Destaques — uso diário (Elenco / Tática / Treino). */}
+      <View style={estilos.destaquesRow}>
         {DESTAQUES.map(item => (
-          <Pressable
+          <Card
             key={item.rotulo}
-            accessibilityRole="button"
-            accessibilityLabel={item.rotulo}
+            variante="interactive"
             onPress={() => item.ir(nav)}
-            style={({pressed}) => [
-              styles.destaque,
-              pressed ? styles.pressed : null,
-            ]}>
-            <Icone nome={item.icone} tamanho={30} cor={cores.primaria} />
-            <Text style={styles.destaqueTitulo}>{item.rotulo}</Text>
+            style={estilos.destaque}>
+            <Icon nome={item.icone} size="xl" color="brand" />
+            <Text variant="titleM" style={estilos.destaqueTitulo}>
+              {item.rotulo}
+            </Text>
             {item.descricao ? (
-              <Text style={styles.destaqueSub} numberOfLines={1}>
+              <Text variant="caption" color="textSecondary" numberOfLines={1}>
                 {item.descricao}
               </Text>
             ) : null}
-          </Pressable>
+          </Card>
         ))}
       </View>
 
       {GRUPOS.map(grupo => (
-        <View key={grupo.titulo} style={styles.grupo}>
-          <Text style={styles.grupoTitulo}>{grupo.titulo}</Text>
-          <View style={styles.grid}>
+        <View key={grupo.titulo} style={estilos.grupo}>
+          <Text
+            variant="labelM"
+            color="textSecondary"
+            style={estilos.grupoTitulo}>
+            {grupo.titulo.toUpperCase()}
+          </Text>
+          <View style={estilos.grid}>
             {grupo.itens.map(item => (
-              <Pressable
+              <Card
                 key={item.rotulo}
-                accessibilityRole="button"
-                accessibilityLabel={item.rotulo}
+                variante="interactive"
                 onPress={() => item.ir(nav)}
-                style={({pressed}) => [
-                  styles.chip,
-                  pressed ? styles.pressed : null,
-                ]}>
-                <Icone nome={item.icone} tamanho={24} cor={cores.primaria} />
-                <Text style={styles.chipTexto} numberOfLines={1}>
+                style={estilos.chip}>
+                <Icon nome={item.icone} size="lg" color="brand" />
+                <Text variant="labelL" numberOfLines={1}>
                   {item.rotulo}
                 </Text>
-              </Pressable>
+              </Card>
             ))}
           </View>
         </View>
       ))}
-    </ScreenContainer>
+    </Screen>
   );
 }
 
 export default Central;
 
-const styles = StyleSheet.create({
-  destaquesRow: {
-    flexDirection: 'row',
-    gap: espaco.md,
-    paddingHorizontal: espaco.lg,
-    paddingTop: espaco.md,
-  },
-  destaque: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flex: 1,
-    gap: espaco.xs,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.lg,
-    ...sombra.suave,
-  },
-  destaqueTitulo: {
-    color: cores.texto,
-    fontSize: 17,
-    fontWeight: '900',
-    marginTop: espaco.xs,
-  },
-  destaqueSub: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  grupo: {
-    gap: espaco.sm,
-    paddingHorizontal: espaco.lg,
-    paddingTop: espaco.lg,
-  },
-  grupoTitulo: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.md,
-  },
+const estilos = StyleSheet.create({
+  destaquesRow: {flexDirection: 'row', gap: espacamento[3]},
+  destaque: {flex: 1, gap: espacamento[1]},
+  destaqueTitulo: {marginTop: espacamento[1]},
+  grupo: {gap: espacamento[2], marginTop: espacamento[4]},
+  grupoTitulo: {letterSpacing: 1},
+  grid: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[3]},
   chip: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
     flexBasis: '30%',
     flexGrow: 1,
-    gap: espaco.sm,
-    paddingVertical: espaco.lg,
-    ...sombra.suave,
-  },
-  chipTexto: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  pressed: {
-    backgroundColor: cores.superficieAlt,
-    transform: [{scale: 0.99}],
+    alignItems: 'center',
+    gap: espacamento[2],
   },
 });

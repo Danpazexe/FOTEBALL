@@ -18,19 +18,19 @@ import {raio, type Tema} from '../../theme';
 import {useEstilos, useTema} from '../../theme/useTema';
 
 const ICONES: Record<string, IconeNome> = {
-  Central: 'central',
-  Competition: 'tabela',
   Home: 'inicio',
+  Competition: 'tabela',
+  Central: 'central',
+  Elenco: 'elenco',
   Club: 'clube',
-  Settings: 'ajustes',
 };
 
 const ROTULOS: Record<string, string> = {
-  Central: 'Central',
-  Competition: 'Tabela',
   Home: 'Início',
+  Competition: 'Competições',
+  Central: 'Central',
+  Elenco: 'Elenco',
   Club: 'Clube',
-  Settings: 'Ajustes',
 };
 
 const MOLA = {damping: 15, stiffness: 170, mass: 0.6};
