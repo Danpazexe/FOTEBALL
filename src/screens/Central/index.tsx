@@ -62,12 +62,6 @@ const GRUPOS: {titulo: string; itens: Atalho[]}[] = [
       {rotulo: 'Troféus', icone: 'medalha', ir: nav => nav.navigate('Gabinete')},
     ],
   },
-  {
-    titulo: 'Sistema',
-    itens: [
-      {rotulo: 'Ajustes', icone: 'ajustes', ir: nav => nav.navigate('Settings')},
-    ],
-  },
 ];
 
 function Central(): React.JSX.Element {

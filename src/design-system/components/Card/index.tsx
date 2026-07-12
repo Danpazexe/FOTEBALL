@@ -20,6 +20,8 @@ type Props = {
   /** Cor do filete à esquerda na variante 'status'. */
   status?: TomStatus;
   padding?: ChaveEspaco;
+  /** Rótulo acessível quando interativo (senão o leitor lê o conteúdo). */
+  accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -29,6 +31,7 @@ export function Card({
   onPress,
   status = 'brand',
   padding = 4,
+  accessibilityLabel,
   style,
 }: Props): React.JSX.Element {
   const {cores} = useTheme();
@@ -52,7 +55,10 @@ export function Card({
 
   if (variante === 'interactive' && onPress) {
     return (
-      <Pressable onPress={onPress} style={composto}>
+      <Pressable
+        onPress={onPress}
+        accessibilityLabel={accessibilityLabel}
+        style={composto}>
         {children}
       </Pressable>
     );
