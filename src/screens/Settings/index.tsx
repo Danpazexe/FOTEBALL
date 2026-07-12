@@ -17,6 +17,7 @@ import {FAIXAS_MUSICA} from '../../audio/musica';
 import {espaco, raio, type Tema} from '../../theme';
 import {useEstilos, useTema} from '../../theme/useTema';
 import {VERSAO_APP} from '../../version';
+import {useModoTema, type ModoTema} from '../../design-system';
 
 /** Níveis de volume oferecidos (sem lib de slider — controle em degraus). */
 const NIVEIS_VOLUME = [0, 0.25, 0.5, 0.75, 1] as const;
@@ -39,10 +40,17 @@ function Settings(): React.JSX.Element {
   const atualizarConfig = useGameStore(state => state.atualizarConfig);
   const reiniciarCarreira = useGameStore(state => state.reiniciarCarreira);
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
+  const {modo, definirModo} = useModoTema();
 
   const opcoesVelocidade: {valor: VelocidadeNarracao; rotulo: string}[] = [
     {valor: 'normal', rotulo: 'Normal'},
     {valor: 'rapido', rotulo: 'Rápido'},
+  ];
+
+  const opcoesModo: {valor: ModoTema; rotulo: string}[] = [
+    {valor: 'claro', rotulo: 'Claro'},
+    {valor: 'escuro', rotulo: 'Escuro'},
+    {valor: 'sistema', rotulo: 'Sistema'},
   ];
 
   const handleReiniciar = async () => {
@@ -64,6 +72,26 @@ function Settings(): React.JSX.Element {
   return (
     <ScreenContainer scroll>
       <Text style={styles.titulo}>Ajustes</Text>
+
+      <Section titulo="Aparência">
+        <Text style={styles.descricao}>
+          Tema do app. "Sistema" acompanha o seu aparelho.
+        </Text>
+        <View style={styles.chipRow}>
+          {opcoesModo.map(opcao => {
+            const ativo = modo === opcao.valor;
+            return (
+              <View key={opcao.valor} style={styles.chipWrap}>
+                <Botao
+                  titulo={opcao.rotulo}
+                  variante={ativo ? 'primaria' : 'secundaria'}
+                  onPress={() => definirModo(opcao.valor)}
+                />
+              </View>
+            );
+          })}
+        </View>
+      </Section>
 
       <Section titulo="Narração da partida">
         <Text style={styles.descricao}>Velocidade padrão da narração.</Text>

@@ -25,6 +25,7 @@ import {
 } from './src/store/useAchievementsStore';
 import {type Tema} from './src/theme';
 import {useTemaStore} from './src/store/useTemaStore';
+import {ThemeProvider, useTheme} from './src/design-system';
 
 const DEBOUNCE_SALVAR_MS = 800;
 
@@ -51,9 +52,11 @@ function criarTemaNav(tema: Tema): Theme {
 function App(): React.JSX.Element {
   const [carregando, setCarregando] = useState(true);
 
-  // Tema visual: o jogo tem um só mundo ("noite de estádio").
+  // Tema visual: a ponte antiga (escuro) alimenta a navegação/telas não migradas.
   const temaAtivo = useTemaStore(estado => estado.tema);
   const temaFoteball = useMemo(() => criarTemaNav(temaAtivo), [temaAtivo]);
+  // Esquema do Design System v2 (claro/escuro) — reage à preferência do usuário.
+  const esquemaDS = useTheme().esquema;
 
   // Boot: hidrata o save (se houver) antes de montar a navegação.
   useEffect(() => {
@@ -213,17 +216,19 @@ function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <StatusBar
-          barStyle="light-content"
-          backgroundColor={temaAtivo.cores.fundo}
-        />
-        <NavigationContainer theme={temaFoteball}>
-          <FeedbackProvider>
-            <RootNavigator />
-          </FeedbackProvider>
-        </NavigationContainer>
-        <ToastConquista />
-        <SaveIndicator />
+        <ThemeProvider>
+          <StatusBar
+            barStyle={esquemaDS === 'claro' ? 'dark-content' : 'light-content'}
+            backgroundColor={temaAtivo.cores.fundo}
+          />
+          <NavigationContainer theme={temaFoteball}>
+            <FeedbackProvider>
+              <RootNavigator />
+            </FeedbackProvider>
+          </NavigationContainer>
+          <ToastConquista />
+          <SaveIndicator />
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
