@@ -7,9 +7,9 @@
  * Reproduzir a coordenada exata exigiria mudar a engine (deslocando o stream do
  * RNG → mudaria TODOS os resultados) e migrar o save.
  *
- * Em vez disso, este módulo RECONSTRÓI uma posição + xG plausíveis para cada
- * chute a partir de dados JÁ presentes em `partida.eventos` (tipo, autor, minuto,
- * pênalti) e da posição natural do jogador. É:
+ * Em vez disso, este módulo RECONSTRÓI, para cada chute, uma posição no campo, a
+ * posição na baliza (chutes no alvo), xG/xGOT, pé e situação — tudo plausível e
+ * derivado de dados JÁ presentes em `partida.eventos` + posição do jogador. É:
  *   • PURO e DETERMINÍSTICO: um RNG local semeado por `partida.id`+minuto+autor —
  *     mesma partida ⇒ mesmo mapa (sem tocar no RNG da simulação).
  *   • SEM migração de save: deriva de eventos que todo save já tem (funciona até
@@ -31,6 +31,18 @@ export type ResultadoFinalizacao =
   | 'bloqueada'
   | 'penalti_perdido';
 
+/** Parte do corpo que finalizou. */
+export type PeChute = 'Pé direito' | 'Pé esquerdo' | 'Cabeça';
+
+/** Origem da jogada que gerou o chute. */
+export type SituacaoChute =
+  | 'Jogo aberto'
+  | 'Assistência'
+  | 'Escanteio'
+  | 'Contra-ataque'
+  | 'Pênalti'
+  | 'Falta';
+
 /** Um chute posicionado no terço de ataque (coordenadas normalizadas 0..1). */
 export interface Finalizacao {
   timeId: string;
@@ -40,14 +52,24 @@ export interface Finalizacao {
   primeiroTempo: boolean;
   resultado: ResultadoFinalizacao;
   gol: boolean;
+  /** Chute foi no alvo (gol/defesa/trave) → aparece na baliza. */
+  noAlvo: boolean;
   /** Chance real de gol do chute (0..1) — controla o TAMANHO do dot. */
   xG: number;
-  /** Horizontal, ataque para cima: 0 = poste esquerdo … 1 = poste direito. */
+  /** xG on target: qualidade do chute que foi ao gol (0 se para fora). */
+  xGOT: number;
+  /** Horizontal no campo, ataque para cima: 0 = esquerda … 1 = direita. */
   x: number;
   /** Profundidade: 0 = na linha do gol … 1 = fundo do terço de ataque. */
   y: number;
+  /** Posição na BALIZA (só chutes no alvo): 0..1 esq→dir. */
+  golX?: number;
+  /** Altura na baliza (só chutes no alvo): 0 = rente ao chão … 1 = travessão. */
+  golY?: number;
   /** Chute de fora da área. */
   deFora: boolean;
+  pe: PeChute;
+  situacao: SituacaoChute;
 }
 
 /** Tipos de evento que representam uma finalização (o resto é ignorado). */
@@ -81,6 +103,63 @@ function xDoCorredor(corredor: 0 | 1 | 2, rng: RandomGenerator): number {
 /** y de acordo com a distância: dentro da área é perto do gol; de fora é longe. */
 function yDaDistancia(deFora: boolean, rng: RandomGenerator): number {
   return deFora ? 0.4 + rng() * 0.45 : 0.05 + rng() * 0.27;
+}
+
+const limitar01 = (v: number): number => Math.min(1, Math.max(0, v));
+
+/** Pé/cabeça — direita é a mais comum; cabeça mais provável perto do gol. */
+function derivarPe(deFora: boolean, rng: RandomGenerator): PeChute {
+  const r = rng();
+  const probCabeca = deFora ? 0.03 : 0.22;
+  if (r < probCabeca) {
+    return 'Cabeça';
+  }
+  return r < probCabeca + (1 - probCabeca) * 0.62 ? 'Pé direito' : 'Pé esquerdo';
+}
+
+/** Situação: pênalti/falta vêm do evento; assistência do gol; resto sorteado. */
+function derivarSituacao(evento: EventoPartida, rng: RandomGenerator): SituacaoChute {
+  if (evento.penaltiData) {
+    return 'Pênalti';
+  }
+  if (evento.tipo === 'falta_cobranca') {
+    return 'Falta';
+  }
+  if (evento.jogadorAssistenciaId) {
+    return 'Assistência';
+  }
+  const r = rng();
+  if (r < 0.5) {
+    return 'Jogo aberto';
+  }
+  if (r < 0.72) {
+    return 'Assistência';
+  }
+  if (r < 0.9) {
+    return 'Escanteio';
+  }
+  return 'Contra-ataque';
+}
+
+/** Posição na baliza (0..1). Pênalti usa a direção/altura reais do lance. */
+function derivarGol(
+  evento: EventoPartida,
+  rng: RandomGenerator,
+): {golX: number; golY: number} {
+  const p = evento.penaltiData;
+  if (p) {
+    const baseX = p.direcaoChute === 'E' ? 0.24 : p.direcaoChute === 'D' ? 0.76 : 0.5;
+    const baseY = p.alturaChute === 'A' ? 0.68 : 0.24;
+    return {
+      golX: limitar01(baseX + (rng() - 0.5) * 0.08),
+      golY: limitar01(baseY + (rng() - 0.5) * 0.08),
+    };
+  }
+  // Chutes no alvo tendem aos cantos baixos; poucos no ângulo.
+  return {
+    golX: limitar01(0.12 + rng() * 0.76),
+    golY: limitar01(0.08 + rng() * 0.72),
+  };
 }
 
 /**
@@ -124,25 +203,22 @@ export function extrairFinalizacoes(
       gol = true;
       resultado = 'gol';
       if (ehPenalti) {
-        // Pênalti convertido: marca do pênalti, centro.
         deFora = false;
         x = 0.5 + (rng() - 0.5) * 0.12;
         y = 0.16 + rng() * 0.04;
         xG = 0.76;
       } else if (evento.tipo === 'gol_contra') {
-        // Gol contra: bola cruzando a própria linha — perto do gol, centro.
         deFora = false;
         x = 0.4 + rng() * 0.2;
         y = 0.04 + rng() * 0.08;
         xG = 0.2 + rng() * 0.15;
       } else {
-        deFora = rng() > 0.85; // gol de fora é raro
+        deFora = rng() > 0.85;
         x = xDoCorredor(corredor, rng);
         y = yDaDistancia(deFora, rng);
         xG = deFora ? 0.09 + rng() * 0.06 : 0.28 + rng() * 0.32;
       }
     } else if (evento.tipo === 'penalti') {
-      // Pênalti perdido: defendido (goleiro no canto do chute) ou para fora.
       const defendido =
         evento.penaltiData !== undefined &&
         evento.penaltiData.direcaoGoleiro === evento.penaltiData.direcaoChute;
@@ -158,22 +234,32 @@ export function extrairFinalizacoes(
       y = yDaDistancia(deFora, rng);
       xG = deFora ? 0.08 + rng() * 0.05 : 0.18 + rng() * 0.18;
     } else if (evento.tipo === 'falta_cobranca') {
-      // Cobrança de falta perigosa: sempre de fora.
       deFora = true;
-      const noAlvo = rng() < 0.4;
-      resultado = noAlvo ? 'defesa' : rng() < 0.5 ? 'fora' : 'bloqueada';
+      const noAlvoFalta = rng() < 0.4;
+      resultado = noAlvoFalta ? 'defesa' : rng() < 0.5 ? 'fora' : 'bloqueada';
       x = xDoCorredor(corredor, rng);
       y = 0.5 + rng() * 0.35;
       xG = 0.03 + rng() * 0.05;
     } else {
-      // chance_perdida: espelha a engine (na área ~0.7, no alvo ~0.45).
       deFora = rng() >= 0.7;
-      const noAlvo = rng() < 0.45;
-      resultado = noAlvo ? 'defesa' : rng() < 0.5 ? 'fora' : 'bloqueada';
+      const noAlvoChance = rng() < 0.45;
+      resultado = noAlvoChance ? 'defesa' : rng() < 0.5 ? 'fora' : 'bloqueada';
       x = xDoCorredor(corredor, rng);
       y = yDaDistancia(deFora, rng);
       xG = deFora ? 0.04 + rng() * 0.05 : 0.12 + rng() * 0.2;
     }
+
+    xG = Math.min(0.95, Math.max(0.02, xG));
+    const noAlvo =
+      resultado === 'gol' || resultado === 'defesa' || resultado === 'trave';
+
+    // Campos ricos do painel (draws APÓS x/y/xG → não alteram os valores acima).
+    const pe = derivarPe(deFora, rng);
+    const situacao = derivarSituacao(evento, rng);
+    const xGOT = noAlvo
+      ? Math.min(0.95, gol ? Math.max(xG, 0.3 + rng() * 0.5) : xG * (0.5 + rng() * 0.45))
+      : 0;
+    const golPos = noAlvo ? derivarGol(evento, rng) : undefined;
 
     chutes.push({
       timeId: evento.timeId,
@@ -182,10 +268,16 @@ export function extrairFinalizacoes(
       primeiroTempo,
       resultado,
       gol,
-      xG: Math.min(0.95, Math.max(0.02, xG)),
+      noAlvo,
+      xG,
+      xGOT,
       x,
       y,
+      golX: golPos?.golX,
+      golY: golPos?.golY,
       deFora,
+      pe,
+      situacao,
     });
   });
 
