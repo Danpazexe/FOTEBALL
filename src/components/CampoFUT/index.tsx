@@ -34,10 +34,13 @@ import Svg, {
   Circle,
   ClipPath,
   Defs,
+  Ellipse,
   G,
   Line,
+  LinearGradient,
   Path,
   Rect,
+  Stop,
 } from 'react-native-svg';
 
 import {trocarTitular} from '../../api/database/seed/defaults';
@@ -70,7 +73,13 @@ type CampoFUTProps = {
 
 type Descritor = {tipo: 'titular' | 'reserva'; valor: string};
 
-type SlotTela = {slotIndex: number; jogadorId: string; cx: number; cy: number};
+type SlotTela = {
+  slotIndex: number;
+  jogadorId: string;
+  cx: number;
+  cy: number;
+  escala: number;
+};
 
 type SharedNum = SharedValue<number>;
 
@@ -79,6 +88,41 @@ type SharedNum = SharedValue<number>;
 // hit-test do drop compensa esse offset para capturar o slot SOB a carta (e não
 // sob o dedo) — senão, mirando pela carta, o drop cai fora do alvo.
 const GHOST_LEVANTA = 0.78;
+
+/**
+ * Perspectiva do campo (estádio 3D). O fundo (gol de ataque, longe) fica no TOPO
+ * — estreito e com cartas menores; a frente (nosso gol/GK, perto) fica na BASE —
+ * larga e com cartas maiores. A MESMA projeção alimenta o desenho do campo, a
+ * posição das peças e o hit-test do drag-drop (coerência = arraste não quebra).
+ */
+const PERSP = {
+  /** Fração da largura ocupada pelas peças no fundo (longe) e na frente (perto).
+   * SUAVE (estilo Sofascore): peças quase na largura toda, só um leve afunilar
+   * ao fundo. */
+  larguraTopo: 0.86,
+  larguraBase: 0.94,
+  /** Escala das cartas por profundidade (levemente menores ao fundo). */
+  escalaTopo: 0.9,
+  escalaBase: 1.0,
+};
+
+/** Projeta (x,y ∈ 0..1) → centro da carta na tela + escala por profundidade. */
+function projetarSlot(
+  x: number,
+  y: number,
+  largura: number,
+  altura: number,
+  padTopo: number,
+  padBase: number,
+): {cx: number; cy: number; escala: number} {
+  const t = 1 - y; // 0 = fundo (topo/longe), 1 = frente (base/perto)
+  const cy = padTopo + t * (altura - padTopo - padBase);
+  const larguraFrac =
+    PERSP.larguraTopo + (PERSP.larguraBase - PERSP.larguraTopo) * t;
+  const cx = largura / 2 + (x - 0.5) * largura * larguraFrac;
+  const escala = PERSP.escalaTopo + (PERSP.escalaBase - PERSP.escalaTopo) * t;
+  return {cx, cy, escala};
+}
 
 /**
  * Gesto reaproveitável por card: SEGURAR-e-arrastar (fantasma segue o dedo) +
@@ -218,18 +262,22 @@ function CampoFUT({
     [formacao.titulares],
   );
 
-  // Posições de tela de cada slot (centro da carta), top-down. Coordenada vem da
-  // FONTE ÚNICA (coordenadaDoTitular), a mesma das outras telas de escalação.
+  // Posições de tela de cada slot (centro da carta) EM PERSPECTIVA. Coordenada vem
+  // da FONTE ÚNICA (coordenadaDoTitular); `projetarSlot` é o MESMO cálculo do
+  // desenho do campo e do hit-test do drop.
   const slotsTela = useMemo<SlotTela[]>(
     () =>
       titulares.map((titular, slotIndex) => {
         const {x, y} = coordenadaDoTitular(titular);
-        return {
-          slotIndex,
-          jogadorId: titular.jogadorId,
-          cx: x * largura,
-          cy: padTopo + (1 - y) * (altura - padTopo - padBase),
-        };
+        const {cx, cy, escala} = projetarSlot(
+          x,
+          y,
+          largura,
+          altura,
+          padTopo,
+          padBase,
+        );
+        return {slotIndex, jogadorId: titular.jogadorId, cx, cy, escala};
       }),
     [titulares, largura, altura, padTopo, padBase],
   );
@@ -380,7 +428,7 @@ function CampoFUT({
         ref={pitchRef}
         onLayout={medirPitch}
         style={[styles.pitch, {width: largura, height: altura}]}>
-        <PitchTopDown
+        <PitchEstadio
           largura={largura}
           altura={altura}
           linhaDefensiva={tatica.linhaDefensiva}
@@ -410,8 +458,8 @@ function CampoFUT({
               ehCapitao={clube.capitaoId === slot.jogadorId}
               cx={slot.cx}
               cy={slot.cy}
-              cardW={cardW}
-              cardH={cardH}
+              cardW={Math.round(cardW * slot.escala)}
+              cardH={Math.round(cardH * slot.escala)}
               arrastavel={modoEdicao}
               hover={hover === slot.slotIndex}
               arrastandoEste={
@@ -809,10 +857,12 @@ function TaticaStrip({tatica}: {tatica: Tatica}): React.JSX.Element {
 }
 
 /**
- * Gramado top-down (visão de cima): retângulo arredondado com gradiente sutil,
- * linha e círculo central, grandes e pequenas áreas nos dois gols. SVG puro.
+ * Campo estilo Sofascore: gramado VERDE ocupando a largura toda (retângulo
+ * arredondado, listras ceifadas), com a BALIZA + grande área do FUNDO desenhadas
+ * em PERSPECTIVA (trapézio afunilando ao topo) — o único toque 3D, como no
+ * Sofascore. Linha defensiva e setas de lado de ataque preservadas. SVG puro.
  */
-function PitchTopDown({
+function PitchEstadio({
   largura,
   altura,
   linhaDefensiva,
@@ -823,41 +873,66 @@ function PitchTopDown({
   linhaDefensiva: Tatica['linhaDefensiva'];
   ladoAtaque: NonNullable<Tatica['ladoAtaque']>;
 }): React.JSX.Element {
-  const m = 8; // margem do gramado dentro do container
-  const w = largura - m * 2;
-  const h = altura - m * 2;
   const cx = largura / 2;
-  const cyMeio = altura / 2;
-  const areaW = w * 0.62;
-  const areaH = h * 0.15;
-  const golW = w * 0.34;
-  const golH = h * 0.06;
-  const raioCirculo = w * 0.15;
-  // Linha defensiva tática: sobe (Adiantada) ou recua (Recuada) no campo.
+  const m = 6;
+  const topY = altura * 0.03;
+  const baseY = altura * 0.99;
+  const w = largura - m * 2;
+  const h = baseY - topY;
+  const yMeio = topY + h / 2;
+  const raioCirc = w * 0.16;
+
+  // FUNDO (longe) em perspectiva: grande/pequena área afunilando ao topo + gol.
+  const areaFarTopW = w * 0.34;
+  const areaFarBotW = w * 0.52;
+  const areaFarY = topY + h * 0.13;
+  const areaFar = `M${cx - areaFarTopW / 2} ${topY} L${cx + areaFarTopW / 2} ${topY} L${
+    cx + areaFarBotW / 2
+  } ${areaFarY} L${cx - areaFarBotW / 2} ${areaFarY} Z`;
+  const peqFarTopW = w * 0.18;
+  const peqFarBotW = w * 0.26;
+  const peqFarY = topY + h * 0.06;
+  const peqFar = `M${cx - peqFarTopW / 2} ${topY} L${cx + peqFarTopW / 2} ${topY} L${
+    cx + peqFarBotW / 2
+  } ${peqFarY} L${cx - peqFarBotW / 2} ${peqFarY} Z`;
+  const golW = w * 0.12;
+  const golFar = `M${cx - golW / 2} ${topY} L${cx - golW * 0.4} ${topY - 8} L${
+    cx + golW * 0.4
+  } ${topY - 8} L${cx + golW / 2} ${topY} Z`;
+
+  // NOSSO gol (base/perto): áreas top-down.
+  const areaNearW = w * 0.5;
+  const areaNearH = h * 0.13;
+  const peqNearW = w * 0.24;
+  const peqNearH = h * 0.055;
+  const golNearW = w * 0.16;
+
   const fracLinha =
     linhaDefensiva === 'Adiantada'
-      ? 0.5
+      ? 0.42
       : linhaDefensiva === 'Recuada'
-      ? 0.72
-      : 0.61;
-  const yLinha = m + h * fracLinha;
-  // Seta(s) amarela(s) de LADO DE ATAQUE no terço ofensivo (topo), estilo SM26.
-  const setaTip = altura * 0.09;
-  const setaBase = altura * 0.3;
+      ? 0.66
+      : 0.55;
+  const yLinha = topY + h * fracLinha;
+
+  const setaY = topY + h * 0.055;
+  const setaTip = topY + h * 0.02;
   const seta = (ax: number): string =>
-    `M${ax - 3} ${setaBase} L${ax - 3} ${setaTip + 9} L${ax - 8} ${
-      setaTip + 9
-    } L${ax} ${setaTip} L${ax + 8} ${setaTip + 9} L${ax + 3} ${
-      setaTip + 9
-    } L${ax + 3} ${setaBase} Z`;
+    `M${ax - 3} ${setaY} L${ax - 3} ${setaTip + 7} L${ax - 7} ${
+      setaTip + 7
+    } L${ax} ${setaTip} L${ax + 7} ${setaTip + 7} L${ax + 3} ${
+      setaTip + 7
+    } L${ax + 3} ${setaY} Z`;
   const xsSeta =
     ladoAtaque === 'Esquerda'
-      ? [largura * 0.25]
+      ? [cx - w * 0.22]
       : ladoAtaque === 'Direita'
-      ? [largura * 0.75]
+      ? [cx + w * 0.22]
       : ladoAtaque === 'Centro'
-      ? [largura * 0.5]
-      : [largura * 0.25, largura * 0.75];
+      ? [cx]
+      : [cx - w * 0.22, cx + w * 0.22];
+
+  const listras = 8;
 
   return (
     <Svg
@@ -867,98 +942,113 @@ function PitchTopDown({
       style={StyleSheet.absoluteFill}>
       <Defs>
         <ClipPath id="campoClip">
-          <Rect x={m} y={m} width={w} height={h} rx={14} />
+          <Rect x={m} y={topY} width={w} height={h} rx={16} />
         </ClipPath>
+        <LinearGradient id="turfaGrad" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={TURFA_LONGE} />
+          <Stop offset="1" stopColor={TURFA} />
+        </LinearGradient>
       </Defs>
-      {/* Turfa noturna + listras ceifadas verticais (clipadas na borda). */}
+
+      {/* Fundo escuro (aparece só na margem arredondada). */}
+      <Rect x={0} y={0} width={largura} height={altura} fill={ARQ_FUNDO} />
+      {/* Gramado full-width + listras ceifadas (clipadas). */}
+      <Rect x={m} y={topY} width={w} height={h} rx={16} fill="url(#turfaGrad)" />
       <G clipPath="url(#campoClip)">
-        <Rect x={m} y={m} width={w} height={h} fill={TURFA} />
-        {Array.from({length: LISTRAS}).map((_, i) =>
+        {Array.from({length: listras}).map((_, i) =>
           i % 2 === 1 ? (
             <Rect
-              key={`listra-${i}`}
-              x={m + (w / LISTRAS) * i}
-              y={m}
-              width={w / LISTRAS}
-              height={h}
+              key={`faixa-${i}`}
+              x={m}
+              y={topY + (h / listras) * i}
+              width={w}
+              height={h / listras}
               fill={TURFA_LISTRA}
+              opacity={0.45}
             />
           ) : null,
         )}
       </G>
-      {/* Borda de cal */}
+      {/* Contorno + meio-campo. */}
       <Rect
         x={m}
-        y={m}
+        y={topY}
         width={w}
         height={h}
-        rx={14}
+        rx={16}
         fill="none"
         stroke={LINHA}
         strokeWidth={2}
       />
-      <Line
-        x1={m}
-        y1={cyMeio}
-        x2={largura - m}
-        y2={cyMeio}
-        stroke={LINHA}
-        strokeWidth={1.5}
-      />
-      <Circle
+      <Line x1={m} y1={yMeio} x2={largura - m} y2={yMeio} stroke={LINHA} strokeWidth={1.5} />
+      <Ellipse
         cx={cx}
-        cy={cyMeio}
-        r={raioCirculo}
+        cy={yMeio}
+        rx={raioCirc}
+        ry={raioCirc * 0.62}
         fill="none"
         stroke={LINHA}
         strokeWidth={1.5}
       />
-      {/* Grandes áreas (topo e base) */}
-      <Rect
-        x={cx - areaW / 2}
-        y={m}
-        width={areaW}
-        height={areaH}
-        fill="none"
-        stroke={LINHA}
-        strokeWidth={1.5}
-      />
-      <Rect
-        x={cx - areaW / 2}
-        y={altura - m - areaH}
-        width={areaW}
-        height={areaH}
-        fill="none"
-        stroke={LINHA}
-        strokeWidth={1.5}
-      />
-      {/* Pequenas áreas (topo e base) */}
-      <Rect
-        x={cx - golW / 2}
-        y={m}
-        width={golW}
-        height={golH}
+      <Circle cx={cx} cy={yMeio} r={2} fill={LINHA} />
+
+      {/* FUNDO (longe) em perspectiva. */}
+      <Path d={golFar} fill="rgba(234,242,230,0.10)" stroke={LINHA} strokeWidth={1.5} />
+      <Path d={areaFar} fill="none" stroke={LINHA} strokeWidth={1.5} />
+      <Path d={peqFar} fill="none" stroke={LINHA} strokeWidth={1.2} />
+      <Path
+        d={`M${cx - areaFarBotW * 0.22} ${areaFarY} Q ${cx} ${
+          areaFarY + h * 0.05
+        } ${cx + areaFarBotW * 0.22} ${areaFarY}`}
         fill="none"
         stroke={LINHA}
         strokeWidth={1.2}
       />
-      <Rect
-        x={cx - golW / 2}
-        y={altura - m - golH}
-        width={golW}
-        height={golH}
-        fill="none"
-        stroke={LINHA}
-        strokeWidth={1.2}
-      />
-      {/* Linha defensiva tática (tracejada) — Recuada/Normal/Adiantada. */}
+
+      {/* NOSSO gol (base) top-down. */}
       <Line
-        x1={m + 8}
+        x1={cx - golNearW / 2}
+        y1={baseY}
+        x2={cx + golNearW / 2}
+        y2={baseY}
+        stroke={LINHA_FORTE}
+        strokeWidth={3}
+      />
+      <Rect
+        x={cx - areaNearW / 2}
+        y={baseY - areaNearH}
+        width={areaNearW}
+        height={areaNearH}
+        fill="none"
+        stroke={LINHA}
+        strokeWidth={1.5}
+      />
+      <Rect
+        x={cx - peqNearW / 2}
+        y={baseY - peqNearH}
+        width={peqNearW}
+        height={peqNearH}
+        fill="none"
+        stroke={LINHA}
+        strokeWidth={1.2}
+      />
+      <Path
+        d={`M${cx - areaNearW * 0.22} ${baseY - areaNearH} Q ${cx} ${
+          baseY - areaNearH - h * 0.05
+        } ${cx + areaNearW * 0.22} ${baseY - areaNearH}`}
+        fill="none"
+        stroke={LINHA}
+        strokeWidth={1.2}
+      />
+
+      {/* Linha defensiva tática (tracejada) + setas de lado de ataque. */}
+      <Line
+        x1={m + 10}
         y1={yLinha}
-        x2={largura - m - 8}
+        x2={largura - m - 10}
         y2={yLinha}
         stroke={cores.primariaClara}
-        strokeWidth={3.5}
+        strokeWidth={3}
         strokeDasharray="10 7"
       />
       {xsSeta.map(ax => (
@@ -973,10 +1063,15 @@ export default CampoFUT;
 // Cal (linhas do campo) e turfa noturna com listras ceifadas — visual "noite de
 // estádio" do mockup. Turfa fixa (o campo fica noturno mesmo no modo dia por
 // enquanto); as fichas e o resto seguem os tokens do tema.
-const LINHA = 'rgba(234, 242, 230, 0.55)';
-const TURFA = '#0F2E1E';
-const TURFA_LISTRA = '#16402A';
-const LISTRAS = 10;
+const LINHA = 'rgba(234, 242, 230, 0.5)';
+const LINHA_FORTE = 'rgba(234, 242, 230, 0.85)';
+// Verde vivo estilo Sofascore (amostrado do app ~#055228), com fundo levemente
+// mais escuro (perspectiva) e listra ceifada mais clara.
+const TURFA = '#0A5A2E';
+const TURFA_LONGE = '#07421F';
+const TURFA_LISTRA = '#0C6234';
+// Moldura escura que aparece só na margem arredondada do gramado.
+const ARQ_FUNDO = '#0A140D';
 
 const styles = StyleSheet.create({
   overlay: {
