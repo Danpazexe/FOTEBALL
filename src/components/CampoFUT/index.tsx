@@ -424,6 +424,8 @@ function CampoFUT({
 
       <BannerValidacao validacao={validacao} />
 
+      <PlacaPublicidade largura={largura} />
+
       <View
         ref={pitchRef}
         onLayout={medirPitch}
@@ -637,6 +639,23 @@ function BannerValidacao({
       <Text style={[styles.bannerTexto, {color: cores.primariaEscura}]}>
         Escalação válida
       </Text>
+    </View>
+  );
+}
+
+/**
+ * Placa de publicidade (LED) na borda do campo — a marca do jogo repetida numa
+ * faixa escura, como o painel de patrocínio atrás do gol nos apps de futebol.
+ */
+function PlacaPublicidade({largura}: {largura: number}): React.JSX.Element {
+  const repeticoes = Math.max(4, Math.round(largura / 90));
+  return (
+    <View style={[styles.placa, {width: largura}]}>
+      {Array.from({length: repeticoes}).map((_, i) => (
+        <Text key={i} style={styles.placaTexto} numberOfLines={1}>
+          FOTEBALL
+        </Text>
+      ))}
     </View>
   );
 }
@@ -1190,6 +1209,27 @@ const styles = StyleSheet.create({
   pitch: {
     alignSelf: 'center',
     position: 'relative',
+  },
+  placa: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: '#081009',
+    borderColor: cores.bordaClara,
+    borderRadius: raio.sm,
+    borderWidth: 1,
+    flexDirection: 'row',
+    height: 22,
+    justifyContent: 'space-around',
+    marginBottom: -espaco.xs,
+    overflow: 'hidden',
+  },
+  placaTexto: {
+    color: cores.secundaria,
+    fontSize: 11,
+    fontStyle: 'italic',
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    opacity: 0.8,
   },
   botaoOlho: {
     alignItems: 'center',
