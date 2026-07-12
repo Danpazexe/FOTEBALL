@@ -203,10 +203,10 @@ function CampoFUT({
   onArrastandoChange,
   largura,
 }: CampoFUTProps): React.JSX.Element {
-  // Campo do SVG do Sofascore (viewBox 2232×1790), esticado para ocupar mais a
-  // tela (pedido: "aumente o tamanho do campo"). O gramado usa
-  // preserveAspectRatio="none" e as peças acompanham via projetarSlot.
-  const altura = Math.round(largura * 1.28);
+  // Campo do SVG do Sofascore (viewBox 2232×1790), LARGO/BAIXO como no print do
+  // usuário (não esticado alto). preserveAspectRatio="none" + as peças acompanham
+  // via projetarSlot.
+  const altura = Math.round(largura * 0.85);
   const cardW = Math.round(largura * 0.15);
   const cardH = Math.round(cardW * 1.2);
   const cardBancoW = Math.round(largura * 0.24);
