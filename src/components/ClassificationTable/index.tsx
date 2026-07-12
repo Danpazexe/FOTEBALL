@@ -1,27 +1,28 @@
 import React from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import Escudo from '../Escudo';
-import {cores, espaco, raio, suaves, tabular} from '../../theme';
+import {Text, espacamento, raios, useTheme, type CorTexto} from '../../design-system';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {Clube, TabelaClassificacao} from '../../types';
 
 /**
- * Tabela de classificação do campeonato. Cabeçalho fixo (#, Clube, P, J, SG) e
- * uma linha por clube. Destaca a linha do clube do usuário e marca, com borda
- * esquerda colorida, as zonas de acesso/Libertadores (topo) e de rebaixamento.
- * As faixas das zonas são configuráveis por divisão (`zonaAcesso`/`zonaQueda`).
+ * Tabela de classificação. Cabeçalho (#, Clube, P, J, SG) + uma linha por clube.
+ * Destaca a linha do clube do usuário e marca as zonas de acesso (topo) e de
+ * rebaixamento com filete à esquerda. Migrada ao Design System v2.
  */
 function corZona(
   posicao: number,
   zonaAcesso: number,
   zonaQueda: number | null,
+  acesso: string,
+  queda: string,
 ): string {
   if (posicao <= zonaAcesso) {
-    return cores.primaria;
+    return acesso;
   }
   if (zonaQueda !== null && posicao >= zonaQueda) {
-    return cores.perigo;
+    return queda;
   }
   return 'transparent';
 }
@@ -38,36 +39,64 @@ export function ClassificationTable({
   clubeDestaqueId?: string | null;
   /** Posições do topo destacadas (Libertadores/acesso). Padrão 1º–4º. */
   zonaAcesso?: number;
-  /** Posição a partir da qual é rebaixamento; `null` desliga (última divisão). */
+  /** Posição a partir da qual é rebaixamento; `null` desliga. */
   zonaQueda?: number | null;
 }) {
+  const {cores} = useTheme();
   return (
-    <View style={styles.container}>
-      <View style={[styles.row, styles.headerRow]}>
-        <Text style={[styles.headerText, styles.colPos]}>#</Text>
-        <Text style={[styles.headerText, styles.colClube]}>Clube</Text>
-        <Text style={[styles.headerText, styles.colStat]}>P</Text>
-        <Text style={[styles.headerText, styles.colStat]}>J</Text>
-        <Text style={[styles.headerText, styles.colStat]}>SG</Text>
+    <View
+      style={[
+        styles.container,
+        {backgroundColor: cores.surface, borderColor: cores.border},
+      ]}>
+      <View
+        style={[
+          styles.row,
+          {backgroundColor: cores.surfaceSubtle, borderBottomColor: cores.border},
+        ]}>
+        <Text variant="labelM" color="textSecondary" style={styles.colPos}>
+          #
+        </Text>
+        <Text variant="labelM" color="textSecondary" style={styles.colClube}>
+          Clube
+        </Text>
+        <Text variant="labelM" color="textSecondary" style={styles.colStat}>
+          P
+        </Text>
+        <Text variant="labelM" color="textSecondary" style={styles.colStat}>
+          J
+        </Text>
+        <Text variant="labelM" color="textSecondary" style={styles.colStat}>
+          SG
+        </Text>
       </View>
 
       {tabela.map((linha, index) => {
         const posicao = index + 1;
         const destaque = !!clubeDestaqueId && linha.clubeId === clubeDestaqueId;
+        const cor: CorTexto = destaque ? 'accent' : 'textPrimary';
         return (
           <View
             key={linha.clubeId}
             style={[
               styles.row,
-              {borderLeftColor: corZona(posicao, zonaAcesso, zonaQueda)},
-              destaque ? styles.rowDestaque : null,
+              {
+                borderBottomColor: cores.border,
+                borderLeftColor: corZona(
+                  posicao,
+                  zonaAcesso,
+                  zonaQueda,
+                  cores.brand,
+                  cores.danger,
+                ),
+              },
+              destaque ? {backgroundColor: cores.accentSoft} : null,
             ]}>
             <Text
-              style={[
-                styles.position,
-                styles.colPos,
-                destaque ? styles.textoDestaque : null,
-              ]}>
+              variant="bodyM"
+              color={destaque ? 'accent' : 'textSecondary'}
+              tabular
+              style={styles.colPos}>
               {posicao}
             </Text>
             <View style={styles.colClube}>
@@ -76,35 +105,17 @@ export function ClassificationTable({
                 sigla={siglaClube(clubes, linha.clubeId)}
                 tamanho={22}
               />
-              <Text
-                style={[styles.club, destaque ? styles.textoDestaque : null]}
-                numberOfLines={1}>
+              <Text variant="bodyM" color={cor} numberOfLines={1} style={styles.flexText}>
                 {nomeClube(clubes, linha.clubeId)}
               </Text>
             </View>
-            <Text
-              style={[
-                styles.stat,
-                styles.statPontos,
-                styles.colStat,
-                destaque ? styles.textoDestaque : null,
-              ]}>
+            <Text variant="labelL" color={cor} tabular style={styles.colStat}>
               {linha.pontos}
             </Text>
-            <Text
-              style={[
-                styles.stat,
-                styles.colStat,
-                destaque ? styles.textoDestaque : null,
-              ]}>
+            <Text variant="bodyM" color={cor} tabular style={styles.colStat}>
               {linha.jogos}
             </Text>
-            <Text
-              style={[
-                styles.stat,
-                styles.colStat,
-                destaque ? styles.textoDestaque : null,
-              ]}>
+            <Text variant="bodyM" color={cor} tabular style={styles.colStat}>
               {linha.saldoGols > 0 ? '+' : ''}
               {linha.saldoGols}
             </Text>
@@ -116,72 +127,25 @@ export function ClassificationTable({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
+  container: {borderRadius: raios.md, borderWidth: 1, overflow: 'hidden'},
   row: {
-    alignItems: 'center',
-    borderBottomColor: cores.borda,
-    borderBottomWidth: 1,
-    borderLeftColor: 'transparent',
-    borderLeftWidth: 3,
     flexDirection: 'row',
+    alignItems: 'center',
     minHeight: 40,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
+    paddingHorizontal: espacamento[3],
+    paddingVertical: espacamento[2],
+    borderBottomWidth: 1,
+    borderLeftWidth: 3,
+    borderLeftColor: 'transparent',
   },
-  headerRow: {
-    backgroundColor: cores.superficieAlt,
-  },
-  // Time do usuário: destacado em âmbar (o acento raro marca "o seu time").
-  rowDestaque: {
-    backgroundColor: suaves.laranja,
-  },
-  headerText: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  position: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '700',
-    ...tabular,
-  },
-  club: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  stat: {
-    color: cores.texto,
-    fontSize: 12,
-    ...tabular,
-  },
-  // PTS é a coluna que decide — peso maior para ler no relance.
-  statPontos: {
-    fontWeight: '800',
-  },
-  textoDestaque: {
-    color: cores.secundaria,
-  },
-  colPos: {
-    width: 28,
-  },
+  colPos: {width: 28},
   colClube: {
-    alignItems: 'center',
     flex: 1,
     flexDirection: 'row',
-    gap: espaco.sm,
-    paddingRight: espaco.sm,
+    alignItems: 'center',
+    gap: espacamento[2],
+    paddingRight: espacamento[2],
   },
-  colStat: {
-    textAlign: 'right',
-    width: 36,
-  },
+  colStat: {width: 36, textAlign: 'right'},
+  flexText: {flex: 1},
 });
