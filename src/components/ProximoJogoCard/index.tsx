@@ -1,11 +1,10 @@
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
-import {cores, espaco, raio, sombra} from '../../theme';
 import type {Clube, Partida} from '../../types';
 import {formatarDataCurta} from '../../utils/datas';
-import Painel from '../Painel';
+import {Button, Card, Text, espacamento, raios, useTheme} from '../../design-system';
 
 type ProximoJogoCardProps = {
   partida: Partida;
@@ -26,9 +25,8 @@ const LINHAS: Array<{rotulo: string; chave: keyof ForcaTime}> = [
 ];
 
 /**
- * Card "Próximo Jogo" da Home (Premium UI v0.0.3): rótulo + data dourada,
- * confronto em siglas grandes, barras de força do TIME DO USUÁRIO (1 número) e
- * o CTA dourado JOGAR à direita. Quando bloqueado, JOGAR fica glass apagado.
+ * Card "Próximo Jogo" da Home: rótulo + data, confronto em siglas grandes,
+ * barras de força do TIME DO USUÁRIO e o CTA JOGAR. Migrado ao Design System v2.
  */
 function ProximoJogoCard({
   partida,
@@ -40,175 +38,94 @@ function ProximoJogoCard({
   onJogar,
   jogarDesabilitado,
 }: ProximoJogoCardProps): React.JSX.Element {
+  const {cores} = useTheme();
   const forcaUsuario = mandoCasa ? forcaCasa : forcaFora;
   const forcaAdversario = mandoCasa ? forcaFora : forcaCasa;
   const favorito = forcaUsuario.overall >= forcaAdversario.overall;
   const estadio = clubeCasa.estadio?.nome ?? '';
 
   return (
-    <Painel acento={cores.secundaria}>
-      <View style={styles.conteudo}>
-        <View style={styles.topo}>
-          <Text style={styles.label}>Próximo Jogo</Text>
-          <Text style={styles.data}>{formatarDataCurta(partida.data)}</Text>
-        </View>
-
-        <Text style={styles.siglas}>
-          {clubeCasa.sigla} <Text style={styles.x}>×</Text> {clubeFora.sigla}
+    <Card variante="status" status="accent" padding={4} style={styles.conteudo}>
+      <View style={styles.topo}>
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          Próximo Jogo
         </Text>
-        <Text style={styles.sub} numberOfLines={1}>
-          {estadio ? `${estadio} · ` : ''}
-          {mandoCasa ? 'casa' : 'fora'} · {favorito ? 'favorito' : 'azarão'}
+        <Text variant="labelM" color="accent">
+          {formatarDataCurta(partida.data)}
         </Text>
-
-        <View style={styles.barrasRow}>
-          <View style={styles.barrasCol}>
-            {LINHAS.map(linha => {
-              const valor = Math.round(forcaUsuario[linha.chave]);
-              const pct = Math.max(0, Math.min(100, (valor / 99) * 100));
-              return (
-                <View key={linha.chave} style={styles.forcaLinha}>
-                  <Text style={styles.forcaLabel}>{linha.rotulo}</Text>
-                  <View style={styles.forcaTrack}>
-                    <View style={[styles.forcaFill, {width: `${pct}%`}]} />
-                  </View>
-                  <Text style={styles.forcaNum}>{valor}</Text>
-                </View>
-              );
-            })}
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            disabled={jogarDesabilitado}
-            onPress={onJogar}
-            style={({pressed}) => [
-              styles.jogar,
-              jogarDesabilitado ? styles.jogarDisabled : null,
-              pressed && !jogarDesabilitado ? styles.jogarPressed : null,
-            ]}>
-            <Text
-              style={[
-                styles.jogarTexto,
-                jogarDesabilitado ? styles.jogarTextoDisabled : null,
-              ]}>
-              JOGAR
-            </Text>
-          </Pressable>
-        </View>
       </View>
-    </Painel>
+
+      <Text variant="scoreXL" tabular>
+        {clubeCasa.sigla} <Text variant="scoreXL" color="textMuted">×</Text>{' '}
+        {clubeFora.sigla}
+      </Text>
+      <Text variant="bodyM" color="textSecondary" numberOfLines={1}>
+        {estadio ? `${estadio} · ` : ''}
+        {mandoCasa ? 'casa' : 'fora'} · {favorito ? 'favorito' : 'azarão'}
+      </Text>
+
+      <View style={styles.barrasRow}>
+        <View style={styles.barrasCol}>
+          {LINHAS.map(linha => {
+            const valor = Math.round(forcaUsuario[linha.chave]);
+            const pct = Math.max(0, Math.min(100, (valor / 99) * 100));
+            return (
+              <View key={linha.chave} style={styles.forcaLinha}>
+                <Text
+                  variant="labelM"
+                  color="textSecondary"
+                  style={styles.forcaLabel}>
+                  {linha.rotulo}
+                </Text>
+                <View
+                  style={[styles.forcaTrack, {backgroundColor: cores.surfaceSubtle}]}>
+                  <View
+                    style={[
+                      styles.forcaFill,
+                      {width: `${pct}%`, backgroundColor: cores.brand},
+                    ]}
+                  />
+                </View>
+                <Text variant="titleM" tabular style={styles.forcaNum}>
+                  {valor}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <Button
+          titulo="JOGAR"
+          onPress={onJogar}
+          disabled={jogarDesabilitado}
+          style={styles.jogar}
+        />
+      </View>
+    </Card>
   );
 }
 
 export default ProximoJogoCard;
 
 const styles = StyleSheet.create({
-  conteudo: {
-    gap: espaco.sm,
-  },
+  conteudo: {gap: espacamento[2]},
   topo: {
-    alignItems: 'center',
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  label: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  data: {
-    color: cores.secundaria,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  siglas: {
-    color: cores.texto,
-    fontSize: 32,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  x: {
-    color: cores.textoSecundario,
-  },
-  sub: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
   barrasRow: {
+    flexDirection: 'row',
     alignItems: 'stretch',
-    flexDirection: 'row',
-    gap: espaco.md,
-    marginTop: espaco.xs,
+    gap: espacamento[3],
+    marginTop: espacamento[1],
   },
-  barrasCol: {
-    flex: 1,
-    gap: espaco.sm,
-    justifyContent: 'center',
-  },
-  forcaLinha: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  forcaLabel: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-    width: 30,
-  },
-  forcaTrack: {
-    backgroundColor: cores.fundoBase,
-    borderRadius: raio.pill,
-    flex: 1,
-    height: 9,
-    overflow: 'hidden',
-  },
-  forcaFill: {
-    backgroundColor: cores.primaria,
-    borderRadius: raio.pill,
-    height: '100%',
-  },
-  forcaNum: {
-    color: cores.texto,
-    fontSize: 16,
-    fontWeight: '900',
-    minWidth: 26,
-    textAlign: 'right',
-  },
-  jogar: {
-    alignItems: 'center',
-    backgroundColor: cores.secundaria,
-    borderRadius: raio.lg,
-    justifyContent: 'center',
-    paddingHorizontal: espaco.lg,
-    width: 116,
-    ...sombra.ouro,
-  },
-  jogarDisabled: {
-    // Vidro do tema (véu azul-marinho) — o rgba branco sumia no tema claro.
-    backgroundColor: cores.glass,
-    borderColor: cores.bordaTransl,
-    borderWidth: 1,
-    elevation: 0,
-    shadowOpacity: 0,
-    shadowRadius: 0,
-  },
-  jogarPressed: {
-    opacity: 0.92,
-    transform: [{scale: 0.975}],
-  },
-  jogarTexto: {
-    color: cores.contrastePrimaria,
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  jogarTextoDisabled: {
-    color: cores.textoMuted,
-  },
+  barrasCol: {flex: 1, gap: espacamento[2], justifyContent: 'center'},
+  forcaLinha: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  forcaLabel: {width: 30},
+  forcaTrack: {flex: 1, height: 9, borderRadius: raios.full, overflow: 'hidden'},
+  forcaFill: {height: '100%', borderRadius: raios.full},
+  forcaNum: {minWidth: 26, textAlign: 'right'},
+  jogar: {width: 116},
 });

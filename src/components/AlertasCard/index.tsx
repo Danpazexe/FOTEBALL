@@ -1,9 +1,8 @@
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
-import {cores, espaco} from '../../theme';
-import Icone, {type IconeNome} from '../Icone';
-import Painel from '../Painel';
+import {Card, Icon, Pressable, Text, espacamento} from '../../design-system';
+import type {IconeNome} from '../Icone';
 
 export type TipoAlerta = 'lesao' | 'suspensao' | 'saldo';
 
@@ -34,17 +33,20 @@ function AlertasCard({
     return null;
   }
   return (
-    <Painel acento={cores.perigo}>
-      <View style={styles.conteudo}>
+    <Card variante="status" status="danger" padding={4} style={styles.conteudo}>
       <View style={styles.header}>
-        <Icone nome="apito" tamanho={16} cor={cores.perigo} />
-        <Text style={styles.titulo}>Avisos</Text>
+        <Icon nome="apito" size={16} color="danger" />
+        <Text variant="labelM" color="danger" style={styles.caps}>
+          Avisos
+        </Text>
       </View>
       {alertas.map(alerta => {
         const conteudo = (
           <View style={styles.linha}>
-            <Icone nome={ICONE_POR_TIPO[alerta.tipo]} tamanho={16} cor={cores.perigo} />
-            <Text style={styles.texto}>{alerta.texto}</Text>
+            <Icon nome={ICONE_POR_TIPO[alerta.tipo]} size={16} color="danger" />
+            <Text variant="bodyM" style={styles.flex}>
+              {alerta.texto}
+            </Text>
           </View>
         );
         if (alerta.jogadorId && onAbrirJogador) {
@@ -52,46 +54,29 @@ function AlertasCard({
           return (
             <Pressable
               key={alerta.id}
-              accessibilityRole="button"
-              onPress={() => onAbrirJogador(jogadorId)}>
+              onPress={() => onAbrirJogador(jogadorId)}
+              accessibilityLabel={alerta.texto}>
               {conteudo}
             </Pressable>
           );
         }
         return <View key={alerta.id}>{conteudo}</View>;
       })}
-      </View>
-    </Painel>
+    </Card>
   );
 }
 
 export default AlertasCard;
 
 const styles = StyleSheet.create({
-  conteudo: {
-    gap: espaco.sm,
-  },
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  titulo: {
-    color: cores.perigo,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
+  conteudo: {gap: espacamento[2]},
+  header: {alignItems: 'center', flexDirection: 'row', gap: espacamento[1]},
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
   linha: {
     alignItems: 'center',
     flexDirection: 'row',
-    gap: espaco.sm,
+    gap: espacamento[2],
     paddingVertical: 3,
   },
-  texto: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 13,
-  },
+  flex: {flex: 1},
 });
