@@ -50,6 +50,12 @@ function CentralClube(): React.JSX.Element {
       descricao: 'Estádio, torcida e reputação',
       ir: n => n.navigate('Club'),
     },
+    {
+      icone: 'dinheiro',
+      titulo: 'Finanças',
+      descricao: 'Saldo, receitas e despesas',
+      ir: n => n.navigate('Financas'),
+    },
   ];
 
   const historico: ItemHub[] = [

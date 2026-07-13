@@ -3,6 +3,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import CentralClube from '../../screens/CentralClube';
 import Club from '../../screens/Club';
+import Financas from '../../screens/Financas';
 import type {ClubeStackParamList} from '../types';
 
 const Stack = createNativeStackNavigator<ClubeStackParamList>();
@@ -16,6 +17,7 @@ export function ClubeStack(): React.JSX.Element {
       screenOptions={{headerShown: false}}>
       <Stack.Screen name="CentralClube" component={CentralClube} />
       <Stack.Screen name="Club" component={Club} />
+      <Stack.Screen name="Financas" component={Financas} />
     </Stack.Navigator>
   );
 }

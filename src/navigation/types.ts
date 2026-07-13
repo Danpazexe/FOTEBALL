@@ -32,6 +32,7 @@ export type MercadoStackParamList = {
 export type ClubeStackParamList = {
   CentralClube: undefined;
   Club: undefined;
+  Financas: undefined;
 };
 
 /** Abas inferiores (ordem): Elenco · Partidas · Início · Mercado · Clube. Cada
