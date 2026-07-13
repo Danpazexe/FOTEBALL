@@ -1,19 +1,24 @@
 /**
- * Calendário da temporada (Módulo 12) — grade MENSAL de verdade: cada mês com
- * seus dias (alinhados ao dia da semana), e os jogos do clube do usuário
- * (Liga + Copa do Brasil) posicionados na data certa, coloridos por resultado.
- * Tocar abre a súmula (liga jogada), o pré-jogo (próxima da liga) ou a chave
- * (Copa). A Copa é marcada com borda dourada no topo da célula.
+ * Calendário da temporada — grade mensal com os jogos do clube (Liga + Copa)
+ * coloridos por resultado. Tocar abre súmula/pré-jogo/chave. Migrado ao DS v2.
  */
 
 import React, {useMemo} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Pressable, StyleSheet, View} from 'react-native';
 
-import {AppHeader, ScreenContainer, Section} from '../../components/ui';
-import Icone from '../../components/Icone';
+import {
+  AppBar,
+  Icon,
+  Screen,
+  Text,
+  espacamento,
+  raios,
+  useTheme,
+  type CorTexto,
+  type CoresSemanticas,
+} from '../../design-system';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import {acentos, cores, espaco, raio, suaves} from '../../theme';
 import {siglaClube} from '../../utils/formatters';
 import {diasNoMes, indiceDiaSemana, nomeMes} from '../../utils/datas';
 import type {Partida} from '../../types';
@@ -28,23 +33,24 @@ interface JogoCalendario {
   partidaId?: string;
 }
 
-/** Fundo da célula por estado — tons suaves do tema claro (fundo + acento). */
-const COR_ESTADO: Record<EstadoJogo, string> = {
-  vitoria: suaves.verde,
-  empate: cores.glassForte,
-  derrota: suaves.vermelho,
-  proxima: cores.primaria,
-  futura: cores.superficieElevada,
-};
-
-/** Texto da célula: acento do mesmo matiz do fundo suave (padrão badge). */
-const COR_TEXTO_ESTADO: Record<EstadoJogo, string> = {
-  vitoria: acentos.verde,
-  empate: cores.texto,
-  derrota: acentos.vermelho,
-  proxima: cores.contrastePrimaria,
-  futura: cores.texto,
-};
+/** Fundo (token) + cor de texto (token) da célula por estado. */
+function corEstado(
+  estado: EstadoJogo,
+  cores: CoresSemanticas,
+): {bg: string; texto: CorTexto} {
+  switch (estado) {
+    case 'vitoria':
+      return {bg: cores.brandSoft, texto: 'success'};
+    case 'derrota':
+      return {bg: cores.dangerSoft, texto: 'danger'};
+    case 'proxima':
+      return {bg: cores.brand, texto: 'onBrand'};
+    case 'empate':
+      return {bg: cores.surfaceSubtle, texto: 'textPrimary'};
+    case 'futura':
+      return {bg: cores.surface, texto: 'textPrimary'};
+  }
+}
 
 const CABECALHO_SEMANA = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
 
@@ -63,6 +69,7 @@ function estadoDoResultado(partida: Partida, usuarioId: string): EstadoJogo {
 
 function Calendario(): React.JSX.Element {
   const nav = useAppNavigation();
+  const {cores} = useTheme();
   const partidas = useGameStore(state => state.partidas);
   const clubes = useGameStore(state => state.clubes);
   const todosClubes = useGameStore(state => state.todosClubes);
@@ -71,13 +78,11 @@ function Calendario(): React.JSX.Element {
   const rodadaAtual = useGameStore(state => state.rodadaAtual);
   const temporadaAtual = useGameStore(state => state.temporadaAtual);
 
-  // Todos os jogos do usuário (liga + copa), com seu estado e data.
   const jogos = useMemo<JogoCalendario[]>(() => {
     if (!clubeUsuarioId) {
       return [];
     }
     const lista: JogoCalendario[] = [];
-
     for (const partida of partidas) {
       if (
         partida.timeCasa !== clubeUsuarioId &&
@@ -100,7 +105,6 @@ function Calendario(): React.JSX.Element {
         partidaId: partida.id,
       });
     }
-
     if (copa) {
       copa.fases.forEach((fase, indice) => {
         const confronto = fase.confrontos.find(
@@ -110,9 +114,7 @@ function Calendario(): React.JSX.Element {
           return;
         }
         const adversarioId =
-          confronto.timeA === clubeUsuarioId
-            ? confronto.timeB
-            : confronto.timeA;
+          confronto.timeA === clubeUsuarioId ? confronto.timeB : confronto.timeA;
         const estado: EstadoJogo = confronto.vencedor
           ? confronto.vencedor === clubeUsuarioId
             ? 'vitoria'
@@ -128,11 +130,9 @@ function Calendario(): React.JSX.Element {
         });
       });
     }
-
     return lista;
   }, [partidas, clubes, todosClubes, copa, clubeUsuarioId, rodadaAtual]);
 
-  // Agrupa por mês ("2026-04" → mapa dia→jogo), ordenado cronologicamente.
   const meses = useMemo(() => {
     const mapa = new Map<string, Map<number, JogoCalendario>>();
     for (const jogo of jogos) {
@@ -158,10 +158,10 @@ function Calendario(): React.JSX.Element {
   };
 
   return (
-    <ScreenContainer scroll>
-      <AppHeader
-        titulo="Calendário"
-        subtitulo={`Liga + Copa · ${temporadaAtual}`}
+    <Screen scroll>
+      <AppBar
+        title="Calendário"
+        subtitle={`Liga + Copa · ${temporadaAtual}`}
         onBack={() => nav.goBack()}
       />
 
@@ -173,12 +173,18 @@ function Calendario(): React.JSX.Element {
           ...Array.from({length: offset}, () => null),
           ...Array.from({length: total}, (_, i) => i + 1),
         ];
-
         return (
-          <Section key={chave} titulo={`${nomeMes(mes)} ${ano}`}>
+          <View key={chave} style={styles.section}>
+            <Text variant="labelM" color="textSecondary" style={styles.caps}>
+              {nomeMes(mes)} {ano}
+            </Text>
             <View style={styles.semanaHeader}>
               {CABECALHO_SEMANA.map((dia, i) => (
-                <Text key={`h${i}`} style={styles.diaSemana}>
+                <Text
+                  key={`h${i}`}
+                  variant="labelM"
+                  color="textSecondary"
+                  style={styles.diaSemana}>
                   {dia}
                 </Text>
               ))}
@@ -186,17 +192,26 @@ function Calendario(): React.JSX.Element {
             <View style={styles.grade}>
               {celulas.map((dia, i) => {
                 if (dia === null) {
-                  return <View key={`v${i}`} style={styles.celula} />;
+                  return (
+                    <View
+                      key={`v${i}`}
+                      style={[styles.celula, {borderColor: cores.border}]}
+                    />
+                  );
                 }
                 const jogo = jogosPorDia.get(dia);
                 if (!jogo) {
                   return (
-                    <View key={dia} style={styles.celula}>
-                      <Text style={styles.diaNum}>{dia}</Text>
+                    <View
+                      key={dia}
+                      style={[styles.celula, {borderColor: cores.border}]}>
+                      <Text variant="caption" color="textSecondary">
+                        {dia}
+                      </Text>
                     </View>
                   );
                 }
-                const corTexto = COR_TEXTO_ESTADO[jogo.estado];
+                const {bg, texto} = corEstado(jogo.estado, cores);
                 return (
                   <Pressable
                     accessibilityRole="button"
@@ -205,41 +220,47 @@ function Calendario(): React.JSX.Element {
                     style={[
                       styles.celula,
                       styles.celulaJogo,
-                      {backgroundColor: COR_ESTADO[jogo.estado]},
-                      jogo.tipo === 'copa' ? styles.celulaCopa : null,
+                      {backgroundColor: bg, borderColor: cores.border},
+                      jogo.tipo === 'copa'
+                        ? [styles.celulaCopa, {borderTopColor: cores.accent}]
+                        : null,
                     ]}>
                     {jogo.tipo === 'copa' ? (
                       <View style={styles.copaMarca}>
-                        <Icone nome="trofeu" tamanho={9} cor={acentos.amarelo} />
+                        <Icon nome="trofeu" size={9} color="accent" />
                       </View>
                     ) : null}
-                    <Text style={[styles.diaNumJogo, {color: corTexto}]}>
+                    <Text variant="labelM" color={texto}>
                       {dia}
                     </Text>
                     <Text
-                      style={[styles.celulaSigla, {color: corTexto}]}
-                      numberOfLines={1}>
+                      variant="caption"
+                      color={texto}
+                      numberOfLines={1}
+                      style={styles.celulaSigla}>
                       {jogo.sigla}
                     </Text>
                   </Pressable>
                 );
               })}
             </View>
-          </Section>
+          </View>
         );
       })}
 
       <View style={styles.legenda}>
-        <Legenda cor={acentos.verde} texto="Vitória" />
-        <Legenda cor={cores.textoSecundario} texto="Empate" />
-        <Legenda cor={acentos.vermelho} texto="Derrota" />
-        <Legenda cor={cores.primaria} texto="Próxima" />
+        <Legenda cor={cores.success} texto="Vitória" />
+        <Legenda cor={cores.textSecondary} texto="Empate" />
+        <Legenda cor={cores.danger} texto="Derrota" />
+        <Legenda cor={cores.brand} texto="Próxima" />
         <View style={styles.legendaItem}>
-          <Icone nome="trofeu" tamanho={13} cor={acentos.amarelo} />
-          <Text style={styles.legendaTexto}>Copa do Brasil</Text>
+          <Icon nome="trofeu" size={13} color="accent" />
+          <Text variant="caption" color="textSecondary">
+            Copa do Brasil
+          </Text>
         </View>
       </View>
-    </ScreenContainer>
+    </Screen>
   );
 }
 
@@ -247,7 +268,9 @@ function Legenda({cor, texto}: {cor: string; texto: string}): React.JSX.Element 
   return (
     <View style={styles.legendaItem}>
       <View style={[styles.legendaPonto, {backgroundColor: cor}]} />
-      <Text style={styles.legendaTexto}>{texto}</Text>
+      <Text variant="caption" color="textSecondary">
+        {texto}
+      </Text>
     </View>
   );
 }
@@ -257,74 +280,29 @@ export default Calendario;
 const LARGURA_CELULA = '14.2857%';
 
 const styles = StyleSheet.create({
-  semanaHeader: {
-    flexDirection: 'row',
-  },
-  diaSemana: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-    textAlign: 'center',
-    width: LARGURA_CELULA,
-  },
-  grade: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
+  section: {gap: espacamento[2]},
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  semanaHeader: {flexDirection: 'row'},
+  diaSemana: {width: LARGURA_CELULA, textAlign: 'center'},
+  grade: {flexDirection: 'row', flexWrap: 'wrap'},
   celula: {
-    alignItems: 'center',
-    aspectRatio: 1,
-    borderColor: cores.bordaTransl,
-    borderWidth: StyleSheet.hairlineWidth,
-    gap: 1,
-    justifyContent: 'center',
     width: LARGURA_CELULA,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 1,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  celulaJogo: {
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-  },
-  celulaCopa: {
-    borderColor: cores.secundaria,
-    borderTopColor: cores.secundaria,
-    borderTopWidth: 3,
-  },
-  copaMarca: {
-    position: 'absolute',
-    right: 2,
-    top: 1,
-  },
-  diaNum: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  diaNumJogo: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  celulaSigla: {
-    fontSize: 9,
-    fontWeight: '800',
-  },
+  celulaJogo: {borderRadius: raios.lg, borderWidth: 1},
+  celulaCopa: {borderTopWidth: 3},
+  copaMarca: {position: 'absolute', right: 2, top: 1},
+  celulaSigla: {fontSize: 9, fontWeight: '800'},
   legenda: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: espaco.md,
-    marginTop: espaco.lg,
+    gap: espacamento[3],
+    marginTop: espacamento[4],
   },
-  legendaItem: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  legendaPonto: {
-    borderRadius: 4,
-    height: 12,
-    width: 12,
-  },
-  legendaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
+  legendaItem: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
+  legendaPonto: {width: 12, height: 12, borderRadius: 4},
 });

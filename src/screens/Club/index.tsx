@@ -1,24 +1,23 @@
 /**
- * Tela da aba "Clube" / Finanças (Módulo 11). Saldo em destaque, donuts de
- * receitas e despesas (agregadas do histórico), alerta de folha salarial,
- * projeção, dados do estádio e histórico recente.
+ * Aba "Clube" / Finanças. Saldo em destaque, donuts de receitas/despesas, alerta
+ * de folha, projeção, estádio, preço do ingresso e histórico. Migrada ao DS v2.
  */
 
 import React, {useMemo} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 
-import {
-  AppHeader,
-  Botao,
-  Metric,
-  MetricsRow,
-  ScreenContainer,
-  Section,
-  TextoVazio,
-} from '../../components/ui';
 import DonutChart, {type FatiaDonut} from '../../components/DonutChart';
-import Icone from '../../components/Icone';
-import Painel from '../../components/Painel';
+import {
+  AppBar,
+  Button,
+  Card,
+  Chip,
+  Icon,
+  Screen,
+  StatValue,
+  Text,
+  espacamento,
+} from '../../design-system';
 import {useToast} from '../../components/feedback';
 import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
 import {useAppNavigation} from '../../navigation/types';
@@ -31,7 +30,6 @@ import {
   selecionarClubeUsuario,
   useGameStore,
 } from '../../store/useGameStore';
-import {cores, espaco, raio, tipografia} from '../../theme';
 import {moeda, moedaCompacta} from '../../utils/formatters';
 import type {Transacao} from '../../types';
 
@@ -46,8 +44,9 @@ const ROTULO_CATEGORIA: Record<string, string> = {
   contratacoes: 'Contratações',
 };
 
-const CORES_RECEITA = [cores.primaria, cores.secundaria, '#3B82F6', '#8B5CF6'];
-const CORES_DESPESA = [cores.perigo, '#F59E0B', '#FB923C', '#64748B'];
+// Paleta de séries do gráfico (categórica, independente de tema).
+const CORES_RECEITA = ['#13A65A', '#F2B43C', '#2878F0', '#8B5CF6'];
+const CORES_DESPESA = ['#D64545', '#F59E0B', '#FB923C', '#64748B'];
 
 const PRESETS_PRECO: {rotulo: string; fator: number}[] = [
   {rotulo: 'Barato', fator: 0.75},
@@ -112,10 +111,12 @@ function Club(): React.JSX.Element {
 
   if (!clubeUsuario) {
     return (
-      <ScreenContainer scroll>
-        <Text style={styles.titulo}>Clube</Text>
-        <TextoVazio>Nenhum clube selecionado.</TextoVazio>
-      </ScreenContainer>
+      <Screen scroll>
+        <AppBar title="Clube" subtitle="Finanças do clube" />
+        <Text variant="bodyM" color="textSecondary">
+          Nenhum clube selecionado.
+        </Text>
+      </Screen>
     );
   }
 
@@ -135,63 +136,65 @@ function Club(): React.JSX.Element {
   const pctFolha = receitas.total > 0 ? (folha / receitas.total) * 100 : 0;
   const folhaAlta = pctFolha > 80;
   const semDados = receitas.total === 0 && despesas.total === 0;
+  const saldoNeg = financas.saldo < 0;
 
   return (
-    <ScreenContainer scroll>
-      <AppHeader titulo={clubeUsuario.nome} subtitulo="Finanças do clube" />
+    <Screen scroll>
+      <AppBar title={clubeUsuario.nome} subtitle="Finanças do clube" />
 
-      {/* Saldo em destaque */}
-      <Painel
-        glow={financas.saldo < 0 ? undefined : 'primaria'}
-        acento={financas.saldo < 0 ? cores.perigo : cores.primaria}
-        style={styles.saldoPainel}>
+      <Card variante="status" status={saldoNeg ? 'danger' : 'brand'}>
         <View style={styles.saldoHero}>
-          <Icone
-            nome="dinheiro"
-            tamanho={30}
-            cor={financas.saldo < 0 ? cores.perigo : cores.primaria}
-          />
-          <View style={styles.flex1}>
-            <Text style={styles.saldoLabel}>Saldo do clube</Text>
+          <Icon nome="dinheiro" size={28} color={saldoNeg ? 'danger' : 'brand'} />
+          <View style={styles.flex}>
+            <Text variant="labelM" color="textSecondary" style={styles.caps}>
+              Saldo do clube
+            </Text>
             <Text
+              variant="titleXL"
+              color={saldoNeg ? 'danger' : 'brand'}
+              tabular
               numberOfLines={1}
-              adjustsFontSizeToFit
-              style={[
-                styles.saldoValor,
-                {color: financas.saldo < 0 ? cores.perigo : cores.primaria},
-              ]}>
+              adjustsFontSizeToFit>
               {moeda(financas.saldo)}
             </Text>
           </View>
         </View>
-      </Painel>
+      </Card>
 
-      <MetricsRow>
-        <Metric label="Estádio" valor={estadio.capacidade.toLocaleString('pt-BR')} />
-        <Metric label="Reputação" valor={String(clubeUsuario.reputacao)} />
-        <Metric label="Folha" valor={moedaCompacta(folha)} />
-      </MetricsRow>
+      <View style={styles.metricsRow}>
+        <StatValue
+          label="Estádio"
+          value={estadio.capacidade.toLocaleString('pt-BR')}
+          style={styles.flex}
+        />
+        <StatValue
+          label="Reputação"
+          value={String(clubeUsuario.reputacao)}
+          style={styles.flex}
+        />
+        <StatValue label="Folha" value={moedaCompacta(folha)} style={styles.flex} />
+      </View>
 
       {folhaAlta ? (
-        <Painel acento={cores.secundaria} style={styles.alertaPainel}>
-          <View style={styles.alerta}>
-            <Icone nome="apito" tamanho={16} cor={cores.secundaria} />
-            <Text style={styles.alertaTexto}>
+        <Card variante="status" status="warning">
+          <View style={styles.linhaIcone}>
+            <Icon nome="apito" size={16} color="warning" />
+            <Text variant="bodyM" style={styles.flex}>
               Atenção: salários consomem {pctFolha.toFixed(0)}% da receita.
               Considere vender jogadores de alto salário.
             </Text>
           </View>
-        </Painel>
+        </Card>
       ) : null}
 
       {semDados ? (
-        <Section titulo="Finanças">
-          <TextoVazio>Sem movimentações financeiras ainda.</TextoVazio>
-        </Section>
+        <Text variant="bodyM" color="textSecondary">
+          Sem movimentações financeiras ainda.
+        </Text>
       ) : (
         <>
-          <Section titulo="Receitas">
-            <Painel>
+          <Secao titulo="Receitas">
+            <Card variante="outlined">
               <View style={styles.donutLinha}>
                 <DonutChart
                   fatias={receitas.fatias}
@@ -200,11 +203,10 @@ function Club(): React.JSX.Element {
                 />
                 <Legenda fatias={receitas.fatias} />
               </View>
-            </Painel>
-          </Section>
-
-          <Section titulo="Despesas">
-            <Painel>
+            </Card>
+          </Secao>
+          <Secao titulo="Despesas">
+            <Card variante="outlined">
               <View style={styles.donutLinha}>
                 <DonutChart
                   fatias={despesas.fatias}
@@ -213,47 +215,38 @@ function Club(): React.JSX.Element {
                 />
                 <Legenda fatias={despesas.fatias} />
               </View>
-            </Painel>
-          </Section>
+            </Card>
+          </Secao>
         </>
       )}
 
-      <Painel style={styles.projecaoPainel}>
-        <View style={styles.projecao}>
-          <Text style={styles.projecaoLabel}>Após a próxima folha</Text>
+      <Card variante="outlined">
+        <View style={styles.rowBetween}>
+          <Text variant="bodyM" color="textSecondary">
+            Após a próxima folha
+          </Text>
           <Text
-            style={[
-              styles.projecaoValor,
-              {color: financas.saldo - folha < 0 ? cores.perigo : cores.texto},
-            ]}>
+            variant="titleM"
+            color={financas.saldo - folha < 0 ? 'danger' : 'textPrimary'}
+            tabular>
             {moeda(financas.saldo - folha)}
           </Text>
         </View>
-      </Painel>
+      </Card>
 
-      <Section titulo="Estádio">
-        <Painel>
-          <View style={styles.card}>
-            <Text style={styles.estadioNome}>{estadio.nome}</Text>
-          <View style={styles.linha}>
-            <Text style={styles.linhaLabel}>Capacidade</Text>
-            <Text style={styles.linhaValor}>
-              {estadio.capacidade.toLocaleString('pt-BR')}
-            </Text>
-          </View>
-          <View style={styles.linha}>
-            <Text style={styles.linhaLabel}>Infraestrutura</Text>
-            <Text style={styles.linhaValor}>Nível {estadio.nivelInfraestrutura}</Text>
-          </View>
-            <Text style={styles.obraNota}>
-              Capacidade aumenta a bilheteria e o mando; infraestrutura acelera
-              a base e o treino.
-            </Text>
-          </View>
-        </Painel>
+      <Secao titulo="Estádio">
+        <Card variante="outlined" style={styles.cardGap}>
+          <Text variant="titleM">{estadio.nome}</Text>
+          <Linha label="Capacidade" valor={estadio.capacidade.toLocaleString('pt-BR')} />
+          <Linha label="Infraestrutura" valor={`Nível ${estadio.nivelInfraestrutura}`} />
+          <Text variant="caption" color="textSecondary">
+            Capacidade aumenta a bilheteria e o mando; infraestrutura acelera a
+            base e o treino.
+          </Text>
+        </Card>
         <View style={styles.obras}>
-          <Botao
-            variante="secundaria"
+          <Button
+            variante="secondary"
             icone="dinheiro"
             disabled={capacidadeMaxima || financas.saldo < custoCapacidade}
             titulo={
@@ -262,9 +255,10 @@ function Club(): React.JSX.Element {
                 : `Ampliar +${LUGARES_POR_AMPLIACAO.toLocaleString('pt-BR')} · ${moedaCompacta(custoCapacidade)}`
             }
             onPress={() => aoMelhorar('capacidade')}
+            fullWidth
           />
-          <Botao
-            variante="secundaria"
+          <Button
+            variante="secondary"
             icone="tatica"
             disabled={infraMaxima || financas.saldo < custoInfra}
             titulo={
@@ -273,86 +267,102 @@ function Club(): React.JSX.Element {
                 : `Melhorar infra (nível ${estadio.nivelInfraestrutura + 1}) · ${moedaCompacta(custoInfra)}`
             }
             onPress={() => aoMelhorar('infraestrutura')}
+            fullWidth
           />
         </View>
-      </Section>
+      </Secao>
 
-      <Section titulo="Preço do ingresso">
-        <Painel>
-          <View style={styles.card}>
-            <View style={styles.linha}>
-              <Text style={styles.linhaLabel}>Preço médio</Text>
-              <Text style={styles.linhaValor}>{moeda(precoEfetivo)}</Text>
-            </View>
+      <Secao titulo="Preço do ingresso">
+        <Card variante="outlined" style={styles.cardGap}>
+          <Linha label="Preço médio" valor={moeda(precoEfetivo)} />
           <View style={styles.precoBotoes}>
-            {PRESETS_PRECO.map(preset => {
-              const ativo = Math.abs(fatorPreco - preset.fator) < 0.01;
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  key={preset.rotulo}
-                  onPress={() => ajustarPrecoIngresso(preset.fator)}
-                  style={[
-                    styles.precoBotao,
-                    ativo ? styles.precoBotaoAtivo : null,
-                  ]}>
-                  <Text
-                    style={[
-                      styles.precoBotaoTexto,
-                      ativo ? styles.precoBotaoTextoAtivo : null,
-                    ]}>
-                    {preset.rotulo}
-                  </Text>
-                </Pressable>
-              );
-            })}
+            {PRESETS_PRECO.map(preset => (
+              <Chip
+                key={preset.rotulo}
+                label={preset.rotulo}
+                selected={Math.abs(fatorPreco - preset.fator) < 0.01}
+                onPress={() => ajustarPrecoIngresso(preset.fator)}
+                style={styles.flex}
+              />
+            ))}
           </View>
-            <Text style={styles.obraNota}>
-              Cobrar mais rende por ingresso, mas esvazia o estádio. Há um ponto
-              ideal entre lotar barato e cobrar caro.
-            </Text>
-          </View>
-        </Painel>
-      </Section>
+          <Text variant="caption" color="textSecondary">
+            Cobrar mais rende por ingresso, mas esvazia o estádio. Há um ponto
+            ideal entre lotar barato e cobrar caro.
+          </Text>
+        </Card>
+      </Secao>
 
-      <Section titulo="Histórico Financeiro">
+      <Secao titulo="Histórico Financeiro">
         {historico.length > 0 ? (
-          <Painel>
-            <View style={styles.historico}>
+          <Card variante="outlined" style={styles.cardGap}>
             {historico.slice(0, 6).map((transacao, index) => {
               const receita = transacao.tipo === 'receita';
               return (
                 <View key={`${transacao.data}_${index}`} style={styles.transacao}>
-                  <Icone
+                  <Icon
                     nome={receita ? 'seta-cima' : 'seta-baixo'}
-                    tamanho={16}
-                    cor={receita ? cores.primaria : cores.perigo}
+                    size={16}
+                    color={receita ? 'brand' : 'danger'}
                   />
-                  <Text style={styles.transacaoDescricao}>{transacao.descricao}</Text>
+                  <Text variant="bodyM" style={styles.flex} numberOfLines={1}>
+                    {transacao.descricao}
+                  </Text>
                   <Text
-                    style={[
-                      styles.transacaoValor,
-                      receita ? styles.valorReceita : styles.valorDespesa,
-                    ]}>
+                    variant="labelL"
+                    color={receita ? 'brand' : 'danger'}
+                    tabular>
                     {receita ? '+' : '-'}
                     {moedaCompacta(Math.abs(transacao.valor))}
                   </Text>
                 </View>
               );
             })}
-            </View>
-          </Painel>
+          </Card>
         ) : (
-          <TextoVazio>Nenhuma transação registrada.</TextoVazio>
+          <Text variant="bodyM" color="textSecondary">
+            Nenhuma transação registrada.
+          </Text>
         )}
-      </Section>
+      </Secao>
 
-      <Botao
+      <Button
         icone="mercado"
         titulo="Mercado de Transferências"
         onPress={() => nav.navigate('TransferMarket')}
+        fullWidth
       />
-    </ScreenContainer>
+    </Screen>
+  );
+}
+
+function Secao({
+  titulo,
+  children,
+}: {
+  titulo: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <View style={styles.secao}>
+      <Text variant="labelM" color="textSecondary" style={styles.caps}>
+        {titulo}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
+function Linha({label, valor}: {label: string; valor: string}): React.JSX.Element {
+  return (
+    <View style={styles.rowBetween}>
+      <Text variant="bodyM" color="textSecondary">
+        {label}
+      </Text>
+      <Text variant="labelL" tabular>
+        {valor}
+      </Text>
+    </View>
   );
 }
 
@@ -362,8 +372,12 @@ function Legenda({fatias}: {fatias: FatiaDonut[]}): React.JSX.Element {
       {fatias.map(fatia => (
         <View key={fatia.label} style={styles.legendaItem}>
           <View style={[styles.legendaPonto, {backgroundColor: fatia.cor}]} />
-          <Text style={styles.legendaLabel}>{fatia.label}</Text>
-          <Text style={styles.legendaValor}>{moedaCompacta(fatia.valor)}</Text>
+          <Text variant="caption" color="textSecondary" style={styles.flex}>
+            {fatia.label}
+          </Text>
+          <Text variant="caption" tabular>
+            {moedaCompacta(fatia.valor)}
+          </Text>
         </View>
       ))}
     </View>
@@ -373,170 +387,32 @@ function Legenda({fatias}: {fatias: FatiaDonut[]}): React.JSX.Element {
 export default Club;
 
 const styles = StyleSheet.create({
-  titulo: {
-    color: cores.texto,
-    fontSize: 26,
-    fontWeight: '800',
-    marginBottom: espaco.md,
-  },
-  flex1: {
-    flex: 1,
-  },
-  saldoPainel: {
-    marginBottom: espaco.md,
-  },
-  saldoHero: {
-    alignItems: 'center',
+  flex: {flex: 1},
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  saldoHero: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  metricsRow: {flexDirection: 'row', gap: espacamento[2]},
+  linhaIcone: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  secao: {gap: espacamento[2]},
+  cardGap: {gap: espacamento[2]},
+  rowBetween: {
     flexDirection: 'row',
-    gap: espaco.md,
-  },
-  saldoLabel: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  saldoValor: {
-    ...tipografia.titulo,
-  },
-  alertaPainel: {
-    marginBottom: espaco.md,
-  },
-  alerta: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  alertaTexto: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 13,
+    justifyContent: 'space-between',
   },
   donutLinha: {
-    alignItems: 'center',
     flexDirection: 'row',
-    gap: espaco.md,
-  },
-  legenda: {
-    flex: 1,
-    gap: espaco.xs,
-  },
-  legendaItem: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
+    gap: espacamento[3],
   },
-  legendaPonto: {
-    borderRadius: 4,
-    height: 10,
-    width: 10,
-  },
-  legendaLabel: {
-    color: cores.textoSecundario,
-    flex: 1,
-    fontSize: 12,
-  },
-  legendaValor: {
-    color: cores.texto,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  projecaoPainel: {
-    marginBottom: espaco.md,
-  },
-  projecao: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  projecaoLabel: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-  },
-  projecaoValor: {
-    ...tipografia.numero,
-  },
-  card: {
-    gap: espaco.sm,
-  },
-  estadioNome: {
-    color: cores.texto,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  obraNota: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    marginTop: espaco.xs,
-  },
-  obras: {
-    gap: espaco.sm,
-    marginTop: espaco.sm,
-  },
-  precoBotoes: {
-    flexDirection: 'row',
-    gap: espaco.sm,
-    marginTop: espaco.xs,
-  },
-  precoBotao: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    flex: 1,
-    paddingVertical: espaco.sm,
-  },
-  precoBotaoAtivo: {
-    backgroundColor: `${cores.primaria}22`,
-    borderColor: cores.primaria,
-  },
-  precoBotaoTexto: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  precoBotaoTextoAtivo: {
-    color: cores.primaria,
-  },
-
-  linha: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  linhaLabel: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-  },
-  linhaValor: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  historico: {
-    gap: espaco.sm,
-  },
+  legenda: {flex: 1, gap: espacamento[1]},
+  legendaItem: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  legendaPonto: {width: 10, height: 10, borderRadius: 4},
+  obras: {gap: espacamento[2]},
+  precoBotoes: {flexDirection: 'row', gap: espacamento[2]},
   transacao: {
-    alignItems: 'center',
     flexDirection: 'row',
-    gap: espaco.sm,
-    paddingVertical: espaco.sm,
-  },
-  transacaoDescricao: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 13,
-  },
-  transacaoValor: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  valorReceita: {
-    color: cores.primaria,
-  },
-  valorDespesa: {
-    color: cores.perigo,
+    alignItems: 'center',
+    gap: espacamento[2],
+    paddingVertical: espacamento[1],
   },
 });
