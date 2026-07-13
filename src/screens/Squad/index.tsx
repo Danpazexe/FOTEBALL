@@ -33,7 +33,6 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {forcaDoClube} from '../../utils/forca';
 import {moedaCompacta} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
@@ -69,7 +68,6 @@ function Squad(): React.JSX.Element {
   const nav = useAppNavigation();
   const jogadores = useJogadoresUsuario();
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
-  const todosJogadores = useGameStore(state => state.jogadores);
   const [aba, setAba] = useState<Aba>('todos');
   const [filtro, setFiltro] = useState<FiltroPosicao>('Todos');
 
@@ -101,11 +99,8 @@ function Squad(): React.JSX.Element {
       total === 0
         ? 0
         : Math.round(jogadores.reduce((s, j) => s + j.overall, 0) / total);
-    const indisponiveis = jogadores.filter(
-      j => j.lesionado || j.suspenso,
-    ).length;
     const folha = calcularFolhaSalarial(jogadores);
-    return {total, media, indisponiveis, folha};
+    return {total, media, folha};
   }, [jogadores]);
 
   // Jogador em destaque: o capitão, ou o de maior overall.
@@ -119,11 +114,6 @@ function Squad(): React.JSX.Element {
       jogadores.reduce((m, j) => (j.overall > m.overall ? j : m))
     );
   }, [jogadores, clubeUsuario]);
-
-  const forca = useMemo(
-    () => (clubeUsuario ? forcaDoClube(clubeUsuario, todosJogadores) : null),
-    [clubeUsuario, todosJogadores],
-  );
 
   const abrir = (id: string) => nav.navigate('PlayerDetail', {jogadorId: id});
 
@@ -176,23 +166,6 @@ function Squad(): React.JSX.Element {
         </View>
       )}
 
-      {forca ? (
-        <Card variante="outlined" padding={4} style={styles.resumo}>
-          <Text variant="labelM" color="textSecondary" style={styles.caps}>
-            Resumo do elenco
-          </Text>
-          <ResumoLinha label="Força ofensiva" valor={forca.ataque} />
-          <ResumoLinha label="Meio-campo" valor={forca.meio} />
-          <ResumoLinha label="Defesa" valor={forca.defesa} />
-          <Text
-            variant="caption"
-            color={resumo.indisponiveis > 0 ? 'warning' : 'textSecondary'}>
-            {resumo.indisponiveis > 0
-              ? `Risco: ${resumo.indisponiveis} jogador(es) indisponível(eis)`
-              : 'Sem desfalques no momento'}
-          </Text>
-        </Card>
-      ) : null}
     </Screen>
   );
 }
@@ -325,24 +298,6 @@ function LinhaJogador({
   );
 }
 
-function ResumoLinha({
-  label,
-  valor,
-}: {
-  label: string;
-  valor: number;
-}): React.JSX.Element {
-  const pct = Math.max(0, Math.min(100, (Math.round(valor) / 99) * 100));
-  return (
-    <View style={styles.resumoLinha}>
-      <Text variant="labelM" style={styles.resumoLabel}>
-        {label}
-      </Text>
-      <ProgressBar valor={pct} altura={9} style={styles.resumoBar} />
-    </View>
-  );
-}
-
 export default Squad;
 
 const styles = StyleSheet.create({
@@ -365,10 +320,4 @@ const styles = StyleSheet.create({
   linhaInfo: {flex: 1, gap: 1},
   linhaOvr: {minWidth: 26, textAlign: 'right'},
   linhaCf: {width: 44},
-  // Resumo
-  resumo: {gap: espacamento[3]},
-  caps: {textTransform: 'uppercase', letterSpacing: 1},
-  resumoLinha: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
-  resumoLabel: {width: 104},
-  resumoBar: {flex: 1},
 });
