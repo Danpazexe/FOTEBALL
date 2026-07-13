@@ -88,7 +88,12 @@ export default function PlayerAvatar({
       importantForAccessibility="no"
       style={[
         estilos.circulo,
-        {width: tamanho, height: tamanho, borderRadius: tamanho / 2},
+        {
+          width: tamanho,
+          height: tamanho,
+          borderRadius: tamanho / 2,
+          backgroundColor: corCamisa,
+        },
         style,
       ]}>
       <AvatarShirt size={tamanho} corPrimaria={corCamisa} corGola={corCamisa} />
