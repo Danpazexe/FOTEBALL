@@ -1,16 +1,49 @@
-import type {NavigatorScreenParams, RouteProp} from '@react-navigation/native';
+import type {
+  CompositeNavigationProp,
+  NavigatorScreenParams,
+  RouteProp,
+} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useNavigation, useRoute} from '@react-navigation/native';
 
-/** Abas inferiores (ordem): Elenco · Partidas · Início · Mercado · Clube. */
-export type MainTabsParamList = {
-  Elenco: undefined;
-  /** "Partidas" — reusa a tela Competition (Jogos/Tabela/Estatísticas). */
-  Competition: undefined;
+// ─── Stacks internos de cada aba ────────────────────────────────────────────
+// Cada área da tab bar tem seu próprio Stack Navigator; as telas internas rolam
+// por baixo com a tab bar VISÍVEL e o ícone da área selecionado. As telas ainda
+// não migradas para os stacks seguem no RootStack (cobrindo a barra) e serão
+// movidas nas fases seguintes.
+
+export type InicioStackParamList = {
   Home: undefined;
-  /** "Mercado" — reusa a tela TransferMarket, agora aba. */
+};
+
+export type ElencoStackParamList = {
+  Squad: undefined;
+};
+
+export type PartidasStackParamList = {
+  Competition: undefined;
+};
+
+export type MercadoStackParamList = {
   TransferMarket: undefined;
+};
+
+/** Aba Clube: abre a CENTRAL DO CLUBE (hub); a visão geral é uma tela interna. */
+export type ClubeStackParamList = {
+  CentralClube: undefined;
   Club: undefined;
+};
+
+/** Abas inferiores (ordem): Elenco · Partidas · Início · Mercado · Clube. Cada
+ * uma hospeda um Stack Navigator próprio. */
+export type MainTabsParamList = {
+  Elenco: NavigatorScreenParams<ElencoStackParamList> | undefined;
+  /** "Partidas" — Stack com Competition/Calendário/Pré-jogo/… */
+  Competition: NavigatorScreenParams<PartidasStackParamList> | undefined;
+  Home: NavigatorScreenParams<InicioStackParamList> | undefined;
+  /** "Mercado" — Stack com TransferMarket/Olheiro/Negociação/… */
+  TransferMarket: NavigatorScreenParams<MercadoStackParamList> | undefined;
+  Club: NavigatorScreenParams<ClubeStackParamList> | undefined;
 };
 
 /** Pilha raiz: menu, criação de carreira, app principal e telas modais. */
@@ -43,9 +76,21 @@ export type RootStackParamList = {
 
 export type RootNavigation = NativeStackNavigationProp<RootStackParamList>;
 
+/** Navegação da aba Clube: navega dentro do ClubeStack E sobe para o RootStack
+ * (telas ainda não migradas). Tipagem composta, sem `any`. */
+export type ClubeNavigation = CompositeNavigationProp<
+  NativeStackNavigationProp<ClubeStackParamList>,
+  RootNavigation
+>;
+
 /** Hook de navegação tipado para uso nas telas. */
 export function useAppNavigation(): RootNavigation {
   return useNavigation<RootNavigation>();
+}
+
+/** Hook de navegação da aba Clube (ClubeStack + RootStack). */
+export function useClubeNavigation(): ClubeNavigation {
+  return useNavigation<ClubeNavigation>();
 }
 
 /** Hook de rota tipado (acessa `route.params` da tela atual). */

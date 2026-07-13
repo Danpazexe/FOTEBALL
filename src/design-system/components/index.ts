@@ -5,6 +5,8 @@ export {Chip} from './Chip';
 export {Badge} from './Badge';
 export {ListItem} from './ListItem';
 export {AppBar} from './AppBar';
+export {AppHeader} from './AppHeader';
+export {MenuRow} from './MenuRow';
 export {SectionHeader} from './SectionHeader';
 export {StandingRow} from './StandingRow';
 export {ManagerTask} from './ManagerTask';

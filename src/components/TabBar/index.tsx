@@ -11,6 +11,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {StackActions} from '@react-navigation/native';
 import type {BottomTabBarProps} from '@react-navigation/bottom-tabs';
 
 import Icone, {type IconeNome} from '../Icone';
@@ -111,7 +112,19 @@ export default function TabBar({
             target: route.key,
             canPreventDefault: true,
           });
-          if (!focado && !evento.defaultPrevented) {
+          if (evento.defaultPrevented) {
+            return;
+          }
+          if (focado) {
+            // Re-toque na aba ativa → volta ao topo do stack daquela área.
+            const nested = route.state;
+            if (nested && 'key' in nested && (nested.index ?? 0) > 0) {
+              navigation.dispatch({
+                ...StackActions.popToTop(),
+                target: nested.key,
+              });
+            }
+          } else {
             navigation.navigate(route.name);
           }
         };
