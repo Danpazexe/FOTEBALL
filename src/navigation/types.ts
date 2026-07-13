@@ -40,6 +40,7 @@ export type ClubeStackParamList = {
   Club: undefined;
   Financas: undefined;
   Carreira: undefined;
+  Patrocinios: undefined;
 };
 
 /** Abas inferiores (ordem): Elenco · Partidas · Início · Mercado · Clube. Cada
