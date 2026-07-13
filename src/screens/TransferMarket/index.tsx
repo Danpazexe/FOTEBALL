@@ -409,7 +409,7 @@ function MercadoRow({
       onPress={onPress}
       style={styles.row}
       accessibilityLabel={`${nomeCurto(jogador)}, ${jogador.posicaoPrincipal}, ${jogador.idade} anos`}>
-      <PlayerAvatar id={jogador.id} clubeId={jogador.clubeId} tamanho={40} />
+      <PlayerAvatar id={jogador.id} tamanho={40} />
       <View style={styles.rowInfo}>
         <Text variant="labelL" numberOfLines={1}>
           {nomeCurto(jogador)}

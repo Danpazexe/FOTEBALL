@@ -212,7 +212,7 @@ function DestaqueJogador({
 
   return (
     <Card variante="elevated" onPress={onPress} style={styles.destaque}>
-      <PlayerAvatar id={jogador.id} clubeId={jogador.clubeId} tamanho={56} />
+      <PlayerAvatar id={jogador.id} tamanho={56} />
       <View style={styles.destaqueInfo}>
         <View style={styles.linhaNome}>
           <Text variant="titleM" numberOfLines={1}>
@@ -263,7 +263,7 @@ function LinhaJogador({
       style={styles.linha}
       accessibilityLabel={`${nomeCurto(jogador)}, ${jogador.posicaoPrincipal}, overall ${jogador.overall}`}>
       <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
-      <PlayerAvatar id={jogador.id} clubeId={jogador.clubeId} tamanho={36} />
+      <PlayerAvatar id={jogador.id} tamanho={36} />
       <View style={styles.linhaInfo}>
         <View style={styles.linhaNome}>
           <Text variant="labelL" numberOfLines={1}>
