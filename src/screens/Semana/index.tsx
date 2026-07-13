@@ -7,7 +7,7 @@ import React, {useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {
-  AppBar,
+  AppHeader,
   Badge,
   Button,
   Card,
@@ -102,6 +102,24 @@ function Semana(): React.JSX.Element {
   const nivelInfra = clube?.estadio.nivelInfraestrutura ?? 3;
   const moralMedia = useMemo(() => media(elenco.map(j => j.moral)), [elenco]);
 
+  // Prontidão do elenco (dado real): lesionados, cansados (condição baixa) e
+  // disponíveis. Guia a decisão de carga da semana.
+  const prontidao = useMemo(() => {
+    let lesionados = 0;
+    let cansados = 0;
+    let disponiveis = 0;
+    for (const j of elenco) {
+      if (j.lesionado) {
+        lesionados += 1;
+      } else if (j.condicaoFisica < 65) {
+        cansados += 1;
+      } else {
+        disponiveis += 1;
+      }
+    }
+    return {lesionados, cansados, disponiveis};
+  }, [elenco]);
+
   const porPosicao = useMemo(
     () => CATALOGO_TREINOS.filter(t => t.categoria === 'posicao'),
     [],
@@ -186,12 +204,32 @@ function Semana(): React.JSX.Element {
   };
 
   return (
-    <Screen scroll>
-      <AppBar
-        title="Treino da Semana"
-        subtitle="Desenvolva os atributos do elenco"
-        onBack={() => nav.goBack()}
-      />
+    <Screen
+      scroll
+      header={<AppHeader title="Treino" onBack={() => nav.goBack()} />}>
+      {/* Prontidão do elenco */}
+      <Card variante="outlined" style={styles.prontidaoCard}>
+        <ProntidaoStat
+          valor={prontidao.disponiveis}
+          rotulo="Disponíveis"
+          tom="success"
+        />
+        <ProntidaoStat valor={prontidao.cansados} rotulo="Cansados" tom="accent" />
+        <ProntidaoStat
+          valor={prontidao.lesionados}
+          rotulo="Lesionado"
+          tom="danger"
+        />
+      </Card>
+      {prontidao.cansados > 0 ? (
+        <Card variante="status" status="warning" padding={3} style={styles.cargaCard}>
+          <Icon nome="lesao" size={18} color="warning" />
+          <Text variant="labelL">
+            Carga alta para {prontidao.cansados} jogador
+            {prontidao.cansados > 1 ? 'es' : ''}
+          </Text>
+        </Card>
+      ) : null}
 
       <Card variante="outlined" style={styles.moralCard}>
         <View style={styles.rowBetween}>
@@ -325,7 +363,7 @@ function Semana(): React.JSX.Element {
       ) : null}
 
       <Button
-        titulo="Confirmar treino"
+        titulo="Confirmar semana"
         variante="primary"
         onPress={confirmar}
         fullWidth
@@ -334,10 +372,35 @@ function Semana(): React.JSX.Element {
   );
 }
 
+/** Célula da prontidão do elenco (número colorido + rótulo). */
+function ProntidaoStat({
+  valor,
+  rotulo,
+  tom,
+}: {
+  valor: number;
+  rotulo: string;
+  tom: CorTexto;
+}): React.JSX.Element {
+  return (
+    <View style={styles.prontidaoStat}>
+      <Text variant="titleL" color={tom} tabular>
+        {valor}
+      </Text>
+      <Text variant="caption" color="textSecondary">
+        {rotulo}
+      </Text>
+    </View>
+  );
+}
+
 export default Semana;
 
 const styles = StyleSheet.create({
   caps: {textTransform: 'uppercase', letterSpacing: 1},
+  prontidaoCard: {flexDirection: 'row', alignItems: 'center'},
+  prontidaoStat: {flex: 1, alignItems: 'center', gap: 2},
+  cargaCard: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
   moralCard: {gap: espacamento[2]},
   rowBetween: {
     flexDirection: 'row',

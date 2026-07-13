@@ -19,6 +19,7 @@ export type InicioStackParamList = {
 export type ElencoStackParamList = {
   Squad: undefined;
   PlayerDetail: {jogadorId: string};
+  Semana: undefined;
 };
 
 export type PartidasStackParamList = {
