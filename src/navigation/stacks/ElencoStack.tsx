@@ -2,6 +2,7 @@ import React from 'react';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import Squad from '../../screens/Squad';
+import PlayerDetail from '../../screens/PlayerDetail';
 import type {ElencoStackParamList} from '../types';
 
 const Stack = createNativeStackNavigator<ElencoStackParamList>();
@@ -11,6 +12,7 @@ export function ElencoStack(): React.JSX.Element {
   return (
     <Stack.Navigator screenOptions={{headerShown: false}}>
       <Stack.Screen name="Squad" component={Squad} />
+      <Stack.Screen name="PlayerDetail" component={PlayerDetail} />
     </Stack.Navigator>
   );
 }

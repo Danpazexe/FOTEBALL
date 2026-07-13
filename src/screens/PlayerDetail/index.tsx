@@ -7,17 +7,18 @@ import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
-import CartaJogador from '../../components/CartaJogador';
 import AttributeRadar from '../../components/AttributeRadar';
-import OverallBadge from '../../components/OverallBadge';
 import StatBar from '../../components/StatBar';
+import PlayerAvatar from '../../components/PlayerAvatar';
 import {
-  AppBar,
+  AppHeader,
   Badge,
   Button,
   Card,
   Chip,
   Icon,
+  OverallRing,
+  PositionBadge,
   Screen,
   StatValue,
   Text,
@@ -104,8 +105,10 @@ function PlayerDetail(): React.JSX.Element {
 
   if (!jogador) {
     return (
-      <Screen scroll>
-        <AppBar title="Jogador" onBack={() => nav.goBack()} />
+      <Screen
+        header={
+          <AppHeader title="Perfil do jogador" onBack={() => nav.goBack()} />
+        }>
         <Text variant="bodyM" color="textSecondary">
           Jogador não encontrado.
         </Text>
@@ -166,17 +169,30 @@ function PlayerDetail(): React.JSX.Element {
   };
 
   return (
-    <Screen scroll>
-      <AppBar
-        title={jogador.nome}
-        subtitle={`${jogador.posicaoPrincipal} · ${jogador.idade} anos · ${jogador.nacionalidade}`}
-        onBack={() => nav.goBack()}
-        right={<OverallBadge overall={jogador.overall} />}
-      />
-
-      <View style={styles.cartaWrap}>
-        <CartaJogador jogador={jogador} />
-      </View>
+    <Screen
+      scroll
+      header={
+        <AppHeader title="Perfil do jogador" onBack={() => nav.goBack()} />
+      }>
+      {/* Identidade: avatar + nome + posição/idade + anel de overall */}
+      <Card variante="outlined" style={styles.identidade}>
+        <PlayerAvatar id={jogador.id} tamanho={64} />
+        <View style={styles.identidadeInfo}>
+          <View style={styles.identidadeNome}>
+            <Text variant="titleL" numberOfLines={1}>
+              {jogador.apelido ?? jogador.nome}
+            </Text>
+            {ehCapitao ? <Badge label="C" tom="brand" solido /> : null}
+          </View>
+          <View style={styles.identidadeMeta}>
+            <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
+            <Text variant="labelM" color="textSecondary" numberOfLines={1}>
+              {jogador.idade} anos · {jogador.nacionalidade}
+            </Text>
+          </View>
+        </View>
+        <OverallRing valor={jogador.overall} tamanho={56} />
+      </Card>
 
       <StatusChip tom={status.tom} icone={status.icone} rotulo={status.rotulo} />
       {jogador.emprestimo ? (
@@ -463,7 +479,10 @@ export default PlayerDetail;
 const styles = StyleSheet.create({
   flex: {flex: 1},
   caps: {textTransform: 'uppercase', letterSpacing: 1},
-  cartaWrap: {alignItems: 'center', marginVertical: espacamento[2]},
+  identidade: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  identidadeInfo: {flex: 1, gap: espacamento[1]},
+  identidadeNome: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  identidadeMeta: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
   radarWrap: {alignItems: 'center'},
   statusChip: {
     alignSelf: 'center',
