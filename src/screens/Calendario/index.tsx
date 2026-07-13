@@ -7,16 +7,16 @@ import React, {useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {
-  AppHeader,
+  AppBar,
   Badge,
   EmptyState,
+  IconButton,
   MatchCard,
   Screen,
   SegmentedTabs,
-  Text,
   espacamento,
 } from '../../design-system';
-import {useAppNavigation} from '../../navigation/types';
+import {usePartidasNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
 import {siglaClube} from '../../utils/formatters';
 
@@ -42,7 +42,7 @@ function dataCurta(iso: string): string {
 }
 
 function Calendario(): React.JSX.Element {
-  const nav = useAppNavigation();
+  const nav = usePartidasNavigation();
   const [aba, setAba] = useState<Aba>('proximos');
 
   const partidas = useGameStore(state => state.partidas);
@@ -127,14 +127,18 @@ function Calendario(): React.JSX.Element {
     <Screen
       scroll
       header={
-        <AppHeader
-          title="Calendário"
-          onBack={() => (nav.canGoBack() ? nav.goBack() : undefined)}
+        <AppBar
+          title="Partidas"
+          subtitle={`Liga + Copa · Temporada ${temporadaAtual}`}
+          right={
+            <IconButton
+              icone="tabela"
+              onPress={() => nav.navigate('Competition')}
+              accessibilityLabel="Ver classificação"
+            />
+          }
         />
       }>
-      <Text variant="labelM" color="textSecondary" align="center">
-        Liga + Copa · Temporada {temporadaAtual}
-      </Text>
 
       <SegmentedTabs
         abas={[

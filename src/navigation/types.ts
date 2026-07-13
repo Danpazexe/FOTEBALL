@@ -87,6 +87,12 @@ export type ClubeNavigation = CompositeNavigationProp<
   RootNavigation
 >;
 
+/** Navegação da aba Partidas: PartidasStack + RootStack. */
+export type PartidasNavigation = CompositeNavigationProp<
+  NativeStackNavigationProp<PartidasStackParamList>,
+  RootNavigation
+>;
+
 /** Hook de navegação tipado para uso nas telas. */
 export function useAppNavigation(): RootNavigation {
   return useNavigation<RootNavigation>();
@@ -95,6 +101,11 @@ export function useAppNavigation(): RootNavigation {
 /** Hook de navegação da aba Clube (ClubeStack + RootStack). */
 export function useClubeNavigation(): ClubeNavigation {
   return useNavigation<ClubeNavigation>();
+}
+
+/** Hook de navegação da aba Partidas (PartidasStack + RootStack). */
+export function usePartidasNavigation(): PartidasNavigation {
+  return useNavigation<PartidasNavigation>();
 }
 
 /** Hook de rota tipado (acessa `route.params` da tela atual). */

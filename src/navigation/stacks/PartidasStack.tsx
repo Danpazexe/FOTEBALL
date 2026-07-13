@@ -7,12 +7,15 @@ import type {PartidasStackParamList} from '../types';
 
 const Stack = createNativeStackNavigator<PartidasStackParamList>();
 
-/** Aba Partidas: Competition (raiz) + Calendário/Pré-jogo/Relatório (fases). */
+/** Aba Partidas: Calendário (raiz, os JOGOS) + Classificação/Pré-jogo/Relatório.
+ * A tabela (Competition) é interna, acessível pelo header do Calendário. */
 export function PartidasStack(): React.JSX.Element {
   return (
-    <Stack.Navigator screenOptions={{headerShown: false}}>
-      <Stack.Screen name="Competition" component={Competition} />
+    <Stack.Navigator
+      initialRouteName="Calendario"
+      screenOptions={{headerShown: false}}>
       <Stack.Screen name="Calendario" component={Calendario} />
+      <Stack.Screen name="Competition" component={Competition} />
     </Stack.Navigator>
   );
 }

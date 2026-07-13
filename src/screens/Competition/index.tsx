@@ -8,7 +8,7 @@ import {StyleSheet, View} from 'react-native';
 
 import {ClassificationTable} from '../../components/ClassificationTable';
 import {
-  AppBar,
+  AppHeader,
   Screen,
   Text,
   espacamento,
@@ -17,6 +17,7 @@ import {
 } from '../../design-system';
 import {calcularArtilheiros} from '../../engine/season/artilheiros';
 import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
+import {useAppNavigation} from '../../navigation/types';
 import {siglaClube} from '../../utils/formatters';
 
 const DIVISAO_PADRAO = 'Série A';
@@ -24,6 +25,7 @@ const ULTIMA_DIVISAO = 'Série D';
 
 function Competition(): React.JSX.Element {
   const {cores} = useTheme();
+  const nav = useAppNavigation();
 
   const tabela = useGameStore(state => state.tabela);
   const clubes = useGameStore(state => state.clubes);
@@ -47,11 +49,12 @@ function Competition(): React.JSX.Element {
     <Screen
       scroll
       header={
-        <AppBar
-          title="Classificação"
-          subtitle={`Brasileirão ${divisao} · ${temporadaAtual}`}
-        />
+        <AppHeader title="Classificação" onBack={() => nav.goBack()} />
       }>
+      <Text variant="labelM" color="textSecondary" align="center">
+        Brasileirão {divisao} · {temporadaAtual}
+      </Text>
+
       <ClassificationTable
         tabela={tabela}
         clubes={clubes}
