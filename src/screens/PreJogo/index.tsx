@@ -1,27 +1,34 @@
 /**
- * Central de PRÉ-JOGO (redesenho). Uma tela de decisão: primeiro o CONFRONTO,
- * depois a SUA PRONTIDÃO (o que libera/bloqueia entrar em campo — validação,
- * fadiga, desfalques), o DOSSIÊ do adversário (intel acionável, não números
- * soltos), a escalação no campo, condição/moral do time, o ajuste de tática e,
- * por fim, o gate Simular / Jogar ao vivo.
+ * Central de PRÉ-JOGO. Uma tela de decisão: primeiro o CONFRONTO, depois "quem
+ * vai ganhar?" (previsão coerente com o modelo de gols da engine), a escalação no
+ * campo, o ajuste de tática e, por fim, o gate Simular / Jogar ao vivo.
  *
  * A escalação e a tática são persistidas na hora (mesmas actions da tela de
  * Tática); o MatchSimulation tira um retrato antes do jogo, então mexer aqui
  * não vaza para a escalação oficial se a partida for abandonada.
  *
  * O scroll trava enquanto há um arraste no campo (o gesto não disputa com a
- * rolagem), como na tela de Tática.
+ * rolagem), como na tela de Tática. Migrado ao Design System v2.
  */
 
 import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {Dimensions, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {Dimensions, StyleSheet, View} from 'react-native';
 
-import {AppHeader, Botao, OptionGroup, Section} from '../../components/ui';
 import CampoFUT from '../../components/CampoFUT';
-import Chip from '../../components/Chip';
 import Escudo from '../../components/Escudo';
 import {useConfirm, useToast} from '../../components/feedback';
+import {
+  AppBar,
+  Badge,
+  Button,
+  Card,
+  Chip,
+  Screen,
+  Text,
+  espacamento,
+  raios,
+  useTheme,
+} from '../../design-system';
 import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
@@ -37,14 +44,6 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {
-  cores,
-  espaco,
-  raio,
-  sombra,
-  tabular,
-  tipografia,
-} from '../../theme';
 import {forcaDoClube} from '../../utils/forca';
 import type {Tatica} from '../../types';
 
@@ -66,10 +65,57 @@ const OPCOES_LINHA: Tatica['linhaDefensiva'][] = [
 ];
 const OPCOES_RITMO: Tatica['ritmo'][] = ['Lento', 'Normal', 'Intenso'];
 
+/** Bloco com rótulo em caixa-alta + conteúdo (substitui o Section antigo). */
+function Grupo({
+  titulo,
+  children,
+}: {
+  titulo: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <View style={styles.grupo}>
+      <Text variant="labelM" color="textSecondary" style={styles.caps}>
+        {titulo}
+      </Text>
+      {children}
+    </View>
+  );
+}
+
+/** Instrução tática: rótulo + linha de chips (seleção única). */
+function GrupoInstrucao({
+  titulo,
+  valor,
+  opcoes,
+  onSelect,
+}: {
+  titulo: string;
+  valor: string;
+  opcoes: readonly string[];
+  onSelect: (valor: string) => void;
+}): React.JSX.Element {
+  return (
+    <Grupo titulo={titulo}>
+      <View style={styles.chipRow}>
+        {opcoes.map(opcao => (
+          <Chip
+            key={opcao}
+            label={opcao}
+            selected={valor === opcao}
+            onPress={() => onSelect(opcao)}
+          />
+        ))}
+      </View>
+    </Grupo>
+  );
+}
+
 function PreJogo(): React.JSX.Element {
   const nav = useAppNavigation();
   const toast = useToast();
   const confirm = useConfirm();
+  const {cores} = useTheme();
 
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const clubes = useGameStore(state => state.clubes);
@@ -90,7 +136,10 @@ function PreJogo(): React.JSX.Element {
 
   const [arrastando, setArrastando] = useState(false);
 
-  const largura = Math.min(Dimensions.get('window').width - espaco.lg * 2, 360);
+  const largura = Math.min(
+    Dimensions.get('window').width - espacamento[4] * 2,
+    360,
+  );
 
   const confronto = useMemo(() => {
     if (!proximo) {
@@ -151,10 +200,14 @@ function PreJogo(): React.JSX.Element {
 
   if (!proximo || !confronto || !clubeUsuario || !formacao || !taticaAtual) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <AppHeader titulo="Pré-jogo" onBack={() => nav.goBack()} />
-        <Text style={styles.vazio}>Nenhum jogo agendado.</Text>
-      </SafeAreaView>
+      <Screen>
+        <AppBar title="Pré-jogo" onBack={() => nav.goBack()} />
+        <View style={styles.vazio}>
+          <Text variant="bodyM" color="textSecondary">
+            Nenhum jogo agendado.
+          </Text>
+        </View>
+      </Screen>
     );
   }
 
@@ -187,8 +240,7 @@ function PreJogo(): React.JSX.Element {
       : `${diff > 0 ? 'Favorito' : 'Azarão'}${
           Math.abs(diff) >= 6 ? '' : ' leve'
         }`;
-  const corFavoritismo =
-    diff >= 2 ? cores.sucesso : diff <= -2 ? cores.perigo : cores.textoSecundario;
+  const favTom = diff >= 2 ? 'success' : diff <= -2 ? 'danger' : 'neutral';
 
   const podeJogar = validacao?.valido ?? false;
   const formacaoTipo = formacao.tipo;
@@ -229,149 +281,157 @@ function PreJogo(): React.JSX.Element {
   }
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.conteudo}
-        scrollEnabled={!arrastando}
-        showsVerticalScrollIndicator={false}>
-        <AppHeader
-          titulo={`Rodada ${proximo.rodada}`}
-          subtitulo={`Brasileirão ${clubeUsuario.divisao ?? 'Série A'}`}
-          onBack={() => nav.goBack()}
-        />
+    <Screen scroll scrollEnabled={!arrastando}>
+      <AppBar
+        title={`Rodada ${proximo.rodada}`}
+        subtitle={`Brasileirão ${clubeUsuario.divisao ?? 'Série A'}`}
+        onBack={() => nav.goBack()}
+      />
 
-        {/* CONFRONTO — hero */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroConfronto}>
-            <View style={styles.heroTime}>
-              <Escudo
-                clubeId={confronto.casa.id}
-                sigla={confronto.casa.sigla}
-                tamanho={54}
-              />
-              <Text style={styles.heroNome} numberOfLines={1}>
-                {confronto.casa.nome}
-              </Text>
-              <Text style={[styles.heroOverall, tabular]}>
-                {Math.round(confronto.forcaCasa.overall)}
-              </Text>
-              <Text style={[styles.heroMando, mandoCasa && styles.heroVoce]}>
-                {mandoCasa ? 'VOCÊ · CASA' : 'CASA'}
-              </Text>
-            </View>
+      {/* CONFRONTO — hero */}
+      <Card variante="elevated">
+        <View style={styles.heroConfronto}>
+          <View style={styles.heroTime}>
+            <Escudo
+              clubeId={confronto.casa.id}
+              sigla={confronto.casa.sigla}
+              tamanho={54}
+            />
+            <Text variant="bodyM" weight="700" align="center" numberOfLines={1}>
+              {confronto.casa.nome}
+            </Text>
+            <Text variant="scoreXL" color="brand" tabular>
+              {Math.round(confronto.forcaCasa.overall)}
+            </Text>
+            <Text
+              variant="caption"
+              color={mandoCasa ? 'accent' : 'textMuted'}
+              style={styles.caps}>
+              {mandoCasa ? 'VOCÊ · CASA' : 'CASA'}
+            </Text>
+          </View>
 
-            <View style={styles.heroCentro}>
-              <Text style={styles.heroVs}>VS</Text>
-              <Chip label={favoritismo} tom="suave" cor={corFavoritismo} pequeno />
-            </View>
+          <View style={styles.heroCentro}>
+            <Text variant="titleM" color="textSecondary" weight="900">
+              VS
+            </Text>
+            <Badge label={favoritismo} tom={favTom} />
+          </View>
 
-            <View style={styles.heroTime}>
-              <Escudo
-                clubeId={confronto.fora.id}
-                sigla={confronto.fora.sigla}
-                tamanho={54}
-              />
-              <Text style={styles.heroNome} numberOfLines={1}>
-                {confronto.fora.nome}
-              </Text>
-              <Text style={[styles.heroOverall, tabular]}>
-                {Math.round(confronto.forcaFora.overall)}
-              </Text>
-              <Text style={[styles.heroMando, !mandoCasa && styles.heroVoce]}>
-                {!mandoCasa ? 'VOCÊ · FORA' : 'FORA'}
-              </Text>
-            </View>
+          <View style={styles.heroTime}>
+            <Escudo
+              clubeId={confronto.fora.id}
+              sigla={confronto.fora.sigla}
+              tamanho={54}
+            />
+            <Text variant="bodyM" weight="700" align="center" numberOfLines={1}>
+              {confronto.fora.nome}
+            </Text>
+            <Text variant="scoreXL" color="brand" tabular>
+              {Math.round(confronto.forcaFora.overall)}
+            </Text>
+            <Text
+              variant="caption"
+              color={!mandoCasa ? 'accent' : 'textMuted'}
+              style={styles.caps}>
+              {!mandoCasa ? 'VOCÊ · FORA' : 'FORA'}
+            </Text>
           </View>
         </View>
+      </Card>
 
-        {/* QUEM VAI GANHAR? — previsão coerente com o modelo de gols da engine */}
-        <Section titulo="Quem vai ganhar?">
-          <View style={styles.previsaoBarra}>
-            <View
-              style={[
-                styles.previsaoSeg,
-                {flex: Math.max(1, pctVoce), backgroundColor: cores.primaria},
-              ]}
-            />
-            <View
-              style={[
-                styles.previsaoSeg,
-                {flex: Math.max(1, pctEmpate), backgroundColor: cores.bordaClara},
-              ]}
-            />
-            <View
-              style={[
-                styles.previsaoSeg,
-                {flex: Math.max(1, pctAdv), backgroundColor: cores.perigo},
-              ]}
-            />
-          </View>
-          <View style={styles.previsaoLegenda}>
-            <View style={styles.previsaoItem}>
-              <Text style={[styles.previsaoPct, {color: cores.primariaClara}]}>
-                {pctVoce}%
-              </Text>
-              <Text style={styles.previsaoRotulo}>Você</Text>
-            </View>
-            <View style={styles.previsaoItemCentro}>
-              <Text style={[styles.previsaoPct, {color: cores.textoSecundario}]}>
-                {pctEmpate}%
-              </Text>
-              <Text style={styles.previsaoRotulo}>Empate</Text>
-            </View>
-            <View style={styles.previsaoItemDir}>
-              <Text style={[styles.previsaoPct, {color: cores.perigo}]}>
-                {pctAdv}%
-              </Text>
-              <Text style={styles.previsaoRotulo} numberOfLines={1}>
-                {adversario.sigla}
-              </Text>
-            </View>
-          </View>
-        </Section>
-
-        {/* ESCALAÇÃO */}
-        <Section titulo="Escalação">
-          <CampoFUT
-            clube={clubeUsuario}
-            formacao={formacao}
-            jogadores={jogadoresUsuario}
-            tatica={taticaAtual}
-            forca={forcaMinha}
-            reputacaoTecnico={reputacaoTecnico}
-            largura={largura}
-            onAtualizarFormacao={atualizarFormacaoUsuario}
-            onArrastandoChange={setArrastando}
-            onAbrirJogador={jogadorId =>
-              nav.navigate('PlayerDetail', {jogadorId})
-            }
+      {/* QUEM VAI GANHAR? — previsão coerente com o modelo de gols da engine */}
+      <Grupo titulo="Quem vai ganhar?">
+        <View style={styles.previsaoBarra}>
+          <View
+            style={[
+              styles.previsaoSeg,
+              {flex: Math.max(1, pctVoce), backgroundColor: cores.brand},
+            ]}
           />
+          <View
+            style={[
+              styles.previsaoSeg,
+              {flex: Math.max(1, pctEmpate), backgroundColor: cores.border},
+            ]}
+          />
+          <View
+            style={[
+              styles.previsaoSeg,
+              {flex: Math.max(1, pctAdv), backgroundColor: cores.danger},
+            ]}
+          />
+        </View>
+        <View style={styles.previsaoLegenda}>
+          <View style={styles.previsaoItem}>
+            <Text variant="titleM" weight="900" color="brand" tabular>
+              {pctVoce}%
+            </Text>
+            <Text variant="caption" color="textSecondary">
+              Você
+            </Text>
+          </View>
+          <View style={styles.previsaoItemCentro}>
+            <Text variant="titleM" weight="900" color="textSecondary" tabular>
+              {pctEmpate}%
+            </Text>
+            <Text variant="caption" color="textSecondary">
+              Empate
+            </Text>
+          </View>
+          <View style={styles.previsaoItemDir}>
+            <Text variant="titleM" weight="900" color="danger" tabular>
+              {pctAdv}%
+            </Text>
+            <Text variant="caption" color="textSecondary" numberOfLines={1}>
+              {adversario.sigla}
+            </Text>
+          </View>
+        </View>
+      </Grupo>
 
-          <View style={styles.melhoresWrap}>
-            <Botao
-              titulo="Escalar os 11 melhores"
-              variante="secundaria"
-              icone="tatica"
-              onPress={escalarMelhores}
+      {/* ESCALAÇÃO */}
+      <Grupo titulo="Escalação">
+        <CampoFUT
+          clube={clubeUsuario}
+          formacao={formacao}
+          jogadores={jogadoresUsuario}
+          tatica={taticaAtual}
+          forca={forcaMinha}
+          reputacaoTecnico={reputacaoTecnico}
+          largura={largura}
+          onAtualizarFormacao={atualizarFormacaoUsuario}
+          onArrastandoChange={setArrastando}
+          onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
+        />
+
+        <Button
+          titulo="Escalar os 11 melhores"
+          variante="secondary"
+          icone="tatica"
+          onPress={escalarMelhores}
+          fullWidth
+        />
+
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          Trocar formação
+        </Text>
+        <View style={styles.chipRow}>
+          {FORMACOES_DISPONIVEIS.map(tipo => (
+            <Chip
+              key={tipo}
+              label={tipo}
+              selected={formacaoTipo === tipo}
+              onPress={() => trocarFormacao(tipo)}
             />
-          </View>
+          ))}
+        </View>
+      </Grupo>
 
-          <Text style={styles.subTitulo}>Trocar formação</Text>
-          <View style={styles.chipRow}>
-            {FORMACOES_DISPONIVEIS.map(tipo => (
-              <Chip
-                key={tipo}
-                label={tipo}
-                ativo={formacaoTipo === tipo}
-                onPress={() => trocarFormacao(tipo)}
-              />
-            ))}
-          </View>
-        </Section>
-
-        {/* TÁTICA */}
-        <Section titulo="Tática">
-          <OptionGroup
+      {/* TÁTICA */}
+      <Grupo titulo="Tática">
+        <View style={styles.instrucoes}>
+          <GrupoInstrucao
             titulo="Estilo ofensivo"
             valor={taticaAtual.estiloOfensivo}
             opcoes={OPCOES_ESTILO}
@@ -382,7 +442,7 @@ function PreJogo(): React.JSX.Element {
               })
             }
           />
-          <OptionGroup
+          <GrupoInstrucao
             titulo="Marcação"
             valor={taticaAtual.marcacao}
             opcoes={OPCOES_MARCACAO}
@@ -393,7 +453,7 @@ function PreJogo(): React.JSX.Element {
               })
             }
           />
-          <OptionGroup
+          <GrupoInstrucao
             titulo="Linha defensiva"
             valor={taticaAtual.linhaDefensiva}
             opcoes={OPCOES_LINHA}
@@ -404,7 +464,7 @@ function PreJogo(): React.JSX.Element {
               })
             }
           />
-          <OptionGroup
+          <GrupoInstrucao
             titulo="Ritmo"
             valor={taticaAtual.ritmo}
             opcoes={OPCOES_RITMO}
@@ -415,68 +475,55 @@ function PreJogo(): React.JSX.Element {
               })
             }
           />
-        </Section>
-
-        {/* CONFIRMAR INÍCIO */}
-        <View style={styles.acoes}>
-          <View style={styles.acaoSimular}>
-            <Botao
-              variante="secundaria"
-              icone="simular"
-              titulo="Simular"
-              disabled={!podeJogar}
-              style={styles.botaoAltura}
-              onPress={() => {
-                avancarRodada();
-                toast('Rodada simulada.', 'sucesso');
-                nav.navigate('MainTabs');
-              }}
-            />
-          </View>
-          <View style={styles.acaoJogar}>
-            <Botao
-              variante="ouro"
-              icone="jogar"
-              titulo="Jogar ao vivo"
-              disabled={!podeJogar}
-              style={styles.botaoAltura}
-              onPress={() => nav.navigate('MatchSimulation')}
-            />
-          </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </Grupo>
+
+      {/* CONFIRMAR INÍCIO */}
+      <View style={styles.acoes}>
+        <View style={styles.acaoSimular}>
+          <Button
+            variante="secondary"
+            icone="simular"
+            titulo="Simular"
+            tamanho="lg"
+            disabled={!podeJogar}
+            fullWidth
+            onPress={() => {
+              avancarRodada();
+              toast('Rodada simulada.', 'sucesso');
+              nav.navigate('MainTabs');
+            }}
+          />
+        </View>
+        <View style={styles.acaoJogar}>
+          <Button
+            variante="primary"
+            icone="jogar"
+            titulo="Jogar ao vivo"
+            tamanho="lg"
+            disabled={!podeJogar}
+            fullWidth
+            onPress={() => nav.navigate('MatchSimulation')}
+          />
+        </View>
+      </View>
+    </Screen>
   );
 }
 
 export default PreJogo;
 
 const styles = StyleSheet.create({
-  screen: {
-    backgroundColor: cores.fundo,
-    flex: 1,
-  },
-  conteudo: {
-    padding: espaco.lg,
-    paddingBottom: espaco.xl * 2,
-  },
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  chipRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
+  grupo: {gap: espacamento[2]},
+  instrucoes: {gap: espacamento[4]},
   vazio: {
-    color: cores.textoSecundario,
-    fontSize: 14,
-    padding: espaco.lg,
-    textAlign: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: espacamento[6],
   },
   // CONFRONTO — hero
-  heroCard: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.lg,
-    marginBottom: espaco.md,
-    padding: espaco.lg,
-    ...sombra.card,
-  },
   heroConfronto: {
     alignItems: 'flex-start',
     flexDirection: 'row',
@@ -485,54 +532,27 @@ const styles = StyleSheet.create({
   heroTime: {
     alignItems: 'center',
     flex: 1,
-    gap: espaco.xs,
-  },
-  heroNome: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  heroOverall: {
-    color: cores.primaria,
-    fontSize: 34,
-    fontWeight: '900',
-    letterSpacing: -1,
-  },
-  heroMando: {
-    color: cores.textoMuted,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  heroVoce: {
-    color: cores.secundaria,
+    gap: espacamento[1],
   },
   heroCentro: {
     alignItems: 'center',
-    gap: espaco.sm,
-    paddingTop: espaco.xl,
+    gap: espacamento[2],
+    paddingTop: espacamento[5],
   },
-  heroVs: {
-    color: cores.textoSecundario,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  // PRONTIDÃO
+  // QUEM VAI GANHAR?
   previsaoBarra: {
     flexDirection: 'row',
     gap: 3,
     height: 14,
   },
   previsaoSeg: {
-    borderRadius: raio.pill,
+    borderRadius: raios.full,
     height: '100%',
   },
   previsaoLegenda: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: espaco.sm,
+    marginTop: espacamento[2],
   },
   previsaoItem: {
     alignItems: 'flex-start',
@@ -546,43 +566,15 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     flex: 1,
   },
-  previsaoPct: {
-    ...tabular,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  previsaoRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  // ESCALAÇÃO
-  melhoresWrap: {
-    marginTop: espaco.md,
-  },
-  subTitulo: {
-    color: cores.textoSecundario,
-    ...tipografia.secao,
-    marginTop: espaco.sm,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.sm,
-  },
   // CONFIRMAR
   acoes: {
     flexDirection: 'row',
-    gap: espaco.sm,
-    marginTop: espaco.md,
+    gap: espacamento[2],
   },
   acaoSimular: {
     flex: 1,
   },
   acaoJogar: {
     flex: 2,
-  },
-  botaoAltura: {
-    minHeight: 54,
   },
 });
