@@ -30,14 +30,7 @@ import Animated, {
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, {
-  Ellipse,
-  G,
-  Line,
-  Path,
-  Polygon,
-  Rect,
-} from 'react-native-svg';
+import Svg, {Ellipse, Line, Rect} from 'react-native-svg';
 
 import {trocarTitular} from '../../api/database/seed/defaults';
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
@@ -51,7 +44,6 @@ import {useEstilosDS, useTheme, type TemaDS} from '../../design-system';
 import {corOverall, espaco, raio} from '../../theme';
 import type {Clube, Formacao, Player, Position, Tatica} from '../../types';
 import Escudo from '../Escudo';
-import FichaCamisa from '../FichaCamisa';
 import Icone from '../Icone';
 
 type CampoFUTProps = {
@@ -86,30 +78,16 @@ type SharedNum = SharedValue<number>;
 // sob o dedo) — senão, mirando pela carta, o drop cai fora do alvo.
 const GHOST_LEVANTA = 0.78;
 
-/**
- * Trapézio do campo em coordenadas NATIVAS do SVG do Sofascore (viewBox
- * 2232×1790). O fundo (gol de ataque, longe) fica no TOPO — estreito; a frente
- * (nosso gol/GK, perto) na BASE — larga. Valores medidos das linhas laterais do
- * SVG: linha de fundo em y≈115 (meia-largura ~675), base em y≈1790 (meia-largura
- * ~1164), centro x≈1110. A MESMA projeção alimenta desenho, peças e hit-test.
- */
-const VB_LARGURA = 2232;
-const VB_ALTURA = 1790;
-const CAMPO_SVG = {
-  centroX: 1110,
-  topoY: 115,
-  baseY: 1790,
-  hwTopo: 675, // meia-largura da linha de fundo (topo/longe)
-  hwBase: 1164, // meia-largura na base (perto)
-  jogTopoY: 320, // faixa vertical das peças (margem p/ carta caber)
-  jogBaseY: 1700,
-  insetX: 0.82, // peças um pouco dentro das laterais
-};
+// Tabuleiro tático CHAPADO (visto de cima). As fichas são posicionadas por
+// projetarSlot num retângulo plano; o MESMO mapa alimenta desenho e hit-test.
+// Margens (fração) para as fichas + nomes caberem dentro das linhas.
+const MARGEM_X = 0.12;
+const MARGEM_Y = 0.05;
 
 /**
- * Projeta (x,y ∈ 0..1) → centro da carta na tela + escala por profundidade. As
- * coordenadas nativas do SVG são mapeadas para o container (largura×altura), então
- * o campo pode ser esticado (preserveAspectRatio="none") que as peças acompanham.
+ * Projeta (x,y ∈ 0..1) → centro da FICHA na tela. Mapa LINEAR (sem perspectiva):
+ * x=0 esquerda … x=1 direita; y=0 nosso gol (base/baixo) … y=1 ataque (topo). A
+ * escala é constante (tabuleiro plano) — todas as fichas do mesmo tamanho.
  */
 function projetarSlot(
   x: number,
@@ -117,18 +95,12 @@ function projetarSlot(
   largura: number,
   altura: number,
 ): {cx: number; cy: number; escala: number} {
-  // y=1 (ataque) → topo/longe; y=0 (GK) → base/perto.
-  const nativaY = CAMPO_SVG.jogBaseY - y * (CAMPO_SVG.jogBaseY - CAMPO_SVG.jogTopoY);
-  const frac =
-    (nativaY - CAMPO_SVG.topoY) / (CAMPO_SVG.baseY - CAMPO_SVG.topoY);
-  const meiaLargura =
-    CAMPO_SVG.hwTopo + (CAMPO_SVG.hwBase - CAMPO_SVG.hwTopo) * frac;
-  const nativaX = CAMPO_SVG.centroX + (x - 0.5) * 2 * meiaLargura * CAMPO_SVG.insetX;
-  const escala = 0.72 + 0.42 * frac;
+  const mx = largura * MARGEM_X;
+  const my = altura * MARGEM_Y;
   return {
-    cx: (nativaX / VB_LARGURA) * largura,
-    cy: (nativaY / VB_ALTURA) * altura,
-    escala,
+    cx: mx + x * (largura - 2 * mx),
+    cy: altura - my - y * (altura - 2 * my),
+    escala: 1,
   };
 }
 
@@ -206,17 +178,14 @@ function CampoFUT({
 }: CampoFUTProps): React.JSX.Element {
   const styles = useEstilosDS(criarEstilos);
   const {cores} = useTheme();
-  // Campo do SVG do Sofascore (viewBox 2232×1790), LARGO/BAIXO como no print do
-  // usuário (não esticado alto). preserveAspectRatio="none" + as peças acompanham
-  // via projetarSlot.
-  const altura = Math.round(largura * 0.85);
-  const cardW = Math.round(largura * 0.15);
-  const cardH = Math.round(cardW * 1.2);
-  const cardBancoW = Math.round(largura * 0.24);
-  // Card "fantasma" que segue o dedo no arraste: a CARTA FUT completa, num
-  // tamanho médio, para mostrar o jogador sendo puxado (não uma bolinha).
-  const ghostW = Math.min(Math.round(largura * 0.5), 190);
-  const ghostH = Math.round(ghostW * 1.2);
+  // Tabuleiro CHAPADO (retrato). As fichas são CÍRCULOS (quadrado = diâmetro).
+  const altura = Math.round(largura * 1.42);
+  const cardW = Math.round(largura * 0.155); // diâmetro do círculo
+  const cardH = cardW; // ficha quadrada → círculo centrado no slot
+  const cardBancoW = Math.round(largura * 0.16);
+  // Ficha "fantasma" que segue o dedo no arraste (círculo um pouco maior).
+  const ghostW = Math.min(Math.round(largura * 0.28), 120);
+  const ghostH = ghostW;
   // Quanto o centro visual do fantasma fica ACIMA do dedo (compensado no drop).
   const ghostOffset = Math.round(ghostH * (GHOST_LEVANTA - 0.5));
   // Raio de captura do drop: >= metade da distância vertical entre slots
@@ -426,18 +395,11 @@ function CampoFUT({
 
       <BannerValidacao validacao={validacao} />
 
-      <PlacaPublicidade largura={largura} />
-
       <View
         ref={pitchRef}
         onLayout={medirPitch}
         style={[styles.pitch, {width: largura, height: altura}]}>
-        <PitchEstadio
-          largura={largura}
-          altura={altura}
-          linhaDefensiva={tatica.linhaDefensiva}
-          ladoAtaque={tatica.ladoAtaque ?? 'Ambos'}
-        />
+        <PitchEstadio largura={largura} altura={altura} />
 
         <Pressable
           accessibilityRole="button"
@@ -532,15 +494,17 @@ function CampoFUT({
         </>
       )}
 
-      {/* Card FUT completo que segue o dedo durante o arraste. */}
+      {/* Ficha circular que segue o dedo durante o arraste. */}
       <Animated.View
         pointerEvents="none"
         style={[styles.ghost, {width: ghostW, height: ghostH}, ghostStyle]}>
         {jogadorArrastado ? (
-          <FichaCamisa
+          <CartaFUT
             jogador={jogadorArrastado}
             posicaoEscalada={jogadorArrastado.posicaoPrincipal}
             largura={ghostW}
+            destaque={false}
+            esmaecer={false}
           />
         ) : null}
       </Animated.View>
@@ -652,28 +616,9 @@ function BannerValidacao({
 }
 
 /**
- * Placa de publicidade (LED) na borda do campo — a marca do jogo repetida numa
- * faixa escura, como o painel de patrocínio atrás do gol nos apps de futebol.
- */
-function PlacaPublicidade({largura}: {largura: number}): React.JSX.Element {
-  const styles = useEstilosDS(criarEstilos);
-  const repeticoes = Math.max(4, Math.round(largura / 90));
-  return (
-    <View style={[styles.placa, {width: largura}]}>
-      {Array.from({length: repeticoes}).map((_, i) => (
-        <Text key={i} style={styles.placaTexto} numberOfLines={1}>
-          FOTEBALL
-        </Text>
-      ))}
-    </View>
-  );
-}
-
-/**
- * Carta FUT compacta (usada no campo e no banco). Fundo = tier do overall;
- * BORDA = anel de encaixe na posição (verde natural → vermelho improviso), que
- * é a penalidade fora de posição já calibrada em `adaptacao`. Quando destacada
- * (alvo de drop), a borda vira verde-marca e a carta cresce um tico.
+ * Ficha CIRCULAR do jogador no tabuleiro: círculo azul com o OVERALL e o nome
+ * embaixo. Destaque (alvo de drop) = anel âmbar + cresce; esmaecer = card sendo
+ * arrastado. Slot vazio = círculo tracejado com a posição.
  */
 function CartaFUT({
   jogador,
@@ -692,40 +637,68 @@ function CartaFUT({
 }): React.JSX.Element {
   const styles = useEstilosDS(criarEstilos);
   const {cores} = useTheme();
-  const altura = Math.round(largura * 1.2);
+  const raio2 = largura / 2;
+  const nomeStyle = {
+    width: largura * 2.2,
+    left: -largura * 0.6,
+    top: largura + 2,
+    fontSize: Math.max(9, Math.round(largura * 0.2)),
+  };
+
   if (!jogador) {
     return (
-      <View style={[styles.cartaVazia, {width: largura, height: altura}]}>
-        <Text style={styles.cartaVaziaTexto}>{posicaoEscalada}</Text>
+      <View
+        style={[
+          styles.fichaVazia,
+          {width: largura, height: largura, borderRadius: raio2},
+        ]}>
+        <Text
+          style={[styles.fichaVaziaTexto, {fontSize: Math.round(largura * 0.3)}]}>
+          {posicaoEscalada}
+        </Text>
       </View>
     );
   }
 
   const indisponivel = jogador.lesionado || jogador.suspenso;
+  const badge = Math.round(largura * 0.42);
 
-  // Camisa na cor viva do time (FichaCamisa): destaque = alvo de drop (brilho
-  // verde); esmaecer = card sendo arrastado.
   return (
-    <View
-      style={[
-        destaque ? styles.cartaDestaque : null,
-        esmaecer ? styles.cartaEsmaecida : null,
-      ]}>
-      <FichaCamisa
-        jogador={jogador}
-        posicaoEscalada={posicaoEscalada}
-        largura={largura}
-        ehCapitao={ehCapitao}
-      />
-      {indisponivel ? (
-        <View style={styles.cartaStatus}>
-          <Icone
-            nome={jogador.lesionado ? 'lesao' : 'cartao'}
-            tamanho={Math.round(largura * 0.18)}
-            cor={cores.onBrand}
-          />
-        </View>
-      ) : null}
+    <View>
+      <View
+        style={[
+          styles.ficha,
+          {width: largura, height: largura, borderRadius: raio2},
+          destaque ? styles.fichaDestaque : null,
+          esmaecer ? styles.fichaEsmaecida : null,
+        ]}>
+        <Text
+          style={[styles.fichaOverall, {fontSize: Math.round(largura * 0.42)}]}>
+          {jogador.overall}
+        </Text>
+        {ehCapitao ? (
+          <Text
+            style={[styles.fichaCapitao, {fontSize: Math.round(largura * 0.28)}]}>
+            C
+          </Text>
+        ) : null}
+        {indisponivel ? (
+          <View
+            style={[
+              styles.fichaStatus,
+              {width: badge, height: badge, borderRadius: badge / 2},
+            ]}>
+            <Icone
+              nome={jogador.lesionado ? 'lesao' : 'cartao'}
+              tamanho={Math.round(largura * 0.24)}
+              cor={cores.onBrand}
+            />
+          </View>
+        ) : null}
+      </View>
+      <Text style={[styles.fichaNome, nomeStyle]} numberOfLines={1}>
+        {jogador.apelido ?? jogador.nome}
+      </Text>
     </View>
   );
 }
@@ -888,152 +861,123 @@ function TaticaStrip({tatica}: {tatica: Tatica}): React.JSX.Element {
 }
 
 /**
- * Campo TRANSCRITO do SVG oficial do Sofascore (viewBox 2232×1790): gramado
- * trapezoidal em perspectiva, listras ceifadas trapezoidais, grande/pequena área
- * do fundo, meia-lua, círculo central (elipse) e linhas laterais — coordenadas
- * NATIVAS do SVG, escaladas pelo viewBox (= idêntico). A linha defensiva e as
- * setas de lado de ataque (extras do jogo) usam as mesmas coordenadas nativas
- * via `CAMPO_SVG`. SVG puro.
+ * Campo tático CHAPADO (visto de cima): gramado com listras + linhas de cal
+ * brancas (borda, meio, círculo central, áreas). viewBox proporcional ao
+ * container (sem distorção), SVG puro — sem perspectiva.
  */
 function PitchEstadio({
   largura,
   altura,
-  linhaDefensiva,
-  ladoAtaque,
 }: {
   largura: number;
   altura: number;
-  linhaDefensiva: Tatica['linhaDefensiva'];
-  ladoAtaque: NonNullable<Tatica['ladoAtaque']>;
 }): React.JSX.Element {
-  const {cores} = useTheme();
-  const hwEmY = (yy: number): number =>
-    CAMPO_SVG.hwTopo +
-    (CAMPO_SVG.hwBase - CAMPO_SVG.hwTopo) *
-      ((yy - CAMPO_SVG.topoY) / (CAMPO_SVG.baseY - CAMPO_SVG.topoY));
-
-  const fracLinha =
-    linhaDefensiva === 'Adiantada'
-      ? 0.42
-      : linhaDefensiva === 'Recuada'
-      ? 0.66
-      : 0.55;
-  const yLinha = CAMPO_SVG.topoY + fracLinha * (CAMPO_SVG.baseY - CAMPO_SVG.topoY);
-  const hwLinha = hwEmY(yLinha);
-
-  const setaBaseY = 360;
-  const setaTip = 150;
-  const hwSeta = hwEmY(setaBaseY);
-  const seta = (ax: number): string =>
-    `M${ax - 22} ${setaBaseY} L${ax - 22} ${setaTip + 70} L${ax - 62} ${
-      setaTip + 70
-    } L${ax} ${setaTip} L${ax + 62} ${setaTip + 70} L${ax + 22} ${
-      setaTip + 70
-    } L${ax + 22} ${setaBaseY} Z`;
-  const xsSeta =
-    ladoAtaque === 'Esquerda'
-      ? [CAMPO_SVG.centroX - hwSeta * 0.5]
-      : ladoAtaque === 'Direita'
-      ? [CAMPO_SVG.centroX + hwSeta * 0.5]
-      : ladoAtaque === 'Centro'
-      ? [CAMPO_SVG.centroX]
-      : [CAMPO_SVG.centroX - hwSeta * 0.5, CAMPO_SVG.centroX + hwSeta * 0.5];
-
+  const VH = Math.round((altura / largura) * 100);
+  const M = 3.5;
+  const meio = VH / 2;
+  const areaH = Math.round(VH * 0.13);
+  const golH = Math.round(VH * 0.05);
+  const raioC = 9;
+  const faixas = 8;
+  const fh = VH / faixas;
+  const sw = 0.7;
   return (
     <Svg
       width={largura}
       height={altura}
-      viewBox="0 0 2232 1790"
+      viewBox={`0 0 100 ${VH}`}
       preserveAspectRatio="none"
       pointerEvents="none"
       style={StyleSheet.absoluteFill}>
-      {/* Fundo escuro (cantos do topo, atrás do trapézio). */}
-      <Rect x={0} y={0} width={2232} height={1790} fill={FUNDO} />
-
-      {/* GRAMADO trapezoidal + listras ceifadas (coords do SVG do Sofascore). */}
-      <G transform="translate(-101.5 57.927)">
-        <Polygon fill={GRAMA} points="527.028 0 0 1732.074 2433 1732.074 1899.971 0" />
-        <Polygon fill={GRAMA_ESCURA} points="207.778 1202.112 2216.367 1202.112 2287 1448.074 131 1448.074" />
-        <Polygon fill={GRAMA} points="258.98 1022.719 2165.28 1022.719 2217.888 1202.112 206.365 1202.112" />
-        <Polygon fill={GRAMA_ESCURA} points="306.886 859.361 2119.917 859.361 2170.055 1022.719 258.055 1022.719" />
-        <Polygon fill={GRAMA} points="350.576 711.035 2074.885 711.035 2117.9 859.361 307.462 859.361" />
-        <Polygon fill={GRAMA_ESCURA} points="387.793 575.739 2036.14 575.739 2075.578 711.035 351.459 711.035" />
-        <Polygon fill={GRAMA} points="424.133 452.468 2000.064 452.468 2036.433 575.739 389.395 575.739" />
-        <Polygon fill={GRAMA_ESCURA} points="457.92 340.222 1970.335 340.222 2003.357 452.468 425.357 452.468" />
-        <Polygon fill={GRAMA} points="487.706 237.998 1937.524 237.998 1964.557 340.222 461.069 340.222" />
-        <Polygon fill={GRAMA_ESCURA} points="514.747 144.794 1914.915 144.794 1941.022 237.998 489.022 237.998" />
-        <Polygon fill={GRAMA} points="539.521 58.604 1887.269 58.604 1910.166 144.794 516.361 144.794" />
-      </G>
-
-      {/* LINHAS do campo (brancas) — coords do SVG do Sofascore. */}
-      <G transform="translate(-101.5 0)">
-        <G transform="translate(45.697 115)">
-          <G transform="translate(670.803 0)">
-            <Path
-              stroke={LINHA_CAMPO}
-              strokeWidth={5}
-              fill="none"
-              d="M965.07147 2.5 L1005.00042 220.462 L2.93778 220.462 L38.25713 2.5296 L965.07147 2.5 Z"
-            />
-            <Path
-              stroke={LINHA_CAMPO}
-              strokeWidth={5}
-              fill="none"
-              d="M747.754858 2.5050774 L757.500562 89.2346 L239.67786 89.2346 L247.766856 2.5050774 L747.754858 2.5050774 Z M295.001085 221.526983 C426.053217 300.824339 563.304447 300.824339 706.754778 221.526983"
-            />
-            <Ellipse cx={496.894} cy={149.948} rx={11.261} ry={5.796} fill={LINHA_CAMPO} />
-          </G>
-          <G transform="translate(189.803 857)">
-            <Rect width={1959} height={6.867} y={192.492} fill={LINHA_CAMPO} />
-            <Ellipse cx={980.458} cy={196.138} rx={26.32} ry={22.904} fill={LINHA_CAMPO} />
-            <Ellipse
-              cx={980.303}
-              cy={203.5}
-              rx={235.696}
-              ry={199.5}
-              stroke={LINHA_CAMPO}
-              strokeWidth={8}
-              fill="none"
-            />
-          </G>
-          <Path
-            stroke={LINHA_CAMPO}
-            strokeWidth={4}
-            fill="none"
-            transform="translate(490.803 3)"
-            d="M0 15 C13.398 13.453 21.325 8.775 23.782 0.968 M1360 14.648 C1352.075 14.344 1347.024 13.491 1344.848 12.09 C1337.704 7.489 1337.256 0 1337.256 0"
+      <Rect x={0} y={0} width={100} height={VH} fill={CAMPO_VERDE} />
+      {Array.from({length: faixas}).map((_, i) =>
+        i % 2 === 0 ? (
+          <Rect
+            key={i}
+            x={0}
+            y={i * fh}
+            width={100}
+            height={fh}
+            fill={CAMPO_VERDE_2}
           />
-          <Polygon fill={LINHA_CAMPO} points="491.955 0.001 499 0 7.029 1674.992 0 1675" />
-          <Polygon fill={LINHA_CAMPO} points="1842.58 0.005 1849.467 0.005 2328.584 1674.991 2321.694 1675.005" />
-          <Polygon fill={LINHA_CAMPO} points="498.879 0.005 1844.078 0.005 1844.078 5.054 497.441 5.054" />
-        </G>
-      </G>
-
-      {/* EXTRAS do jogo: linha defensiva (tracejada) + setas de lado de ataque. */}
-      <Line
-        x1={CAMPO_SVG.centroX - hwLinha + 60}
-        y1={yLinha}
-        x2={CAMPO_SVG.centroX + hwLinha - 60}
-        y2={yLinha}
-        stroke={cores.brand}
-        strokeWidth={16}
-        strokeDasharray="60 42"
+        ) : null,
+      )}
+      <Rect
+        x={M}
+        y={M}
+        width={100 - 2 * M}
+        height={VH - 2 * M}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
       />
-      {xsSeta.map(ax => (
-        <Path key={ax} d={seta(ax)} fill={cores.accent} opacity={0.95} />
-      ))}
+      <Line
+        x1={M}
+        y1={meio}
+        x2={100 - M}
+        y2={meio}
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      <Ellipse
+        cx={50}
+        cy={meio}
+        rx={raioC}
+        ry={raioC}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      <Ellipse cx={50} cy={meio} rx={0.9} ry={0.9} fill={LINHA_CAMPO} />
+      {/* Área de ataque (topo) */}
+      <Rect
+        x={25}
+        y={M}
+        width={50}
+        height={areaH}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      <Rect
+        x={37}
+        y={M}
+        width={26}
+        height={golH}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      {/* Área de defesa (base) */}
+      <Rect
+        x={25}
+        y={VH - M - areaH}
+        width={50}
+        height={areaH}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      <Rect
+        x={37}
+        y={VH - M - golH}
+        width={26}
+        height={golH}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
     </Svg>
   );
 }
 
 export default CampoFUT;
 
-// Cores do gramado e linhas transcritas do SVG do Sofascore: verde base e verde
-// escuro das listras ceifadas, linhas de cal claras, e fundo escuro nos cantos.
-const GRAMA = '#015c2d';
-const GRAMA_ESCURA = '#014522';
-const LINHA_CAMPO = 'rgba(240, 245, 238, 0.9)';
-const FUNDO = '#0A140D';
+// Cores do gramado (tabuleiro chapado): verde base + verde da listra ceifada e
+// linhas de cal brancas. Objeto de campo — fixo nos dois temas.
+const CAMPO_VERDE = '#2E9E58';
+const CAMPO_VERDE_2 = '#2A9151';
+const LINHA_CAMPO = 'rgba(255, 255, 255, 0.85)';
 
 const criarEstilos = (t: TemaDS) =>
   StyleSheet.create({
@@ -1154,27 +1098,6 @@ const criarEstilos = (t: TemaDS) =>
       alignSelf: 'center',
       position: 'relative',
     },
-    placa: {
-      alignItems: 'center',
-      alignSelf: 'center',
-      backgroundColor: '#081009',
-      borderColor: t.cores.borderStrong,
-      borderRadius: raio.sm,
-      borderWidth: 1,
-      flexDirection: 'row',
-      height: 22,
-      justifyContent: 'space-around',
-      marginBottom: -espaco.xs,
-      overflow: 'hidden',
-    },
-    placaTexto: {
-      color: t.cores.accent,
-      fontSize: 11,
-      fontStyle: 'italic',
-      fontWeight: '900',
-      letterSpacing: 1.5,
-      opacity: 0.8,
-    },
     botaoOlho: {
       alignItems: 'center',
       backgroundColor: t.cores.surface,
@@ -1198,41 +1121,74 @@ const criarEstilos = (t: TemaDS) =>
       backgroundColor: t.cores.brand,
       borderColor: t.cores.brand,
     },
-    cartaDestaque: {
-      elevation: 12,
-      shadowColor: t.cores.brand,
-      shadowOffset: {width: 0, height: 0},
-      shadowOpacity: 0.9,
-      shadowRadius: 12,
-      transform: [{scale: 1.1}],
+    ficha: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.cores.brand,
+      borderWidth: 2,
+      borderColor: t.cores.onBrand,
     },
-    cartaEsmaecida: {
+    fichaOverall: {
+      color: t.cores.onBrand,
+      fontWeight: '900',
+    },
+    fichaNome: {
+      position: 'absolute',
+      textAlign: 'center',
+      color: t.cores.onBrand,
+      fontSize: 10,
+      fontWeight: '800',
+      textShadowColor: 'rgba(0, 0, 0, 0.55)',
+      textShadowOffset: {width: 0, height: 1},
+      textShadowRadius: 2,
+    },
+    fichaDestaque: {
+      borderColor: t.cores.accent,
+      borderWidth: 3,
+      elevation: 8,
+      shadowColor: t.cores.accent,
+      shadowOffset: {width: 0, height: 0},
+      shadowOpacity: 0.85,
+      shadowRadius: 8,
+      transform: [{scale: 1.14}],
+    },
+    fichaEsmaecida: {
       opacity: 0.35,
     },
-    cartaVazia: {
+    fichaVazia: {
       alignItems: 'center',
-      backgroundColor: t.cores.surfaceSubtle,
-      borderColor: t.cores.border,
-      borderRadius: raio.sm,
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.16)',
+      borderColor: 'rgba(255, 255, 255, 0.7)',
       borderStyle: 'dashed',
       borderWidth: 2,
-      justifyContent: 'center',
     },
-    cartaVaziaTexto: {
-      color: t.cores.textSecondary,
-      fontSize: 11,
+    fichaVaziaTexto: {
+      color: t.cores.onBrand,
       fontWeight: '800',
+      textShadowColor: 'rgba(0, 0, 0, 0.5)',
+      textShadowOffset: {width: 0, height: 1},
+      textShadowRadius: 2,
     },
-    cartaStatus: {
-      alignItems: 'center',
-      backgroundColor: t.cores.danger,
-      borderRadius: 999,
-      height: 18,
-      justifyContent: 'center',
+    fichaCapitao: {
       position: 'absolute',
-      right: 4,
-      top: 4,
-      width: 18,
+      top: -2,
+      right: 0,
+      color: t.cores.accent,
+      fontWeight: '900',
+      textShadowColor: 'rgba(0, 0, 0, 0.6)',
+      textShadowOffset: {width: 0, height: 1},
+      textShadowRadius: 2,
+    },
+    fichaStatus: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.cores.danger,
+      borderWidth: 1.5,
+      borderColor: t.cores.onBrand,
+      position: 'absolute',
+      right: -2,
+      bottom: -2,
       zIndex: 5,
     },
     dica: {
