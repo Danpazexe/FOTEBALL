@@ -22,6 +22,7 @@ export type ElencoStackParamList = {
   PlayerDetail: {jogadorId: string};
   Semana: undefined;
   Academia: undefined;
+  DepartamentoMedico: undefined;
 };
 
 export type PartidasStackParamList = {
@@ -110,6 +111,12 @@ export type InicioNavigation = CompositeNavigationProp<
   RootNavigation
 >;
 
+/** Navegação da aba Elenco: ElencoStack + RootStack. */
+export type ElencoNavigation = CompositeNavigationProp<
+  NativeStackNavigationProp<ElencoStackParamList>,
+  RootNavigation
+>;
+
 /** Hook de navegação tipado para uso nas telas. */
 export function useAppNavigation(): RootNavigation {
   return useNavigation<RootNavigation>();
@@ -133,6 +140,11 @@ export function useMercadoNavigation(): MercadoNavigation {
 /** Hook de navegação da aba Início (InicioStack + RootStack). */
 export function useInicioNavigation(): InicioNavigation {
   return useNavigation<InicioNavigation>();
+}
+
+/** Hook de navegação da aba Elenco (ElencoStack + RootStack). */
+export function useElencoNavigation(): ElencoNavigation {
+  return useNavigation<ElencoNavigation>();
 }
 
 /** Hook de rota tipado (acessa `route.params` da tela atual). */

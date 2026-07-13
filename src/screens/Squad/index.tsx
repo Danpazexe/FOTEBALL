@@ -30,7 +30,7 @@ import {
 } from '../../design-system';
 import type {IconeNome} from '../../components/Icone';
 import PlayerAvatar from '../../components/PlayerAvatar';
-import {useAppNavigation} from '../../navigation/types';
+import {useElencoNavigation} from '../../navigation/types';
 import {
   selecionarClubeUsuario,
   useGameStore,
@@ -74,7 +74,7 @@ function normalizar(texto: string): string {
 }
 
 function Squad(): React.JSX.Element {
-  const nav = useAppNavigation();
+  const nav = useElencoNavigation();
   const {cores} = useTheme();
   const jogadores = useJogadoresUsuario();
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
@@ -138,6 +138,11 @@ function Squad(): React.JSX.Element {
                 onPress={() => setFiltroAberto(v => !v)}
                 accessibilityLabel="Filtrar por posição"
                 tom={filtroAberto || filtro !== 'Todos' ? 'brand' : 'textPrimary'}
+              />
+              <IconButton
+                icone="lesao"
+                onPress={() => nav.navigate('DepartamentoMedico')}
+                accessibilityLabel="Departamento médico"
               />
             </View>
           }
