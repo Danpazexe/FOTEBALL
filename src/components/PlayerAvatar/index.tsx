@@ -81,6 +81,7 @@ export default function PlayerAvatar({
   tamanho,
   style,
 }: Props): React.JSX.Element {
+  const corCamisa = corDoClube(clubeId ?? '');
   return (
     <View
       accessibilityElementsHidden
@@ -90,7 +91,7 @@ export default function PlayerAvatar({
         {width: tamanho, height: tamanho, borderRadius: tamanho / 2},
         style,
       ]}>
-      <AvatarShirt size={tamanho} corPrimaria={corDoClube(clubeId ?? '')} />
+      <AvatarShirt size={tamanho} corPrimaria={corCamisa} corGola={corCamisa} />
       <Image
         source={FACES[avatarIndex(id)]}
         resizeMode="cover"
