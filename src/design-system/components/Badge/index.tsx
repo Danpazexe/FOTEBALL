@@ -17,6 +17,8 @@ type Props = {
   tom?: Tom;
   /** Só um ponto colorido (ex.: indicador de status). */
   dot?: boolean;
+  /** Selo PREENCHIDO (fundo `tom`, texto branco) — ex.: contador de alerta. */
+  solido?: boolean;
 };
 
 const COR_TOM: Record<Tom, CorTexto> = {
@@ -28,7 +30,13 @@ const COR_TOM: Record<Tom, CorTexto> = {
   danger: 'danger',
 };
 
-export function Badge({label, count, tom = 'brand', dot}: Props): React.JSX.Element {
+export function Badge({
+  label,
+  count,
+  tom = 'brand',
+  dot,
+  solido,
+}: Props): React.JSX.Element {
   const {cores} = useTheme();
   const corTom = COR_TOM[tom];
 
@@ -54,8 +62,15 @@ export function Badge({label, count, tom = 'brand', dot}: Props): React.JSX.Elem
     count !== undefined ? (count > 99 ? '99+' : String(count)) : label ?? '';
 
   return (
-    <View style={[estilos.badge, {backgroundColor: soft[tom]}]}>
-      <Text variant="labelM" color={corTom} tabular={count !== undefined}>
+    <View
+      style={[
+        estilos.badge,
+        {backgroundColor: solido ? cores[corTom] : soft[tom]},
+      ]}>
+      <Text
+        variant="labelM"
+        color={solido ? 'onBrand' : corTom}
+        tabular={count !== undefined}>
         {texto}
       </Text>
     </View>

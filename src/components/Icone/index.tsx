@@ -17,6 +17,7 @@ import {
   ArrowRightLeft,
   Bandage,
   Banknote,
+  Bell,
   Building2,
   CalendarCheck,
   CalendarDays,
@@ -36,6 +37,7 @@ import {
   Eye,
   FastForward,
   Flag,
+  Frown,
   Gauge,
   Goal,
   GraduationCap,
@@ -48,7 +50,9 @@ import {
   Lock,
   type LucideIcon,
   Medal,
+  Meh,
   Megaphone,
+  Menu,
   Pause,
   Play,
   Rocket,
@@ -109,7 +113,12 @@ export type IconeNome =
   | 'clima-nublado'
   | 'clima-chuva'
   | 'gramado'
-  | 'olho';
+  | 'olho'
+  | 'menu'
+  | 'sino'
+  | 'humor-bom'
+  | 'humor-neutro'
+  | 'humor-ruim';
 
 /** Nome semântico → componente do Lucide. */
 const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
@@ -154,6 +163,11 @@ const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
   'clima-chuva': CloudRain,
   gramado: Sprout,
   olho: Eye,
+  menu: Menu,
+  sino: Bell,
+  'humor-bom': Smile,
+  'humor-neutro': Meh,
+  'humor-ruim': Frown,
 };
 
 /**

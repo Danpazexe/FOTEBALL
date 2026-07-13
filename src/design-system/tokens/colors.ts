@@ -1,8 +1,9 @@
 /**
  * Tokens de cor SEMÂNTICOS do Design System v2 ("Sala de Análise").
  *
- * Neutros em 75-85% da interface; verde = marca/positivo; âmbar = atenção/gol/
- * conquista; vermelho = risco/derrota/destrutivo; azul = informação/comparação.
+ * Neutros em 75-85% da interface; AZUL = ação/interativo (CTA, seleção, destaque);
+ * verde = estado positivo (êxito, boa fase); âmbar = atenção/gol/conquista;
+ * vermelho = risco/derrota/destrutivo; azul-info = informação/comparação.
  * Estas paletas são a FONTE DA VERDADE do tema novo — telas migradas consomem
  * daqui via `useTheme()`. O tema antigo (`src/theme`) segue como ponte para as
  * telas ainda não migradas (ADR-0002/0003).
@@ -30,11 +31,11 @@ export type CoresSemanticas = {
   textSecondary: string;
   /** Metadado não essencial. */
   textMuted: string;
-  /** Marca: indicadores, ícones ativos, gráficos. */
+  /** Ação/interativo (azul): CTA, seleção, ícones ativos, gráficos. */
   brand: string;
-  /** Marca preenchida (botão) com texto `onBrand`. */
+  /** Ação preenchida (botão) com texto `onBrand`. */
   brandStrong: string;
-  /** Fundo suave de seleção/badge da marca. */
+  /** Fundo suave de seleção/badge de ação. */
   brandSoft: string;
   /** Conteúdo sobre `brandStrong`. */
   onBrand: string;
@@ -56,6 +57,10 @@ export type CoresSemanticas = {
   dangerSoft: string;
   /** Véu de modais/sheets. */
   overlay: string;
+  /** Superfície de destaque de partida (placar/hero) — azul-marinho nos 2 temas. */
+  scoreboard: string;
+  /** Conteúdo sobre `scoreboard`. */
+  onScoreboard: string;
 };
 
 /**
@@ -97,9 +102,9 @@ export const coresClaras: CoresSemanticas = {
   textPrimary: '#101820',
   textSecondary: '#5B6773',
   textMuted: '#7E8A94',
-  brand: '#13A65A',
-  brandStrong: '#0A7F45',
-  brandSoft: '#E7F7EE',
+  brand: '#2878F0',
+  brandStrong: '#1B5FD9',
+  brandSoft: '#E9F1FF',
   onBrand: '#FFFFFF',
   accent: '#F2B43C',
   accentSoft: '#FFF5D9',
@@ -110,6 +115,8 @@ export const coresClaras: CoresSemanticas = {
   danger: '#D64545',
   dangerSoft: '#FDECEC',
   overlay: 'rgba(10, 18, 24, 0.56)',
+  scoreboard: '#152238',
+  onScoreboard: '#F2F6F8',
 };
 
 export const esporteClaro: CoresEsporte = {
@@ -147,10 +154,10 @@ export const coresEscuras: CoresSemanticas = {
   textPrimary: '#F2F6F8',
   textSecondary: '#A9B4BC',
   textMuted: '#788690',
-  brand: '#31C776',
-  brandStrong: '#22AD64',
-  brandSoft: '#143726',
-  onBrand: '#06140D',
+  brand: '#4F9CFF',
+  brandStrong: '#2F6FD6',
+  brandSoft: '#14243D',
+  onBrand: '#FFFFFF',
   accent: '#FFC857',
   accentSoft: '#3A2D12',
   info: '#62A0FF',
@@ -160,6 +167,8 @@ export const coresEscuras: CoresSemanticas = {
   danger: '#FF6B63',
   dangerSoft: '#3D2020',
   overlay: 'rgba(0, 0, 0, 0.72)',
+  scoreboard: '#101C2E',
+  onScoreboard: '#F2F6F8',
 };
 
 export const esporteEscuro: CoresEsporte = {
