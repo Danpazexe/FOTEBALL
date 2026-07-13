@@ -60,6 +60,12 @@ function CentralClube(): React.JSX.Element {
 
   const historico: ItemHub[] = [
     {
+      icone: 'medalha',
+      titulo: 'Carreira do técnico',
+      descricao: 'Jornada, campanha e conquistas',
+      ir: n => n.navigate('Carreira'),
+    },
+    {
       icone: 'trofeu',
       titulo: 'Conquistas',
       descricao: 'Títulos e histórico do clube',
