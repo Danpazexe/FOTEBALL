@@ -1,12 +1,11 @@
 /**
- * Tela Tática. Escalação estilo FUT: o técnico monta o time num campo com CARTAS
- * (CampoFUT) — arrasta um card sobre outro para trocar, ou puxa um reserva do
- * banco horizontal sobre um titular para substituir. O cabeçalho traz clube,
- * overall do time e card do técnico; o banner valida as regras mínimas. Também há
- * "escalar os 11 melhores" por esquema-base e as instruções táticas.
+ * Tela Tática (North Star). O técnico monta o time no campo estilo FUT (CampoFUT,
+ * com drag-drop) e ajusta as instruções em SELETORES (dropdown): formação no topo,
+ * e mentalidade/marcação/linha/ritmo/lado/amplidão em linhas. "SALVAR TÁTICA"
+ * confirma e volta (as mudanças já são persistidas na hora).
  *
- * Mantém o scroll travado enquanto há um arraste em curso, para o gesto de
- * reposicionar não disputar com a rolagem da tela. Migrado ao Design System v2.
+ * Mantém o scroll travado durante um arraste, para o gesto não disputar com a
+ * rolagem. O CampoFUT e seus gestos são preservados integralmente.
  */
 
 import React, {useState} from 'react';
@@ -17,8 +16,9 @@ import {useConfirm, useToast} from '../../components/feedback';
 import {
   AppBar,
   Button,
-  Chip,
   Screen,
+  SectionHeader,
+  SelectRow,
   Text,
   espacamento,
 } from '../../design-system';
@@ -64,52 +64,7 @@ const OPCOES_AMPLIDAO: NonNullable<Tatica['amplidao']>[] = [
   'Normal',
   'Amplo',
 ];
-
-/** Bloco com rótulo em caixa-alta + conteúdo (substitui o Section antigo). */
-function Grupo({
-  titulo,
-  children,
-}: {
-  titulo: string;
-  children: React.ReactNode;
-}): React.JSX.Element {
-  return (
-    <View style={styles.grupo}>
-      <Text variant="labelM" color="textSecondary" style={styles.caps}>
-        {titulo}
-      </Text>
-      {children}
-    </View>
-  );
-}
-
-/** Instrução tática: rótulo + linha de chips (seleção única). */
-function GrupoInstrucao({
-  titulo,
-  valor,
-  opcoes,
-  onSelect,
-}: {
-  titulo: string;
-  valor: string;
-  opcoes: readonly string[];
-  onSelect: (valor: string) => void;
-}): React.JSX.Element {
-  return (
-    <Grupo titulo={titulo}>
-      <View style={styles.chipRow}>
-        {opcoes.map(opcao => (
-          <Chip
-            key={opcao}
-            label={opcao}
-            selected={valor === opcao}
-            onPress={() => onSelect(opcao)}
-          />
-        ))}
-      </View>
-    </Grupo>
-  );
-}
+const NOMES_ESTRATEGIA = ESTRATEGIAS.map(e => e.nome);
 
 function Tactics(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -186,12 +141,40 @@ function Tactics(): React.JSX.Element {
     toast('Escalados os 11 melhores.', 'sucesso');
   }
 
+  const aplicarEstrategia = (nome: string) => {
+    const estr = ESTRATEGIAS.find(e => e.nome === nome);
+    if (estr) {
+      atualizarTaticaUsuario(estr.tatica);
+    }
+  };
+
+  const ajustar = <K extends keyof Tatica>(chave: K, valor: Tatica[K]) =>
+    atualizarTaticaUsuario({...taticaAtual, [chave]: valor});
+
+  const salvar = () => {
+    toast('Tática salva.', 'sucesso');
+    nav.goBack();
+  };
+
   return (
-    <Screen scroll scrollEnabled={!arrastando}>
-      <AppBar
-        title="Escalação"
-        subtitle={clubeUsuario.nome}
-        onBack={() => nav.goBack()}
+    <Screen
+      scroll
+      scrollEnabled={!arrastando}
+      header={
+        <AppBar
+          title="Tática"
+          subtitle={clubeUsuario.nome}
+          onBack={() => nav.goBack()}
+        />
+      }>
+      <SelectRow
+        pill
+        label="Formação"
+        valor={formacaoTipo}
+        opcoes={FORMACOES_DISPONIVEIS}
+        onSelect={v =>
+          aplicarFormacao(v as (typeof FORMACOES_DISPONIVEIS)[number])
+        }
       />
 
       <CampoFUT
@@ -209,108 +192,63 @@ function Tactics(): React.JSX.Element {
 
       <Button
         titulo="Escalar os 11 melhores"
-        variante="secondary"
+        variante="ghost"
         icone="tatica"
         onPress={escalarMelhores}
         fullWidth
       />
 
-      <Grupo titulo="Estratégia">
-        <View style={styles.chipRow}>
-          {ESTRATEGIAS.map(estr => (
-            <Chip
-              key={estr.nome}
-              label={estr.nome}
-              selected={estr.nome === estrategia}
-              onPress={() => atualizarTaticaUsuario(estr.tatica)}
-            />
-          ))}
-        </View>
-      </Grupo>
+      <SectionHeader titulo="Instruções" />
+      <View style={styles.controles}>
+        <SelectRow
+          label="Estratégia"
+          valor={estrategia ?? 'Personalizada'}
+          opcoes={NOMES_ESTRATEGIA}
+          onSelect={aplicarEstrategia}
+        />
+        <SelectRow
+          label="Mentalidade"
+          valor={taticaAtual.estiloOfensivo}
+          opcoes={OPCOES_ESTILO}
+          onSelect={v => ajustar('estiloOfensivo', v as Tatica['estiloOfensivo'])}
+        />
+        <SelectRow
+          label="Marcação"
+          valor={taticaAtual.marcacao}
+          opcoes={OPCOES_MARCACAO}
+          onSelect={v => ajustar('marcacao', v as Tatica['marcacao'])}
+        />
+        <SelectRow
+          label="Linha defensiva"
+          valor={taticaAtual.linhaDefensiva}
+          opcoes={OPCOES_LINHA}
+          onSelect={v => ajustar('linhaDefensiva', v as Tatica['linhaDefensiva'])}
+        />
+        <SelectRow
+          label="Ritmo"
+          valor={taticaAtual.ritmo}
+          opcoes={OPCOES_RITMO}
+          onSelect={v => ajustar('ritmo', v as Tatica['ritmo'])}
+        />
+        <SelectRow
+          label="Lado de ataque"
+          valor={taticaAtual.ladoAtaque ?? 'Ambos'}
+          opcoes={OPCOES_LADO}
+          onSelect={v =>
+            ajustar('ladoAtaque', v as NonNullable<Tatica['ladoAtaque']>)
+          }
+        />
+        <SelectRow
+          label="Amplidão"
+          valor={taticaAtual.amplidao ?? 'Normal'}
+          opcoes={OPCOES_AMPLIDAO}
+          onSelect={v =>
+            ajustar('amplidao', v as NonNullable<Tatica['amplidao']>)
+          }
+        />
+      </View>
 
-      <Grupo titulo="Formação">
-        <View style={styles.chipRow}>
-          {FORMACOES_DISPONIVEIS.map(tipo => (
-            <Chip
-              key={tipo}
-              label={tipo}
-              selected={tipo === formacaoTipo}
-              onPress={() => aplicarFormacao(tipo)}
-            />
-          ))}
-        </View>
-      </Grupo>
-
-      <Grupo titulo="Instruções">
-        <View style={styles.instrucoes}>
-          <GrupoInstrucao
-            titulo="Estilo ofensivo"
-            valor={taticaAtual.estiloOfensivo}
-            opcoes={OPCOES_ESTILO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                estiloOfensivo: valor as Tatica['estiloOfensivo'],
-              })
-            }
-          />
-          <GrupoInstrucao
-            titulo="Marcação"
-            valor={taticaAtual.marcacao}
-            opcoes={OPCOES_MARCACAO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                marcacao: valor as Tatica['marcacao'],
-              })
-            }
-          />
-          <GrupoInstrucao
-            titulo="Linha defensiva"
-            valor={taticaAtual.linhaDefensiva}
-            opcoes={OPCOES_LINHA}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                linhaDefensiva: valor as Tatica['linhaDefensiva'],
-              })
-            }
-          />
-          <GrupoInstrucao
-            titulo="Ritmo"
-            valor={taticaAtual.ritmo}
-            opcoes={OPCOES_RITMO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                ritmo: valor as Tatica['ritmo'],
-              })
-            }
-          />
-          <GrupoInstrucao
-            titulo="Lado de ataque"
-            valor={taticaAtual.ladoAtaque ?? 'Ambos'}
-            opcoes={OPCOES_LADO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                ladoAtaque: valor as NonNullable<Tatica['ladoAtaque']>,
-              })
-            }
-          />
-          <GrupoInstrucao
-            titulo="Amplidão"
-            valor={taticaAtual.amplidao ?? 'Normal'}
-            opcoes={OPCOES_AMPLIDAO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                amplidao: valor as NonNullable<Tatica['amplidao']>,
-              })
-            }
-          />
-        </View>
-      </Grupo>
+      <Button titulo="SALVAR TÁTICA" onPress={salvar} fullWidth />
     </Screen>
   );
 }
@@ -318,10 +256,7 @@ function Tactics(): React.JSX.Element {
 export default Tactics;
 
 const styles = StyleSheet.create({
-  caps: {textTransform: 'uppercase', letterSpacing: 1},
-  chipRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
-  grupo: {gap: espacamento[2]},
-  instrucoes: {gap: espacamento[4]},
+  controles: {gap: espacamento[2]},
   vazio: {
     flex: 1,
     alignItems: 'center',

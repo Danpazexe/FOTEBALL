@@ -9,6 +9,7 @@ export {SectionHeader} from './SectionHeader';
 export {StandingRow} from './StandingRow';
 export {ManagerTask} from './ManagerTask';
 export {Avatar} from './Avatar';
+export {SelectRow} from './SelectRow';
 export {Screen} from './Screen';
 export {StatValue} from './StatValue';
 export {EmptyState} from './EmptyState';
