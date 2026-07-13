@@ -9,7 +9,6 @@ import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {
   AppBar,
-  Avatar,
   Badge,
   Card,
   Chip,
@@ -26,6 +25,7 @@ import {
   type CorTexto,
 } from '../../design-system';
 import type {IconeNome} from '../../components/Icone';
+import PlayerAvatar from '../../components/PlayerAvatar';
 import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
 import {useAppNavigation} from '../../navigation/types';
 import {
@@ -212,7 +212,7 @@ function DestaqueJogador({
 
   return (
     <Card variante="elevated" onPress={onPress} style={styles.destaque}>
-      <Avatar nome={nomeCurto(jogador)} tamanho={56} tom="brand" />
+      <PlayerAvatar id={jogador.id} tamanho={56} />
       <View style={styles.destaqueInfo}>
         <View style={styles.linhaNome}>
           <Text variant="titleM" numberOfLines={1}>
@@ -263,7 +263,7 @@ function LinhaJogador({
       style={styles.linha}
       accessibilityLabel={`${nomeCurto(jogador)}, ${jogador.posicaoPrincipal}, overall ${jogador.overall}`}>
       <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
-      <Avatar nome={nomeCurto(jogador)} tamanho={36} />
+      <PlayerAvatar id={jogador.id} tamanho={36} />
       <View style={styles.linhaInfo}>
         <View style={styles.linhaNome}>
           <Text variant="labelL" numberOfLines={1}>

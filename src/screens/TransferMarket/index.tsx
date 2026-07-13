@@ -10,7 +10,6 @@ import {Modal, ScrollView, StyleSheet, TextInput, View} from 'react-native';
 
 import {
   AppBar,
-  Avatar,
   Button,
   Card,
   Chip,
@@ -26,6 +25,7 @@ import {
   raios,
   useTheme,
 } from '../../design-system';
+import PlayerAvatar from '../../components/PlayerAvatar';
 import {useToast} from '../../components/feedback';
 import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
 import {
@@ -409,7 +409,7 @@ function MercadoRow({
       onPress={onPress}
       style={styles.row}
       accessibilityLabel={`${nomeCurto(jogador)}, ${jogador.posicaoPrincipal}, ${jogador.idade} anos`}>
-      <Avatar nome={nomeCurto(jogador)} tamanho={40} />
+      <PlayerAvatar id={jogador.id} tamanho={40} />
       <View style={styles.rowInfo}>
         <Text variant="labelL" numberOfLines={1}>
           {nomeCurto(jogador)}
