@@ -13,9 +13,18 @@ import {useTheme} from '../../themes/useTheme';
 type Props = {
   children: React.ReactNode;
   scroll?: boolean;
+  /**
+   * Habilita/desabilita a rolagem (só com `scroll`). Usado para TRAVAR o scroll
+   * durante um arraste em curso (ex.: escalação estilo FUT). Default: `true`.
+   */
+  scrollEnabled?: boolean;
 };
 
-export function Screen({children, scroll}: Props): React.JSX.Element {
+export function Screen({
+  children,
+  scroll,
+  scrollEnabled = true,
+}: Props): React.JSX.Element {
   const {cores} = useTheme();
   return (
     <View style={[estilos.raiz, {backgroundColor: cores.canvas}]}>
@@ -23,6 +32,7 @@ export function Screen({children, scroll}: Props): React.JSX.Element {
         {scroll ? (
           <ScrollView
             contentContainerStyle={estilos.conteudo}
+            scrollEnabled={scrollEnabled}
             showsVerticalScrollIndicator={false}>
             {children}
           </ScrollView>
