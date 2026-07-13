@@ -20,6 +20,7 @@ export type ElencoStackParamList = {
   Squad: undefined;
   PlayerDetail: {jogadorId: string};
   Semana: undefined;
+  Academia: undefined;
 };
 
 export type PartidasStackParamList = {
