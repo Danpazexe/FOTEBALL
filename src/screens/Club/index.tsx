@@ -329,7 +329,7 @@ function Club(): React.JSX.Element {
       <Button
         icone="mercado"
         titulo="Mercado de Transferências"
-        onPress={() => nav.navigate('TransferMarket')}
+        onPress={() => nav.navigate('MainTabs', {screen: 'TransferMarket'})}
         fullWidth
       />
     </Screen>

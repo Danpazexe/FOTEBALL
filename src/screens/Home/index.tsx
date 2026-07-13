@@ -497,7 +497,7 @@ function Home(): React.JSX.Element {
         nav.navigate('MainTabs', {screen: 'Elenco'});
         return;
       case 'mercado':
-        nav.navigate('TransferMarket');
+        nav.navigate('MainTabs', {screen: 'TransferMarket'});
         return;
       case 'academia':
         nav.navigate('Academia');
@@ -530,37 +530,38 @@ function Home(): React.JSX.Element {
     );
 
   return (
-    <Screen scroll>
-      {/* Header — menu · marca · notificações. */}
-      <View style={estilos.header}>
-        <Pressable
-          onPress={() => nav.navigate('Settings')}
-          minSize="min"
-          accessibilityLabel="Menu"
-          style={estilos.headerBotao}>
-          <Icon nome="menu" color="textSecondary" />
-        </Pressable>
-        <Text variant="titleXL" align="center" style={estilos.flex}>
-          FOTEBALL
-        </Text>
-        <Pressable
-          onPress={() => nav.navigate('MainTabs', {screen: 'Central'})}
-          minSize="min"
-          accessibilityLabel={
-            mensagens.length > 0
-              ? `Notificações, ${mensagens.length} novas`
-              : 'Notificações'
-          }
-          style={estilos.headerBotao}>
-          <Icon nome="sino" color="textSecondary" />
-          {mensagens.length > 0 ? (
-            <View style={estilos.sinoBadge}>
-              <Badge count={mensagens.length} tom="danger" solido />
-            </View>
-          ) : null}
-        </Pressable>
-      </View>
-
+    <Screen
+      scroll
+      header={
+        <View style={estilos.header}>
+          <Pressable
+            onPress={() => nav.navigate('Settings')}
+            minSize="min"
+            accessibilityLabel="Menu"
+            style={estilos.headerBotao}>
+            <Icon nome="menu" color="textSecondary" />
+          </Pressable>
+          <Text variant="titleXL" align="center" style={estilos.flex}>
+            FOTEBALL
+          </Text>
+          <Pressable
+            onPress={() => nav.navigate('Central')}
+            minSize="min"
+            accessibilityLabel={
+              mensagens.length > 0
+                ? `Notificações, ${mensagens.length} novas`
+                : 'Notificações'
+            }
+            style={estilos.headerBotao}>
+            <Icon nome="sino" color="textSecondary" />
+            {mensagens.length > 0 ? (
+              <View style={estilos.sinoBadge}>
+                <Badge count={mensagens.length} tom="danger" solido />
+              </View>
+            ) : null}
+          </Pressable>
+        </View>
+      }>
       {/* Identidade do clube. */}
       <View style={estilos.identidade}>
         <TeamCrest

@@ -50,7 +50,7 @@ const GRUPOS: {titulo: string; itens: Atalho[]}[] = [
   {
     titulo: 'Gestão',
     itens: [
-      {rotulo: 'Mercado', icone: 'mercado', ir: nav => nav.navigate('TransferMarket')},
+      {rotulo: 'Mercado', icone: 'mercado', ir: nav => nav.navigate('MainTabs', {screen: 'TransferMarket'})},
       {rotulo: 'Contrato', icone: 'dinheiro', ir: nav => nav.navigate('Contratos')},
     ],
   },

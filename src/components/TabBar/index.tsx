@@ -1,7 +1,7 @@
 /**
  * Tab bar customizada e animada (react-native-reanimated). Ao focar uma aba, o
- * ícone SOBE e cresce com mola, uma pílula verde surge atrás dele e o rótulo
- * ganha cor/opacidade — transições suaves em vez do troca-seca padrão.
+ * ícone SOBE e cresce com mola, uma pílula surge atrás dele e o rótulo ganha
+ * cor/opacidade. Migrada ao Design System v2 (superfície clara, ação azul).
  */
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
@@ -14,22 +14,21 @@ import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import type {BottomTabBarProps} from '@react-navigation/bottom-tabs';
 
 import Icone, {type IconeNome} from '../Icone';
-import {raio, type Tema} from '../../theme';
-import {useEstilos, useTema} from '../../theme/useTema';
+import {raios, useEstilosDS, useTheme, type TemaDS} from '../../design-system';
 
 const ICONES: Record<string, IconeNome> = {
   Home: 'inicio',
-  Competition: 'tabela',
-  Central: 'central',
   Elenco: 'elenco',
+  Competition: 'calendario',
+  TransferMarket: 'mercado',
   Club: 'clube',
 };
 
 const ROTULOS: Record<string, string> = {
   Home: 'Início',
-  Competition: 'Competições',
-  Central: 'Central',
   Elenco: 'Elenco',
+  Competition: 'Partidas',
+  TransferMarket: 'Mercado',
   Club: 'Clube',
 };
 
@@ -46,8 +45,8 @@ function TabItem({
   badge?: number | string;
   onPress: () => void;
 }): React.JSX.Element {
-  const {cores} = useTema();
-  const styles = useEstilos(criarEstilos);
+  const {cores} = useTheme();
+  const styles = useEstilosDS(criarEstilos);
   const p = useDerivedValue(() => withSpring(focado ? 1 : 0, MOLA), [focado]);
 
   const pilulaStyle = useAnimatedStyle(() => ({
@@ -62,7 +61,7 @@ function TabItem({
     transform: [{translateY: -p.value * 3}],
   }));
 
-  const cor = focado ? cores.primaria : cores.textoSecundario;
+  const cor = focado ? cores.brand : cores.textSecondary;
 
   return (
     <Pressable
@@ -97,7 +96,7 @@ export default function TabBar({
   descriptors,
 }: BottomTabBarProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const styles = useEstilos(criarEstilos);
+  const styles = useEstilosDS(criarEstilos);
   return (
     <View style={[styles.barra, {paddingBottom: Math.max(insets.bottom, 10)}]}>
       {state.routes.map((route, index) => {
@@ -130,16 +129,15 @@ export default function TabBar({
   );
 }
 
-const criarEstilos = (t: Tema) =>
+const criarEstilos = (t: TemaDS) =>
   StyleSheet.create({
     barra: {
       alignItems: 'center',
-      backgroundColor: t.cores.superficieElevada,
-      borderTopColor: t.cores.bordaTransl,
+      backgroundColor: t.cores.surface,
+      borderTopColor: t.cores.border,
       borderTopWidth: 1,
       flexDirection: 'row',
       paddingTop: 10,
-      ...t.sombra.suave,
     },
     item: {
       alignItems: 'center',
@@ -154,8 +152,8 @@ const criarEstilos = (t: Tema) =>
       width: 56,
     },
     pilula: {
-      backgroundColor: t.suaves.verde,
-      borderRadius: raio.pill,
+      backgroundColor: t.cores.brandSoft,
+      borderRadius: raios.full,
       bottom: 0,
       left: 0,
       position: 'absolute',
@@ -169,7 +167,7 @@ const criarEstilos = (t: Tema) =>
     },
     badge: {
       alignItems: 'center',
-      backgroundColor: t.cores.perigo,
+      backgroundColor: t.cores.danger,
       borderRadius: 999,
       minWidth: 16,
       paddingHorizontal: 4,
@@ -177,9 +175,8 @@ const criarEstilos = (t: Tema) =>
       right: 6,
       top: -2,
     },
-    // Branco fixo: texto sobre o badge vermelho, legível nos dois temas.
     badgeTxt: {
-      color: '#FFFFFF',
+      color: t.cores.onBrand,
       fontSize: 10,
       fontWeight: '800',
     },

@@ -2,12 +2,14 @@ import type {NavigatorScreenParams, RouteProp} from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useNavigation, useRoute} from '@react-navigation/native';
 
-/** Abas inferiores: Início · Competições · Central · Elenco · Clube. */
+/** Abas inferiores (ordem): Elenco · Partidas · Início · Mercado · Clube. */
 export type MainTabsParamList = {
-  Home: undefined;
-  Competition: undefined;
-  Central: undefined;
   Elenco: undefined;
+  /** "Partidas" — reusa a tela Competition (Jogos/Tabela/Estatísticas). */
+  Competition: undefined;
+  Home: undefined;
+  /** "Mercado" — reusa a tela TransferMarket, agora aba. */
+  TransferMarket: undefined;
   Club: undefined;
 };
 
@@ -19,7 +21,8 @@ export type RootStackParamList = {
   NewCareer: {divisao?: string} | undefined;
   MainTabs: NavigatorScreenParams<MainTabsParamList> | undefined;
   PlayerDetail: {jogadorId: string};
-  TransferMarket: undefined;
+  /** Hub de atalhos/notificações — saiu da tab bar, agora é tela de stack. */
+  Central: undefined;
   /** `copa: true` joga o confronto da Copa do usuário (em vez do jogo da liga). */
   MatchSimulation: {copa?: boolean} | undefined;
   MatchResult: {partidaId: string};

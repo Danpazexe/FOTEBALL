@@ -5,7 +5,7 @@ import MainMenu from '../screens/MainMenu';
 import LeagueSelect from '../screens/LeagueSelect';
 import NewCareer from '../screens/NewCareer';
 import PlayerDetail from '../screens/PlayerDetail';
-import TransferMarket from '../screens/TransferMarket';
+import Central from '../screens/Central';
 import MatchSimulation from '../screens/MatchSimulation';
 import MatchResult from '../screens/MatchResult';
 import PreJogo from '../screens/PreJogo';
@@ -38,7 +38,7 @@ export function RootNavigator() {
         component={PlayerDetail}
         options={{presentation: 'modal'}}
       />
-      <Stack.Screen name="TransferMarket" component={TransferMarket} />
+      <Stack.Screen name="Central" component={Central} />
       <Stack.Screen
         name="MatchSimulation"
         component={MatchSimulation}

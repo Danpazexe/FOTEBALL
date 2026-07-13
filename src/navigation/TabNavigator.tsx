@@ -7,8 +7,8 @@ import {
 import {useGameStore} from '../store/useGameStore';
 import TabBar from '../components/TabBar';
 import Home from '../screens/Home';
-import Central from '../screens/Central';
 import Competition from '../screens/Competition';
+import TransferMarket from '../screens/TransferMarket';
 import Squad from '../screens/Squad';
 import Club from '../screens/Club';
 import type {MainTabsParamList} from './types';
@@ -20,8 +20,9 @@ const renderTabBar = (props: BottomTabBarProps): React.JSX.Element => (
   <TabBar {...props} />
 );
 
-// Abas: Início · Competições · Central · Elenco · Clube. Ajustes saiu da barra
-// (agora tela de stack acessível pela Central). Elenco reusa a tela Squad.
+// Abas: Elenco · Partidas · Início · Mercado · Clube (Início ao CENTRO). Elenco
+// reusa a tela Squad; "Partidas" reusa Competition e "Mercado" reusa
+// TransferMarket. Central e Ajustes saíram da barra (telas de stack).
 export function TabNavigator() {
   const propostas = useGameStore(state => state.propostasRecebidas.length);
   return (
@@ -29,15 +30,15 @@ export function TabNavigator() {
       initialRouteName="Home"
       tabBar={renderTabBar}
       screenOptions={{headerShown: false}}>
-      <Tab.Screen name="Home" component={Home} />
-      <Tab.Screen name="Competition" component={Competition} />
-      <Tab.Screen name="Central" component={Central} />
       <Tab.Screen name="Elenco" component={Squad} />
+      <Tab.Screen name="Competition" component={Competition} />
+      <Tab.Screen name="Home" component={Home} />
       <Tab.Screen
-        name="Club"
-        component={Club}
+        name="TransferMarket"
+        component={TransferMarket}
         options={{tabBarBadge: propostas > 0 ? propostas : undefined}}
       />
+      <Tab.Screen name="Club" component={Club} />
     </Tab.Navigator>
   );
 }
