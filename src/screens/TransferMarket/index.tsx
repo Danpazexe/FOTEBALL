@@ -6,7 +6,7 @@
  * o jogo conhece (overall + potencial); nada é inventado.
  */
 import React, {useMemo, useState} from 'react';
-import {Modal, ScrollView, StyleSheet, TextInput, View} from 'react-native';
+import {ScrollView, StyleSheet, TextInput, View} from 'react-native';
 
 import {
   AppBar,
@@ -33,12 +33,8 @@ import {
   custoEmprestimo,
   ehEmprestado,
 } from '../../engine/transfers/emprestimoEngine';
-import {useAppNavigation} from '../../navigation/types';
-import {
-  precoCompra,
-  selecionarClubeUsuario,
-  useGameStore,
-} from '../../store/useGameStore';
+import {useMercadoNavigation} from '../../navigation/types';
+import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
 import {moeda, moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
@@ -68,7 +64,7 @@ function faixaOverall(jogador: Player): string {
 }
 
 function TransferMarket(): React.JSX.Element {
-  const nav = useAppNavigation();
+  const nav = useMercadoNavigation();
   const toast = useToast();
   const {cores} = useTheme();
 
@@ -76,7 +72,6 @@ function TransferMarket(): React.JSX.Element {
   const clubes = useGameStore(state => state.clubes);
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
   const propostas = useGameStore(state => state.propostasRecebidas);
-  const fazerPropostaCompra = useGameStore(state => state.fazerPropostaCompra);
   const responderPropostaVenda = useGameStore(
     state => state.responderPropostaVenda,
   );
@@ -88,9 +83,6 @@ function TransferMarket(): React.JSX.Element {
   const [busca, setBusca] = useState('');
   const [buscaAberta, setBuscaAberta] = useState(false);
   const [filtroAberto, setFiltroAberto] = useState(false);
-  const [alvo, setAlvo] = useState<Player | null>(null);
-  const [valorInput, setValorInput] = useState('');
-  const [contra, setContra] = useState<number | null>(null);
 
   // Orçamento: saldo disponível + folha salarial mensal e seu peso na receita.
   const orcamento = useMemo(() => {
@@ -149,29 +141,8 @@ function TransferMarket(): React.JSX.Element {
     toast(`${jogador.nome} contratado por empréstimo.`, 'sucesso');
   };
 
-  const abrirProposta = (jogador: Player) => {
-    setAlvo(jogador);
-    setValorInput(String(precoCompra(jogador)));
-    setContra(null);
-  };
-
-  const enviarProposta = () => {
-    if (!alvo) {
-      return;
-    }
-    const valor = Number(valorInput) || precoCompra(alvo);
-    const resultado = fazerPropostaCompra(alvo.id, valor);
-    if (resultado.status === 'contraproposta') {
-      setContra(resultado.contraValor ?? null);
-      if (resultado.contraValor) {
-        setValorInput(String(resultado.contraValor));
-      }
-      toast(resultado.mensagem, 'info');
-      return;
-    }
-    toast(resultado.mensagem, resultado.status === 'aceita' ? 'sucesso' : 'erro');
-    setAlvo(null);
-  };
+  const abrirProposta = (jogador: Player) =>
+    nav.navigate('Negociacao', {jogadorId: jogador.id});
 
   const aceitar = (propostaId: string) => {
     responderPropostaVenda(propostaId, true);
@@ -380,66 +351,6 @@ function TransferMarket(): React.JSX.Element {
           </View>
         )
       ) : null}
-
-      <Modal
-        visible={alvo !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setAlvo(null)}>
-        <View style={[styles.modalBackdrop, {backgroundColor: cores.overlay}]}>
-          <View
-            style={[
-              styles.modalCard,
-              {backgroundColor: cores.surface, borderColor: cores.border},
-            ]}>
-            <Text variant="titleL">
-              Proposta por {alvo ? nomeCurto(alvo) : ''}
-            </Text>
-            <Text variant="caption" color="textSecondary">
-              Valor de mercado: {alvo ? moeda(alvo.valorMercado) : '—'}
-            </Text>
-            <TextInput
-              keyboardType="numeric"
-              value={valorInput}
-              onChangeText={setValorInput}
-              accessibilityLabel="Valor da proposta"
-              style={[
-                styles.input,
-                {
-                  backgroundColor: cores.surfaceSubtle,
-                  borderColor: cores.border,
-                  color: cores.textPrimary,
-                },
-              ]}
-              placeholder="Valor da proposta"
-              placeholderTextColor={cores.textMuted}
-            />
-            {contra !== null ? (
-              <Text variant="labelM" color="warning">
-                Contraproposta do clube: {moeda(contra)}
-              </Text>
-            ) : null}
-            <View style={styles.modalAcoes}>
-              <View style={styles.flex}>
-                <Button
-                  variante="secondary"
-                  titulo="Fechar"
-                  onPress={() => setAlvo(null)}
-                  fullWidth
-                />
-              </View>
-              <View style={styles.flex}>
-                <Button
-                  variante="primary"
-                  titulo="Enviar proposta"
-                  onPress={enviarProposta}
-                  fullWidth
-                />
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </Screen>
   );
 }

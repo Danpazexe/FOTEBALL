@@ -30,6 +30,7 @@ export type PartidasStackParamList = {
 
 export type MercadoStackParamList = {
   TransferMarket: undefined;
+  Negociacao: {jogadorId: string};
 };
 
 /** Aba Clube: abre a CENTRAL DO CLUBE (hub); a visão geral é uma tela interna. */
@@ -94,6 +95,12 @@ export type PartidasNavigation = CompositeNavigationProp<
   RootNavigation
 >;
 
+/** Navegação da aba Mercado: MercadoStack + RootStack. */
+export type MercadoNavigation = CompositeNavigationProp<
+  NativeStackNavigationProp<MercadoStackParamList>,
+  RootNavigation
+>;
+
 /** Hook de navegação tipado para uso nas telas. */
 export function useAppNavigation(): RootNavigation {
   return useNavigation<RootNavigation>();
@@ -107,6 +114,11 @@ export function useClubeNavigation(): ClubeNavigation {
 /** Hook de navegação da aba Partidas (PartidasStack + RootStack). */
 export function usePartidasNavigation(): PartidasNavigation {
   return useNavigation<PartidasNavigation>();
+}
+
+/** Hook de navegação da aba Mercado (MercadoStack + RootStack). */
+export function useMercadoNavigation(): MercadoNavigation {
+  return useNavigation<MercadoNavigation>();
 }
 
 /** Hook de rota tipado (acessa `route.params` da tela atual). */
