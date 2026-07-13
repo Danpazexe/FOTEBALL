@@ -47,7 +47,8 @@ import {
   preencherCoordenadas,
 } from '../../engine/tactics/geometria';
 import {validarEscalacao} from '../../engine/tactics/validacao';
-import {cores, corOverall, espaco, raio, suaves} from '../../theme';
+import {useEstilosDS, useTheme, type TemaDS} from '../../design-system';
+import {corOverall, espaco, raio} from '../../theme';
 import type {Clube, Formacao, Player, Position, Tatica} from '../../types';
 import Escudo from '../Escudo';
 import FichaCamisa from '../FichaCamisa';
@@ -203,6 +204,8 @@ function CampoFUT({
   onArrastandoChange,
   largura,
 }: CampoFUTProps): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
   // Campo do SVG do Sofascore (viewBox 2232×1790), LARGO/BAIXO como no print do
   // usuário (não esticado alto). preserveAspectRatio="none" + as peças acompanham
   // via projetarSlot.
@@ -444,7 +447,7 @@ function CampoFUT({
           <Icone
             nome={modoEdicao ? 'check' : 'olho'}
             tamanho={18}
-            cor={modoEdicao ? cores.contrastePrimaria : cores.primaria}
+            cor={modoEdicao ? cores.onBrand : cores.brand}
           />
         </Pressable>
 
@@ -557,6 +560,8 @@ function Cabecalho({
   formacaoDetectada: string;
   reputacaoTecnico: number;
 }): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
   const overall = Math.round(forca?.overall ?? 0);
   return (
     <View style={styles.cabecalho}>
@@ -567,7 +572,7 @@ function Cabecalho({
             {clube.nome}
           </Text>
           <View style={styles.cabFormacaoChip}>
-            <Icone nome="tatica" tamanho={12} cor={cores.primaria} />
+            <Icone nome="tatica" tamanho={12} cor={cores.brand} />
             <Text style={styles.cabFormacao}>{formacaoDetectada}</Text>
           </View>
         </View>
@@ -588,10 +593,12 @@ function Cabecalho({
 
 /** Card compacto do técnico: reputação em estrelas (0-5) + valor. */
 function CardTecnico({reputacao}: {reputacao: number}): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
   const estrelas = Math.max(0, Math.min(5, Math.round(reputacao / 20)));
   return (
     <View style={styles.tecnico}>
-      <Icone nome="conversa" tamanho={16} cor={cores.secundaria} />
+      <Icone nome="conversa" tamanho={16} cor={cores.accent} />
       <Text style={styles.tecnicoEstrelas}>
         {'★'.repeat(estrelas)}
         <Text style={styles.tecnicoEstrelasVazias}>
@@ -609,11 +616,13 @@ function BannerValidacao({
 }: {
   validacao: ReturnType<typeof validarEscalacao>;
 }): React.JSX.Element | null {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
   if (!validacao.valido) {
     return (
       <View style={[styles.banner, styles.bannerErro]}>
-        <Icone nome="fechar" tamanho={14} cor={cores.perigo} />
-        <Text style={[styles.bannerTexto, {color: cores.perigo}]}>
+        <Icone nome="fechar" tamanho={14} cor={cores.danger} />
+        <Text style={[styles.bannerTexto, {color: cores.danger}]}>
           {validacao.erros[0]}
         </Text>
       </View>
@@ -622,8 +631,8 @@ function BannerValidacao({
   if (validacao.avisos.length > 0) {
     return (
       <View style={[styles.banner, styles.bannerAviso]}>
-        <Icone nome="lesao" tamanho={14} cor={cores.secundaria} />
-        <Text style={[styles.bannerTexto, {color: cores.secundariaEscura}]}>
+        <Icone nome="lesao" tamanho={14} cor={cores.accent} />
+        <Text style={[styles.bannerTexto, {color: cores.warning}]}>
           {validacao.avisos[0]}
           {validacao.avisos.length > 1
             ? ` (+${validacao.avisos.length - 1})`
@@ -634,8 +643,8 @@ function BannerValidacao({
   }
   return (
     <View style={[styles.banner, styles.bannerOk]}>
-      <Icone nome="check" tamanho={14} cor={cores.primaria} />
-      <Text style={[styles.bannerTexto, {color: cores.primariaEscura}]}>
+      <Icone nome="check" tamanho={14} cor={cores.brand} />
+      <Text style={[styles.bannerTexto, {color: cores.brandStrong}]}>
         Escalação válida
       </Text>
     </View>
@@ -647,6 +656,7 @@ function BannerValidacao({
  * faixa escura, como o painel de patrocínio atrás do gol nos apps de futebol.
  */
 function PlacaPublicidade({largura}: {largura: number}): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
   const repeticoes = Math.max(4, Math.round(largura / 90));
   return (
     <View style={[styles.placa, {width: largura}]}>
@@ -680,6 +690,8 @@ function CartaFUT({
   esmaecer: boolean;
   ehCapitao?: boolean;
 }): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
   const altura = Math.round(largura * 1.2);
   if (!jogador) {
     return (
@@ -710,7 +722,7 @@ function CartaFUT({
           <Icone
             nome={jogador.lesionado ? 'lesao' : 'cartao'}
             tamanho={Math.round(largura * 0.18)}
-            cor={cores.contrastePrimaria}
+            cor={cores.onBrand}
           />
         </View>
       ) : null}
@@ -779,7 +791,7 @@ function PecaCampo({
     <GestureDetector gesture={gesto}>
       <View
         style={[
-          styles.slotWrap,
+          estilosFixos.slotWrap,
           {left: cx - cardW / 2, top: cy - cardH / 2, width: cardW},
         ]}>
         <CartaFUT
@@ -840,7 +852,7 @@ function PecaReserva({
 
   return (
     <GestureDetector gesture={gesto}>
-      <View style={!habilitado ? styles.reservaIndisponivel : null}>
+      <View style={!habilitado ? estilosFixos.reservaIndisponivel : null}>
         <CartaFUT
           jogador={jogador}
           posicaoEscalada={jogador.posicaoPrincipal}
@@ -855,6 +867,7 @@ function PecaReserva({
 
 /** Resumo tático ao vivo (chips): estilo, linha, ritmo, marcação. */
 function TaticaStrip({tatica}: {tatica: Tatica}): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
   const chips = [
     tatica.estiloOfensivo,
     `Linha ${tatica.linhaDefensiva.toLowerCase()}`,
@@ -893,6 +906,7 @@ function PitchEstadio({
   linhaDefensiva: Tatica['linhaDefensiva'];
   ladoAtaque: NonNullable<Tatica['ladoAtaque']>;
 }): React.JSX.Element {
+  const {cores} = useTheme();
   const hwEmY = (yy: number): number =>
     CAMPO_SVG.hwTopo +
     (CAMPO_SVG.hwBase - CAMPO_SVG.hwTopo) *
@@ -1001,12 +1015,12 @@ function PitchEstadio({
         y1={yLinha}
         x2={CAMPO_SVG.centroX + hwLinha - 60}
         y2={yLinha}
-        stroke={cores.primariaClara}
+        stroke={cores.brand}
         strokeWidth={16}
         strokeDasharray="60 42"
       />
       {xsSeta.map(ax => (
-        <Path key={ax} d={seta(ax)} fill={cores.secundaria} opacity={0.95} />
+        <Path key={ax} d={seta(ax)} fill={cores.accent} opacity={0.95} />
       ))}
     </Svg>
   );
@@ -1021,272 +1035,281 @@ const GRAMA_ESCURA = '#014522';
 const LINHA_CAMPO = 'rgba(240, 245, 238, 0.9)';
 const FUNDO = '#0A140D';
 
-const styles = StyleSheet.create({
-  overlay: {
-    gap: espaco.sm,
-  },
-  cabecalho: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: espaco.sm,
-  },
-  cabInfo: {
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  cabTextos: {
-    flex: 1,
-    gap: 3,
-  },
-  cabNome: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: -0.3,
-  },
-  cabFormacaoChip: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
-    flexDirection: 'row',
-    gap: 4,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 2,
-  },
-  cabFormacao: {
-    color: cores.texto,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  cabDireita: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  cabOverall: {
-    alignItems: 'center',
-  },
-  cabOverallNum: {
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: -1,
-  },
-  cabOverallRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginTop: -2,
-  },
-  tecnico: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    gap: 1,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: espaco.xs,
-  },
-  tecnicoEstrelas: {
-    color: cores.secundaria,
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-  tecnicoEstrelasVazias: {
-    color: cores.bordaClara,
-  },
-  tecnicoRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  banner: {
-    alignItems: 'center',
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.xs,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: espaco.xs,
-  },
-  bannerErro: {
-    backgroundColor: suaves.vermelho,
-    borderColor: cores.perigo,
-  },
-  bannerAviso: {
-    backgroundColor: suaves.amarelo,
-    borderColor: cores.secundaria,
-  },
-  bannerOk: {
-    backgroundColor: suaves.verde,
-    borderColor: cores.primaria,
-  },
-  bannerTexto: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  pitch: {
-    alignSelf: 'center',
-    position: 'relative',
-  },
-  placa: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: '#081009',
-    borderColor: cores.bordaClara,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    flexDirection: 'row',
-    height: 22,
-    justifyContent: 'space-around',
-    marginBottom: -espaco.xs,
-    overflow: 'hidden',
-  },
-  placaTexto: {
-    color: cores.secundaria,
-    fontSize: 11,
-    fontStyle: 'italic',
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    opacity: 0.8,
-  },
-  botaoOlho: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: 999,
-    borderWidth: 1,
-    elevation: 3,
-    height: 38,
-    justifyContent: 'center',
-    left: 6,
-    position: 'absolute',
-    shadowColor: '#0F1E3D',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    top: 6,
-    width: 38,
-    zIndex: 999,
-  },
-  botaoOlhoAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
+const criarEstilos = (t: TemaDS) =>
+  StyleSheet.create({
+    overlay: {
+      gap: espaco.sm,
+    },
+    cabecalho: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surface,
+      borderColor: t.cores.border,
+      borderRadius: raio.md,
+      borderWidth: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      padding: espaco.sm,
+    },
+    cabInfo: {
+      alignItems: 'center',
+      flex: 1,
+      flexDirection: 'row',
+      gap: espaco.sm,
+    },
+    cabTextos: {
+      flex: 1,
+      gap: 3,
+    },
+    cabNome: {
+      color: t.cores.textPrimary,
+      fontSize: 15,
+      fontWeight: '900',
+      letterSpacing: -0.3,
+    },
+    cabFormacaoChip: {
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      backgroundColor: t.cores.surfaceSubtle,
+      borderRadius: raio.sm,
+      flexDirection: 'row',
+      gap: 4,
+      paddingHorizontal: espaco.sm,
+      paddingVertical: 2,
+    },
+    cabFormacao: {
+      color: t.cores.textPrimary,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    cabDireita: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: espaco.sm,
+    },
+    cabOverall: {
+      alignItems: 'center',
+    },
+    cabOverallNum: {
+      fontSize: 30,
+      fontWeight: '900',
+      letterSpacing: -1,
+    },
+    cabOverallRotulo: {
+      color: t.cores.textSecondary,
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 1,
+      marginTop: -2,
+    },
+    tecnico: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surfaceSubtle,
+      borderColor: t.cores.border,
+      borderRadius: raio.sm,
+      borderWidth: 1,
+      gap: 1,
+      paddingHorizontal: espaco.sm,
+      paddingVertical: espaco.xs,
+    },
+    tecnicoEstrelas: {
+      color: t.cores.accent,
+      fontSize: 11,
+      letterSpacing: 1,
+    },
+    tecnicoEstrelasVazias: {
+      color: t.cores.borderStrong,
+    },
+    tecnicoRotulo: {
+      color: t.cores.textSecondary,
+      fontSize: 9,
+      fontWeight: '700',
+    },
+    banner: {
+      alignItems: 'center',
+      borderRadius: raio.sm,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: espaco.xs,
+      paddingHorizontal: espaco.sm,
+      paddingVertical: espaco.xs,
+    },
+    bannerErro: {
+      backgroundColor: t.cores.dangerSoft,
+      borderColor: t.cores.danger,
+    },
+    bannerAviso: {
+      backgroundColor: t.cores.accentSoft,
+      borderColor: t.cores.accent,
+    },
+    bannerOk: {
+      backgroundColor: t.cores.brandSoft,
+      borderColor: t.cores.brand,
+    },
+    bannerTexto: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    pitch: {
+      alignSelf: 'center',
+      position: 'relative',
+    },
+    placa: {
+      alignItems: 'center',
+      alignSelf: 'center',
+      backgroundColor: '#081009',
+      borderColor: t.cores.borderStrong,
+      borderRadius: raio.sm,
+      borderWidth: 1,
+      flexDirection: 'row',
+      height: 22,
+      justifyContent: 'space-around',
+      marginBottom: -espaco.xs,
+      overflow: 'hidden',
+    },
+    placaTexto: {
+      color: t.cores.accent,
+      fontSize: 11,
+      fontStyle: 'italic',
+      fontWeight: '900',
+      letterSpacing: 1.5,
+      opacity: 0.8,
+    },
+    botaoOlho: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surface,
+      borderColor: t.cores.border,
+      borderRadius: 999,
+      borderWidth: 1,
+      elevation: 3,
+      height: 38,
+      justifyContent: 'center',
+      left: 6,
+      position: 'absolute',
+      shadowColor: '#0F1E3D',
+      shadowOffset: {width: 0, height: 2},
+      shadowOpacity: 0.12,
+      shadowRadius: 5,
+      top: 6,
+      width: 38,
+      zIndex: 999,
+    },
+    botaoOlhoAtivo: {
+      backgroundColor: t.cores.brand,
+      borderColor: t.cores.brand,
+    },
+    cartaDestaque: {
+      elevation: 12,
+      shadowColor: t.cores.brand,
+      shadowOffset: {width: 0, height: 0},
+      shadowOpacity: 0.9,
+      shadowRadius: 12,
+      transform: [{scale: 1.1}],
+    },
+    cartaEsmaecida: {
+      opacity: 0.35,
+    },
+    cartaVazia: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surfaceSubtle,
+      borderColor: t.cores.border,
+      borderRadius: raio.sm,
+      borderStyle: 'dashed',
+      borderWidth: 2,
+      justifyContent: 'center',
+    },
+    cartaVaziaTexto: {
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      fontWeight: '800',
+    },
+    cartaStatus: {
+      alignItems: 'center',
+      backgroundColor: t.cores.danger,
+      borderRadius: 999,
+      height: 18,
+      justifyContent: 'center',
+      position: 'absolute',
+      right: 4,
+      top: 4,
+      width: 18,
+      zIndex: 5,
+    },
+    dica: {
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      textAlign: 'center',
+    },
+    taticaStrip: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: espaco.xs,
+      justifyContent: 'center',
+    },
+    taticaChip: {
+      backgroundColor: t.cores.surfaceSubtle,
+      borderColor: t.cores.border,
+      borderRadius: raio.sm,
+      borderWidth: 1,
+      paddingHorizontal: espaco.sm,
+      paddingVertical: 3,
+    },
+    taticaChipTexto: {
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    bancoHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: espaco.sm,
+    },
+    bancoTitulo: {
+      color: t.cores.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    bancoContagem: {
+      backgroundColor: t.cores.surfaceSubtle,
+      borderRadius: 999,
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      fontWeight: '800',
+      overflow: 'hidden',
+      paddingHorizontal: 7,
+      paddingVertical: 1,
+    },
+    bancoVazio: {
+      color: t.cores.textSecondary,
+      fontSize: 12,
+    },
+    bancoConteudo: {
+      gap: espaco.sm,
+      paddingHorizontal: 2,
+      paddingVertical: 2,
+    },
+    ghost: {
+      elevation: 14,
+      left: 0,
+      position: 'absolute',
+      shadowColor: '#0B1E3F',
+      shadowOffset: {width: 0, height: 10},
+      shadowOpacity: 0.4,
+      shadowRadius: 18,
+      top: 0,
+    },
+  });
+
+/**
+ * Estilos SEM cor (geometria/estado) das peças de gesto. Estáticos de propósito:
+ * PecaCampo/PecaReserva não dependem do tema, então não precisam do hook e a
+ * lógica de drag-drop fica intocada.
+ */
+const estilosFixos = StyleSheet.create({
   slotWrap: {
     position: 'absolute',
   },
-  cartaDestaque: {
-    elevation: 12,
-    shadowColor: cores.primaria,
-    shadowOffset: {width: 0, height: 0},
-    shadowOpacity: 0.9,
-    shadowRadius: 12,
-    transform: [{scale: 1.1}],
-  },
-  cartaEsmaecida: {
-    opacity: 0.35,
-  },
-  cartaVazia: {
-    alignItems: 'center',
-    backgroundColor: cores.glassForte,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.sm,
-    borderStyle: 'dashed',
-    borderWidth: 2,
-    justifyContent: 'center',
-  },
-  cartaVaziaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  cartaStatus: {
-    alignItems: 'center',
-    backgroundColor: cores.perigo,
-    borderRadius: 999,
-    height: 18,
-    justifyContent: 'center',
-    position: 'absolute',
-    right: 4,
-    top: 4,
-    width: 18,
-    zIndex: 5,
-  },
-  dica: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    textAlign: 'center',
-  },
-  taticaStrip: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.xs,
-    justifyContent: 'center',
-  },
-  taticaChip: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 3,
-  },
-  taticaChipTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  bancoHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  bancoTitulo: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  bancoContagem: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: 999,
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-    overflow: 'hidden',
-    paddingHorizontal: 7,
-    paddingVertical: 1,
-  },
-  bancoVazio: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  bancoConteudo: {
-    gap: espaco.sm,
-    paddingHorizontal: 2,
-    paddingVertical: 2,
-  },
   reservaIndisponivel: {
     opacity: 0.5,
-  },
-  ghost: {
-    elevation: 14,
-    left: 0,
-    position: 'absolute',
-    shadowColor: '#0B1E3F',
-    shadowOffset: {width: 0, height: 10},
-    shadowOpacity: 0.4,
-    shadowRadius: 18,
-    top: 0,
   },
 });
