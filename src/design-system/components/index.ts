@@ -15,5 +15,6 @@ export {StatValue} from './StatValue';
 export {EmptyState} from './EmptyState';
 export {Skeleton} from './Skeleton';
 export {Tabs, type Aba} from './Tabs';
+export {SegmentedTabs} from './SegmentedTabs';
 export {Dialog} from './Dialog';
 export {Snackbar} from './Snackbar';

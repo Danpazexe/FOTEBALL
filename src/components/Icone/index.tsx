@@ -46,6 +46,7 @@ import {
   Home,
   LayoutGrid,
   Landmark,
+  ListFilter,
   ListOrdered,
   Lock,
   type LucideIcon,
@@ -56,6 +57,7 @@ import {
   Pause,
   Play,
   Rocket,
+  Search,
   Settings,
   Shield,
   ShieldHalf,
@@ -63,8 +65,10 @@ import {
   Smile,
   Sprout,
   Square,
+  Star,
   Sun,
   Target,
+  TrendingUp,
   Trophy,
   Users,
   UserStar,
@@ -116,6 +120,11 @@ export type IconeNome =
   | 'olho'
   | 'menu'
   | 'sino'
+  | 'busca'
+  | 'filtro'
+  | 'estrela'
+  | 'tendencia'
+  | 'ficha'
   | 'humor-bom'
   | 'humor-neutro'
   | 'humor-ruim';
@@ -165,6 +174,11 @@ const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
   olho: Eye,
   menu: Menu,
   sino: Bell,
+  busca: Search,
+  filtro: ListFilter,
+  estrela: Star,
+  tendencia: TrendingUp,
+  ficha: ClipboardList,
   'humor-bom': Smile,
   'humor-neutro': Meh,
   'humor-ruim': Frown,

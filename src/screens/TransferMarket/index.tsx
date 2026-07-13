@@ -14,12 +14,13 @@ import {
   Card,
   Chip,
   Divider,
+  IconButton,
   PositionBadge,
   ProgressBar,
   Pressable,
   Screen,
   SectionHeader,
-  Tabs,
+  SegmentedTabs,
   Text,
   espacamento,
   raios,
@@ -52,6 +53,13 @@ function nomeCurto(jogador: Player): string {
   return jogador.apelido ?? jogador.nome;
 }
 
+function normalizar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
 /** Faixa overall→potencial (ambos conhecidos); só o número se não há margem. */
 function faixaOverall(jogador: Player): string {
   return jogador.potencial > jogador.overall
@@ -77,6 +85,9 @@ function TransferMarket(): React.JSX.Element {
 
   const [aba, setAba] = useState<Aba>('disponiveis');
   const [filtro, setFiltro] = useState<Position | 'Todos'>('Todos');
+  const [busca, setBusca] = useState('');
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const [filtroAberto, setFiltroAberto] = useState(false);
   const [alvo, setAlvo] = useState<Player | null>(null);
   const [valorInput, setValorInput] = useState('');
   const [contra, setContra] = useState<number | null>(null);
@@ -101,14 +112,17 @@ function TransferMarket(): React.JSX.Element {
       ? cores.warning
       : cores.brand;
 
+  const alvoBusca = normalizar(busca.trim());
+
   const disponiveis = useMemo(
     () =>
       jogadores
         .filter(j => j.clubeId !== clubeUsuarioId && j.clubeId !== null)
         .filter(j => filtro === 'Todos' || j.posicaoPrincipal === filtro)
+        .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
         .sort((a, b) => b.overall - a.overall)
         .slice(0, LIMITE),
-    [jogadores, clubeUsuarioId, filtro],
+    [jogadores, clubeUsuarioId, filtro, alvoBusca],
   );
 
   const emprestaveis = useMemo(
@@ -119,9 +133,10 @@ function TransferMarket(): React.JSX.Element {
             j.clubeId !== clubeUsuarioId && j.clubeId !== null && !ehEmprestado(j),
         )
         .filter(j => filtro === 'Todos' || j.posicaoPrincipal === filtro)
+        .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
         .sort((a, b) => a.idade - b.idade || b.overall - a.overall)
         .slice(0, LIMITE),
-    [jogadores, clubeUsuarioId, filtro],
+    [jogadores, clubeUsuarioId, filtro, alvoBusca],
   );
 
   const aoEmprestar = (jogador: Player) => {
@@ -180,7 +195,29 @@ function TransferMarket(): React.JSX.Element {
   ];
 
   return (
-    <Screen scroll header={<AppBar title="Mercado" />}>
+    <Screen
+      scroll
+      header={
+        <AppBar
+          title="Mercado"
+          right={
+            <View style={styles.headerAcoes}>
+              <IconButton
+                icone="busca"
+                onPress={() => setBuscaAberta(v => !v)}
+                accessibilityLabel="Buscar jogador"
+                tom={buscaAberta ? 'brand' : 'textPrimary'}
+              />
+              <IconButton
+                icone="filtro"
+                onPress={() => setFiltroAberto(v => !v)}
+                accessibilityLabel="Filtrar por posição"
+                tom={filtroAberto || filtro !== 'Todos' ? 'brand' : 'textPrimary'}
+              />
+            </View>
+          }
+        />
+      }>
       {/* Orçamento. */}
       <Card variante="outlined" style={styles.orcamento}>
         <View style={styles.orcamentoLinha}>
@@ -211,9 +248,28 @@ function TransferMarket(): React.JSX.Element {
         <ProgressBar valor={orcamento.pctFolha} cor={corFolha} />
       </Card>
 
-      <Tabs abas={abas} ativa={aba} onSelect={c => setAba(c as Aba)} scrollable />
+      <SegmentedTabs abas={abas} ativa={aba} onSelect={c => setAba(c as Aba)} />
 
-      {aba === 'disponiveis' || aba === 'emprestar' ? (
+      {buscaAberta ? (
+        <TextInput
+          value={busca}
+          onChangeText={setBusca}
+          autoFocus
+          placeholder="Buscar por nome"
+          placeholderTextColor={cores.textMuted}
+          accessibilityLabel="Buscar por nome"
+          style={[
+            styles.busca,
+            {
+              backgroundColor: cores.surfaceSubtle,
+              borderColor: cores.border,
+              color: cores.textPrimary,
+            },
+          ]}
+        />
+      ) : null}
+
+      {filtroAberto && (aba === 'disponiveis' || aba === 'emprestar') ? (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -443,6 +499,15 @@ export default TransferMarket;
 
 const styles = StyleSheet.create({
   flex: {flex: 1},
+  headerAcoes: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
+  busca: {
+    borderRadius: raios.md,
+    borderWidth: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    paddingHorizontal: espacamento[3],
+    paddingVertical: espacamento[2],
+  },
   orcamento: {gap: espacamento[3]},
   orcamentoLinha: {flexDirection: 'row', gap: espacamento[3]},
   filtros: {flexDirection: 'row', gap: espacamento[2], paddingRight: espacamento[4]},
