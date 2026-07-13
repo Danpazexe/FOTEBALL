@@ -12,14 +12,7 @@
  */
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import {
-  Animated,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import {Animated, ScrollView, StyleSheet, View} from 'react-native';
 
 import {trocarTitular} from '../../api/database/seed/defaults';
 import {
@@ -46,13 +39,27 @@ import {
 } from '../../audio/sons';
 import {suprimirMusica} from '../../audio/musica';
 import {salvarAgora} from '../../store/autosave';
-import {Botao, ScreenContainer} from '../../components/ui';
-import Chip from '../../components/Chip';
-import Icone, {type IconeNome} from '../../components/Icone';
 import {
-  LanceLimpo,
-  type LadoLance,
-} from '../../components/MatchNarration/LanceLimpo';
+  AppBar,
+  Box,
+  Button,
+  Card,
+  Chip,
+  Divider,
+  Icon,
+  IconButton,
+  Screen,
+  SectionHeader,
+  Tabs,
+  TeamCrest,
+  Text,
+  espacamento,
+  raios,
+  useTheme,
+  type CorTexto,
+} from '../../design-system';
+import type {IconeNome} from '../../components/Icone';
+import {type LadoLance} from '../../components/MatchNarration/LanceLimpo';
 import AjustesPartida from '../../components/MatchNarration/AjustesPartida';
 import {calcularPublicoJogo} from '../../engine/finance/financeEngine';
 import {
@@ -79,19 +86,9 @@ import {
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
-import {
-  acentos,
-  cores,
-  corDoTime,
-  espaco,
-  raio,
-  sombra,
-  suaves,
-  tabular,
-  tipografia,
-} from '../../theme';
+import {corDoTime} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
-import {ehMinutoAcrescimo, rotuloMinuto} from '../../utils/minutoPartida';
+import {rotuloMinuto} from '../../utils/minutoPartida';
 import type {
   Clube,
   EventoPartida,
@@ -349,6 +346,7 @@ function iconeClima(clima: string): IconeNome {
 
 function MatchSimulation(): React.JSX.Element | null {
   const nav = useAppNavigation();
+  const {cores} = useTheme();
   const route = useAppRoute<'MatchSimulation'>();
   const modoCopa = route.params?.copa === true;
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
@@ -366,8 +364,8 @@ function MatchSimulation(): React.JSX.Element | null {
   const [fixture, setFixture] = useState<Partida | null>(null);
   const [siglaCasa, setSiglaCasa] = useState('');
   const [siglaFora, setSiglaFora] = useState('');
-  const [corCasa, setCorCasa] = useState<string>(cores.primaria);
-  const [corFora, setCorFora] = useState<string>(cores.primaria);
+  const [corCasa, setCorCasa] = useState<string>(corDoTime(''));
+  const [corFora, setCorFora] = useState<string>(corDoTime(''));
 
   const estadoRef = useRef<EstadoPartidaAoVivo | null>(null);
   const minutoSimuladoRef = useRef(0);
@@ -1124,328 +1122,213 @@ function MatchSimulation(): React.JSX.Element | null {
     : undefined;
   const condicoes = estadoRef.current?.estatisticas;
 
+  const clubeForaObj =
+    ladoUsuarioRef.current === 'casa' ? adversarioRef.current : clubeUsuario;
+  const clubeCasaId = clubeCasaObj?.id ?? '';
+  const clubeForaId = clubeForaObj?.id ?? '';
+  const momentum = condicoes?.momentumPorMinuto ?? [];
+  const finCasa = condicoes?.casa.finalizacoes ?? 0;
+  const alvoCasa = condicoes?.casa.finalizacoesNoAlvo ?? 0;
+  const estadoRotulo = terminou
+    ? 'Fim'
+    : intervalo
+    ? 'Intervalo'
+    : `${rotuloMinuto(minuto)}'`;
+  const temOutrosJogos = outrosJogosRef.current.length > 0;
+
   return (
-    <ScreenContainer>
-      <View style={styles.conteudo}>
-        <View style={styles.topo}>
-          <Animated.View style={{transform: [{scale: pulsePlacar}]}}>
-            <View style={styles.placarCard}>
-              <View style={styles.placarTimes}>
+    <Screen
+      header={<AppBar title="Central da partida" onBack={() => nav.goBack()} />}>
+      <View style={styles.corpo}>
+        <View style={styles.meta}>
+          <Text variant="labelL" color="textSecondary" align="center">
+            {modoCopa
+              ? 'Copa do Brasil'
+              : `${clubeUsuario?.divisao ?? 'Brasileirão'} · Rodada ${
+                  fixture.rodada
+                }`}
+          </Text>
+          {estadioCasa ? (
+            <Text variant="caption" color="textMuted" align="center">
+              {estadioCasa.nome}
+            </Text>
+          ) : null}
+        </View>
+
+        <Animated.View style={{transform: [{scale: pulsePlacar}]}}>
+          <Box bg="scoreboard" radius="lg" padding={4} gap={3}>
+            <View style={styles.placarLinha}>
+              <View style={styles.placarTime}>
+                <TeamCrest clubeId={clubeCasaId} sigla={siglaCasa} size={44} />
                 <Text
-                  style={[styles.placarNome, styles.placarNomeEsq]}
-                  numberOfLines={1}
-                >
-                  {nomeCasaRef.current}
-                </Text>
-                <Text style={styles.placarNumeros}>
-                  {placar.casa} <Text style={styles.placarTraco}>-</Text>{' '}
-                  {placar.fora}
-                </Text>
-                <Text
-                  style={[styles.placarNome, styles.placarNomeDir]}
-                  numberOfLines={1}
-                >
-                  {nomeForaRef.current}
+                  variant="labelL"
+                  color="onScoreboard"
+                  weight="800"
+                  numberOfLines={1}>
+                  {siglaCasa}
                 </Text>
               </View>
-              <Text style={styles.placarMeta}>
-                {modoCopa
-                  ? 'Copa do Brasil'
-                  : `${clubeUsuario?.divisao ?? 'Brasileirão'} · Rodada ${
-                      fixture.rodada
-                    }`}
-                {' | '}
-                {terminou ? (
-                  'Fim de jogo'
-                ) : intervalo ? (
-                  'Intervalo'
-                ) : (
-                  <Text
-                    style={
-                      ehMinutoAcrescimo(minuto)
-                        ? {color: cores.secundaria}
-                        : undefined
-                    }>
-                    {rotuloMinuto(minuto)}' ao vivo
+              <View style={styles.placarCentro}>
+                <View style={styles.placarNums}>
+                  <Text variant="scoreXL" color="onScoreboard" tabular>
+                    {placar.casa}
                   </Text>
-                )}
-              </Text>
-              <View style={styles.metaChips}>
-                {estadioCasa ? (
-                  <View style={styles.metaChip}>
-                    <Icone
-                      nome="estadio"
-                      tamanho={12}
-                      cor={cores.textoSecundario}
-                    />
-                    <Text style={styles.metaChipTexto} numberOfLines={1}>
-                      {estadioCasa.nome}
-                    </Text>
-                  </View>
-                ) : null}
-                {publico !== undefined ? (
-                  <View style={styles.metaChip}>
-                    <Icone
-                      nome="publico"
-                      tamanho={12}
-                      cor={cores.textoSecundario}
-                    />
-                    <Text style={styles.metaChipTexto}>
-                      {publico.toLocaleString('pt-BR')}
-                    </Text>
-                  </View>
-                ) : null}
-                {condicoes ? (
-                  <View style={styles.metaChip}>
-                    <Icone
-                      nome={iconeClima(condicoes.clima)}
-                      tamanho={12}
-                      cor={cores.textoSecundario}
-                    />
-                    <Text style={styles.metaChipTexto}>
-                      {condicoes.clima} · {condicoes.temperatura}°C
-                    </Text>
-                  </View>
-                ) : null}
-                {estadioCasa ? (
-                  <View style={styles.metaChip}>
-                    <Icone
-                      nome="gramado"
-                      tamanho={12}
-                      cor={cores.textoSecundario}
-                    />
-                    <Text style={styles.metaChipTexto}>
-                      {rotuloGramado(estadioCasa.nivelInfraestrutura)}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-              <View style={styles.posseRow}>
-                <View style={styles.posseTrack}>
-                  <View
-                    style={[
-                      styles.posseFill,
-                      {flex: posseCasa, backgroundColor: corCasa},
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.posseFill,
-                      {flex: 100 - posseCasa, backgroundColor: corFora},
-                    ]}
-                  />
+                  <Text
+                    variant="scoreXL"
+                    color="onScoreboard"
+                    style={styles.placarTraco}>
+                    –
+                  </Text>
+                  <Text variant="scoreXL" color="onScoreboard" tabular>
+                    {placar.fora}
+                  </Text>
                 </View>
-                <Text style={styles.posseTexto}>
-                  Posse {posseCasa}% / {100 - posseCasa}%
+                <View
+                  style={[
+                    styles.minutoPill,
+                    {backgroundColor: terminou ? cores.textMuted : cores.brand},
+                  ]}>
+                  <Text variant="labelM" color="onBrand" weight="800" tabular>
+                    {estadoRotulo}
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.placarTime}>
+                <TeamCrest clubeId={clubeForaId} sigla={siglaFora} size={44} />
+                <Text
+                  variant="labelL"
+                  color="onScoreboard"
+                  weight="800"
+                  numberOfLines={1}>
+                  {siglaFora}
                 </Text>
               </View>
             </View>
-          </Animated.View>
-        </View>
 
-        {outrosJogosRef.current.length > 0 ? (
-          <View style={styles.abasFeed}>
-            {(['lances', 'rodada', 'tabela'] as const).map(chave => (
-              <Pressable
-                key={chave}
-                style={[
-                  styles.abaFeed,
-                  abaFeed === chave && styles.abaFeedAtiva,
-                ]}
-                onPress={() => setAbaFeed(chave)}
-              >
-                <Text
-                  style={[
-                    styles.abaFeedTexto,
-                    abaFeed === chave && styles.abaFeedTextoAtivo,
-                  ]}
-                >
-                  {chave === 'lances'
-                    ? 'Lances'
-                    : chave === 'rodada'
-                    ? 'Rodada'
-                    : 'Tabela'}
+            <MomentoChart momentum={momentum} />
+
+            <View style={styles.statsRow}>
+              <CelulaStat valor={`${posseCasa}%`} rotulo="Posse de bola" />
+              <View
+                style={[styles.statDiv, {backgroundColor: cores.onScoreboard}]}
+              />
+              <CelulaStat valor={String(finCasa)} rotulo="Finalizações" />
+              <View
+                style={[styles.statDiv, {backgroundColor: cores.onScoreboard}]}
+              />
+              <CelulaStat valor={String(alvoCasa)} rotulo="No alvo" />
+            </View>
+          </Box>
+        </Animated.View>
+
+        {publico !== undefined || condicoes || estadioCasa ? (
+          <View style={styles.condicoes}>
+            {publico !== undefined ? (
+              <View style={styles.condItem}>
+                <Icon nome="publico" size={14} color="textMuted" />
+                <Text variant="caption" color="textSecondary">
+                  {publico.toLocaleString('pt-BR')}
                 </Text>
-              </Pressable>
-            ))}
+              </View>
+            ) : null}
+            {condicoes ? (
+              <View style={styles.condItem}>
+                <Icon
+                  nome={iconeClima(condicoes.clima)}
+                  size={14}
+                  color="textMuted"
+                />
+                <Text variant="caption" color="textSecondary">
+                  {condicoes.clima} · {condicoes.temperatura}°C
+                </Text>
+              </View>
+            ) : null}
+            {estadioCasa ? (
+              <View style={styles.condItem}>
+                <Icon nome="gramado" size={14} color="textMuted" />
+                <Text variant="caption" color="textSecondary">
+                  {rotuloGramado(estadioCasa.nivelInfraestrutura)}
+                </Text>
+              </View>
+            ) : null}
           </View>
         ) : null}
 
-        {abaFeed === 'rodada' && outrosJogosRef.current.length > 0 ? (
-          <FlatList
-            style={styles.lista}
-            contentContainerStyle={styles.listaConteudo}
-            data={placaresRodada}
-            keyExtractor={item => item.id}
-            renderItem={({item}) => (
-              <View style={styles.jogoRodada}>
-                <View
-                  style={[styles.jogoFaixa, {backgroundColor: item.corCasa}]}
-                />
-                <Text
-                  style={[styles.jogoNome, styles.jogoNomeEsq]}
-                  numberOfLines={1}
-                >
-                  {item.nomeCasa}
-                </Text>
-                <Text style={styles.jogoPlacar}>
-                  {item.golsCasa} - {item.golsFora}
-                </Text>
-                <Text style={styles.jogoNome} numberOfLines={1}>
-                  {item.nomeFora}
-                </Text>
-                <View
-                  style={[styles.jogoFaixa, {backgroundColor: item.corFora}]}
-                />
-                <Text
-                  style={[
-                    styles.jogoMinuto,
-                    ehMinutoAcrescimo(minuto) && minuto < duracaoTotal
-                      ? {color: acentos.vermelho}
-                      : null,
-                  ]}>
-                  {minuto >= duracaoTotal ? 'FIM' : `${rotuloMinuto(minuto)}'`}
-                </Text>
-              </View>
-            )}
-          />
-        ) : abaFeed === 'tabela' && outrosJogosRef.current.length > 0 ? (
-          <FlatList
-            style={styles.lista}
-            contentContainerStyle={styles.listaConteudo}
-            data={tabelaAoVivo}
-            keyExtractor={item => item.clubeId}
-            renderItem={({item, index}) => {
-              const ehUsuario = item.clubeId === clubeUsuario?.id;
-              // Zonas (BRASFOOT §): G4 = acesso/topo (verde), Z4 = rebaixamento
-              // (vermelho); o restante fica neutro.
-              const total = tabelaAoVivo.length;
-              const zona =
-                index < 4
-                  ? {
-                      faixa: acentos.verde,
-                      badge: suaves.verde,
-                      texto: acentos.verde,
-                    }
-                  : index >= total - 4
-                  ? {
-                      faixa: acentos.vermelho,
-                      badge: suaves.vermelho,
-                      texto: acentos.vermelho,
-                    }
-                  : null;
-              return (
-                <View
-                  style={[
-                    styles.tabelaLinha,
-                    ehUsuario && styles.tabelaLinhaUsuario,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.tabelaZona,
-                      {backgroundColor: zona?.faixa ?? 'transparent'},
-                    ]}
-                  />
-                  <View
-                    style={[
-                      styles.tabelaPosBadge,
-                      zona ? {backgroundColor: zona.badge} : null,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.tabelaPos,
-                        zona ? {color: zona.texto} : null,
-                      ]}
-                    >
-                      {index + 1}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.jogoFaixa,
-                      {backgroundColor: corDoTime(item.clubeId)},
-                    ]}
-                  />
-                  <Text style={styles.tabelaNome} numberOfLines={1}>
-                    {nomeClube(clubes, item.clubeId)}
-                  </Text>
-                  <Text style={styles.tabelaCol}>{item.jogos}</Text>
-                  <Text style={styles.tabelaCol}>
-                    {item.saldoGols > 0 ? `+${item.saldoGols}` : item.saldoGols}
-                  </Text>
-                  <Text style={styles.tabelaPts}>{item.pontos}</Text>
-                </View>
-              );
-            }}
-            ListHeaderComponent={
-              <View style={[styles.tabelaLinha, styles.tabelaHeader]}>
-                <View style={styles.tabelaZona} />
-                <View style={styles.tabelaPosBadge}>
-                  <Text style={styles.tabelaPos}>#</Text>
-                </View>
-                <View style={styles.jogoFaixa} />
-                <Text style={styles.tabelaNome}>CLUBE</Text>
-                <Text style={styles.tabelaCol}>J</Text>
-                <Text style={styles.tabelaCol}>SG</Text>
-                <Text style={styles.tabelaPts}>PTS</Text>
-              </View>
-            }
-            ListFooterComponent={
-              <View style={styles.tabelaLegenda}>
-                <View
-                  style={[
-                    styles.legendaPonto,
-                    {backgroundColor: acentos.verde},
-                  ]}
-                />
-                <Text style={styles.legendaTexto}>Acesso</Text>
-                <View
-                  style={[
-                    styles.legendaPonto,
-                    {backgroundColor: acentos.vermelho},
-                  ]}
-                />
-                <Text style={styles.legendaTexto}>Rebaixamento</Text>
-              </View>
-            }
+        {temOutrosJogos ? (
+          <Tabs
+            abas={[
+              {chave: 'lances', rotulo: 'Eventos'},
+              {chave: 'rodada', rotulo: 'Rodada'},
+              {chave: 'tabela', rotulo: 'Tabela'},
+            ]}
+            ativa={abaFeed}
+            onSelect={c => setAbaFeed(c as typeof abaFeed)}
           />
         ) : (
-          <FlatList
-            style={styles.lista}
-            contentContainerStyle={styles.listaConteudo}
-            data={eventosFeed}
-            keyExtractor={(item, index) =>
-              `${item.minuto}_${item.tipo}_${index}`
-            }
-            renderItem={({item}) => (
-              <LanceLimpo
-                minuto={item.minuto}
-                tipo={item.tipo}
-                lado={item.lado}
-                autor={item.autor}
-                detalhe={item.detalhe}
-                placarPill={item.placarPill}
-                descricao={item.descricao}
-              />
-            )}
-          />
+          <SectionHeader titulo="Eventos da partida" />
         )}
 
-        <View style={styles.controles}>
-          {!terminou ? (
-            <Text style={styles.subsContador}>
-              <Text style={tabular}>{MAX_SUBSTITUICOES - subsFeitas}</Text> de{' '}
-              <Text style={tabular}>{MAX_SUBSTITUICOES}</Text> substituições
-              restantes
+        <ScrollView
+          style={styles.feed}
+          contentContainerStyle={styles.feedConteudo}
+          showsVerticalScrollIndicator={false}>
+
+          {abaFeed === 'rodada' && temOutrosJogos ? (
+            placaresRodada.length === 0 ? (
+              <Text variant="bodyM" color="textSecondary">
+                Sem outros jogos nesta rodada.
+              </Text>
+            ) : (
+              <Card variante="outlined" padding={0}>
+                {placaresRodada.map((item, i) => (
+                  <React.Fragment key={item.id}>
+                    {i > 0 ? <Divider /> : null}
+                    <LinhaRodada
+                      item={item}
+                      minuto={minuto}
+                      duracaoTotal={duracaoTotal}
+                    />
+                  </React.Fragment>
+                ))}
+              </Card>
+            )
+          ) : abaFeed === 'tabela' && temOutrosJogos ? (
+            <Card variante="outlined" padding={0}>
+              {tabelaAoVivo.map((item, index) => (
+                <React.Fragment key={item.clubeId}>
+                  {index > 0 ? <Divider /> : null}
+                  <LinhaTabela
+                    item={item}
+                    index={index}
+                    total={tabelaAoVivo.length}
+                    nome={nomeClube(clubes, item.clubeId)}
+                    sigla={siglaClube(clubes, item.clubeId)}
+                    ehUsuario={item.clubeId === clubeUsuario?.id}
+                  />
+                </React.Fragment>
+              ))}
+            </Card>
+          ) : eventosFeed.length === 0 ? (
+            <Text variant="bodyM" color="textSecondary">
+              A partida vai começar…
             </Text>
-          ) : null}
+          ) : (
+            <Card variante="outlined" padding={0}>
+              {eventosFeed.map((item, index) => (
+                <React.Fragment key={`${item.minuto}_${item.tipo}_${index}`}>
+                  {index > 0 ? <Divider /> : null}
+                  <LinhaEvento item={item} />
+                </React.Fragment>
+              ))}
+            </Card>
+          )}
+        </ScrollView>
+
+        <View style={styles.controles}>
           {terminou ? (
-            // UM botão só: liga → detalhes da partida (o "Continuar" vive lá);
-            // Copa → seguir direto (o confronto não persiste súmula).
-            <Botao
+            <Button
               titulo={modoCopa ? 'Continuar' : 'Ver detalhes da partida'}
+              fullWidth
               onPress={() =>
                 modoCopa
                   ? nav.navigate('MainTabs')
@@ -1454,22 +1337,24 @@ function MatchSimulation(): React.JSX.Element | null {
             />
           ) : intervalo ? (
             <>
-              <Text style={styles.avisoIntervalo}>
+              <Text variant="caption" color="textSecondary" align="center">
                 Intervalo — faça ajustes e retome quando quiser.
               </Text>
               <View style={styles.linhaBotoes}>
-                <View style={styles.botaoFlex}>
-                  <BotaoIcone
-                    nome="substituicao"
-                    titulo="Ajustes"
-                    variante="secundaria"
+                <View style={styles.flex}>
+                  <Button
+                    titulo="Ajustar time"
+                    variante="secondary"
+                    icone="substituicao"
+                    fullWidth
                     onPress={() => setAjustesVisivel(true)}
                   />
                 </View>
-                <View style={styles.botaoFlex}>
-                  <BotaoIcone
-                    nome="jogar"
-                    titulo="Retomar (2º T)"
+                <View style={styles.flex}>
+                  <Button
+                    titulo="Retomar 2º T"
+                    icone="jogar"
+                    fullWidth
                     onPress={retomarSegundoTempo}
                   />
                 </View>
@@ -1477,65 +1362,66 @@ function MatchSimulation(): React.JSX.Element | null {
             </>
           ) : pausado ? (
             <View style={styles.linhaBotoes}>
-              <View style={styles.botaoFlex}>
-                <BotaoIcone
-                  nome="substituicao"
-                  titulo="Ajustes"
-                  variante="secundaria"
+              <View style={styles.flex}>
+                <Button
+                  titulo="Ajustar time"
+                  variante="secondary"
+                  icone="substituicao"
+                  fullWidth
                   onPress={() => setAjustesVisivel(true)}
                 />
               </View>
-              <View style={styles.botaoFlex}>
-                <BotaoIcone
-                  nome="jogar"
+              <View style={styles.flex}>
+                <Button
                   titulo="Retomar"
+                  icone="jogar"
+                  fullWidth
                   onPress={() => setPausado(false)}
                 />
               </View>
             </View>
           ) : (
             <>
-              <View style={styles.linhaVelocidade}>
-                <Icone
-                  nome="relogio"
-                  tamanho={15}
-                  cor={cores.textoSecundario}
-                />
-                {MULTIPLICADORES.map(mult => (
-                  <Chip
-                    key={mult}
-                    label={`${mult}x`}
-                    ativo={multiplicador === mult}
-                    cor={cores.primaria}
-                    onPress={() => setMultiplicador(mult)}
-                    style={styles.velChip}
-                  />
-                ))}
-              </View>
-              <View style={styles.linhaBotoes}>
-                <View style={styles.botaoFlex}>
-                  <BotaoIcone
-                    nome="substituicao"
-                    titulo="Ajustes"
-                    variante="secundaria"
-                    onPress={() => {
-                      setPausado(true);
-                      setAjustesVisivel(true);
-                    }}
-                  />
+              <View style={styles.linhaLive}>
+                <View style={styles.velocidade}>
+                  <Icon nome="relogio" size={16} color="textSecondary" />
+                  {MULTIPLICADORES.map(mult => (
+                    <Chip
+                      key={mult}
+                      label={`${mult}x`}
+                      selected={multiplicador === mult}
+                      onPress={() => setMultiplicador(mult)}
+                    />
+                  ))}
                 </View>
-                <View style={styles.botaoFlex}>
-                  <BotaoIcone
-                    nome="pausar"
-                    titulo="Pausar"
-                    variante="secundaria"
+                <View style={styles.acoesLive}>
+                  <IconButton
+                    icone="pausar"
+                    variante="soft"
+                    accessibilityLabel="Pausar"
                     onPress={() => setPausado(true)}
                   />
-                </View>
-                <View style={styles.botaoFlex}>
-                  <BotaoIcone nome="apito" titulo="Apitar" onPress={apitar} />
+                  <IconButton
+                    icone="apito"
+                    variante="soft"
+                    accessibilityLabel="Apitar"
+                    onPress={apitar}
+                  />
                 </View>
               </View>
+              <Button
+                titulo="Ajustar time"
+                icone="substituicao"
+                fullWidth
+                onPress={() => {
+                  setPausado(true);
+                  setAjustesVisivel(true);
+                }}
+              />
+              <Text variant="caption" color="textMuted" align="center">
+                {MAX_SUBSTITUICOES - subsFeitas} de {MAX_SUBSTITUICOES}{' '}
+                substituições restantes
+              </Text>
             </>
           )}
         </View>
@@ -1555,359 +1441,410 @@ function MatchSimulation(): React.JSX.Element | null {
           onFechar={() => setAjustesVisivel(false)}
         />
       ) : null}
-    </ScreenContainer>
+    </Screen>
   );
 }
 
-/** Botão com ícone à esquerda do título. */
-function BotaoIcone({
-  nome,
-  titulo,
-  onPress,
-  variante = 'primaria',
-  disabled,
-}: {
-  nome: React.ComponentProps<typeof Icone>['nome'];
-  titulo: string;
-  onPress: () => void;
-  variante?: 'primaria' | 'secundaria';
-  disabled?: boolean;
-}): React.JSX.Element {
-  const primaria = variante === 'primaria';
+/** Cor/ícone do evento por tipo, para a timeline de lances. */
+function infoEvento(tipo: string): {
+  nome?: IconeNome;
+  corKey?: CorTexto;
+  cartao?: 'amarelo' | 'vermelho';
+} {
+  switch (tipo) {
+    case 'gol':
+      return {nome: 'bola', corKey: 'success'};
+    case 'gol_contra':
+      return {nome: 'bola', corKey: 'warning'};
+    case 'bola_trave':
+      return {nome: 'chance', corKey: 'warning'};
+    case 'substituicao':
+      return {nome: 'substituicao', corKey: 'brand'};
+    case 'lesao':
+      return {nome: 'lesao', corKey: 'danger'};
+    case 'penalti':
+      return {nome: 'penalti', corKey: 'warning'};
+    case 'chance_perdida':
+      return {nome: 'chance', corKey: 'textMuted'};
+    case 'cartao_amarelo':
+      return {cartao: 'amarelo'};
+    case 'cartao_vermelho':
+      return {cartao: 'vermelho'};
+    default:
+      return {};
+  }
+}
+
+/** Linha da timeline de eventos: minuto · nó · placar · autor/detalhe. */
+function LinhaEvento({item}: {item: ItemTimeline}): React.JSX.Element {
+  const {cores, esporte} = useTheme();
+  if (item.lado === 'neutro') {
+    return (
+      <View style={styles.marco}>
+        <Text variant="caption" color="textSecondary" weight="700">
+          {item.descricao}
+        </Text>
+        {item.placarPill ? (
+          <View style={[styles.marcoPill, {borderColor: cores.border}]}>
+            <Text variant="caption" weight="800" tabular>
+              {item.placarPill}
+            </Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+  const info = infoEvento(item.tipo);
+  const ehSub = item.tipo === 'substituicao';
+  const corCartao =
+    info.cartao === 'amarelo' ? esporte.match.cardYellow : esporte.match.cardRed;
   return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={disabled}
-      onPress={onPress}
-      style={[
-        styles.botaoIcone,
-        primaria ? styles.botaoIconePrimaria : styles.botaoIconeSecundaria,
-        disabled ? styles.botaoIconeDisabled : null,
-      ]}
-    >
-      <Icone
-        nome={nome}
-        tamanho={16}
-        cor={primaria ? cores.contrastePrimaria : cores.texto}
-      />
+    <View style={styles.evento}>
       <Text
-        style={
-          primaria ? styles.botaoIconeTextoPrimaria : styles.botaoIconeTexto
-        }
-      >
-        {titulo}
+        variant="labelM"
+        color="textSecondary"
+        tabular
+        style={styles.eventoMin}>
+        {rotuloMinuto(item.minuto)}'
       </Text>
-    </Pressable>
+      <View style={styles.eventoNode}>
+        {info.cartao ? (
+          <View style={[styles.eventoCartao, {backgroundColor: corCartao}]} />
+        ) : info.nome ? (
+          <Icon nome={info.nome} size={18} color={info.corKey ?? 'textPrimary'} />
+        ) : (
+          <View style={[styles.eventoDot, {backgroundColor: cores.textMuted}]} />
+        )}
+      </View>
+      {item.placarPill ? (
+        <View style={[styles.eventoPlacar, {borderColor: esporte.match.goal}]}>
+          <Text variant="caption" weight="800" tabular>
+            {item.placarPill}
+          </Text>
+        </View>
+      ) : null}
+      <View style={styles.eventoInfo}>
+        <View style={styles.eventoNomeLinha}>
+          <Text variant="labelL" numberOfLines={1} style={styles.flex}>
+            {item.autor ?? item.descricao}
+          </Text>
+          {ehSub ? <Icon nome="seta-cima" size={14} color="success" /> : null}
+        </View>
+        {item.detalhe ? (
+          <View style={styles.eventoNomeLinha}>
+            <Text
+              variant="caption"
+              color="textSecondary"
+              numberOfLines={1}
+              style={styles.flex}>
+              {item.detalhe}
+            </Text>
+            {ehSub ? <Icon nome="seta-baixo" size={14} color="danger" /> : null}
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** Linha de placar ao vivo de outro jogo da rodada. */
+function LinhaRodada({
+  item,
+  minuto,
+  duracaoTotal,
+}: {
+  item: PlacarAoVivo;
+  minuto: number;
+  duracaoTotal: number;
+}): React.JSX.Element {
+  const fim = minuto >= duracaoTotal;
+  return (
+    <View style={styles.rodada}>
+      <View style={[styles.rodadaFaixa, {backgroundColor: item.corCasa}]} />
+      <Text variant="labelM" numberOfLines={1} style={styles.rodadaNomeEsq}>
+        {item.nomeCasa}
+      </Text>
+      <Text variant="labelL" tabular>
+        {item.golsCasa} - {item.golsFora}
+      </Text>
+      <Text variant="labelM" numberOfLines={1} style={styles.rodadaNomeDir}>
+        {item.nomeFora}
+      </Text>
+      <View style={[styles.rodadaFaixa, {backgroundColor: item.corFora}]} />
+      <Text
+        variant="caption"
+        color={fim ? 'textMuted' : 'danger'}
+        tabular
+        style={styles.rodadaMin}>
+        {fim ? 'FIM' : `${rotuloMinuto(minuto)}'`}
+      </Text>
+    </View>
+  );
+}
+
+/** Linha da classificação ao vivo: zona · escudo · nome · J · SG · PTS. */
+function LinhaTabela({
+  item,
+  index,
+  total,
+  nome,
+  sigla,
+  ehUsuario,
+}: {
+  item: TabelaClassificacao;
+  index: number;
+  total: number;
+  nome: string;
+  sigla: string;
+  ehUsuario: boolean;
+}): React.JSX.Element {
+  const {cores} = useTheme();
+  const corPos: CorTexto =
+    index < 4 ? 'success' : index >= total - 4 ? 'danger' : 'textSecondary';
+  return (
+    <View
+      style={[
+        styles.tabela,
+        ehUsuario ? {backgroundColor: cores.brandSoft} : null,
+      ]}>
+      <View style={styles.tabelaZonaWrap}>
+        {index < 4 ? (
+          <View style={[styles.tabelaZona, {backgroundColor: cores.success}]} />
+        ) : index >= total - 4 ? (
+          <View style={[styles.tabelaZona, {backgroundColor: cores.danger}]} />
+        ) : null}
+      </View>
+      <Text variant="labelM" color={corPos} tabular style={styles.tabelaPos}>
+        {index + 1}
+      </Text>
+      <TeamCrest clubeId={item.clubeId} sigla={sigla} size={20} />
+      <Text variant="labelM" numberOfLines={1} style={styles.flex}>
+        {nome}
+      </Text>
+      <Text
+        variant="caption"
+        color="textSecondary"
+        tabular
+        style={styles.tabelaCol}>
+        {item.jogos}
+      </Text>
+      <Text
+        variant="caption"
+        color="textSecondary"
+        tabular
+        style={styles.tabelaCol}>
+        {item.saldoGols > 0 ? `+${item.saldoGols}` : item.saldoGols}
+      </Text>
+      <Text variant="labelL" tabular style={styles.tabelaPts}>
+        {item.pontos}
+      </Text>
+    </View>
+  );
+}
+
+/** Célula de estatística sobre o scoreboard (número + rótulo). */
+function CelulaStat({
+  valor,
+  rotulo,
+}: {
+  valor: string;
+  rotulo: string;
+}): React.JSX.Element {
+  return (
+    <View style={styles.statCel}>
+      <Text variant="titleL" color="onScoreboard" tabular>
+        {valor}
+      </Text>
+      <Text
+        variant="caption"
+        color="onScoreboard"
+        align="center"
+        style={styles.statRot}>
+        {rotulo}
+      </Text>
+    </View>
+  );
+}
+
+/** "Momento da partida": barras de momentum por minuto (−1..1, casa=verde). */
+function MomentoChart({momentum}: {momentum: number[]}): React.JSX.Element {
+  const {cores, esporte} = useTheme();
+  const HALF = 22;
+  return (
+    <View style={styles.momento}>
+      <Text
+        variant="caption"
+        color="onScoreboard"
+        align="center"
+        style={styles.momentoTitulo}>
+        Momento da partida
+      </Text>
+      <View style={styles.momentoBarras}>
+        {momentum.length === 0 ? (
+          <View style={styles.momentoVazio}>
+            <View
+              style={[styles.momentoBase, {backgroundColor: cores.onScoreboard}]}
+            />
+          </View>
+        ) : (
+          momentum.map((m, i) => {
+            const alt = Math.min(1, Math.abs(m)) * HALF;
+            return (
+              <View key={i} style={styles.momentoCol}>
+                <View style={styles.momentoTopo}>
+                  {m > 0 ? (
+                    <View
+                      style={[
+                        styles.momentoBar,
+                        {height: alt, backgroundColor: esporte.match.goal},
+                      ]}
+                    />
+                  ) : null}
+                </View>
+                <View style={styles.momentoFundo}>
+                  {m < 0 ? (
+                    <View
+                      style={[
+                        styles.momentoBar,
+                        {height: alt, backgroundColor: esporte.match.cardRed},
+                      ]}
+                    />
+                  ) : null}
+                </View>
+              </View>
+            );
+          })
+        )}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  conteudo: {
-    flex: 1,
-    gap: espaco.md,
-    padding: espaco.lg,
+  corpo: {flex: 1, padding: espacamento[4], gap: espacamento[3]},
+  meta: {alignItems: 'center', gap: 2},
+
+  // Scoreboard
+  placarLinha: {flexDirection: 'row', alignItems: 'center'},
+  placarTime: {flex: 1, alignItems: 'center', gap: espacamento[1]},
+  placarCentro: {alignItems: 'center', gap: espacamento[2]},
+  placarNums: {flexDirection: 'row', alignItems: 'center'},
+  placarTraco: {opacity: 0.5, marginHorizontal: espacamento[2]},
+  minutoPill: {
+    borderRadius: raios.sm,
+    paddingHorizontal: espacamento[2],
+    paddingVertical: 2,
   },
-  topo: {
-    gap: espaco.md,
+  statsRow: {flexDirection: 'row', alignItems: 'stretch'},
+  statCel: {flex: 1, alignItems: 'center', gap: 2},
+  statRot: {opacity: 0.65, textTransform: 'uppercase', letterSpacing: 0.4},
+  statDiv: {
+    width: StyleSheet.hairlineWidth,
+    opacity: 0.2,
+    marginHorizontal: espacamento[2],
   },
-  placarCard: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.sm,
-    padding: espaco.lg,
-    ...sombra.suave,
-  },
-  placarTimes: {
-    alignItems: 'center',
+
+  // Momento da partida
+  momento: {gap: espacamento[1]},
+  momentoTitulo: {opacity: 0.7, textTransform: 'uppercase', letterSpacing: 0.5},
+  momentoBarras: {flexDirection: 'row', alignItems: 'stretch', height: 44},
+  momentoVazio: {flex: 1, justifyContent: 'center'},
+  momentoBase: {height: 2, borderRadius: 1, opacity: 0.25},
+  momentoCol: {flex: 1, marginHorizontal: 0.3},
+  momentoTopo: {flex: 1, justifyContent: 'flex-end'},
+  momentoFundo: {flex: 1, justifyContent: 'flex-start'},
+  momentoBar: {width: '100%', borderRadius: 1},
+
+  // Condições
+  condicoes: {
     flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  placarNome: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  placarNomeEsq: {
-    textAlign: 'right',
-  },
-  placarNomeDir: {
-    textAlign: 'left',
-  },
-  placarNumeros: {
-    color: cores.texto,
-    ...tipografia.placar,
-    ...tabular,
-  },
-  placarTraco: {
-    color: cores.textoSecundario,
-  },
-  placarMeta: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-    ...tabular,
-  },
-  metaChips: {
-    flexDirection: 'row',
+    justifyContent: 'center',
     flexWrap: 'wrap',
-    gap: espaco.xs,
-    justifyContent: 'center',
+    gap: espacamento[3],
   },
-  metaChip: {
-    alignItems: 'center',
-    backgroundColor: cores.fundo,
-    borderRadius: raio.pill,
+  condItem: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
+
+  // Feed + controles
+  feed: {flex: 1},
+  feedConteudo: {paddingBottom: espacamento[2]},
+  controles: {gap: espacamento[2]},
+  linhaBotoes: {flexDirection: 'row', gap: espacamento[2]},
+  flex: {flex: 1},
+  linhaLive: {
     flexDirection: 'row',
-    gap: 4,
-    maxWidth: 190,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 3,
-  },
-  metaChipTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-    ...tabular,
-  },
-  posseRow: {
     alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: espacamento[2],
+  },
+  velocidade: {
     flexDirection: 'row',
-    gap: espaco.md,
-    marginTop: espaco.xs,
-  },
-  posseTrack: {
-    backgroundColor: cores.fundoBase,
-    borderRadius: raio.pill,
-    flex: 1,
-    flexDirection: 'row',
-    gap: 2,
-    height: 8,
-    overflow: 'hidden',
-  },
-  posseFill: {
-    height: '100%',
-  },
-  posseTexto: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '700',
-    ...tabular,
-  },
-  lista: {
-    flex: 1,
-  },
-  listaConteudo: {
-    gap: espaco.sm,
-    paddingVertical: espaco.sm,
-  },
-  abasFeed: {
-    backgroundColor: cores.fundoBase,
-    borderRadius: raio.pill,
-    flexDirection: 'row',
-    padding: 3,
-  },
-  abaFeed: {
     alignItems: 'center',
-    borderRadius: raio.pill,
-    flex: 1,
-    paddingVertical: 7,
+    gap: espacamento[1],
+    flexShrink: 1,
   },
-  abaFeedAtiva: {
-    backgroundColor: cores.superficie,
-    ...sombra.suave,
-  },
-  abaFeedTexto: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  abaFeedTextoAtivo: {
-    color: cores.texto,
-  },
-  jogoRodada: {
+  acoesLive: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
+
+  // Timeline de eventos
+  marco: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
+    gap: espacamento[1],
+    paddingVertical: espacamento[2],
+  },
+  marcoPill: {
     borderWidth: 1,
+    borderRadius: raios.sm,
+    paddingHorizontal: espacamento[2],
+    paddingVertical: 1,
+  },
+  evento: {
     flexDirection: 'row',
-    gap: espaco.sm,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-  },
-  jogoFaixa: {
-    borderRadius: 2,
-    height: 18,
-    width: 3,
-  },
-  jogoNome: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  jogoNomeEsq: {
-    textAlign: 'right',
-  },
-  jogoPlacar: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '900',
-    minWidth: 44,
-    textAlign: 'center',
-    ...tabular,
-  },
-  jogoMinuto: {
-    color: cores.primaria,
-    fontSize: 11,
-    fontWeight: '800',
-    minWidth: 30,
-    textAlign: 'right',
-    ...tabular,
-  },
-  tabelaLinha: {
     alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
+    gap: espacamento[2],
+    paddingVertical: espacamento[2],
+    paddingHorizontal: espacamento[3],
+    minHeight: 52,
+  },
+  eventoMin: {minWidth: 30, textAlign: 'center'},
+  eventoNode: {width: 26, alignItems: 'center', justifyContent: 'center'},
+  eventoCartao: {width: 11, height: 15, borderRadius: 2},
+  eventoDot: {width: 10, height: 10, borderRadius: raios.full},
+  eventoPlacar: {
+    borderWidth: 1.5,
+    borderRadius: raios.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  eventoInfo: {flex: 1, gap: 1},
+  eventoNomeLinha: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
+
+  // Rodada ao vivo
+  rodada: {
     flexDirection: 'row',
-    gap: espaco.sm,
-    paddingHorizontal: espaco.md,
-    paddingVertical: 7,
-  },
-  tabelaHeader: {
-    backgroundColor: 'transparent',
-    borderColor: 'transparent',
-    paddingVertical: 2,
-  },
-  tabelaLinhaUsuario: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.primaria,
-  },
-  tabelaZona: {
-    borderRadius: 2,
-    height: 22,
-    width: 4,
-  },
-  tabelaPosBadge: {
     alignItems: 'center',
-    borderRadius: raio.sm,
-    justifyContent: 'center',
-    minWidth: 24,
-    paddingVertical: 2,
+    gap: espacamento[2],
+    paddingVertical: espacamento[2],
+    paddingHorizontal: espacamento[3],
+    minHeight: 44,
   },
-  tabelaPos: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '800',
-    textAlign: 'center',
-    ...tabular,
-  },
-  tabelaNome: {
-    color: cores.texto,
-    flex: 1,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  tabelaCol: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '700',
-    minWidth: 26,
-    textAlign: 'center',
-    ...tabular,
-  },
-  tabelaPts: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '900',
-    minWidth: 30,
-    textAlign: 'right',
-    ...tabular,
-  },
-  tabelaLegenda: {
+  rodadaFaixa: {width: 3, height: 22, borderRadius: 2},
+  rodadaNomeEsq: {flex: 1, textAlign: 'right'},
+  rodadaNomeDir: {flex: 1, textAlign: 'left'},
+  rodadaMin: {minWidth: 28, textAlign: 'right'},
+
+  // Tabela ao vivo
+  tabela: {
+    flexDirection: 'row',
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-    justifyContent: 'center',
-    paddingTop: espaco.sm,
+    gap: espacamento[2],
+    paddingVertical: espacamento[2],
+    paddingRight: espacamento[3],
+    minHeight: 40,
   },
-  legendaPonto: {
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  legendaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-    marginRight: espaco.sm,
-  },
-  controles: {
-    gap: espaco.sm,
-  },
-  avisoIntervalo: {
-    color: cores.secundaria,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  linhaBotoes: {
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  linhaVelocidade: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  botaoFlex: {
-    flex: 1,
-  },
-  velChip: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  subsContador: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  botaoIcone: {
-    alignItems: 'center',
-    borderRadius: raio.sm,
-    flexDirection: 'row',
-    gap: espaco.sm,
-    justifyContent: 'center',
-    minHeight: 46,
-    paddingHorizontal: espaco.md,
-  },
-  botaoIconePrimaria: {
-    backgroundColor: cores.primaria,
-  },
-  botaoIconeSecundaria: {
-    borderColor: cores.borda,
-    borderWidth: 1,
-  },
-  botaoIconeDisabled: {
-    opacity: 0.45,
-  },
-  botaoIconeTexto: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  botaoIconeTextoPrimaria: {
-    color: cores.contrastePrimaria,
-    fontSize: 14,
-    fontWeight: '800',
-  },
+  tabelaZonaWrap: {width: 3, alignSelf: 'stretch'},
+  tabelaZona: {flex: 1, borderTopRightRadius: 2, borderBottomRightRadius: 2},
+  tabelaPos: {minWidth: 18, textAlign: 'center'},
+  tabelaCol: {minWidth: 24, textAlign: 'center'},
+  tabelaPts: {minWidth: 30, textAlign: 'right'},
 });
 
 export default MatchSimulation;
