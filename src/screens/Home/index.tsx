@@ -46,7 +46,7 @@ import {
   type JogoResultado,
 } from '../../engine/season/sequencias';
 import {classicoEntre} from '../../engine/season/classicos';
-import {useAppNavigation} from '../../navigation/types';
+import {useInicioNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
   selecionarClubeUsuario,
@@ -187,7 +187,7 @@ function HeroPartida({
 }
 
 function Home(): React.JSX.Element {
-  const nav = useAppNavigation();
+  const nav = useInicioNavigation();
   const confirm = useConfirm();
   const toast = useToast();
 
@@ -545,12 +545,12 @@ function Home(): React.JSX.Element {
             FOTEBALL
           </Text>
           <Pressable
-            onPress={() => nav.navigate('Central')}
+            onPress={() => nav.navigate('Noticias')}
             minSize="min"
             accessibilityLabel={
               mensagens.length > 0
-                ? `Notificações, ${mensagens.length} novas`
-                : 'Notificações'
+                ? `Notícias, ${mensagens.length} novas`
+                : 'Notícias'
             }
             style={estilos.headerBotao}>
             <Icon nome="sino" color="textSecondary" />

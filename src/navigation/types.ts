@@ -14,6 +14,7 @@ import {useNavigation, useRoute} from '@react-navigation/native';
 
 export type InicioStackParamList = {
   Home: undefined;
+  Noticias: undefined;
 };
 
 export type ElencoStackParamList = {
@@ -102,6 +103,12 @@ export type MercadoNavigation = CompositeNavigationProp<
   RootNavigation
 >;
 
+/** Navegação da aba Início: InicioStack + RootStack. */
+export type InicioNavigation = CompositeNavigationProp<
+  NativeStackNavigationProp<InicioStackParamList>,
+  RootNavigation
+>;
+
 /** Hook de navegação tipado para uso nas telas. */
 export function useAppNavigation(): RootNavigation {
   return useNavigation<RootNavigation>();
@@ -120,6 +127,11 @@ export function usePartidasNavigation(): PartidasNavigation {
 /** Hook de navegação da aba Mercado (MercadoStack + RootStack). */
 export function useMercadoNavigation(): MercadoNavigation {
   return useNavigation<MercadoNavigation>();
+}
+
+/** Hook de navegação da aba Início (InicioStack + RootStack). */
+export function useInicioNavigation(): InicioNavigation {
+  return useNavigation<InicioNavigation>();
 }
 
 /** Hook de rota tipado (acessa `route.params` da tela atual). */
