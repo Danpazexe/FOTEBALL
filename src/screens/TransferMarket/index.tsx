@@ -1,18 +1,25 @@
 /**
- * Mercado de Transferências. Abas Contratar / Propostas / Empréstimos. O usuário
- * propõe compra/empréstimo e responde ofertas da IA. Migrado ao Design System v2.
+ * Mercado de Transferências (North Star). Card de ORÇAMENTO (disponível +
+ * salarial), abas Disponíveis / Empréstimos / Propostas e lista de jogadores
+ * "Recomendados" (avatar, posição/idade, faixa overall–potencial, valor). O
+ * usuário propõe compra/empréstimo e responde ofertas da IA. Só mostra dado que
+ * o jogo conhece (overall + potencial); nada é inventado.
  */
-
 import React, {useMemo, useState} from 'react';
-import {Modal, StyleSheet, TextInput, View} from 'react-native';
+import {Modal, ScrollView, StyleSheet, TextInput, View} from 'react-native';
 
-import PlayerCard from '../../components/PlayerCard';
 import {
   AppBar,
+  Avatar,
   Button,
   Card,
   Chip,
+  Divider,
+  PositionBadge,
+  ProgressBar,
+  Pressable,
   Screen,
+  SectionHeader,
   Tabs,
   Text,
   espacamento,
@@ -20,6 +27,7 @@ import {
   useTheme,
 } from '../../design-system';
 import {useToast} from '../../components/feedback';
+import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
 import {
   custoEmprestimo,
   ehEmprestado,
@@ -30,7 +38,7 @@ import {
   selecionarClubeUsuario,
   useGameStore,
 } from '../../store/useGameStore';
-import {moeda, nomeClube} from '../../utils/formatters';
+import {moeda, moedaCompacta, nomeClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
 const LIMITE = 30;
@@ -38,7 +46,18 @@ const POSICOES: Array<Position | 'Todos'> = [
   'Todos', 'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
 ];
 
-type Aba = 'contratar' | 'propostas' | 'emprestar';
+type Aba = 'disponiveis' | 'emprestar' | 'propostas';
+
+function nomeCurto(jogador: Player): string {
+  return jogador.apelido ?? jogador.nome;
+}
+
+/** Faixa overall→potencial (ambos conhecidos); só o número se não há margem. */
+function faixaOverall(jogador: Player): string {
+  return jogador.potencial > jogador.overall
+    ? `${jogador.overall}–${jogador.potencial}`
+    : `${jogador.overall}`;
+}
 
 function TransferMarket(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -56,11 +75,31 @@ function TransferMarket(): React.JSX.Element {
   const pegarEmprestado = useGameStore(state => state.pegarEmprestado);
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
 
-  const [aba, setAba] = useState<Aba>('contratar');
+  const [aba, setAba] = useState<Aba>('disponiveis');
   const [filtro, setFiltro] = useState<Position | 'Todos'>('Todos');
   const [alvo, setAlvo] = useState<Player | null>(null);
   const [valorInput, setValorInput] = useState('');
   const [contra, setContra] = useState<number | null>(null);
+
+  // Orçamento: saldo disponível + folha salarial mensal e seu peso na receita.
+  const orcamento = useMemo(() => {
+    const saldo = clubeUsuario?.financas.saldo ?? 0;
+    const elenco = jogadores.filter(j => j.clubeId === clubeUsuarioId);
+    const folha = calcularFolhaSalarial(elenco);
+    const r = clubeUsuario?.financas.receitaMensal;
+    const receita = r
+      ? r.bilheteria + r.patrocinio + r.premiacoes + r.vendaJogadores
+      : 0;
+    const pctFolha = receita > 0 ? Math.min(100, (folha / receita) * 100) : 0;
+    return {saldo, folha, pctFolha};
+  }, [clubeUsuario, jogadores, clubeUsuarioId]);
+
+  const corFolha =
+    orcamento.pctFolha > 80
+      ? cores.danger
+      : orcamento.pctFolha > 60
+      ? cores.warning
+      : cores.brand;
 
   const disponiveis = useMemo(
     () =>
@@ -128,23 +167,57 @@ function TransferMarket(): React.JSX.Element {
     toast('Proposta recusada.', 'info');
   };
 
+  const abrirDetalhe = (id: string) =>
+    nav.navigate('PlayerDetail', {jogadorId: id});
+
   const abas = [
-    {chave: 'contratar', rotulo: 'Contratar'},
+    {chave: 'disponiveis', rotulo: 'Disponíveis'},
+    {chave: 'emprestar', rotulo: 'Empréstimos'},
     {
       chave: 'propostas',
       rotulo: `Propostas${propostas.length > 0 ? ` (${propostas.length})` : ''}`,
     },
-    {chave: 'emprestar', rotulo: 'Empréstimos'},
   ];
 
   return (
-    <Screen scroll>
-      <AppBar title="Mercado" onBack={() => nav.goBack()} />
+    <Screen scroll header={<AppBar title="Mercado" />}>
+      {/* Orçamento. */}
+      <Card variante="outlined" style={styles.orcamento}>
+        <View style={styles.orcamentoLinha}>
+          <View style={styles.flex}>
+            <Text variant="labelM" color="textSecondary">
+              Orçamento disponível
+            </Text>
+            <Text
+              variant="titleL"
+              color={orcamento.saldo < 0 ? 'danger' : 'brand'}
+              tabular>
+              {moedaCompacta(orcamento.saldo)}
+            </Text>
+          </View>
+          <View style={styles.flex}>
+            <Text variant="labelM" color="textSecondary">
+              Orçamento salarial
+            </Text>
+            <Text variant="titleM" tabular>
+              {moedaCompacta(orcamento.folha)}
+              <Text variant="caption" color="textMuted">
+                {' '}
+                /mês
+              </Text>
+            </Text>
+          </View>
+        </View>
+        <ProgressBar valor={orcamento.pctFolha} cor={corFolha} />
+      </Card>
 
       <Tabs abas={abas} ativa={aba} onSelect={c => setAba(c as Aba)} scrollable />
 
-      {aba === 'contratar' || aba === 'emprestar' ? (
-        <View style={styles.filtros}>
+      {aba === 'disponiveis' || aba === 'emprestar' ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtros}>
           {POSICOES.map(pos => (
             <Chip
               key={pos}
@@ -153,30 +226,34 @@ function TransferMarket(): React.JSX.Element {
               onPress={() => setFiltro(pos)}
             />
           ))}
-        </View>
+        </ScrollView>
       ) : null}
 
-      {aba === 'contratar' ? (
-        disponiveis.length === 0 ? (
-          <Text variant="bodyM" color="textSecondary">
-            Nenhum jogador para esse filtro.
-          </Text>
-        ) : (
-          <View style={styles.lista}>
-            {disponiveis.map(jogador => (
-              <PlayerCard
-                key={jogador.id}
-                jogador={jogador}
-                legendaExtra={nomeClube(clubes, jogador.clubeId ?? '')}
-                onPress={() =>
-                  nav.navigate('PlayerDetail', {jogadorId: jogador.id})
-                }
-                acaoLabel="Propor"
-                onAcao={() => abrirProposta(jogador)}
-              />
-            ))}
-          </View>
-        )
+      {aba === 'disponiveis' ? (
+        <>
+          <SectionHeader titulo="Recomendados para você" />
+          {disponiveis.length === 0 ? (
+            <Text variant="bodyM" color="textSecondary">
+              Nenhum jogador para esse filtro.
+            </Text>
+          ) : (
+            <View style={styles.lista}>
+              {disponiveis.map((jogador, i) => (
+                <React.Fragment key={jogador.id}>
+                  {i > 0 ? <Divider /> : null}
+                  <MercadoRow
+                    jogador={jogador}
+                    legenda={nomeClube(clubes, jogador.clubeId ?? '')}
+                    valorTexto={moedaCompacta(jogador.valorMercado)}
+                    acaoLabel="Propor"
+                    onAcao={() => abrirProposta(jogador)}
+                    onPress={() => abrirDetalhe(jogador.id)}
+                  />
+                </React.Fragment>
+              ))}
+            </View>
+          )}
+        </>
       ) : null}
 
       {aba === 'emprestar' ? (
@@ -186,17 +263,20 @@ function TransferMarket(): React.JSX.Element {
           </Text>
         ) : (
           <View style={styles.lista}>
-            {emprestaveis.map(jogador => (
-              <PlayerCard
-                key={jogador.id}
-                jogador={jogador}
-                legendaExtra={`${nomeClube(clubes, jogador.clubeId ?? '')} · taxa ${moeda(custoEmprestimo(jogador))}`}
-                onPress={() =>
-                  nav.navigate('PlayerDetail', {jogadorId: jogador.id})
-                }
-                acaoLabel="Pegar"
-                onAcao={() => aoEmprestar(jogador)}
-              />
+            {emprestaveis.map((jogador, i) => (
+              <React.Fragment key={jogador.id}>
+                {i > 0 ? <Divider /> : null}
+                <MercadoRow
+                  jogador={jogador}
+                  legenda={`${nomeClube(clubes, jogador.clubeId ?? '')} · taxa ${moeda(
+                    custoEmprestimo(jogador),
+                  )}`}
+                  valorTexto={moedaCompacta(jogador.valorMercado)}
+                  acaoLabel="Pegar"
+                  onAcao={() => aoEmprestar(jogador)}
+                  onPress={() => abrirDetalhe(jogador.id)}
+                />
+              </React.Fragment>
             ))}
           </View>
         )
@@ -215,7 +295,7 @@ function TransferMarket(): React.JSX.Element {
                 <Card key={proposta.id} variante="outlined" style={styles.proposta}>
                   <View style={styles.flex}>
                     <Text variant="titleM">
-                      {jogador?.apelido ?? jogador?.nome ?? 'Jogador'}
+                      {jogador ? nomeCurto(jogador) : 'Jogador'}
                     </Text>
                     <Text variant="caption" color="textSecondary">
                       {nomeClube(clubes, proposta.clubeOfertante)} oferece
@@ -257,7 +337,7 @@ function TransferMarket(): React.JSX.Element {
               {backgroundColor: cores.surface, borderColor: cores.border},
             ]}>
             <Text variant="titleL">
-              Proposta por {alvo?.apelido ?? alvo?.nome}
+              Proposta por {alvo ? nomeCurto(alvo) : ''}
             </Text>
             <Text variant="caption" color="textSecondary">
               Valor de mercado: {alvo ? moeda(alvo.valorMercado) : '—'}
@@ -308,12 +388,75 @@ function TransferMarket(): React.JSX.Element {
   );
 }
 
+/** Linha de jogador do mercado: avatar · nome/posição/idade · faixa OVR · valor. */
+function MercadoRow({
+  jogador,
+  legenda,
+  valorTexto,
+  acaoLabel,
+  onAcao,
+  onPress,
+}: {
+  jogador: Player;
+  legenda: string;
+  valorTexto: string;
+  acaoLabel: string;
+  onAcao: () => void;
+  onPress: () => void;
+}): React.JSX.Element {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.row}
+      accessibilityLabel={`${nomeCurto(jogador)}, ${jogador.posicaoPrincipal}, ${jogador.idade} anos`}>
+      <Avatar nome={nomeCurto(jogador)} tamanho={40} />
+      <View style={styles.rowInfo}>
+        <Text variant="labelL" numberOfLines={1}>
+          {nomeCurto(jogador)}
+        </Text>
+        <View style={styles.rowMeta}>
+          <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
+          <Text variant="caption" color="textSecondary" numberOfLines={1}>
+            {jogador.idade} anos · {legenda}
+          </Text>
+        </View>
+      </View>
+      <View style={styles.rowNums}>
+        <Text variant="labelL" tabular>
+          {faixaOverall(jogador)}
+        </Text>
+        <Text variant="caption" color="textSecondary" tabular>
+          {valorTexto}
+        </Text>
+      </View>
+      <Button
+        titulo={acaoLabel}
+        variante="secondary"
+        tamanho="sm"
+        onPress={onAcao}
+      />
+    </Pressable>
+  );
+}
+
 export default TransferMarket;
 
 const styles = StyleSheet.create({
-  filtros: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
-  lista: {gap: espacamento[2]},
   flex: {flex: 1},
+  orcamento: {gap: espacamento[3]},
+  orcamentoLinha: {flexDirection: 'row', gap: espacamento[3]},
+  filtros: {flexDirection: 'row', gap: espacamento[2], paddingRight: espacamento[4]},
+  lista: {gap: 0},
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[3],
+    minHeight: 60,
+    paddingVertical: espacamento[2],
+  },
+  rowInfo: {flex: 1, gap: 3},
+  rowMeta: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  rowNums: {alignItems: 'flex-end', gap: 2},
   proposta: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
   propostaAcoes: {gap: espacamento[1]},
   modalBackdrop: {flex: 1, justifyContent: 'flex-end'},

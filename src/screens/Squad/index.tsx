@@ -15,13 +15,13 @@ import {
   Chip,
   Divider,
   Icon,
+  PositionBadge,
   ProgressBar,
   Pressable,
   Screen,
   Tabs,
   Text,
   espacamento,
-  raios,
   useTheme,
   type CorTexto,
 } from '../../design-system';
@@ -277,7 +277,7 @@ function LinhaJogador({
   ehCapitao: boolean;
   onPress: () => void;
 }): React.JSX.Element {
-  const {cores, esporte} = useTheme();
+  const {esporte} = useTheme();
   const cf = jogador.condicaoFisica;
   const corCf =
     cf >= 75 ? esporte.fitness.high : cf >= 50 ? esporte.fitness.medium : esporte.fitness.low;
@@ -289,11 +289,7 @@ function LinhaJogador({
       onPress={onPress}
       style={styles.linha}
       accessibilityLabel={`${nomeCurto(jogador)}, ${jogador.posicaoPrincipal}, overall ${jogador.overall}`}>
-      <View style={[styles.posBadge, {backgroundColor: cores.surfaceSubtle}]}>
-        <Text variant="caption" color="textSecondary" weight="800">
-          {jogador.posicaoPrincipal}
-        </Text>
-      </View>
+      <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
       <Avatar nome={nomeCurto(jogador)} tamanho={36} />
       <View style={styles.linhaInfo}>
         <View style={styles.linhaNome}>
@@ -365,13 +361,6 @@ const styles = StyleSheet.create({
     gap: espacamento[2],
     minHeight: 56,
     paddingVertical: espacamento[1],
-  },
-  posBadge: {
-    width: 34,
-    height: 22,
-    borderRadius: raios.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   linhaInfo: {flex: 1, gap: 1},
   linhaOvr: {minWidth: 26, textAlign: 'right'},

@@ -86,6 +86,13 @@ export type CoresEsporte = {
   };
   fitness: {high: string; medium: string; low: string};
   morale: {high: string; medium: string; low: string};
+  /** Cor por ÁREA de posição (selo de função): goleiro/defesa/meio/ataque. */
+  posicao: {
+    goleiro: {cor: string; fundo: string};
+    defesa: {cor: string; fundo: string};
+    meio: {cor: string; fundo: string};
+    ataque: {cor: string; fundo: string};
+  };
 };
 
 // ============================================================================
@@ -138,6 +145,12 @@ export const esporteClaro: CoresEsporte = {
   },
   fitness: {high: '#158A4B', medium: '#C98200', low: '#D64545'},
   morale: {high: '#158A4B', medium: '#C98200', low: '#D64545'},
+  posicao: {
+    goleiro: {cor: '#7C4DFF', fundo: '#EEE9FF'},
+    defesa: {cor: '#2478E0', fundo: '#E6F0FD'},
+    meio: {cor: '#159A50', fundo: '#E4F6EC'},
+    ataque: {cor: '#D63B3B', fundo: '#FBE9E9'},
+  },
 };
 
 // ============================================================================
@@ -190,4 +203,10 @@ export const esporteEscuro: CoresEsporte = {
   },
   fitness: {high: '#31C776', medium: '#F1B94B', low: '#FF6B63'},
   morale: {high: '#31C776', medium: '#F1B94B', low: '#FF6B63'},
+  posicao: {
+    goleiro: {cor: '#B39BFF', fundo: '#2A2447'},
+    defesa: {cor: '#63A4FF', fundo: '#15263F'},
+    meio: {cor: '#43C77E', fundo: '#123626'},
+    ataque: {cor: '#FF6E66', fundo: '#3B1E1E'},
+  },
 };
