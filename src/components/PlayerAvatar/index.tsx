@@ -1,7 +1,9 @@
 /**
- * PlayerAvatar — rosto do jogador (avatares 3D estilizados). Como o jogo não tem
- * uma foto por jogador, há 36 rostos recortados e escolhemos um de forma
- * DETERMINÍSTICA pelo id (mesmo jogador → mesmo rosto). Recorte circular simples.
+ * PlayerAvatar — avatar do jogador em DUAS CAMADAS: a CAMISA vetorial recolorível
+ * (AvatarShirt, cor real do clube) atrás, e o ROSTO (PNG com fundo transparente)
+ * na frente. Assim o MESMO rosto veste a camisa de qualquer clube e troca na hora
+ * após uma transferência. O rosto é escolhido de forma determinística pelo id.
+ * Recorte circular.
  */
 import React from 'react';
 import {
@@ -13,7 +15,10 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-// 36 rostos individuais (grade 6×6 recortada).
+import {corDoClube} from '../../theme';
+import {AvatarShirt} from '../AvatarShirt';
+
+// 36 rostos (cabeça/cabelo/barba/pescoço, fundo transparente).
 const FACES: ImageSourcePropType[] = [
   require('../../assets/avatars/faces/jogador_00.png'),
   require('../../assets/avatars/faces/jogador_01.png'),
@@ -64,12 +69,15 @@ export function avatarIndex(id: string): number {
 
 type Props = {
   id: string;
+  /** Clube atual (define a cor da camisa). Ausente/null = cor de fallback. */
+  clubeId?: string | null;
   tamanho: number;
   style?: StyleProp<ViewStyle>;
 };
 
 export default function PlayerAvatar({
   id,
+  clubeId,
   tamanho,
   style,
 }: Props): React.JSX.Element {
@@ -82,12 +90,17 @@ export default function PlayerAvatar({
         {width: tamanho, height: tamanho, borderRadius: tamanho / 2},
         style,
       ]}>
-      <Image source={FACES[avatarIndex(id)]} resizeMode="cover" style={estilos.img} />
+      <AvatarShirt size={tamanho} corPrimaria={corDoClube(clubeId ?? '')} />
+      <Image
+        source={FACES[avatarIndex(id)]}
+        resizeMode="cover"
+        style={estilos.face}
+      />
     </View>
   );
 }
 
 const estilos = StyleSheet.create({
   circulo: {overflow: 'hidden'},
-  img: {width: '100%', height: '100%'},
+  face: {position: 'absolute', top: 0, left: 0, width: '100%', height: '100%'},
 });
