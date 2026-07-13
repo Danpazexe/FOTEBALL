@@ -1,15 +1,24 @@
 /**
- * Mercado de Transferências (Módulo 9). Duas abas:
- *  • Contratar — jogadores de outros clubes; o usuário envia proposta com valor
- *    e a IA responde (aceita / recusa / contraproposta).
- *  • Propostas — ofertas que a IA fez pelos jogadores do usuário (aceitar/recusar).
+ * Mercado de Transferências. Abas Contratar / Propostas / Empréstimos. O usuário
+ * propõe compra/empréstimo e responde ofertas da IA. Migrado ao Design System v2.
  */
 
 import React, {useMemo, useState} from 'react';
-import {Modal, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Modal, StyleSheet, TextInput, View} from 'react-native';
 
 import PlayerCard from '../../components/PlayerCard';
-import {AppHeader, Botao, ScreenContainer, TextoVazio} from '../../components/ui';
+import {
+  AppBar,
+  Button,
+  Card,
+  Chip,
+  Screen,
+  Tabs,
+  Text,
+  espacamento,
+  raios,
+  useTheme,
+} from '../../design-system';
 import {useToast} from '../../components/feedback';
 import {
   custoEmprestimo,
@@ -21,8 +30,6 @@ import {
   selecionarClubeUsuario,
   useGameStore,
 } from '../../store/useGameStore';
-import {acentos, cores, espaco, raio, sombra, tipografia} from '../../theme';
-import Chip from '../../components/Chip';
 import {moeda, nomeClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
@@ -36,6 +43,7 @@ type Aba = 'contratar' | 'propostas' | 'emprestar';
 function TransferMarket(): React.JSX.Element {
   const nav = useAppNavigation();
   const toast = useToast();
+  const {cores} = useTheme();
 
   const jogadores = useGameStore(state => state.jogadores);
   const clubes = useGameStore(state => state.clubes);
@@ -64,8 +72,6 @@ function TransferMarket(): React.JSX.Element {
     [jogadores, clubeUsuarioId, filtro],
   );
 
-  // Empréstimos disponíveis: jogadores de outros clubes, ainda não cedidos,
-  // priorizando os mais jovens (perfil de empréstimo para desenvolver/encorpar).
   const emprestaveis = useMemo(
     () =>
       jogadores
@@ -122,36 +128,20 @@ function TransferMarket(): React.JSX.Element {
     toast('Proposta recusada.', 'info');
   };
 
-  return (
-    <ScreenContainer scroll>
-      <AppHeader titulo="Mercado" onBack={() => nav.goBack()} />
+  const abas = [
+    {chave: 'contratar', rotulo: 'Contratar'},
+    {
+      chave: 'propostas',
+      rotulo: `Propostas${propostas.length > 0 ? ` (${propostas.length})` : ''}`,
+    },
+    {chave: 'emprestar', rotulo: 'Empréstimos'},
+  ];
 
-      <View style={styles.tabBar}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setAba('contratar')}
-          style={[styles.tab, aba === 'contratar' ? styles.tabAtiva : null]}>
-          <Text style={[styles.tabTexto, aba === 'contratar' ? styles.tabTextoAtivo : null]}>
-            Contratar
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setAba('propostas')}
-          style={[styles.tab, aba === 'propostas' ? styles.tabAtiva : null]}>
-          <Text style={[styles.tabTexto, aba === 'propostas' ? styles.tabTextoAtivo : null]}>
-            Propostas{propostas.length > 0 ? ` (${propostas.length})` : ''}
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => setAba('emprestar')}
-          style={[styles.tab, aba === 'emprestar' ? styles.tabAtiva : null]}>
-          <Text style={[styles.tabTexto, aba === 'emprestar' ? styles.tabTextoAtivo : null]}>
-            Empréstimos
-          </Text>
-        </Pressable>
-      </View>
+  return (
+    <Screen scroll>
+      <AppBar title="Mercado" onBack={() => nav.goBack()} />
+
+      <Tabs abas={abas} ativa={aba} onSelect={c => setAba(c as Aba)} scrollable />
 
       {aba === 'contratar' || aba === 'emprestar' ? (
         <View style={styles.filtros}>
@@ -159,9 +149,7 @@ function TransferMarket(): React.JSX.Element {
             <Chip
               key={pos}
               label={pos}
-              ativo={filtro === pos}
-              cor={cores.primaria}
-              pequeno
+              selected={filtro === pos}
               onPress={() => setFiltro(pos)}
             />
           ))}
@@ -170,7 +158,9 @@ function TransferMarket(): React.JSX.Element {
 
       {aba === 'contratar' ? (
         disponiveis.length === 0 ? (
-          <TextoVazio>Nenhum jogador para esse filtro.</TextoVazio>
+          <Text variant="bodyM" color="textSecondary">
+            Nenhum jogador para esse filtro.
+          </Text>
         ) : (
           <View style={styles.lista}>
             {disponiveis.map(jogador => (
@@ -178,7 +168,9 @@ function TransferMarket(): React.JSX.Element {
                 key={jogador.id}
                 jogador={jogador}
                 legendaExtra={nomeClube(clubes, jogador.clubeId ?? '')}
-                onPress={() => nav.navigate('PlayerDetail', {jogadorId: jogador.id})}
+                onPress={() =>
+                  nav.navigate('PlayerDetail', {jogadorId: jogador.id})
+                }
                 acaoLabel="Propor"
                 onAcao={() => abrirProposta(jogador)}
               />
@@ -189,7 +181,9 @@ function TransferMarket(): React.JSX.Element {
 
       {aba === 'emprestar' ? (
         emprestaveis.length === 0 ? (
-          <TextoVazio>Nenhum jogador para empréstimo nesse filtro.</TextoVazio>
+          <Text variant="bodyM" color="textSecondary">
+            Nenhum jogador para empréstimo nesse filtro.
+          </Text>
         ) : (
           <View style={styles.lista}>
             {emprestaveis.map(jogador => (
@@ -197,7 +191,9 @@ function TransferMarket(): React.JSX.Element {
                 key={jogador.id}
                 jogador={jogador}
                 legendaExtra={`${nomeClube(clubes, jogador.clubeId ?? '')} · taxa ${moeda(custoEmprestimo(jogador))}`}
-                onPress={() => nav.navigate('PlayerDetail', {jogadorId: jogador.id})}
+                onPress={() =>
+                  nav.navigate('PlayerDetail', {jogadorId: jogador.id})
+                }
                 acaoLabel="Pegar"
                 onAcao={() => aoEmprestar(jogador)}
               />
@@ -207,49 +203,46 @@ function TransferMarket(): React.JSX.Element {
       ) : null}
 
       {aba === 'propostas' ? (
-        <>
-          {propostas.length === 0 ? (
-            <TextoVazio>Nenhuma proposta recebida.</TextoVazio>
-          ) : (
-            <View style={styles.lista}>
-              {propostas.map(proposta => {
-                const jogador = jogadores.find(j => j.id === proposta.jogadorId);
-                return (
-                  <View key={proposta.id} style={styles.proposta}>
-                    <View style={styles.flex1}>
-                      <Text style={styles.propostaNome}>
-                        {jogador?.apelido ?? jogador?.nome ?? 'Jogador'}
-                      </Text>
-                      <Text style={styles.propostaLegenda}>
-                        {nomeClube(clubes, proposta.clubeOfertante)} oferece
-                      </Text>
-                      <Text
-                        numberOfLines={1}
-                        adjustsFontSizeToFit
-                        style={[styles.propostaValor, tipografia.numero]}>
-                        {moeda(proposta.valorProposto)}
-                      </Text>
-                    </View>
-                    <View style={styles.propostaAcoes}>
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => aceitar(proposta.id)}
-                        style={styles.botaoAceitar}>
-                        <Text style={styles.botaoAceitarTexto}>Aceitar</Text>
-                      </Pressable>
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => recusar(proposta.id)}
-                        style={styles.botaoRecusar}>
-                        <Text style={styles.botaoRecusarTexto}>Recusar</Text>
-                      </Pressable>
-                    </View>
+        propostas.length === 0 ? (
+          <Text variant="bodyM" color="textSecondary">
+            Nenhuma proposta recebida.
+          </Text>
+        ) : (
+          <View style={styles.lista}>
+            {propostas.map(proposta => {
+              const jogador = jogadores.find(j => j.id === proposta.jogadorId);
+              return (
+                <Card key={proposta.id} variante="outlined" style={styles.proposta}>
+                  <View style={styles.flex}>
+                    <Text variant="titleM">
+                      {jogador?.apelido ?? jogador?.nome ?? 'Jogador'}
+                    </Text>
+                    <Text variant="caption" color="textSecondary">
+                      {nomeClube(clubes, proposta.clubeOfertante)} oferece
+                    </Text>
+                    <Text variant="titleL" color="brand" tabular>
+                      {moeda(proposta.valorProposto)}
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
-          )}
-        </>
+                  <View style={styles.propostaAcoes}>
+                    <Button
+                      titulo="Aceitar"
+                      variante="primary"
+                      tamanho="sm"
+                      onPress={() => aceitar(proposta.id)}
+                    />
+                    <Button
+                      titulo="Recusar"
+                      variante="ghost"
+                      tamanho="sm"
+                      onPress={() => recusar(proposta.id)}
+                    />
+                  </View>
+                </Card>
+              );
+            })}
+          </View>
+        )
       ) : null}
 
       <Modal
@@ -257,188 +250,91 @@ function TransferMarket(): React.JSX.Element {
         transparent
         animationType="slide"
         onRequestClose={() => setAlvo(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitulo}>
+        <View style={[styles.modalBackdrop, {backgroundColor: cores.overlay}]}>
+          <View
+            style={[
+              styles.modalCard,
+              {backgroundColor: cores.surface, borderColor: cores.border},
+            ]}>
+            <Text variant="titleL">
               Proposta por {alvo?.apelido ?? alvo?.nome}
             </Text>
-            <Text style={styles.modalLabel}>
+            <Text variant="caption" color="textSecondary">
               Valor de mercado: {alvo ? moeda(alvo.valorMercado) : '—'}
             </Text>
             <TextInput
               keyboardType="numeric"
               value={valorInput}
               onChangeText={setValorInput}
-              style={styles.input}
+              accessibilityLabel="Valor da proposta"
+              style={[
+                styles.input,
+                {
+                  backgroundColor: cores.surfaceSubtle,
+                  borderColor: cores.border,
+                  color: cores.textPrimary,
+                },
+              ]}
               placeholder="Valor da proposta"
-              placeholderTextColor={cores.textoSecundario}
+              placeholderTextColor={cores.textMuted}
             />
             {contra !== null ? (
-              <Text style={styles.contra}>
+              <Text variant="labelM" color="warning">
                 Contraproposta do clube: {moeda(contra)}
               </Text>
             ) : null}
             <View style={styles.modalAcoes}>
-              <View style={styles.flex1}>
-                <Botao
-                  variante="secundaria"
+              <View style={styles.flex}>
+                <Button
+                  variante="secondary"
                   titulo="Fechar"
                   onPress={() => setAlvo(null)}
+                  fullWidth
                 />
               </View>
-              <View style={styles.flex1}>
-                <Botao
-                  variante="ouro"
+              <View style={styles.flex}>
+                <Button
+                  variante="primary"
                   titulo="Enviar proposta"
                   onPress={enviarProposta}
+                  fullWidth
                 />
               </View>
             </View>
           </View>
         </View>
       </Modal>
-    </ScreenContainer>
+    </Screen>
   );
 }
 
 export default TransferMarket;
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    marginBottom: espaco.md,
-    padding: 3,
-    ...sombra.card,
-  },
-  tab: {
-    alignItems: 'center',
-    borderRadius: raio.md,
-    flex: 1,
-    paddingVertical: espaco.sm,
-  },
-  tabAtiva: {
-    backgroundColor: cores.primaria,
-  },
-  tabTexto: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  tabTextoAtivo: {
-    color: cores.contrastePrimaria,
-  },
-  filtros: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.xs,
-    marginBottom: espaco.md,
-  },
-  lista: {
-    gap: espaco.sm,
-  },
-  flex1: {
-    flex: 1,
-  },
-  proposta: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.md,
-    padding: espaco.md,
-    ...sombra.card,
-  },
-  propostaNome: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  propostaLegenda: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  propostaValor: {
-    color: cores.primaria,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  propostaAcoes: {
-    gap: espaco.xs,
-  },
-  botaoAceitar: {
-    alignItems: 'center',
-    backgroundColor: cores.primaria,
-    borderRadius: raio.sm,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-  },
-  botaoAceitarTexto: {
-    color: cores.contrastePrimaria,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  botaoRecusar: {
-    alignItems: 'center',
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    paddingVertical: espaco.xs,
-  },
-  botaoRecusarTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  modalBackdrop: {
-    backgroundColor: 'rgba(5,8,14,0.82)',
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
+  filtros: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
+  lista: {gap: espacamento[2]},
+  flex: {flex: 1},
+  proposta: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  propostaAcoes: {gap: espacamento[1]},
+  modalBackdrop: {flex: 1, justifyContent: 'flex-end'},
   modalCard: {
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaTransl,
+    borderTopLeftRadius: raios.xl,
+    borderTopRightRadius: raios.xl,
     borderWidth: 1,
-    borderTopLeftRadius: raio.xl,
-    borderTopRightRadius: raio.xl,
-    gap: espaco.sm,
-    padding: espaco.lg,
-    ...sombra.card,
-  },
-  modalTitulo: {
-    color: cores.texto,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  modalLabel: {
-    color: cores.textoSecundario,
-    fontSize: 12,
+    gap: espacamento[2],
+    padding: espacamento[5],
   },
   input: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
+    borderRadius: raios.sm,
     borderWidth: 1,
-    color: cores.texto,
     fontSize: 16,
     fontWeight: '700',
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-  },
-  contra: {
-    // Amarelo do acento (legível sobre card branco, ao contrário do dourado).
-    color: acentos.amarelo,
-    fontSize: 13,
-    fontWeight: '700',
+    paddingHorizontal: espacamento[3],
+    paddingVertical: espacamento[2],
   },
   modalAcoes: {
     flexDirection: 'row',
-    gap: espaco.sm,
-    marginTop: espaco.sm,
+    gap: espacamento[2],
+    marginTop: espacamento[2],
   },
 });
