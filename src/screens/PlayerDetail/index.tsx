@@ -1,39 +1,45 @@
 /**
- * Detalhe do jogador: carta (estilo FIFA) + status (lesão/suspensão),
- * evolução (overall→potencial + tendência por idade), finanças, disciplina
- * (cartões), estatísticas da temporada e atributos completos.
+ * Detalhe do jogador: carta (FIFA) + status, evolução, habilidades, finanças,
+ * estatísticas, radar, atributos e ações. Migrado ao Design System v2.
  */
 
 import React from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
-import {
-  AppHeader,
-  Botao,
-  Metric,
-  MetricsRow,
-  ScreenContainer,
-  Section,
-  TextoVazio,
-} from '../../components/ui';
 import CartaJogador from '../../components/CartaJogador';
 import AttributeRadar from '../../components/AttributeRadar';
-import Icone, {type IconeNome} from '../../components/Icone';
 import OverallBadge from '../../components/OverallBadge';
-import Painel from '../../components/Painel';
 import StatBar from '../../components/StatBar';
+import {
+  AppBar,
+  Badge,
+  Button,
+  Card,
+  Chip,
+  Icon,
+  Screen,
+  StatValue,
+  Text,
+  espacamento,
+  raios,
+  useTheme,
+  type CorTexto,
+} from '../../design-system';
+import type {IconeNome} from '../../components/Icone';
 import {useConfirm, useToast} from '../../components/feedback';
-import {cores, corOverall, espaco, raio} from '../../theme';
+import {corOverall} from '../../theme';
 import {moeda, nomeClube} from '../../utils/formatters';
 import {HABILIDADES} from '../../engine/progression/habilidades';
 import {precoVenda, useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
 import type {Player, PlayerAttributes, TipoJogador} from '../../types';
 
-const TIPO_LABEL: Partial<Record<TipoJogador, {rotulo: string; cor: string}>> = {
-  NOVATO: {rotulo: 'Novato', cor: cores.secundaria},
-  VETERANO: {rotulo: 'Veterano', cor: cores.textoSecundario},
+type Tom = 'brand' | 'accent' | 'neutral' | 'success' | 'danger';
+
+const TIPO_LABEL: Partial<Record<TipoJogador, {rotulo: string; tom: Tom}>> = {
+  NOVATO: {rotulo: 'Novato', tom: 'accent'},
+  VETERANO: {rotulo: 'Veterano', tom: 'neutral'},
 };
 
 const ATRIBUTOS: {chave: keyof PlayerAttributes; label: string}[] = [
@@ -51,41 +57,31 @@ const ATRIBUTOS: {chave: keyof PlayerAttributes; label: string}[] = [
   {chave: 'posicionamento', label: 'Posição'},
 ];
 
-type StatusJogador = {rotulo: string; cor: string; icone: IconeNome};
-
-function statusJogador(j: Player): StatusJogador {
+function statusJogador(j: Player): {rotulo: string; tom: CorTexto; icone: IconeNome} {
   if (j.lesionado) {
-    return {
-      rotulo: `Lesionado · ${j.diasLesao} dia(s)`,
-      cor: cores.perigo,
-      icone: 'lesao',
-    };
+    return {rotulo: `Lesionado · ${j.diasLesao} dia(s)`, tom: 'danger', icone: 'lesao'};
   }
   if (j.suspenso) {
-    return {
-      rotulo: `Suspenso · ${j.jogosSuspensao} jogo(s)`,
-      cor: cores.perigo,
-      icone: 'cartao',
-    };
+    return {rotulo: `Suspenso · ${j.jogosSuspensao} jogo(s)`, tom: 'danger', icone: 'cartao'};
   }
-  return {rotulo: 'Disponível', cor: cores.primaria, icone: 'check'};
+  return {rotulo: 'Disponível', tom: 'success', icone: 'check'};
 }
 
-function tendenciaJogador(j: Player): {rotulo: string; cor: string} {
+function tendenciaJogador(j: Player): {rotulo: string; tom: Tom} {
   const margem = j.potencial - j.overall;
   if (j.idade <= 21 && margem >= 1) {
-    return {rotulo: 'Jovem promessa', cor: cores.primaria};
+    return {rotulo: 'Jovem promessa', tom: 'brand'};
   }
   if (margem >= 3 && j.idade <= 28) {
-    return {rotulo: 'Em evolução', cor: cores.primaria};
+    return {rotulo: 'Em evolução', tom: 'brand'};
   }
   if (j.idade >= 32) {
-    return {rotulo: 'Veterano', cor: cores.secundaria};
+    return {rotulo: 'Veterano', tom: 'accent'};
   }
   if (margem <= 0) {
-    return {rotulo: 'No auge', cor: cores.secundaria};
+    return {rotulo: 'No auge', tom: 'accent'};
   }
-  return {rotulo: 'Estável', cor: cores.textoSecundario};
+  return {rotulo: 'Estável', tom: 'neutral'};
 }
 
 function PlayerDetail(): React.JSX.Element {
@@ -108,10 +104,12 @@ function PlayerDetail(): React.JSX.Element {
 
   if (!jogador) {
     return (
-      <ScreenContainer scroll>
-        <AppHeader titulo="Jogador" onBack={() => nav.goBack()} />
-        <TextoVazio>Jogador não encontrado.</TextoVazio>
-      </ScreenContainer>
+      <Screen scroll>
+        <AppBar title="Jogador" onBack={() => nav.goBack()} />
+        <Text variant="bodyM" color="textSecondary">
+          Jogador não encontrado.
+        </Text>
+      </Screen>
     );
   }
 
@@ -144,7 +142,6 @@ function PlayerDetail(): React.JSX.Element {
     }
   };
 
-  // Destino do empréstimo: clube de menor reputação da liga (dá minutos ao jovem).
   const destinoEmprestimo = clubes
     .filter(clube => clube.id !== clubeUsuarioId)
     .sort((a, b) => a.reputacao - b.reputacao)[0];
@@ -169,10 +166,10 @@ function PlayerDetail(): React.JSX.Element {
   };
 
   return (
-    <ScreenContainer scroll>
-      <AppHeader
-        titulo={jogador.nome}
-        subtitulo={`${jogador.posicaoPrincipal} · ${jogador.idade} anos · ${jogador.nacionalidade}`}
+    <Screen scroll>
+      <AppBar
+        title={jogador.nome}
+        subtitle={`${jogador.posicaoPrincipal} · ${jogador.idade} anos · ${jogador.nacionalidade}`}
         onBack={() => nav.goBack()}
         right={<OverallBadge overall={jogador.overall} />}
       />
@@ -181,145 +178,108 @@ function PlayerDetail(): React.JSX.Element {
         <CartaJogador jogador={jogador} />
       </View>
 
-      {/* Status (lesão / suspensão / disponível) */}
-      <View style={[styles.statusChip, {borderColor: status.cor}]}>
-        <Icone nome={status.icone} tamanho={16} cor={status.cor} />
-        <Text style={[styles.statusTexto, {color: status.cor}]}>
-          {status.rotulo}
-        </Text>
-      </View>
-
+      <StatusChip tom={status.tom} icone={status.icone} rotulo={status.rotulo} />
       {jogador.emprestimo ? (
-        <View style={[styles.statusChip, {borderColor: cores.secundaria}]}>
-          <Icone nome="troca" tamanho={16} cor={cores.secundaria} />
-          <Text style={[styles.statusTexto, {color: cores.secundaria}]}>
-            {jogador.emprestimo.clubeDonoId === clubeUsuarioId
+        <StatusChip
+          tom="accent"
+          icone="troca"
+          rotulo={
+            jogador.emprestimo.clubeDonoId === clubeUsuarioId
               ? `Emprestado a ${nomeClube(clubes, jogador.clubeId ?? '')} · volta ${jogador.emprestimo.retornaEmTemporada}`
-              : `Emprestado de ${nomeClube(clubes, jogador.emprestimo.clubeDonoId)} · volta ${jogador.emprestimo.retornaEmTemporada}`}
-          </Text>
-        </View>
+              : `Emprestado de ${nomeClube(clubes, jogador.emprestimo.clubeDonoId)} · volta ${jogador.emprestimo.retornaEmTemporada}`
+          }
+        />
       ) : null}
 
-      {/* Evolução: overall -> potencial + tendência */}
-      <Section titulo="Evolução">
-        <Painel>
-          <View style={styles.evoConteudo}>
-            <View style={styles.evoLinha}>
-              <Text style={styles.evoTexto}>
-                Overall <Text style={styles.evoForte}>{jogador.overall}</Text> ·
-                Potencial{' '}
-                <Text style={styles.evoForte}>{jogador.potencial}</Text>
+      <Secao titulo="Evolução">
+        <Card variante="outlined" style={styles.cardGap}>
+          <View style={styles.evoLinha}>
+            <Text variant="bodyM" color="textSecondary">
+              Overall{' '}
+              <Text variant="bodyM" color="textPrimary" weight="800">
+                {jogador.overall}
+              </Text>{' '}
+              · Potencial{' '}
+              <Text variant="bodyM" color="textPrimary" weight="800">
+                {jogador.potencial}
               </Text>
-              <View style={styles.chipsRow}>
-                {tipoInfo ? (
-                  <View
-                    style={[
-                      styles.tendenciaChip,
-                      {
-                        backgroundColor: `${tipoInfo.cor}1F`,
-                        borderColor: `${tipoInfo.cor}66`,
-                      },
-                    ]}>
-                    <Text style={[styles.tendenciaTexto, {color: tipoInfo.cor}]}>
-                      {tipoInfo.rotulo}
-                    </Text>
-                  </View>
-                ) : null}
-                <View
-                  style={[
-                    styles.tendenciaChip,
-                    {
-                      backgroundColor: `${tendencia.cor}1F`,
-                      borderColor: `${tendencia.cor}66`,
-                    },
-                  ]}>
-                  <Text style={[styles.tendenciaTexto, {color: tendencia.cor}]}>
-                    {tendencia.rotulo}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            <StatBar
-              valor={jogador.overall}
-              max={jogador.potencial}
-              cor={corOverall(jogador.overall)}
-              mostrarValor={false}
-            />
-            <Text style={styles.evoLegenda}>
-              {jogador.potencial > jogador.overall
-                ? `Pode evoluir até ${jogador.potencial}.`
-                : 'Já atingiu o teto de evolução.'}
             </Text>
+            <View style={styles.chipsRow}>
+              {tipoInfo ? (
+                <Badge label={tipoInfo.rotulo} tom={tipoInfo.tom} />
+              ) : null}
+              <Badge label={tendencia.rotulo} tom={tendencia.tom} />
+            </View>
           </View>
-        </Painel>
-      </Section>
+          <StatBar
+            valor={jogador.overall}
+            max={jogador.potencial}
+            cor={corOverall(jogador.overall)}
+            mostrarValor={false}
+          />
+          <Text variant="caption" color="textSecondary">
+            {jogador.potencial > jogador.overall
+              ? `Pode evoluir até ${jogador.potencial}.`
+              : 'Já atingiu o teto de evolução.'}
+          </Text>
+        </Card>
+      </Secao>
 
       {(jogador.habilidades ?? []).length > 0 ? (
-        <Section titulo="Habilidades">
-          <Painel>
-            <View style={styles.habilidadesWrap}>
-              {(jogador.habilidades ?? []).map(hab => (
-                <View key={hab} style={styles.habilidadeItem}>
-                  <Text style={styles.habilidadeRotulo}>
-                    {HABILIDADES[hab].rotulo}
-                  </Text>
-                  <Text style={styles.habilidadeDescricao}>
-                    {HABILIDADES[hab].descricao}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </Painel>
-        </Section>
+        <Secao titulo="Habilidades">
+          <View style={styles.cardGap}>
+            {(jogador.habilidades ?? []).map(hab => (
+              <Card key={hab} variante="status" status="brand" padding={3}>
+                <Text variant="titleM">{HABILIDADES[hab].rotulo}</Text>
+                <Text variant="caption" color="textSecondary">
+                  {HABILIDADES[hab].descricao}
+                </Text>
+              </Card>
+            ))}
+          </View>
+        </Secao>
       ) : null}
 
-      <MetricsRow>
-        <Metric label="Valor" valor={moeda(jogador.valorMercado)} />
-        <Metric label="Salário" valor={moeda(jogador.salario)} />
-      </MetricsRow>
+      <View style={styles.metricsRow}>
+        <StatValue label="Valor" value={moeda(jogador.valorMercado)} style={styles.flex} />
+        <StatValue label="Salário" value={moeda(jogador.salario)} style={styles.flex} />
+      </View>
+      <View style={styles.metricsRow}>
+        <StatValue label="Condição" value={`${jogador.condicaoFisica}%`} style={styles.flex} />
+        <StatValue label="Moral" value={`${jogador.moral}`} style={styles.flex} />
+        <StatValue label="Forma" value={`${jogador.forma}`} style={styles.flex} />
+      </View>
 
-      <MetricsRow>
-        <Metric label="Condição" valor={`${jogador.condicaoFisica}%`} />
-        <Metric label="Moral" valor={`${jogador.moral}`} />
-        <Metric label="Forma" valor={`${jogador.forma}`} />
-      </MetricsRow>
-
-      <Section titulo="Temporada">
-        <MetricsRow>
-          <Metric label="Jogos" valor={`${est.jogos}`} />
-          <Metric label="Gols" valor={`${est.gols}`} />
-          <Metric label="Assist." valor={`${est.assistencias}`} />
-          <Metric label="Nota" valor={est.notaMedia.toFixed(1)} />
-        </MetricsRow>
+      <Secao titulo="Temporada">
+        <View style={styles.metricsRow}>
+          <StatValue label="Jogos" value={`${est.jogos}`} style={styles.flex} />
+          <StatValue label="Gols" value={`${est.gols}`} style={styles.flex} />
+          <StatValue label="Assist." value={`${est.assistencias}`} style={styles.flex} />
+          <StatValue label="Nota" value={est.notaMedia.toFixed(1)} style={styles.flex} />
+        </View>
         <View style={styles.disciplina}>
           <View style={styles.disciplinaItem}>
-            <Icone nome="cartao" tamanho={15} cor={cores.secundaria} />
-            <Text style={styles.disciplinaTexto}>
-              {est.cartoesAmarelos} amarelo(s)
-            </Text>
+            <Icon nome="cartao" size={15} color="accent" />
+            <Text variant="bodyM">{est.cartoesAmarelos} amarelo(s)</Text>
           </View>
           <View style={styles.disciplinaItem}>
-            <Icone nome="cartao" tamanho={15} cor={cores.perigo} />
-            <Text style={styles.disciplinaTexto}>
-              {est.cartoesVermelhos} vermelho(s)
-            </Text>
+            <Icon nome="cartao" size={15} color="danger" />
+            <Text variant="bodyM">{est.cartoesVermelhos} vermelho(s)</Text>
           </View>
         </View>
-        <Text style={styles.contratoTexto}>
+        <Text variant="caption" color="textSecondary">
           Contrato até {jogador.contratoAte} · Perna {jogador.pernaDominante}
         </Text>
-      </Section>
+      </Secao>
 
-      <Section titulo="Radar de atributos">
-        <Painel>
-          <View style={styles.radarWrap}>
-            <AttributeRadar jogador={jogador} />
-          </View>
-        </Painel>
-      </Section>
+      <Secao titulo="Radar de atributos">
+        <Card variante="outlined" style={styles.radarWrap}>
+          <AttributeRadar jogador={jogador} />
+        </Card>
+      </Secao>
 
-      <Section titulo="Atributos">
-        <Painel>
+      <Secao titulo="Atributos">
+        <Card variante="outlined">
           <View style={styles.atributosGrid}>
             {ATRIBUTOS.map(attr => (
               <AtributoLinha
@@ -330,23 +290,23 @@ function PlayerDetail(): React.JSX.Element {
               />
             ))}
           </View>
-          <Text style={styles.atributosNota}>
+          <Text variant="caption" color="textSecondary" style={styles.nota}>
             A barra fina mostra o progresso no treino rumo ao próximo ponto.
           </Text>
-        </Painel>
-      </Section>
+        </Card>
+      </Secao>
 
       {doClubeUsuario ? (
-        <Section titulo="Liderança">
-          <Painel>
+        <Secao titulo="Liderança">
+          <Card variante="outlined">
             {ehCapitao ? (
               <View style={styles.capitaoRow}>
-                <Icone nome="medalha" tamanho={18} cor={cores.secundaria} />
-                <Text style={styles.capitaoTxt}>Capitão do time</Text>
+                <Icon nome="medalha" size={18} color="accent" />
+                <Text variant="titleM">Capitão do time</Text>
               </View>
             ) : (
-              <Botao
-                variante="secundaria"
+              <Button
+                variante="secondary"
                 icone="medalha"
                 titulo="Tornar capitão"
                 onPress={() => {
@@ -356,73 +316,95 @@ function PlayerDetail(): React.JSX.Element {
                     'sucesso',
                   );
                 }}
+                fullWidth
               />
             )}
-          </Painel>
-        </Section>
+          </Card>
+        </Secao>
       ) : null}
 
       {doClubeUsuario ? (
-        <Section titulo="Foco de treino">
-          <Painel>
-            <Text style={styles.atributosNota}>
+        <Secao titulo="Foco de treino">
+          <Card variante="outlined" style={styles.cardGap}>
+            <Text variant="caption" color="textSecondary">
               O atributo em foco evolui mais rápido nos treinos (limitado ao
               potencial).
             </Text>
             <View style={styles.focoChips}>
-              <Pressable
+              <Chip
+                label="Nenhum"
+                selected={!jogador.focoTreino}
                 onPress={() => definirFocoTreino(jogador.id, null)}
-                style={[
-                  styles.focoChip,
-                  !jogador.focoTreino && styles.focoChipAtivo,
-                ]}>
-                <Text
-                  style={[
-                    styles.focoChipTxt,
-                    !jogador.focoTreino && styles.focoChipTxtAtivo,
-                  ]}>
-                  Nenhum
-                </Text>
-              </Pressable>
-              {ATRIBUTOS.map(attr => {
-                const ativo = jogador.focoTreino === attr.chave;
-                return (
-                  <Pressable
-                    key={attr.chave}
-                    onPress={() => definirFocoTreino(jogador.id, attr.chave)}
-                    style={[styles.focoChip, ativo && styles.focoChipAtivo]}>
-                    <Text
-                      style={[
-                        styles.focoChipTxt,
-                        ativo && styles.focoChipTxtAtivo,
-                      ]}>
-                      {attr.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+              />
+              {ATRIBUTOS.map(attr => (
+                <Chip
+                  key={attr.chave}
+                  label={attr.label}
+                  selected={jogador.focoTreino === attr.chave}
+                  onPress={() => definirFocoTreino(jogador.id, attr.chave)}
+                />
+              ))}
             </View>
-          </Painel>
-        </Section>
+          </Card>
+        </Secao>
       ) : null}
 
       {doClubeUsuario && !jogador.emprestimo ? (
         <View style={styles.acoes}>
-          <Botao
-            variante="perigo"
+          <Button
+            variante="danger"
             icone="dinheiro"
             titulo="Vender jogador"
             onPress={handleVender}
+            fullWidth
           />
-          <Botao
-            variante="secundaria"
+          <Button
+            variante="secondary"
             icone="troca"
             titulo="Emprestar a outro clube"
             onPress={handleEmprestar}
+            fullWidth
           />
         </View>
       ) : null}
-    </ScreenContainer>
+    </Screen>
+  );
+}
+
+function StatusChip({
+  tom,
+  icone,
+  rotulo,
+}: {
+  tom: CorTexto;
+  icone: IconeNome;
+  rotulo: string;
+}): React.JSX.Element {
+  const {cores} = useTheme();
+  return (
+    <View style={[styles.statusChip, {borderColor: cores[tom]}]}>
+      <Icon nome={icone} size={16} color={tom} />
+      <Text variant="labelL" color={tom}>
+        {rotulo}
+      </Text>
+    </View>
+  );
+}
+
+function Secao({
+  titulo,
+  children,
+}: {
+  titulo: string;
+  children: React.ReactNode;
+}): React.JSX.Element {
+  return (
+    <View style={styles.secao}>
+      <Text variant="labelM" color="textSecondary" style={styles.caps}>
+        {titulo}
+      </Text>
+      {children}
+    </View>
   );
 }
 
@@ -435,24 +417,27 @@ function AtributoLinha({
   valor: number;
   progresso: number;
 }): React.JSX.Element {
+  const {cores} = useTheme();
   const cor = corOverall(valor);
   const pctProgresso = Math.max(0, Math.min(100, progresso));
   return (
     <View style={styles.atributoItem}>
       <View style={styles.atributoTopo}>
-        <Text style={styles.atributoLabel} numberOfLines={1}>
+        <Text variant="bodyM" color="textSecondary" numberOfLines={1} style={styles.flex}>
           {label}
         </Text>
         <View style={styles.atributoValorWrap}>
           {pctProgresso > 0 ? (
-            <Text style={styles.atributoProgresso}>
+            <Text variant="caption" color="textSecondary">
               {pctProgresso.toFixed(0)}%
             </Text>
           ) : null}
-          <Text style={[styles.atributoValor, {color: cor}]}>{valor}</Text>
+          <Text variant="labelL" style={{color: cor}}>
+            {valor}
+          </Text>
         </View>
       </View>
-      <View style={styles.atributoBarraFundo}>
+      <View style={[styles.atributoBarraFundo, {backgroundColor: cores.surfaceSubtle}]}>
         <View
           style={[
             styles.atributoBarra,
@@ -460,12 +445,12 @@ function AtributoLinha({
           ]}
         />
       </View>
-      {/* Barra fina de progresso de treino rumo ao próximo ponto. */}
-      <View style={styles.atributoProgressoFundo}>
+      <View
+        style={[styles.atributoProgressoFundo, {backgroundColor: cores.surfaceSubtle}]}>
         <View
           style={[
             styles.atributoProgressoBarra,
-            {width: `${pctProgresso}%`},
+            {width: `${pctProgresso}%`, backgroundColor: cores.brand},
           ]}
         />
       </View>
@@ -476,203 +461,55 @@ function AtributoLinha({
 export default PlayerDetail;
 
 const styles = StyleSheet.create({
-  cartaWrap: {
-    alignItems: 'center',
-    marginVertical: espaco.md,
-  },
-  radarWrap: {
-    alignItems: 'center',
-    paddingVertical: espaco.sm,
-  },
+  flex: {flex: 1},
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  cartaWrap: {alignItems: 'center', marginVertical: espacamento[2]},
+  radarWrap: {alignItems: 'center'},
   statusChip: {
-    alignItems: 'center',
     alignSelf: 'center',
-    borderRadius: raio.pill,
-    borderWidth: 1,
     flexDirection: 'row',
-    gap: espaco.sm,
-    marginBottom: espaco.lg,
-    paddingHorizontal: espaco.lg,
-    paddingVertical: espaco.sm,
+    alignItems: 'center',
+    gap: espacamento[2],
+    borderWidth: 1,
+    borderRadius: raios.full,
+    paddingHorizontal: espacamento[4],
+    paddingVertical: espacamento[2],
   },
-  statusTexto: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  evoConteudo: {
-    gap: espaco.md,
-  },
+  secao: {gap: espacamento[2]},
+  cardGap: {gap: espacamento[2]},
   evoLinha: {
-    alignItems: 'center',
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    gap: espacamento[2],
   },
-  evoTexto: {
-    color: cores.textoSecundario,
-    fontSize: 14,
-  },
-  evoForte: {
-    color: cores.texto,
-    fontWeight: '800',
-  },
-  tendenciaChip: {
-    borderRadius: raio.pill,
-    borderWidth: 1,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.xs,
-  },
-  tendenciaTexto: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  chipsRow: {
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  acoes: {
-    gap: espaco.sm,
-  },
-  habilidadesWrap: {
-    gap: espaco.sm,
-  },
-  habilidadeItem: {
-    borderLeftWidth: 3,
-    borderLeftColor: cores.primaria,
-    borderRadius: raio.sm,
-    backgroundColor: cores.superficieAlt,
-    paddingHorizontal: espaco.md,
-    paddingVertical: espaco.sm,
-  },
-  habilidadeRotulo: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  habilidadeDescricao: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    marginTop: 2,
-  },
-  evoLegenda: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  disciplina: {
-    flexDirection: 'row',
-    gap: espaco.lg,
-  },
-  disciplinaItem: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  disciplinaTexto: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  contratoTexto: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    marginTop: espaco.xs,
-  },
+  chipsRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[1]},
+  metricsRow: {flexDirection: 'row', gap: espacamento[2]},
+  disciplina: {flexDirection: 'row', gap: espacamento[4]},
+  disciplinaItem: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
   atributosGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
   },
-  atributoItem: {
-    gap: espaco.xs,
-    marginBottom: espaco.md,
-    width: '48%',
-  },
+  atributoItem: {width: '48%', gap: espacamento[1], marginBottom: espacamento[2]},
   atributoTopo: {
-    alignItems: 'center',
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
-  atributoLabel: {
-    color: cores.textoSecundario,
-    flex: 1,
-    fontSize: 13,
-  },
-  atributoValorWrap: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  atributoProgresso: {
-    color: cores.textoSecundario,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  atributoValor: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  atributosNota: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    marginTop: espaco.xs,
-  },
-  capitaoRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  capitaoTxt: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  focoChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.xs,
-    marginTop: espaco.sm,
-  },
-  focoChip: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 6,
-  },
-  focoChipAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
-  focoChipTxt: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  focoChipTxtAtivo: {
-    color: cores.superficie,
-  },
+  atributoValorWrap: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
+  atributoBarraFundo: {height: 6, borderRadius: 3, overflow: 'hidden'},
+  atributoBarra: {height: '100%', borderRadius: 3},
   atributoProgressoFundo: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: 2,
     height: 3,
-    marginTop: 2,
-    overflow: 'hidden',
-    width: '100%',
-  },
-  atributoProgressoBarra: {
-    backgroundColor: cores.primaria,
     borderRadius: 2,
-    height: '100%',
-  },
-  atributoBarraFundo: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: 3,
-    height: 6,
     overflow: 'hidden',
-    width: '100%',
+    marginTop: 2,
   },
-  atributoBarra: {
-    borderRadius: 3,
-    height: '100%',
-  },
+  atributoProgressoBarra: {height: '100%', borderRadius: 2},
+  nota: {marginTop: espacamento[1]},
+  capitaoRow: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  focoChips: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[1]},
+  acoes: {gap: espacamento[2]},
 });
