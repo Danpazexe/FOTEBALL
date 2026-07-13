@@ -23,6 +23,7 @@ export type ElencoStackParamList = {
 
 export type PartidasStackParamList = {
   Competition: undefined;
+  Calendario: undefined;
 };
 
 export type MercadoStackParamList = {
