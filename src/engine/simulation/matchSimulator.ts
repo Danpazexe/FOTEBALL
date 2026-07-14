@@ -833,22 +833,27 @@ function disputarPosseMinuto(
     intencaoPosse(ctx.timeCasa.taticaAtual) -
     intencaoPosse(ctx.timeFora.taticaAtual);
 
-  // Placar × relógio: quem está atrás toma a iniciativa (e mais forte perto do
-  // fim); o efeito espelha no adversário, que cede a bola para administrar.
+  // Placar × relógio: quem está atrás toma a iniciativa perto do fim. Efeito
+  // MILD e de proibida-dominância — o time que persegue ganha um pouco de bola,
+  // mas SEM que a posse vire um marcador de quem está perdendo (antes o coef.
+  // 0.02 fazia o time com mais posse perder ~83% dos jogos entre parelhos; ver
+  // matchBalance "posse × resultado"). Só entra no último terço do jogo.
   const diff = estado.placarCasa - estado.placarFora;
-  if (diff !== 0) {
+  if (diff !== 0 && estado.minuto >= 60) {
     const pressao =
-      Math.min(3, Math.abs(diff)) * 0.02 * (0.5 + estado.minuto / 90);
+      Math.min(2, Math.abs(diff)) * 0.006 * ((estado.minuto - 60) / 30);
     fracaoCasa += diff < 0 ? pressao : -pressao;
   }
 
-  // Lances do minuto: gol/pênalti/chance só nascem com a bola no pé.
+  // Lances do minuto: gol/pênalti/chance só nascem com a bola no pé — quem CRIA
+  // e MARCA fica com a bola. Peso relevante para a posse acompanhar quem ataca
+  // (e não quem persegue o placar).
   for (const evento of eventosDoMinuto) {
     const pesoLance =
       evento.tipo === 'gol'
-        ? 0.12
+        ? 0.15
         : evento.tipo === 'penalti' || evento.tipo === 'chance_perdida'
-          ? 0.08
+          ? 0.09
           : 0;
     if (pesoLance > 0) {
       fracaoCasa += evento.timeId === ctx.timeCasa.id ? pesoLance : -pesoLance;

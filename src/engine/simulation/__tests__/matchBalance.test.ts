@@ -187,6 +187,32 @@ function taxaVitoriaMandante(partidas: Partida[]): number {
   return vitorias / partidas.length;
 }
 
+/**
+ * Entre jogos DECIDIDOS (sem empate) e com posse != 50, fração em que o time com
+ * MAIS posse venceu. Trava a correção do laço placar×relógio: a posse não pode
+ * voltar a ser um marcador de quem está PERDENDO (o bug tinha ~16% aqui, ou seja,
+ * o dono da posse perdia ~84% dos jogos entre parelhos). Ver disputarPosseMinuto.
+ */
+function taxaMaisPosseVence(partidas: Partida[]): number {
+  let venceu = 0;
+  let decididos = 0;
+  for (const p of partidas) {
+    const pc = p.placarCasa ?? 0;
+    const pf = p.placarFora ?? 0;
+    const posseCasa = p.posseCasa ?? 50;
+    if (pc === pf || posseCasa === 50) {
+      continue;
+    }
+    decididos += 1;
+    const casaMaisPosse = posseCasa > 50;
+    const casaVenceu = pc > pf;
+    if (casaMaisPosse === casaVenceu) {
+      venceu += 1;
+    }
+  }
+  return decididos > 0 ? venceu / decididos : 0;
+}
+
 describe('laboratório de balanceamento — times parelhos', () => {
   const metricas = calcularMetricasBalanceamento(simularSerie(75, 75));
 
@@ -226,6 +252,15 @@ describe('laboratório de balanceamento — times parelhos', () => {
     expect(metricas.taxaPenalti).toBeLessThan(0.6);
     expect(metricas.taxaLesao).toBeGreaterThanOrEqual(0);
     expect(metricas.taxaLesao).toBeLessThan(0.5);
+  });
+
+  it('posse acompanha quem ataca — dono da posse NÃO é o time que perde', () => {
+    // Regressão do laço placar×relógio: antes o time com mais posse vencia só
+    // ~16% dos jogos decididos (perdia ~84%). Agora a posse é ganha por quem
+    // CRIA/MARCA, então dominar a bola ajuda (sem virar garantia). Piso 50%.
+    const taxa = taxaMaisPosseVence(simularSerie(75, 75, undefined, undefined, 600));
+    console.log('[posse × resultado 75x75] maisPosseVence =', taxa.toFixed(3));
+    expect(taxa).toBeGreaterThan(0.5);
   });
 });
 
