@@ -581,42 +581,41 @@ function PreJogo(): React.JSX.Element {
       {(() => {
         const podeJogar = !avisos.some(a => a.cor === 'danger');
         return (
-          <View style={styles.acoes}>
-            <View style={styles.acoesLinha}>
-              <View style={styles.flex}>
-                <Button
-                  titulo="Simular"
-                  variante="secondary"
-                  tamanho="lg"
-                  icone="simular"
-                  disabled={!podeJogar}
-                  fullWidth
-                  onPress={() => {
-                    avancarRodada();
-                    toast('Rodada simulada.', 'sucesso');
-                    nav.navigate('MainTabs');
-                  }}
-                />
-              </View>
-              <View style={styles.flex}>
-                <Button
-                  titulo="Jogar ao vivo"
-                  variante="primary"
-                  tamanho="lg"
-                  icone="jogar"
-                  disabled={!podeJogar}
-                  fullWidth
-                  onPress={() => nav.navigate('MatchSimulation')}
-                />
-              </View>
+          <View style={styles.acoesLinha}>
+            <View style={styles.acaoSimular}>
+              <Button
+                titulo="Simular"
+                variante="secondary"
+                tamanho="lg"
+                disabled={!podeJogar}
+                fullWidth
+                onPress={() => {
+                  avancarRodada();
+                  toast('Rodada simulada.', 'sucesso');
+                  nav.navigate('MainTabs');
+                }}
+              />
             </View>
-            <Button
-              titulo="Ir para escalação"
-              variante="ghost"
-              icone="tatica"
-              fullWidth
-              onPress={() => nav.navigate('Tactics')}
-            />
+            <View style={styles.acaoEscalar}>
+              <Button
+                titulo="Escalação"
+                variante="secondary"
+                tamanho="lg"
+                fullWidth
+                onPress={() => nav.navigate('Tactics')}
+              />
+            </View>
+            <View style={styles.acaoJogar}>
+              <Button
+                titulo="Jogar ao vivo"
+                variante="primary"
+                tamanho="lg"
+                icone="jogar"
+                disabled={!podeJogar}
+                fullWidth
+                onPress={() => nav.navigate('MatchSimulation')}
+              />
+            </View>
           </View>
         );
       })()}
@@ -629,8 +628,10 @@ export default PreJogo;
 const styles = StyleSheet.create({
   caps: {textTransform: 'uppercase', letterSpacing: 1},
   flex: {flex: 1},
-  acoes: {gap: espacamento[2]},
   acoesLinha: {flexDirection: 'row', gap: espacamento[2]},
+  acaoSimular: {flex: 20},
+  acaoEscalar: {flex: 25},
+  acaoJogar: {flex: 55},
   meta: {gap: espacamento[1]},
   metaLinha: {
     alignItems: 'center',

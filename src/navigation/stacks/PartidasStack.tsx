@@ -23,3 +23,6 @@ export function PartidasStack(): React.JSX.Element {
     </Stack.Navigator>
   );
 }
+
+// Nota: a Central da partida (MatchSimulation) roda no RootStack com
+// gestureEnabled:false e sem botão voltar — não se pode sair no meio do jogo.

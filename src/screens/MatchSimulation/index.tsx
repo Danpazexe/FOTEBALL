@@ -1138,7 +1138,7 @@ function MatchSimulation(): React.JSX.Element | null {
 
   return (
     <Screen
-      header={<AppBar title="Central da partida" onBack={() => nav.goBack()} />}>
+      header={<AppBar title="Central da partida" />}>
       <View style={styles.corpo}>
         <View style={styles.meta}>
           <Text variant="labelL" color="textSecondary" align="center">
