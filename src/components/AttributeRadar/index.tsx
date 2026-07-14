@@ -1,7 +1,7 @@
 import React from 'react';
 import Svg, {Circle, Line, Polygon, Text as SvgText} from 'react-native-svg';
 
-import {cores} from '../../theme';
+import {useTheme} from '../../design-system';
 import type {Player, PlayerAttributes} from '../../types';
 
 interface EixoRadar {
@@ -34,6 +34,7 @@ function AttributeRadar({
   jogador: Player;
   size?: number;
 }) {
+  const {cores} = useTheme();
   const eixos =
     jogador.posicaoPrincipal === 'GOL' ? RADAR_GOLEIRO : RADAR_OUTFIELD;
   const center = size / 2;
@@ -74,7 +75,7 @@ function AttributeRadar({
             })
             .join(' ')}
           fill="none"
-          stroke={cores.borda}
+          stroke={cores.border}
           strokeWidth={1}
         />
       ))}
@@ -87,7 +88,7 @@ function AttributeRadar({
             y1={center}
             x2={p.x}
             y2={p.y}
-            stroke={cores.borda}
+            stroke={cores.border}
             strokeWidth={1}
           />
         );
@@ -95,14 +96,14 @@ function AttributeRadar({
       <Polygon
         points={gridPontos}
         fill="none"
-        stroke={cores.borda}
+        stroke={cores.border}
         strokeWidth={1}
       />
-      {/* preenchimento translúcido no verde da marca (token, segue o tema) */}
+      {/* preenchimento translúcido na cor da marca (token, segue o tema) */}
       <Polygon
         points={dataPontos}
-        fill={cores.primariaGlow}
-        stroke={cores.primaria}
+        fill={cores.brandSoft}
+        stroke={cores.brand}
         strokeWidth={2}
       />
       {eixos.map((eixo, i) => {
@@ -112,7 +113,7 @@ function AttributeRadar({
             key={`lbl_${i}`}
             x={p.x}
             y={p.y}
-            fill={cores.textoSecundario}
+            fill={cores.textSecondary}
             fontSize={11}
             fontWeight="bold"
             textAnchor="middle">
@@ -120,7 +121,7 @@ function AttributeRadar({
           </SvgText>
         );
       })}
-      <Circle cx={center} cy={center} r={2} fill={cores.textoSecundario} />
+      <Circle cx={center} cy={center} r={2} fill={cores.textSecondary} />
     </Svg>
   );
 }
