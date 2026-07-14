@@ -15,7 +15,13 @@ import {
   View,
 } from 'react-native';
 
-import {cores, espaco, raio} from '../../theme';
+import {
+  espacamento,
+  raios,
+  useEstilosDS,
+  useTheme,
+  type TemaDS,
+} from '../../design-system';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Confirmação + Toast: provider único usado por toda a UI.
@@ -48,6 +54,8 @@ interface ConfirmEstado extends ConfirmOpcoes {
 }
 
 export function FeedbackProvider({children}: {children: React.ReactNode}) {
+  const {cores} = useTheme();
+  const styles = useEstilosDS(criarEstilos);
   const [confirmEstado, setConfirmEstado] = useState<ConfirmEstado>({
     visivel: false,
     titulo: '',
@@ -103,13 +111,13 @@ export function FeedbackProvider({children}: {children: React.ReactNode}) {
     [confirm, toast],
   );
 
-  const corConfirmar = confirmEstado.perigo ? cores.perigo : cores.primaria;
+  const corConfirmar = confirmEstado.perigo ? cores.danger : cores.brandStrong;
   const corToast =
     toastMsg?.tipo === 'erro'
-      ? cores.perigo
+      ? cores.danger
       : toastMsg?.tipo === 'sucesso'
-      ? cores.primaria
-      : cores.borda;
+      ? cores.success
+      : cores.border;
 
   return (
     <FeedbackContext.Provider value={valor}>
@@ -193,98 +201,99 @@ export function useToast(): (mensagem: string, tipo?: ToastTipo) => void {
   return ctx.toast;
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(5,8,14,0.78)',
-    flex: 1,
-    justifyContent: 'center',
-    padding: espaco.xl,
-  },
-  dialog: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.md,
-    padding: espaco.xl,
-    width: '100%',
-  },
-  titulo: {
-    color: cores.texto,
-    fontSize: 19,
-    fontWeight: '800',
-  },
-  mensagem: {
-    color: cores.textoSecundario,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  detalhes: {
-    backgroundColor: cores.fundo,
-    borderRadius: raio.md,
-    gap: espaco.xs,
-    padding: espaco.md,
-  },
-  detalheLinha: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  detalheRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-  },
-  detalheValor: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  detalheAlerta: {
-    color: cores.perigo,
-  },
-  acoes: {
-    flexDirection: 'row',
-    gap: espaco.sm,
-    marginTop: espaco.xs,
-  },
-  botao: {
-    alignItems: 'center',
-    borderRadius: raio.sm,
-    flex: 1,
-    minHeight: 46,
-    justifyContent: 'center',
-    paddingHorizontal: espaco.md,
-  },
-  botaoCancelar: {
-    backgroundColor: 'transparent',
-    borderColor: cores.borda,
-    borderWidth: 1,
-  },
-  botaoCancelarTexto: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  botaoConfirmarTexto: {
-    color: cores.contrastePrimaria,
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  toast: {
-    alignSelf: 'center',
-    backgroundColor: cores.superficie,
-    borderRadius: raio.md,
-    borderWidth: 1,
-    bottom: 90,
-    maxWidth: '90%',
-    paddingHorizontal: espaco.lg,
-    paddingVertical: espaco.md,
-    position: 'absolute',
-  },
-  toastTexto: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-});
+const criarEstilos = (t: TemaDS) =>
+  StyleSheet.create({
+    backdrop: {
+      alignItems: 'center',
+      backgroundColor: t.cores.overlay,
+      flex: 1,
+      justifyContent: 'center',
+      padding: espacamento[6],
+    },
+    dialog: {
+      backgroundColor: t.cores.surface,
+      borderColor: t.cores.border,
+      borderRadius: raios.lg,
+      borderWidth: 1,
+      gap: espacamento[3],
+      padding: espacamento[6],
+      width: '100%',
+    },
+    titulo: {
+      color: t.cores.textPrimary,
+      fontSize: 19,
+      fontWeight: '800',
+    },
+    mensagem: {
+      color: t.cores.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    detalhes: {
+      backgroundColor: t.cores.surfaceSubtle,
+      borderRadius: raios.md,
+      gap: espacamento[1],
+      padding: espacamento[3],
+    },
+    detalheLinha: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    detalheRotulo: {
+      color: t.cores.textSecondary,
+      fontSize: 13,
+    },
+    detalheValor: {
+      color: t.cores.textPrimary,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    detalheAlerta: {
+      color: t.cores.danger,
+    },
+    acoes: {
+      flexDirection: 'row',
+      gap: espacamento[2],
+      marginTop: espacamento[1],
+    },
+    botao: {
+      alignItems: 'center',
+      borderRadius: raios.sm,
+      flex: 1,
+      minHeight: 46,
+      justifyContent: 'center',
+      paddingHorizontal: espacamento[3],
+    },
+    botaoCancelar: {
+      backgroundColor: 'transparent',
+      borderColor: t.cores.border,
+      borderWidth: 1,
+    },
+    botaoCancelarTexto: {
+      color: t.cores.textPrimary,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    botaoConfirmarTexto: {
+      color: t.cores.onBrand,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    toast: {
+      alignSelf: 'center',
+      backgroundColor: t.cores.scoreboard,
+      borderRadius: raios.md,
+      borderWidth: 1.5,
+      bottom: 90,
+      maxWidth: '90%',
+      paddingHorizontal: espacamento[4],
+      paddingVertical: espacamento[3],
+      position: 'absolute',
+    },
+    toastTexto: {
+      color: t.cores.onScoreboard,
+      fontSize: 14,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+  });
