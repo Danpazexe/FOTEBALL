@@ -21,6 +21,7 @@ import {
   Screen,
   SectionHeader,
   SegmentedTabs,
+  TeamCrest,
   Text,
   espacamento,
   raios,
@@ -35,7 +36,7 @@ import {
 } from '../../engine/transfers/emprestimoEngine';
 import {useMercadoNavigation} from '../../navigation/types';
 import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
-import {moeda, moedaCompacta, nomeClube} from '../../utils/formatters';
+import {moeda, moedaCompacta, nomeClube, siglaClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
 const LIMITE = 30;
@@ -275,7 +276,8 @@ function TransferMarket(): React.JSX.Element {
                   {i > 0 ? <Divider /> : null}
                   <MercadoRow
                     jogador={jogador}
-                    legenda={nomeClube(clubes, jogador.clubeId ?? '')}
+                    clubeId={jogador.clubeId ?? ''}
+                    sigla={siglaClube(clubes, jogador.clubeId ?? '')}
                     valorTexto={moedaCompacta(jogador.valorMercado)}
                     acaoLabel="Propor"
                     onAcao={() => abrirProposta(jogador)}
@@ -300,9 +302,9 @@ function TransferMarket(): React.JSX.Element {
                 {i > 0 ? <Divider /> : null}
                 <MercadoRow
                   jogador={jogador}
-                  legenda={`${nomeClube(clubes, jogador.clubeId ?? '')} · taxa ${moeda(
-                    custoEmprestimo(jogador),
-                  )}`}
+                  clubeId={jogador.clubeId ?? ''}
+                  sigla={siglaClube(clubes, jogador.clubeId ?? '')}
+                  extra={`taxa ${moeda(custoEmprestimo(jogador))}`}
                   valorTexto={moedaCompacta(jogador.valorMercado)}
                   acaoLabel="Pegar"
                   onAcao={() => aoEmprestar(jogador)}
@@ -363,14 +365,18 @@ function TransferMarket(): React.JSX.Element {
 /** Linha de jogador do mercado: avatar · nome/posição/idade · faixa OVR · valor. */
 function MercadoRow({
   jogador,
-  legenda,
+  clubeId,
+  sigla,
+  extra,
   valorTexto,
   acaoLabel,
   onAcao,
   onPress,
 }: {
   jogador: Player;
-  legenda: string;
+  clubeId: string;
+  sigla: string;
+  extra?: string;
   valorTexto: string;
   acaoLabel: string;
   onAcao: () => void;
@@ -388,9 +394,19 @@ function MercadoRow({
         </Text>
         <View style={styles.rowMeta}>
           <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
-          <Text variant="caption" color="textSecondary" numberOfLines={1}>
-            {jogador.idade} anos · {legenda}
+          <Text variant="caption" color="textSecondary">
+            {jogador.idade} anos
           </Text>
+          <TeamCrest clubeId={clubeId} sigla={sigla} size={16} />
+          {extra ? (
+            <Text
+              variant="caption"
+              color="textSecondary"
+              numberOfLines={1}
+              style={styles.flex}>
+              {extra}
+            </Text>
+          ) : null}
         </View>
       </View>
       <View style={styles.rowNums}>
