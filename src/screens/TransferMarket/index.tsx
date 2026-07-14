@@ -89,10 +89,10 @@ function TransferMarket(): React.JSX.Element {
     const saldo = clubeUsuario?.financas.saldo ?? 0;
     const elenco = jogadores.filter(j => j.clubeId === clubeUsuarioId);
     const folha = calcularFolhaSalarial(elenco);
-    const r = clubeUsuario?.financas.receitaMensal;
-    const receita = r
-      ? r.bilheteria + r.patrocinio + r.premiacoes + r.vendaJogadores
-      : 0;
+    // A quebra mensal do seed fica sempre 0; a receita real está no histórico.
+    const receita = (clubeUsuario?.financas.historicoTransacoes ?? [])
+      .filter(t => t.tipo === 'receita')
+      .reduce((s, t) => s + Math.abs(t.valor), 0);
     const pctFolha = receita > 0 ? Math.min(100, (folha / receita) * 100) : 0;
     return {saldo, folha, pctFolha};
   }, [clubeUsuario, jogadores, clubeUsuarioId]);

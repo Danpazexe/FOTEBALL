@@ -22,10 +22,42 @@ import {
 import {
   selecionarClubeUsuario,
   useGameStore,
+  useJogadoresUsuario,
 } from '../../store/useGameStore';
+import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
 import {useClubeNavigation} from '../../navigation/types';
 import {moeda, moedaCompacta} from '../../utils/formatters';
 import type {Transacao} from '../../types';
+
+/** Rótulo amigável de cada categoria de transação. */
+const LABEL_CATEGORIA: Record<string, string> = {
+  bilheteria: 'Bilheteria',
+  patrocinio: 'Patrocínio',
+  premiacoes: 'Premiações',
+  vendaJogadores: 'Venda de jogadores',
+  cotaTV: 'Cota de TV',
+  salarios: 'Salários',
+  manutencaoEstadio: 'Manutenção do estádio',
+  comissoes: 'Comissões',
+  contratacoes: 'Contratações',
+  juros: 'Juros do saldo negativo',
+};
+
+/** Agrega o histórico REAL por categoria (o dado mensal do seed fica sempre 0). */
+function agregarPorCategoria(
+  transacoes: Transacao[],
+  tipo: 'receita' | 'despesa',
+): {rotulo: string; valor: number}[] {
+  const m = new Map<string, number>();
+  for (const t of transacoes) {
+    if (t.tipo === tipo) {
+      m.set(t.categoria, (m.get(t.categoria) ?? 0) + Math.abs(t.valor));
+    }
+  }
+  return [...m.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([cat, valor]) => ({rotulo: LABEL_CATEGORIA[cat] ?? cat, valor}));
+}
 
 /** Net por mês (YYYY-MM) dos últimos 6 meses do histórico. Defensivo a datas. */
 function evolucaoMensal(transacoes: Transacao[]): {mes: string; net: number}[] {
@@ -49,6 +81,7 @@ function Financas(): React.JSX.Element {
   const nav = useClubeNavigation();
   const {cores} = useTheme();
   const clube = useGameStore(selecionarClubeUsuario);
+  const elenco = useJogadoresUsuario();
 
   const voltar = () =>
     nav.canGoBack() ? nav.goBack() : nav.navigate('CentralClube');
@@ -58,34 +91,27 @@ function Financas(): React.JSX.Element {
       return null;
     }
     const {financas} = clube;
-    const r = financas.receitaMensal;
-    const d = financas.despesaMensal;
-    const totalReceita = r.bilheteria + r.patrocinio + r.premiacoes + r.vendaJogadores;
-    const totalDespesa = d.salarios + d.manutencaoEstadio + d.comissoes + d.contratacoes;
+    // A quebra mensal do seed nunca é atualizada pela engine (fica 0). O dado
+    // REAL é o histórico de transações — receitas/despesas por categoria.
+    const receitas = agregarPorCategoria(financas.historicoTransacoes, 'receita');
+    const despesas = agregarPorCategoria(financas.historicoTransacoes, 'despesa');
+    const totalReceita = receitas.reduce((s, x) => s + x.valor, 0);
+    const totalDespesa = despesas.reduce((s, x) => s + x.valor, 0);
+    const folha = calcularFolhaSalarial(elenco);
     const pctFolha =
-      totalReceita > 0 ? Math.min(100, (d.salarios / totalReceita) * 100) : 0;
+      totalReceita > 0 ? Math.min(100, (folha / totalReceita) * 100) : 0;
     return {
       saldo: financas.saldo,
       resultado: totalReceita - totalDespesa,
       totalReceita,
       totalDespesa,
-      folha: d.salarios,
+      folha,
       pctFolha,
-      receitas: [
-        {rotulo: 'Bilheteria', valor: r.bilheteria},
-        {rotulo: 'Patrocínio', valor: r.patrocinio},
-        {rotulo: 'Premiações', valor: r.premiacoes},
-        {rotulo: 'Venda de jogadores', valor: r.vendaJogadores},
-      ],
-      despesas: [
-        {rotulo: 'Salários', valor: d.salarios},
-        {rotulo: 'Manutenção do estádio', valor: d.manutencaoEstadio},
-        {rotulo: 'Comissões', valor: d.comissoes},
-        {rotulo: 'Contratações', valor: d.contratacoes},
-      ],
+      receitas,
+      despesas,
       evolucao: evolucaoMensal(financas.historicoTransacoes),
     };
-  }, [clube]);
+  }, [clube, elenco]);
 
   if (!dados) {
     return (
