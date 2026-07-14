@@ -41,8 +41,9 @@ function Copa(): React.JSX.Element {
 
   if (!copa) {
     return (
-      <Screen scroll>
-        <AppBar title="Copa do Brasil" onBack={() => nav.goBack()} />
+      <Screen
+        scroll
+        header={<AppBar title="Copa do Brasil" onBack={() => nav.goBack()} />}>
         <Text variant="bodyM" color="textSecondary">
           Nenhuma Copa em andamento.
         </Text>
@@ -74,16 +75,19 @@ function Copa(): React.JSX.Element {
   };
 
   return (
-    <Screen scroll>
-      <AppBar
-        title="Copa do Brasil"
-        subtitle={
-          copa.campeao
-            ? 'Competição encerrada'
-            : `${faseAtual.nome} · ${copa.temporada}`
-        }
-        onBack={() => nav.goBack()}
-      />
+    <Screen
+      scroll
+      header={
+        <AppBar
+          title="Copa do Brasil"
+          subtitle={
+            copa.campeao
+              ? 'Competição encerrada'
+              : `${faseAtual.nome} · ${copa.temporada}`
+          }
+          onBack={() => nav.goBack()}
+        />
+      }>
 
       <Image source={LOGO_COPA} style={styles.logo} resizeMode="contain" />
 

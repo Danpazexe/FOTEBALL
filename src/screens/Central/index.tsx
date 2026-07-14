@@ -68,8 +68,9 @@ function Central(): React.JSX.Element {
   const nav = useAppNavigation();
 
   return (
-    <Screen scroll>
-      <AppBar title="Central do Técnico" subtitle="Gestão do clube" />
+    <Screen
+      scroll
+      header={<AppBar title="Central do Técnico" subtitle="Gestão do clube" />}>
 
       {/* Destaques — uso diário (Elenco / Tática / Treino). */}
       <View style={estilos.destaquesRow}>

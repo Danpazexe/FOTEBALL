@@ -35,8 +35,9 @@ function SerieD(): React.JSX.Element {
 
   if (!carreira) {
     return (
-      <Screen scroll>
-        <AppBar title="Série D" onBack={() => nav.goBack()} />
+      <Screen
+        scroll
+        header={<AppBar title="Série D" onBack={() => nav.goBack()} />}>
         <Text variant="bodyM" color="textSecondary">
           Mata-mata da Série D não iniciado.
         </Text>
@@ -68,12 +69,15 @@ function SerieD(): React.JSX.Element {
       : carreira.faseCorrente?.nome ?? 'Mata-mata';
 
   return (
-    <Screen scroll>
-      <AppBar
-        title="Série D · Mata-mata"
-        subtitle={subtitulo}
-        onBack={() => nav.goBack()}
-      />
+    <Screen
+      scroll
+      header={
+        <AppBar
+          title="Série D · Mata-mata"
+          subtitle={subtitulo}
+          onBack={() => nav.goBack()}
+        />
+      }>
 
       <Image source={LOGO_SERIE_D} style={styles.logo} resizeMode="contain" />
 

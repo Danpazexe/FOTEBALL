@@ -174,8 +174,9 @@ function Settings(): React.JSX.Element {
   };
 
   return (
-    <Screen scroll>
-      <AppBar title="Ajustes" onBack={() => nav.goBack()} />
+    <Screen
+      scroll
+      header={<AppBar title="Ajustes" onBack={() => nav.goBack()} />}>
 
       <SettingsSection
         titulo="Aparência"

@@ -72,12 +72,15 @@ function Contratos(): React.JSX.Element {
   };
 
   return (
-    <Screen scroll>
-      <AppBar
-        title="Contratos"
-        subtitle="Renovações pendentes"
-        onBack={() => nav.goBack()}
-      />
+    <Screen
+      scroll
+      header={
+        <AppBar
+          title="Contratos"
+          subtitle="Renovações pendentes"
+          onBack={() => nav.goBack()}
+        />
+      }>
 
       {aRenovar.length === 0 ? (
         <Text variant="bodyM" color="textSecondary">
