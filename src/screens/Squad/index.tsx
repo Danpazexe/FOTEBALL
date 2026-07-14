@@ -52,32 +52,24 @@ const FILTROS: FiltroPosicao[] = [
 ];
 
 /**
- * Bem-estar do jogador combinando MORAL (ânimo) e CONDIÇÃO FÍSICA (cansaço).
- * A condição pesa: um jogador exausto aparece "cansado" mesmo com moral boa —
- * antes o emote só olhava a moral (quase uniforme) e ficava sempre verde.
+ * Emote de condição — SEGUE A MESMA REGRA DA BARRA de condição física (limiares
+ * 75/50), então barra e emote ficam SEMPRE da mesma cor no mesmo momento. Os
+ * tokens success/warning/danger são idênticos a esporte.fitness.high/medium/low.
+ * (Antes o emote olhava a moral — quase uniforme no jogo — e ficava sempre verde.)
  */
+const LIMIAR_COND_ALTA = 75;
+const LIMIAR_COND_MEDIA = 50;
+
 function humorJogador(
-  moral: number,
   condicao: number,
 ): {icone: IconeNome; cor: CorTexto; rotulo: string} {
-  // Moral muito baixa domina: jogador desanimado.
-  if (moral < 35) {
-    return {icone: 'humor-ruim', cor: 'danger', rotulo: 'Desanimado'};
+  if (condicao >= LIMIAR_COND_ALTA) {
+    return {icone: 'humor-bom', cor: 'success', rotulo: 'Descansado'};
   }
-  // Exausto (condição crítica) — vermelho, precisa poupar.
-  if (condicao < 45) {
-    return {icone: 'humor-cansado', cor: 'danger', rotulo: 'Exausto'};
-  }
-  // Cansado (condição baixa) — âmbar.
-  if (condicao < 65) {
+  if (condicao >= LIMIAR_COND_MEDIA) {
     return {icone: 'humor-cansado', cor: 'warning', rotulo: 'Cansado'};
   }
-  // Moral apenas ok — neutro.
-  if (moral < 65) {
-    return {icone: 'humor-neutro', cor: 'warning', rotulo: 'Neutro'};
-  }
-  // Tudo em ordem — feliz.
-  return {icone: 'humor-bom', cor: 'success', rotulo: 'Ótimo'};
+  return {icone: 'humor-ruim', cor: 'danger', rotulo: 'Exausto'};
 }
 
 function nomeCurto(jogador: Player): string {
@@ -250,7 +242,7 @@ function DestaqueJogador({
   corDivisor: string;
   onPress: () => void;
 }): React.JSX.Element {
-  const humor = humorJogador(jogador.moral, jogador.condicaoFisica);
+  const humor = humorJogador(jogador.condicaoFisica);
   const tag = ehCapitao
     ? 'Capitão'
     : jogador.overall >= 80
@@ -309,10 +301,15 @@ function LinhaJogador({
 }): React.JSX.Element {
   const {esporte} = useTheme();
   const cf = jogador.condicaoFisica;
+  // Mesmos limiares do emote (humorJogador) → barra e emote na mesma cor.
   const corCf =
-    cf >= 75 ? esporte.fitness.high : cf >= 50 ? esporte.fitness.medium : esporte.fitness.low;
+    cf >= LIMIAR_COND_ALTA
+      ? esporte.fitness.high
+      : cf >= LIMIAR_COND_MEDIA
+      ? esporte.fitness.medium
+      : esporte.fitness.low;
   const indisponivel = jogador.lesionado || jogador.suspenso;
-  const humor = humorJogador(jogador.moral, jogador.condicaoFisica);
+  const humor = humorJogador(jogador.condicaoFisica);
 
   return (
     <Pressable
