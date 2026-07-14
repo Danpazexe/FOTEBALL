@@ -9,8 +9,8 @@
  * (posse/estatísticas em saves antigos, jogo sem gols) simplesmente somem.
  */
 
-import React, {useMemo} from 'react';
-import {StyleSheet, View} from 'react-native';
+import React, {useMemo, useState} from 'react';
+import {StyleSheet, View, useWindowDimensions} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import {
@@ -23,6 +23,7 @@ import {
   PositionBadge,
   Screen,
   SectionHeader,
+  SegmentedTabs,
   TeamCrest,
   Text,
   espacamento,
@@ -30,17 +31,19 @@ import {
   type CorTexto,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
+import MapaFinalizacoes from '../../components/MapaFinalizacoes';
 import {
   calcularNotaPartida,
   type ResultadoJogador,
 } from '../../engine/simulation/matchRating';
+import {extrairFinalizacoes} from '../../engine/simulation/finalizacoes';
 import {analisarMomentos, type TomMomento} from '../../engine/simulation/momentos';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {rotuloMinuto} from '../../utils/minutoPartida';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
 import {ehEventoGol} from '../../types';
-import type {Clube, EventoPartida, Partida, Player} from '../../types';
+import type {Clube, EventoPartida, Partida, Player, Position} from '../../types';
 
 /** Uma linha de jogador que ATUOU na partida (usada só para achar o craque). */
 type LinhaJogador = {
@@ -143,6 +146,9 @@ function MatchResult(): React.JSX.Element {
   const clubes = useGameStore(state => state.clubes);
   const jogadores = useGameStore(state => state.jogadores);
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
+  const {width} = useWindowDimensions();
+  const [mapaTime, setMapaTime] = useState<'casa' | 'fora'>('casa');
+  const [mapaTempo, setMapaTempo] = useState<'todos' | '1' | '2'>('todos');
 
   // Craque do jogo: maior nota entre quem atuou nos dois times.
   const melhor = useMemo<LinhaJogador | null>(() => {
@@ -186,6 +192,26 @@ function MatchResult(): React.JSX.Element {
     () => new Map(jogadores.map(j => [j.id, j])),
     [jogadores],
   );
+
+  // Mapa de chutes: reconstruído de forma PURA/determinística dos eventos reais.
+  const finalizacoes = useMemo(() => {
+    if (!partida) {
+      return [];
+    }
+    const posicoes: Record<string, Position> = {};
+    for (const j of jogadores) {
+      posicoes[j.id] = j.posicaoPrincipal;
+    }
+    return extrairFinalizacoes(partida, posicoes);
+  }, [partida, jogadores]);
+
+  const nomesJogadores = useMemo(() => {
+    const mapa: Record<string, string> = {};
+    for (const j of jogadores) {
+      mapa[j.id] = j.nome;
+    }
+    return mapa;
+  }, [jogadores]);
 
   const header = (
     <AppHeader title="Relatório da partida" onBack={() => nav.goBack()} />
@@ -271,6 +297,15 @@ function MatchResult(): React.JSX.Element {
 
   const corMomento = (tom: TomMomento): string =>
     tom === 'bom' ? cores.success : tom === 'ruim' ? cores.danger : cores.textMuted;
+
+  // Mapa de finalizações filtrado pelos toggles (time + tempo).
+  const timeIdMapa = mapaTime === 'casa' ? partida.timeCasa : partida.timeFora;
+  const finalizacoesMapa = finalizacoes.filter(
+    f =>
+      f.timeId === timeIdMapa &&
+      (mapaTempo === 'todos' || (mapaTempo === '1') === f.primeiroTempo),
+  );
+  const larguraMapa = Math.min(width - 72, 340);
 
   return (
     <Screen scroll header={header}>
@@ -461,6 +496,38 @@ function MatchResult(): React.JSX.Element {
                 );
               })}
             </View>
+          </View>
+        </Card>
+      ) : null}
+
+      {/* Mapa de finalizações (chutes reconstruídos dos eventos) */}
+      {finalizacoes.length > 0 ? (
+        <Card>
+          <View style={estilos.cardInner}>
+            <SectionHeader titulo="Mapa de finalizações" />
+            <SegmentedTabs
+              abas={[
+                {chave: 'casa', rotulo: siglaCasa},
+                {chave: 'fora', rotulo: siglaFora},
+              ]}
+              ativa={mapaTime}
+              onSelect={c => setMapaTime(c as 'casa' | 'fora')}
+            />
+            <SegmentedTabs
+              abas={[
+                {chave: 'todos', rotulo: 'Todos'},
+                {chave: '1', rotulo: '1º T'},
+                {chave: '2', rotulo: '2º T'},
+              ]}
+              ativa={mapaTempo}
+              onSelect={c => setMapaTempo(c as 'todos' | '1' | '2')}
+            />
+            <MapaFinalizacoes
+              finalizacoes={finalizacoesMapa}
+              largura={larguraMapa}
+              nomes={nomesJogadores}
+              chaveFiltro={`${mapaTime}-${mapaTempo}`}
+            />
           </View>
         </Card>
       ) : null}
