@@ -15,7 +15,6 @@ import {
   Badge,
   Button,
   Card,
-  Chip,
   Icon,
   OverallRing,
   PositionBadge,
@@ -97,7 +96,6 @@ function PlayerDetail(): React.JSX.Element {
   const clubes = useGameStore(state => state.clubes);
   const venderJogador = useGameStore(state => state.venderJogador);
   const emprestarJogador = useGameStore(state => state.emprestarJogador);
-  const definirFocoTreino = useGameStore(state => state.definirFocoTreino);
   const definirCapitao = useGameStore(state => state.definirCapitao);
   const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
   const confirm = useConfirm();
@@ -261,9 +259,9 @@ function PlayerDetail(): React.JSX.Element {
         <StatValue label="Salário" value={moeda(jogador.salario)} style={styles.flex} />
       </View>
       <View style={styles.metricsRow}>
-        <StatValue label="Condição" value={`${jogador.condicaoFisica}%`} style={styles.flex} />
-        <StatValue label="Moral" value={`${jogador.moral}`} style={styles.flex} />
-        <StatValue label="Forma" value={`${jogador.forma}`} style={styles.flex} />
+        <StatValue label="Condição" value={`${Math.round(jogador.condicaoFisica)}%`} style={styles.flex} />
+        <StatValue label="Moral" value={`${Math.round(jogador.moral)}`} style={styles.flex} />
+        <StatValue label="Forma" value={jogador.forma.toFixed(1)} style={styles.flex} />
       </View>
 
       <Secao titulo="Temporada">
@@ -335,32 +333,6 @@ function PlayerDetail(): React.JSX.Element {
                 fullWidth
               />
             )}
-          </Card>
-        </Secao>
-      ) : null}
-
-      {doClubeUsuario ? (
-        <Secao titulo="Foco de treino">
-          <Card variante="outlined" style={styles.cardGap}>
-            <Text variant="caption" color="textSecondary">
-              O atributo em foco evolui mais rápido nos treinos (limitado ao
-              potencial).
-            </Text>
-            <View style={styles.focoChips}>
-              <Chip
-                label="Nenhum"
-                selected={!jogador.focoTreino}
-                onPress={() => definirFocoTreino(jogador.id, null)}
-              />
-              {ATRIBUTOS.map(attr => (
-                <Chip
-                  key={attr.chave}
-                  label={attr.label}
-                  selected={jogador.focoTreino === attr.chave}
-                  onPress={() => definirFocoTreino(jogador.id, attr.chave)}
-                />
-              ))}
-            </View>
           </Card>
         </Secao>
       ) : null}
@@ -529,6 +501,5 @@ const styles = StyleSheet.create({
   atributoProgressoBarra: {height: '100%', borderRadius: 2},
   nota: {marginTop: espacamento[1]},
   capitaoRow: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
-  focoChips: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[1]},
   acoes: {gap: espacamento[2]},
 });

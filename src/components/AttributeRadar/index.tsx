@@ -35,6 +35,9 @@ function AttributeRadar({
   size?: number;
 }) {
   const {cores} = useTheme();
+  // Grau de cor por valor do atributo (visível sobre tela clara).
+  const faixaCor = (v: number): string =>
+    v >= 80 ? cores.success : v >= 65 ? cores.warning : cores.danger;
   const eixos =
     jogador.posicaoPrincipal === 'GOL' ? RADAR_GOLEIRO : RADAR_OUTFIELD;
   const center = size / 2;
@@ -99,29 +102,47 @@ function AttributeRadar({
         stroke={cores.border}
         strokeWidth={1}
       />
-      {/* preenchimento translúcido na cor da marca (token, segue o tema) */}
+      {/* preenchimento translúcido na cor da marca (visível na tela clara) */}
       <Polygon
         points={dataPontos}
-        fill={cores.brandSoft}
+        fill={cores.brand}
+        fillOpacity={0.16}
         stroke={cores.brand}
         strokeWidth={2}
       />
+      {/* vértices coloridos pelo grau do atributo */}
       {eixos.map((eixo, i) => {
+        const valor = jogador.atributos[eixo.chave];
+        const p = ponto(i, Math.max(0.08, valor / 99));
+        return (
+          <Circle
+            key={`vtx_${i}`}
+            cx={p.x}
+            cy={p.y}
+            r={3.5}
+            fill={faixaCor(valor)}
+            stroke={cores.surface}
+            strokeWidth={1}
+          />
+        );
+      })}
+      {eixos.map((eixo, i) => {
+        const valor = jogador.atributos[eixo.chave];
         const p = ponto(i, 1.16);
         return (
           <SvgText
             key={`lbl_${i}`}
             x={p.x}
             y={p.y}
-            fill={cores.textSecondary}
+            fill={faixaCor(valor)}
             fontSize={11}
             fontWeight="bold"
             textAnchor="middle">
-            {`${eixo.label} ${jogador.atributos[eixo.chave]}`}
+            {`${eixo.label} ${valor}`}
           </SvgText>
         );
       })}
-      <Circle cx={center} cy={center} r={2} fill={cores.textSecondary} />
+      <Circle cx={center} cy={center} r={2} fill={cores.textMuted} />
     </Svg>
   );
 }
