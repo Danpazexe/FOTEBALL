@@ -30,6 +30,8 @@ type Props = {
   disabled?: boolean;
   loading?: boolean;
   icone?: IconeNome;
+  /** Tamanho do ícone (default 'sm'). Use maior em botões só-ícone. */
+  iconeSize?: number | 'sm' | 'md' | 'lg' | 'xl';
   fullWidth?: boolean;
   style?: StyleProp<ViewStyle>;
 };
@@ -45,6 +47,7 @@ export function Button({
   disabled,
   loading,
   icone,
+  iconeSize = 'sm',
   fullWidth,
   style,
 }: Props): React.JSX.Element {
@@ -87,7 +90,9 @@ export function Button({
         <ActivityIndicator color={cores[corConteudo]} />
       ) : (
         <View style={estilos.conteudo}>
-          {icone ? <Icon nome={icone} size="sm" color={corConteudo} /> : null}
+          {icone ? (
+            <Icon nome={icone} size={iconeSize} color={corConteudo} />
+          ) : null}
           <Text variant="labelL" color={corConteudo}>
             {titulo}
           </Text>

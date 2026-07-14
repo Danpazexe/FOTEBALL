@@ -554,29 +554,6 @@ function PreJogo(): React.JSX.Element {
         </View>
       ) : null}
 
-      {/* AVISOS */}
-      {avisos.length > 0 ? (
-        <View style={styles.bloco}>
-          <TituloBloco texto="Avisos" />
-          <Card variante="outlined" padding={3}>
-            {avisos.map((aviso, i) => (
-              <React.Fragment key={`${i}-${aviso.texto}`}>
-                {i > 0 ? <Divider /> : null}
-                <View style={styles.avisoRow}>
-                  <Icon nome={aviso.icone} size="sm" color={aviso.cor} />
-                  <Text
-                    variant="bodyM"
-                    color="textSecondary"
-                    style={styles.avisoTexto}>
-                    {aviso.texto}
-                  </Text>
-                </View>
-              </React.Fragment>
-            ))}
-          </Card>
-        </View>
-      ) : null}
-
       {/* AÇÕES — iniciar a partida (simular ou ao vivo) + ajustar escalação */}
       {(() => {
         const podeJogar = !avisos.some(a => a.cor === 'danger');
@@ -584,7 +561,9 @@ function PreJogo(): React.JSX.Element {
           <View style={styles.acoesLinha}>
             <View style={styles.acaoSimular}>
               <Button
-                titulo="Simular"
+                titulo=""
+                icone="simular"
+                iconeSize={26}
                 variante="secondary"
                 tamanho="lg"
                 disabled={!podeJogar}
@@ -598,7 +577,9 @@ function PreJogo(): React.JSX.Element {
             </View>
             <View style={styles.acaoEscalar}>
               <Button
-                titulo="Escalação"
+                titulo=""
+                icone="tatica"
+                iconeSize={26}
                 variante="secondary"
                 tamanho="lg"
                 fullWidth
@@ -611,6 +592,7 @@ function PreJogo(): React.JSX.Element {
                 variante="primary"
                 tamanho="lg"
                 icone="jogar"
+                iconeSize={22}
                 disabled={!podeJogar}
                 fullWidth
                 onPress={() => nav.navigate('MatchSimulation')}

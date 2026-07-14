@@ -54,6 +54,7 @@ import {
   Meh,
   Megaphone,
   Menu,
+  Newspaper,
   Pause,
   Play,
   Rocket,
@@ -120,6 +121,7 @@ export type IconeNome =
   | 'olho'
   | 'menu'
   | 'sino'
+  | 'noticia'
   | 'busca'
   | 'filtro'
   | 'estrela'
@@ -174,6 +176,7 @@ const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
   olho: Eye,
   menu: Menu,
   sino: Bell,
+  noticia: Newspaper,
   busca: Search,
   filtro: ListFilter,
   estrela: Star,

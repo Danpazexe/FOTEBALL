@@ -535,16 +535,6 @@ function Home(): React.JSX.Element {
       header={
         <View style={estilos.header}>
           <Pressable
-            onPress={() => nav.navigate('Settings')}
-            minSize="min"
-            accessibilityLabel="Menu"
-            style={estilos.headerBotao}>
-            <Icon nome="menu" color="textSecondary" />
-          </Pressable>
-          <Text variant="titleXL" align="center" style={estilos.flex}>
-            FOTEBALL
-          </Text>
-          <Pressable
             onPress={() => nav.navigate('Noticias')}
             minSize="min"
             accessibilityLabel={
@@ -553,12 +543,22 @@ function Home(): React.JSX.Element {
                 : 'Notícias'
             }
             style={estilos.headerBotao}>
-            <Icon nome="sino" color="textSecondary" />
+            <Icon nome="noticia" color="textSecondary" />
             {mensagens.length > 0 ? (
               <View style={estilos.sinoBadge}>
                 <Badge count={mensagens.length} tom="danger" solido />
               </View>
             ) : null}
+          </Pressable>
+          <Text variant="titleXL" align="center" style={estilos.flex}>
+            FOTEBALL
+          </Text>
+          <Pressable
+            onPress={() => nav.navigate('Settings')}
+            minSize="min"
+            accessibilityLabel="Ajustes"
+            style={estilos.headerBotao}>
+            <Icon nome="ajustes" color="textSecondary" />
           </Pressable>
         </View>
       }>
