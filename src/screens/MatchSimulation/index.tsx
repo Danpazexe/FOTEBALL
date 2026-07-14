@@ -420,6 +420,9 @@ function MatchSimulation(): React.JSX.Element | null {
   const tabelaBaseRef = useRef<TabelaClassificacao[]>([]);
   const [placaresRodada, setPlacaresRodada] = useState<PlacarAoVivo[]>([]);
   const [tabelaAoVivo, setTabelaAoVivo] = useState<TabelaClassificacao[]>([]);
+  // Pontos que cada clube embolsaria AGORA nesta rodada (+3 vitória / +1 empate
+  // / +0 derrota), pelos placares parciais — mostrados ao lado dos PTS na tabela.
+  const [pontosRodada, setPontosRodada] = useState<Record<string, number>>({});
   // Posse REAL vinda da engine (acumulada minuto a minuto) — espelho de UI,
   // como o placar; a fonte da verdade é o EstadoPartidaAoVivo.
   const [posse, setPosse] = useState({casa: 50, fora: 50});
@@ -919,6 +922,22 @@ function MatchSimulation(): React.JSX.Element | null {
       },
     ];
     setTabelaAoVivo(projetarTabela(tabelaBaseRef.current, resultadosParciais));
+
+    // Pontos provisórios da rodada por clube (+3/+1/+0).
+    const pontos: Record<string, number> = {};
+    for (const r of resultadosParciais) {
+      if (r.golsCasa > r.golsFora) {
+        pontos[r.timeCasa] = 3;
+        pontos[r.timeFora] = 0;
+      } else if (r.golsFora > r.golsCasa) {
+        pontos[r.timeCasa] = 0;
+        pontos[r.timeFora] = 3;
+      } else {
+        pontos[r.timeCasa] = 1;
+        pontos[r.timeFora] = 1;
+      }
+    }
+    setPontosRodada(pontos);
   }, [
     minuto,
     fixture,
@@ -1298,6 +1317,8 @@ function MatchSimulation(): React.JSX.Element | null {
             )
           ) : abaFeed === 'tabela' && temOutrosJogos ? (
             <Card variante="outlined" padding={0}>
+              <CabecalhoTabelaAoVivo />
+              <Divider />
               {tabelaAoVivo.map((item, index) => (
                 <React.Fragment key={item.clubeId}>
                   {index > 0 ? <Divider /> : null}
@@ -1308,6 +1329,7 @@ function MatchSimulation(): React.JSX.Element | null {
                     nome={nomeClube(clubes, item.clubeId)}
                     sigla={siglaClube(clubes, item.clubeId)}
                     ehUsuario={item.clubeId === clubeUsuario?.id}
+                    pontosRodada={pontosRodada[item.clubeId]}
                   />
                 </React.Fragment>
               ))}
@@ -1562,7 +1584,6 @@ function LinhaRodada({
   duracaoTotal: number;
 }): React.JSX.Element {
   const fim = minuto >= duracaoTotal;
-  // Como na tabela: quem está ganhando embolsaria +3 (empate não soma "vitória").
   const casaGanhando = item.golsCasa > item.golsFora;
   const foraGanhando = item.golsFora > item.golsCasa;
   return (
@@ -1575,19 +1596,9 @@ function LinhaRodada({
         style={styles.rodadaNomeEsq}>
         {item.nomeCasa}
       </Text>
-      {casaGanhando ? (
-        <Text variant="caption" weight="800" color="success" tabular>
-          +3
-        </Text>
-      ) : null}
       <Text variant="labelL" tabular style={styles.rodadaPlacar}>
         {item.golsCasa} - {item.golsFora}
       </Text>
-      {foraGanhando ? (
-        <Text variant="caption" weight="800" color="success" tabular>
-          +3
-        </Text>
-      ) : null}
       <Text
         variant="labelM"
         weight={foraGanhando ? '800' : '600'}
@@ -1607,7 +1618,36 @@ function LinhaRodada({
   );
 }
 
-/** Linha da classificação ao vivo: zona · escudo · nome · J · SG · PTS. */
+/** Cabeçalho da classificação ao vivo — deixa claro que "Rod" é o que o clube
+ * embolsa NESTA rodada (+3/+1/+0), separado do total de pontos "P". */
+function CabecalhoTabelaAoVivo(): React.JSX.Element {
+  return (
+    <View style={styles.tabela}>
+      <View style={styles.tabelaZonaWrap} />
+      <Text variant="caption" color="textMuted" tabular style={styles.tabelaPos}>
+        #
+      </Text>
+      <View style={styles.tabelaCrestSpacer} />
+      <Text variant="caption" color="textMuted" style={styles.flex}>
+        Clube
+      </Text>
+      <Text variant="caption" color="textMuted" style={styles.tabelaCol}>
+        J
+      </Text>
+      <Text variant="caption" color="textMuted" style={styles.tabelaCol}>
+        SG
+      </Text>
+      <Text variant="caption" color="textMuted" style={styles.tabelaDelta}>
+        Rod
+      </Text>
+      <Text variant="caption" color="textMuted" style={styles.tabelaPts}>
+        P
+      </Text>
+    </View>
+  );
+}
+
+/** Linha da classificação ao vivo: zona · escudo · nome · J · SG · Rod · PTS. */
 function LinhaTabela({
   item,
   index,
@@ -1615,6 +1655,7 @@ function LinhaTabela({
   nome,
   sigla,
   ehUsuario,
+  pontosRodada,
 }: {
   item: TabelaClassificacao;
   index: number;
@@ -1622,10 +1663,18 @@ function LinhaTabela({
   nome: string;
   sigla: string;
   ehUsuario: boolean;
+  /** Pontos que o clube embolsa nesta rodada (+3/+1/+0); undefined = não joga. */
+  pontosRodada?: number;
 }): React.JSX.Element {
   const {cores} = useTheme();
   const corPos: CorTexto =
     index < 4 ? 'success' : index >= total - 4 ? 'danger' : 'textSecondary';
+  const corDelta: CorTexto =
+    pontosRodada === 3
+      ? 'success'
+      : pontosRodada === 1
+      ? 'textSecondary'
+      : 'textMuted';
   return (
     <View
       style={[
@@ -1659,6 +1708,14 @@ function LinhaTabela({
         tabular
         style={styles.tabelaCol}>
         {item.saldoGols > 0 ? `+${item.saldoGols}` : item.saldoGols}
+      </Text>
+      <Text
+        variant="caption"
+        weight="800"
+        color={corDelta}
+        tabular
+        style={styles.tabelaDelta}>
+        {pontosRodada === undefined ? '' : `+${pontosRodada}`}
       </Text>
       <Text variant="labelL" tabular style={styles.tabelaPts}>
         {item.pontos}
@@ -1869,7 +1926,9 @@ const styles = StyleSheet.create({
   tabelaZona: {flex: 1, borderTopRightRadius: 2, borderBottomRightRadius: 2},
   tabelaPos: {minWidth: 18, textAlign: 'center'},
   tabelaCol: {minWidth: 24, textAlign: 'center'},
+  tabelaDelta: {minWidth: 24, textAlign: 'center'},
   tabelaPts: {minWidth: 30, textAlign: 'right'},
+  tabelaCrestSpacer: {width: 20},
 });
 
 export default MatchSimulation;
