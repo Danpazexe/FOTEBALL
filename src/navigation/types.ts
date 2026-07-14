@@ -28,11 +28,14 @@ export type ElencoStackParamList = {
 export type PartidasStackParamList = {
   Competition: undefined;
   Calendario: undefined;
+  PreJogo: undefined;
+  MatchResult: {partidaId: string};
 };
 
 export type MercadoStackParamList = {
   TransferMarket: undefined;
   Negociacao: {jogadorId: string};
+  CentralOlheiro: undefined;
 };
 
 /** Aba Clube: abre a CENTRAL DO CLUBE (hub); a visão geral é uma tela interna. */

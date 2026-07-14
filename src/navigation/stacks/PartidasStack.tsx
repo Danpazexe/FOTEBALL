@@ -3,6 +3,8 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
 import Competition from '../../screens/Competition';
 import Calendario from '../../screens/Calendario';
+import PreJogo from '../../screens/PreJogo';
+import MatchResult from '../../screens/MatchResult';
 import type {PartidasStackParamList} from '../types';
 
 const Stack = createNativeStackNavigator<PartidasStackParamList>();
@@ -16,6 +18,8 @@ export function PartidasStack(): React.JSX.Element {
       screenOptions={{headerShown: false}}>
       <Stack.Screen name="Calendario" component={Calendario} />
       <Stack.Screen name="Competition" component={Competition} />
+      <Stack.Screen name="PreJogo" component={PreJogo} />
+      <Stack.Screen name="MatchResult" component={MatchResult} />
     </Stack.Navigator>
   );
 }

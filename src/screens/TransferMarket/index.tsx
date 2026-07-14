@@ -185,6 +185,11 @@ function TransferMarket(): React.JSX.Element {
                 accessibilityLabel="Filtrar por posição"
                 tom={filtroAberto || filtro !== 'Todos' ? 'brand' : 'textPrimary'}
               />
+              <IconButton
+                icone="olho"
+                onPress={() => nav.navigate('CentralOlheiro')}
+                accessibilityLabel="Central do olheiro"
+              />
             </View>
           }
         />
