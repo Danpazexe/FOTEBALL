@@ -32,8 +32,8 @@ describe('useTemaStore', () => {
     useTemaStore.setState({modo: 'escuro', esquemaSistema: 'escuro'});
   });
 
-  it('padrão é escuro (zero regressão durante a migração)', () => {
-    expect(useTemaStore.getState().modo).toBe('escuro');
+  it('padrão é claro (tema default do North Star)', () => {
+    expect(useTemaStore.getState().modo).toBe('claro');
   });
 
   it('definirModo troca a preferência', () => {
