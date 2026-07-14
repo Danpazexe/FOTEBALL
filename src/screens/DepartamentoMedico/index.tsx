@@ -1,8 +1,8 @@
 /**
  * Departamento Médico (aba Elenco). Prontidão do elenco derivada de dado REAL:
- * lesionados (com previsão de retorno), em recuperação (condição baixa) e
- * disponíveis; risco elevado por condição crítica. Ajuste de carga → Treino.
- * DS v2.
+ * condição física média dos aptos, lesionados (com previsão e gravidade), em
+ * recuperação (condição baixa) e disponíveis; risco de lesão por condição +
+ * idade. Ajuste de carga → Treino. Nada é inventado. DS v2.
  */
 import React, {useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
@@ -32,7 +32,6 @@ type Aba = 'todos' | 'lesionados' | 'recuperacao';
 type Estado = 'lesionado' | 'recuperacao' | 'disponivel';
 
 const CONDICAO_RECUPERACAO = 65;
-const CONDICAO_RISCO = 50;
 
 function estadoDoJogador(j: Player): Estado {
   if (j.lesionado) {
@@ -44,14 +43,70 @@ function estadoDoJogador(j: Player): Estado {
   return 'disponivel';
 }
 
+// ─── Gravidade da lesão (pelos dias de retorno) ──────────────────────────────
+type Gravidade = 'Leve' | 'Moderada' | 'Grave';
+
+function gravidadeLesao(diasLesao: number): {rotulo: Gravidade; tom: CorTexto} {
+  if (diasLesao <= 6) {
+    return {rotulo: 'Leve', tom: 'accent'};
+  }
+  if (diasLesao <= 20) {
+    return {rotulo: 'Moderada', tom: 'warning'};
+  }
+  return {rotulo: 'Grave', tom: 'danger'};
+}
+
+// ─── Risco de lesão (condição baixa + idade avançada elevam) ─────────────────
+type Risco = 'Baixo' | 'Médio' | 'Alto';
+
+function riscoLesao(j: Player): {rotulo: Risco; tom: CorTexto} {
+  let pontos = 0;
+  if (j.condicaoFisica < 55) {
+    pontos += 2;
+  } else if (j.condicaoFisica < 70) {
+    pontos += 1;
+  }
+  if (j.idade >= 33) {
+    pontos += 2;
+  } else if (j.idade >= 30) {
+    pontos += 1;
+  }
+  if (pontos >= 3) {
+    return {rotulo: 'Alto', tom: 'danger'};
+  }
+  if (pontos >= 1) {
+    return {rotulo: 'Médio', tom: 'warning'};
+  }
+  return {rotulo: 'Baixo', tom: 'success'};
+}
+
 function recomendacao(j: Player, estado: Estado): string {
   if (estado === 'lesionado') {
-    return j.diasLesao > 10 ? 'Tratamento intensivo' : 'Tratamento em curso';
+    return j.diasLesao > 20
+      ? 'Tratamento intensivo'
+      : j.diasLesao > 6
+      ? 'Tratamento em curso'
+      : 'Fisioterapia leve';
   }
   if (estado === 'recuperacao') {
-    return j.condicaoFisica < CONDICAO_RISCO ? 'Carga reduzida' : 'Retorno gradual';
+    return j.condicaoFisica < 55 ? 'Poupar — carga reduzida' : 'Retorno gradual';
   }
   return 'Apto para jogar';
+}
+
+// Qualidade da prontidão média do elenco. tom (success/warning/danger) tem os
+// mesmos hex de fitness.high/medium/low → barra e rótulo na mesma cor.
+function faixaProntidao(pct: number): {rotulo: string; tom: CorTexto} {
+  if (pct >= 80) {
+    return {rotulo: 'Ótima', tom: 'success'};
+  }
+  if (pct >= 70) {
+    return {rotulo: 'Boa', tom: 'success'};
+  }
+  if (pct >= 55) {
+    return {rotulo: 'Atenção', tom: 'warning'};
+  }
+  return {rotulo: 'Crítica', tom: 'danger'};
 }
 
 function DepartamentoMedico(): React.JSX.Element {
@@ -60,26 +115,39 @@ function DepartamentoMedico(): React.JSX.Element {
   const [aba, setAba] = useState<Aba>('todos');
   const elenco = useJogadoresUsuario();
 
-  const {disponiveis, recuperacao, lesionados, risco} = useMemo(() => {
-    let d = 0;
-    let r = 0;
-    let l = 0;
-    let risc = 0;
-    for (const j of elenco) {
-      const e = estadoDoJogador(j);
-      if (e === 'lesionado') {
-        l += 1;
-      } else if (e === 'recuperacao') {
-        r += 1;
-      } else {
-        d += 1;
+  const {disponiveis, recuperacao, lesionados, riscoAlto, prontidao} =
+    useMemo(() => {
+      let d = 0;
+      let r = 0;
+      let l = 0;
+      let risc = 0;
+      let somaCond = 0;
+      let aptos = 0;
+      for (const j of elenco) {
+        const e = estadoDoJogador(j);
+        if (e === 'lesionado') {
+          l += 1;
+        } else if (e === 'recuperacao') {
+          r += 1;
+        } else {
+          d += 1;
+        }
+        if (!j.lesionado) {
+          somaCond += j.condicaoFisica;
+          aptos += 1;
+          if (riscoLesao(j).rotulo === 'Alto') {
+            risc += 1;
+          }
+        }
       }
-      if (!j.lesionado && j.condicaoFisica < CONDICAO_RISCO) {
-        risc += 1;
-      }
-    }
-    return {disponiveis: d, recuperacao: r, lesionados: l, risco: risc};
-  }, [elenco]);
+      return {
+        disponiveis: d,
+        recuperacao: r,
+        lesionados: l,
+        riscoAlto: risc,
+        prontidao: aptos > 0 ? Math.round(somaCond / aptos) : 0,
+      };
+    }, [elenco]);
 
   const lista = useMemo(() => {
     const comEstado = elenco
@@ -99,6 +167,14 @@ function DepartamentoMedico(): React.JSX.Element {
     );
   }, [elenco, aba]);
 
+  const faixa = faixaProntidao(prontidao);
+  const corProntidao =
+    faixa.tom === 'success'
+      ? esporte.fitness.high
+      : faixa.tom === 'warning'
+      ? esporte.fitness.medium
+      : esporte.fitness.low;
+
   return (
     <Screen
       scroll
@@ -108,20 +184,44 @@ function DepartamentoMedico(): React.JSX.Element {
           onBack={() => (nav.canGoBack() ? nav.goBack() : undefined)}
         />
       }>
-      {/* Prontidão */}
+      {/* Prontidão média do elenco (condição dos aptos) */}
+      <Card variante="outlined" style={styles.prontidaoCard}>
+        <View style={styles.prontidaoTopo}>
+          <View style={styles.flex}>
+            <Text variant="labelM" color="textSecondary">
+              Prontidão do elenco
+            </Text>
+            <View style={styles.prontidaoValor}>
+              <Text variant="titleXL" color={faixa.tom} tabular>
+                {prontidao}%
+              </Text>
+              <Text variant="labelM" color={faixa.tom}>
+                {faixa.rotulo}
+              </Text>
+            </View>
+            <Text variant="caption" color="textMuted">
+              Média de condição física dos aptos
+            </Text>
+          </View>
+          <Icon nome="lesao" size={22} color={faixa.tom} />
+        </View>
+        <ProgressBar valor={prontidao} cor={corProntidao} altura={8} />
+      </Card>
+
+      {/* Contagem por estado */}
       <Card variante="outlined" style={styles.statsRow}>
         <CelulaStat valor={disponiveis} rotulo="Disponíveis" tom="success" />
         <Divider vertical />
-        <CelulaStat valor={recuperacao} rotulo="Em recuperação" tom="accent" />
+        <CelulaStat valor={recuperacao} rotulo="Em recuperação" tom="warning" />
         <Divider vertical />
-        <CelulaStat valor={lesionados} rotulo="Lesionado" tom="danger" />
+        <CelulaStat valor={lesionados} rotulo="Lesionados" tom="danger" />
       </Card>
 
-      {risco > 0 ? (
+      {riscoAlto > 0 ? (
         <Card variante="status" status="warning" padding={3} style={styles.cargaCard}>
           <Icon nome="lesao" size={18} color="warning" />
-          <Text variant="labelL">
-            Risco elevado para {risco} jogador{risco > 1 ? 'es' : ''}
+          <Text variant="labelL" style={styles.flex}>
+            Alto risco de lesão: {riscoAlto} jogador{riscoAlto > 1 ? 'es' : ''}
           </Text>
         </Card>
       ) : null}
@@ -157,6 +257,8 @@ function DepartamentoMedico(): React.JSX.Element {
             const progresso = lesionado
               ? Math.max(5, 100 - j.diasLesao * 6)
               : j.condicaoFisica;
+            const grav = lesionado ? gravidadeLesao(j.diasLesao) : null;
+            const risco = !lesionado ? riscoLesao(j) : null;
             return (
               <Card key={j.id} variante="outlined" style={styles.card}>
                 <View style={styles.cardTopo}>
@@ -167,19 +269,35 @@ function DepartamentoMedico(): React.JSX.Element {
                       <Text variant="labelL" numberOfLines={1} style={styles.flex}>
                         {j.apelido ?? j.nome}
                       </Text>
+                      <Text variant="caption" color="textMuted" tabular>
+                        {j.idade} anos
+                      </Text>
                     </View>
-                    <Text
-                      variant="caption"
-                      color={lesionado ? 'danger' : 'warning'}>
-                      {lesionado
-                        ? `Lesionado · retorno em ${j.diasLesao} dia${j.diasLesao > 1 ? 's' : ''}`
-                        : `Condição física ${j.condicaoFisica}%`}
-                    </Text>
+                    <View style={styles.nomeLinha}>
+                      <Text
+                        variant="caption"
+                        color={lesionado ? 'danger' : 'warning'}
+                        style={styles.flex}>
+                        {lesionado
+                          ? `Lesionado · retorno em ${j.diasLesao} dia${j.diasLesao > 1 ? 's' : ''}`
+                          : `Condição física ${j.condicaoFisica}%`}
+                      </Text>
+                      {grav ? (
+                        <Text variant="caption" weight="800" color={grav.tom}>
+                          {grav.rotulo}
+                        </Text>
+                      ) : risco ? (
+                        <Text variant="caption" weight="800" color={risco.tom}>
+                          Risco {risco.rotulo}
+                        </Text>
+                      ) : null}
+                    </View>
                   </View>
                 </View>
                 <ProgressBar valor={progresso} cor={corCond} />
                 <Text variant="caption" color="textSecondary">
-                  Recomendação: {recomendacao(j, estado)}
+                  {lesionado ? 'Recuperação' : 'Condição'} ·{' '}
+                  {recomendacao(j, estado)}
                 </Text>
               </Card>
             );
@@ -224,6 +342,13 @@ export default DepartamentoMedico;
 const styles = StyleSheet.create({
   flex: {flex: 1},
   vazio: {flex: 1, justifyContent: 'center', paddingVertical: espacamento[6]},
+  prontidaoCard: {gap: espacamento[3]},
+  prontidaoTopo: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  prontidaoValor: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: espacamento[2],
+  },
   statsRow: {flexDirection: 'row', alignItems: 'center'},
   celula: {flex: 1, alignItems: 'center', gap: 2},
   cargaCard: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
