@@ -14,6 +14,7 @@
 import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import {
+  Annoyed,
   ArrowRightLeft,
   Bandage,
   Banknote,
@@ -129,6 +130,7 @@ export type IconeNome =
   | 'ficha'
   | 'humor-bom'
   | 'humor-neutro'
+  | 'humor-cansado'
   | 'humor-ruim';
 
 /** Nome semântico → componente do Lucide. */
@@ -184,6 +186,7 @@ const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
   ficha: ClipboardList,
   'humor-bom': Smile,
   'humor-neutro': Meh,
+  'humor-cansado': Annoyed,
   'humor-ruim': Frown,
 };
 

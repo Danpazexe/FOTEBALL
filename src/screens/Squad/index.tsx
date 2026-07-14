@@ -51,15 +51,33 @@ const FILTROS: FiltroPosicao[] = [
   'Todos', 'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
 ];
 
-/** Ícone + cor de humor pela moral (10–100). */
-function humorJogador(moral: number): {icone: IconeNome; cor: CorTexto} {
-  if (moral >= 70) {
-    return {icone: 'humor-bom', cor: 'success'};
+/**
+ * Bem-estar do jogador combinando MORAL (ânimo) e CONDIÇÃO FÍSICA (cansaço).
+ * A condição pesa: um jogador exausto aparece "cansado" mesmo com moral boa —
+ * antes o emote só olhava a moral (quase uniforme) e ficava sempre verde.
+ */
+function humorJogador(
+  moral: number,
+  condicao: number,
+): {icone: IconeNome; cor: CorTexto; rotulo: string} {
+  // Moral muito baixa domina: jogador desanimado.
+  if (moral < 35) {
+    return {icone: 'humor-ruim', cor: 'danger', rotulo: 'Desanimado'};
   }
-  if (moral >= 40) {
-    return {icone: 'humor-neutro', cor: 'warning'};
+  // Exausto (condição crítica) — vermelho, precisa poupar.
+  if (condicao < 45) {
+    return {icone: 'humor-cansado', cor: 'danger', rotulo: 'Exausto'};
   }
-  return {icone: 'humor-ruim', cor: 'danger'};
+  // Cansado (condição baixa) — âmbar.
+  if (condicao < 65) {
+    return {icone: 'humor-cansado', cor: 'warning', rotulo: 'Cansado'};
+  }
+  // Moral apenas ok — neutro.
+  if (moral < 65) {
+    return {icone: 'humor-neutro', cor: 'warning', rotulo: 'Neutro'};
+  }
+  // Tudo em ordem — feliz.
+  return {icone: 'humor-bom', cor: 'success', rotulo: 'Ótimo'};
 }
 
 function nomeCurto(jogador: Player): string {
@@ -232,18 +250,12 @@ function DestaqueJogador({
   corDivisor: string;
   onPress: () => void;
 }): React.JSX.Element {
-  const humor = humorJogador(jogador.moral);
+  const humor = humorJogador(jogador.moral, jogador.condicaoFisica);
   const tag = ehCapitao
     ? 'Capitão'
     : jogador.overall >= 80
     ? 'Craque'
     : 'Peça-chave';
-  const moralLabel =
-    jogador.moral >= 70
-      ? 'Moral alta'
-      : jogador.moral >= 40
-      ? 'Moral ok'
-      : 'Moral baixa';
 
   return (
     <Card variante="interactive" onPress={onPress} style={styles.destaque}>
@@ -275,11 +287,10 @@ function DestaqueJogador({
         </View>
         <View style={[styles.divisorVertical, {backgroundColor: corDivisor}]} />
         <View style={styles.selo}>
-          <Icon nome="ficha" size={16} color="textSecondary" />
-          <Text variant="labelM" numberOfLines={1}>
-            {moralLabel}
+          <Icon nome={humor.icone} size={16} color={humor.cor} />
+          <Text variant="labelM" numberOfLines={1} color={humor.cor}>
+            {humor.rotulo}
           </Text>
-          <Icon nome="tendencia" size={16} color={humor.cor} />
         </View>
       </View>
     </Card>
@@ -301,7 +312,7 @@ function LinhaJogador({
   const corCf =
     cf >= 75 ? esporte.fitness.high : cf >= 50 ? esporte.fitness.medium : esporte.fitness.low;
   const indisponivel = jogador.lesionado || jogador.suspenso;
-  const humor = humorJogador(jogador.moral);
+  const humor = humorJogador(jogador.moral, jogador.condicaoFisica);
 
   return (
     <Pressable
