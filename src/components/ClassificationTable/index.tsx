@@ -8,23 +8,24 @@ import type {Clube, TabelaClassificacao} from '../../types';
 
 /**
  * Tabela de classificação. Cabeçalho (#, Clube, P, J, SG) + uma linha por clube.
- * Destaca a linha do clube do usuário e marca as zonas de acesso (topo) e de
- * rebaixamento com filete à esquerda. Migrada ao Design System v2.
+ * Destaca a linha do clube do usuário e marca as zonas de acesso (topo, VERDE =
+ * positivo) e de rebaixamento (VERMELHO) com filete à esquerda + número da
+ * posição tingido pela zona. Migrada ao Design System v2.
  */
-function corZona(
+type Zona = 'acesso' | 'queda' | null;
+
+function zonaDaPosicao(
   posicao: number,
   zonaAcesso: number,
   zonaQueda: number | null,
-  acesso: string,
-  queda: string,
-): string {
+): Zona {
   if (posicao <= zonaAcesso) {
-    return acesso;
+    return 'acesso';
   }
   if (zonaQueda !== null && posicao >= zonaQueda) {
-    return queda;
+    return 'queda';
   }
-  return 'transparent';
+  return null;
 }
 
 export function ClassificationTable({
@@ -75,6 +76,20 @@ export function ClassificationTable({
         const posicao = index + 1;
         const destaque = !!clubeDestaqueId && linha.clubeId === clubeDestaqueId;
         const cor: CorTexto = destaque ? 'accent' : 'textPrimary';
+        const zona = zonaDaPosicao(posicao, zonaAcesso, zonaQueda);
+        const fileteCor =
+          zona === 'acesso'
+            ? cores.success
+            : zona === 'queda'
+            ? cores.danger
+            : 'transparent';
+        const corPos: CorTexto = destaque
+          ? 'accent'
+          : zona === 'acesso'
+          ? 'success'
+          : zona === 'queda'
+          ? 'danger'
+          : 'textSecondary';
         return (
           <View
             key={linha.clubeId}
@@ -82,19 +97,14 @@ export function ClassificationTable({
               styles.row,
               {
                 borderBottomColor: cores.border,
-                borderLeftColor: corZona(
-                  posicao,
-                  zonaAcesso,
-                  zonaQueda,
-                  cores.brand,
-                  cores.danger,
-                ),
+                borderLeftColor: fileteCor,
               },
               destaque ? {backgroundColor: cores.accentSoft} : null,
             ]}>
             <Text
-              variant="bodyM"
-              color={destaque ? 'accent' : 'textSecondary'}
+              variant="labelL"
+              weight="800"
+              color={corPos}
               tabular
               style={styles.colPos}>
               {posicao}
