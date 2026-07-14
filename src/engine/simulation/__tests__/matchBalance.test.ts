@@ -78,6 +78,34 @@ function criarJogadores(prefixo: string, overall: number): Player[] {
   }));
 }
 
+/** Grupo de linha de uma posição (p/ perfis com linhas divergentes). */
+function grupoLinha(pos: Position): 'GOL' | 'DEF' | 'MEI' | 'ATA' {
+  if (pos === 'GOL') return 'GOL';
+  if (pos === 'LD' || pos === 'ZAG' || pos === 'LE') return 'DEF';
+  if (pos === 'VOL' || pos === 'MC' || pos === 'MEI') return 'MEI';
+  return 'ATA';
+}
+
+/**
+ * Elenco com overall POR LINHA (goleiro/defesa/meio/ataque) — permite montar
+ * times de linhas DIVERGENTES (ex.: meio forte + ataque fraco) mantendo o mesmo
+ * overall médio. É o que reproduz o caso real (Santos×Grêmio) em que a auditoria
+ * achou a posse desacoplada do resultado.
+ */
+function criarJogadoresPerfil(
+  prefixo: string,
+  perfil: {GOL: number; DEF: number; MEI: number; ATA: number},
+): Player[] {
+  return POSICOES.map((posicao, index) => {
+    const ov = perfil[grupoLinha(posicao)];
+    return {
+      ...criarJogadores(prefixo, ov)[index],
+      id: `${prefixo}_${index}`,
+      posicaoPrincipal: posicao,
+    };
+  });
+}
+
 function criarClube(id: string, jogadores: Player[], tatica: Tatica): Clube {
   const formacao: Formacao = {
     tipo: '4-3-3',
@@ -352,5 +380,83 @@ describe('laboratório — qualidade pesa (forte x fraco)', () => {
     expect(m.taxaVitoriaCasa).toBeLessThan(0.56);
     expect(m.mediaGols).toBeGreaterThan(2.4);
     expect(m.mediaGols).toBeLessThan(3.1);
+  });
+});
+
+// ── Coerência domínio × estatísticas (posse/chutes/momento vs resultado) ─────
+// Cenário de LINHAS DIVERGENTES que o teste parelho não pega: o time com meio
+// melhor mas ataque pior dominava a bola e PERDIA, e a barra de posse / o gráfico
+// de momento apontavam o time errado (auditoria 2026-07). A posse agora reflete o
+// domínio OFENSIVO (ataque×defesa), não só o meio.
+function simularAssimetrico(
+  perfilCasa: {GOL: number; DEF: number; MEI: number; ATA: number},
+  perfilFora: {GOL: number; DEF: number; MEI: number; ATA: number},
+  total = 400,
+): Partida[] {
+  const jc = criarJogadoresPerfil('casa', perfilCasa);
+  const jf = criarJogadoresPerfil('fora', perfilFora);
+  const tc = criarClube('casa', jc, TATICA_NEUTRA);
+  const tf = criarClube('fora', jf, TATICA_NEUTRA);
+  return Array.from({length: total}, (_, i) =>
+    simularPartida({timeCasa: tc, timeFora: tf, jogadoresCasa: jc, jogadoresFora: jf, seed: i + 1}),
+  );
+}
+
+/** Fração dos DECIDIDOS em que o dono da posse finalizou MENOS que o rival. */
+function taxaDonoPosseChutouMenos(partidas: Partida[]): number {
+  let n = 0, dec = 0;
+  for (const p of partidas) {
+    const pc = p.placarCasa ?? 0, pf = p.placarFora ?? 0;
+    const posC = p.posseCasa ?? 50;
+    if (pc === pf || posC === 50) continue;
+    const finC = p.estatisticas?.casa.finalizacoes ?? 0;
+    const finF = p.estatisticas?.fora.finalizacoes ?? 0;
+    if (finC === finF) continue;
+    dec++;
+    if ((posC > 50) !== (finC > finF)) n++;
+  }
+  return dec > 0 ? n / dec : 0;
+}
+
+/** Fração dos DECIDIDOS em que o SINAL médio do momento aponta o vencedor. */
+function taxaMomentoAcertaVencedor(partidas: Partida[]): number {
+  let ok = 0, dec = 0;
+  for (const p of partidas) {
+    const pc = p.placarCasa ?? 0, pf = p.placarFora ?? 0;
+    if (pc === pf) continue;
+    const mom = p.estatisticas?.momentumPorMinuto ?? [];
+    if (mom.length === 0) continue;
+    dec++;
+    const media = mom.reduce((s, v) => s + v, 0) / mom.length;
+    if ((media > 0) === (pc > pf)) ok++;
+  }
+  return dec > 0 ? ok / dec : 0;
+}
+
+describe('laboratório — coerência domínio × estatísticas (posse/chutes/momento)', () => {
+  // Proxy Santos×Grêmio: casa com ATAQUE melhor, fora com MEIO melhor, overall ~igual.
+  const PERFIL_CASA_ATA = {GOL: 77, DEF: 76, MEI: 75, ATA: 79};
+  const PERFIL_FORA_MEIO = {GOL: 74, DEF: 75, MEI: 80, ATA: 74};
+
+  it('linhas divergentes: dono da posse NÃO é o que perde (era ~0.40, o bug real)', () => {
+    const partidas = simularAssimetrico(PERFIL_CASA_ATA, PERFIL_FORA_MEIO, 400);
+    const taxa = taxaMaisPosseVence(partidas);
+    console.log('[assimétrico ata+ x meio+] donoPosseVence =', taxa.toFixed(3));
+    expect(taxa).toBeGreaterThan(0.5);
+  });
+
+  it('chutes acompanham a posse: dono da posse raramente finaliza menos', () => {
+    const partidas = simularAssimetrico(PERFIL_CASA_ATA, PERFIL_FORA_MEIO, 400);
+    const taxa = taxaDonoPosseChutouMenos(partidas);
+    console.log('[assimétrico] donoPosseChutouMenos =', taxa.toFixed(3));
+    // Antes ~0.70 (posse e chutes em eixos opostos). Agora deve cair bem.
+    expect(taxa).toBeLessThan(0.4);
+  });
+
+  it('gráfico de momento aponta o vencedor na maioria dos jogos', () => {
+    const partidas = simularAssimetrico(PERFIL_CASA_ATA, PERFIL_FORA_MEIO, 400);
+    const taxa = taxaMomentoAcertaVencedor(partidas);
+    console.log('[assimétrico] momentoAcertaVencedor =', taxa.toFixed(3));
+    expect(taxa).toBeGreaterThan(0.6);
   });
 });

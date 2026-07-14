@@ -358,8 +358,12 @@ function acumularVolumeTime(
   time.assistenciasEsperadas += xgMinuto * 0.7;
 
   // Finalização extra (sem evento do simulador): quem pressiona chuta mais.
-  // Calibrado p/ ~25–29 chutes/jogo (soma dos dois times) — ver medição de stats.
-  const probFinalizacao = limitar(xgMinuto * 8, 0.022, 0.4);
+  // O VOLUME de chutes segue tanto o xG (qualidade da chance) quanto a POSSE
+  // (território) — antes vinha só do xG e contradizia a barra de posse (time de
+  // 20% de bola finalizava mais que o de 80%). fatorPosse: 50%→1.05, 30%→0.85,
+  // 70%→1.25. Calibrado p/ ~25–29 chutes/jogo (soma dos dois times).
+  const fatorPosse = 0.55 + fracaoPosse;
+  const probFinalizacao = limitar(xgMinuto * 7.2 * fatorPosse, 0.02, 0.42);
   if (rng() < probFinalizacao) {
     const naArea = rng() < 0.58;
     const noAlvo = rng() < (naArea ? 0.36 : 0.24) * (chuva ? 0.9 : 1);
@@ -502,15 +506,18 @@ export function acumularEstatisticasMinuto(
 ): void {
   processarEventosDoMinuto(entrada, stats.casa, stats.fora);
 
-  // Momentum do minuto (casa positivo): posse do minuto + peso dos lances.
-  let momento = (entrada.fracaoPosseCasa - 0.5) * 1.6;
+  // Momentum do minuto (casa positivo): base de POSSE (agora já alinhada a quem
+  // domina) + LANCES com peso maior, pra o gráfico ser DINÂMICO — um gol/chance
+  // cria um pico visível em vez de sumir sob o nível de posse (antes posse ×1.6
+  // dominava e o gráfico era só uma cópia suave da barra de posse).
+  let momento = (entrada.fracaoPosseCasa - 0.5) * 1.1;
   for (const evento of entrada.eventosDoMinuto) {
     const ehCasa = evento.timeId === entrada.timeCasaId;
     const impacto =
       evento.tipo === 'gol'
-        ? 0.4
+        ? 0.7
         : evento.tipo === 'penalti' || evento.tipo === 'chance_perdida'
-          ? 0.2
+          ? 0.4
           : 0;
     momento += ehCasa ? impacto : -impacto;
   }

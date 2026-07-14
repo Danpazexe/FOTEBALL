@@ -823,11 +823,23 @@ function disputarPosseMinuto(
   ctx: ContextoMinuto,
   eventosDoMinuto: EventoPartida[],
 ): number {
-  // Diferenças de força de meio são sutis (ex.: 72×66); em posse elas aparecem
-  // grandes. O fator 3.2 traduz: meio 75×60 ≈ 68% de bola, times iguais = 50%.
+  // Controle de meio-campo (quem circula a bola). Peso REDUZIDO: sozinho, com o
+  // antigo ×3.2, a posse ficava travada numa razão de meio e DESLIGADA de quem
+  // realmente ameaça — o time de meio melhor dominava a bola e perdia o jogo
+  // (ver auditoria "posse × resultado"). Agora o meio divide o peso com o ataque.
   const meioCasa = Math.max(1, ctx.forcaCasa.meio);
   const meioFora = Math.max(1, ctx.forcaFora.meio);
-  let fracaoCasa = 0.5 + (meioCasa / (meioCasa + meioFora) - 0.5) * 3.2;
+  let fracaoCasa = 0.5 + (meioCasa / (meioCasa + meioFora) - 0.5) * 1.8;
+
+  // Domínio OFENSIVO/territorial: quem ameaça mais (ataque vs defesa do rival)
+  // empurra o jogo pro campo adversário e RETÉM a bola lá. É ISTO que alinha a
+  // posse com quem cria chance/finaliza/marca — antes a posse ignorava ataque e
+  // defesa, então a barra de posse contradizia chutes, gols e resultado.
+  const domOfensivoCasa =
+    ctx.forcaCasa.ataque / (ctx.forcaCasa.ataque + ctx.forcaFora.defesa);
+  const domOfensivoFora =
+    ctx.forcaFora.ataque / (ctx.forcaFora.ataque + ctx.forcaCasa.defesa);
+  fracaoCasa += (domOfensivoCasa - domOfensivoFora) * 1.8;
 
   fracaoCasa +=
     intencaoPosse(ctx.timeCasa.taticaAtual) -
