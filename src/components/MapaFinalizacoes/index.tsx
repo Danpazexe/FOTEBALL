@@ -1,9 +1,8 @@
 /**
- * MapaFinalizacoes — mapa de chutes fiel ao Sofascore. Três partes:
- *   1) BALIZA com rede no topo (onde os chutes NO ALVO terminaram);
- *   2) CAMPO (terço de ataque) com os chutes plotados por posição/xG/desfecho;
- *   3) PAINEL do chute selecionado (jogador, minuto, xG, xGOT, resultado, pé,
- *      situação), navegável por ‹ › ou tocando num dot.
+ * MapaFinalizacoes — mapa de chutes (estilo Sofascore), migrado ao Design System
+ * v2. Três partes: BALIZA (chutes no alvo), CAMPO (terço de ataque, gramado do
+ * jogo) e PAINEL do chute selecionado. Todas as cores vêm de tokens do tema
+ * (useTheme/useEstilosDS); o gramado usa o mesmo verde da Tática nova.
  *
  * Recebe uma lista JÁ FILTRADA (time + tempo) de `Finalizacao` — a extração é
  * pura e determinística (`engine/simulation/finalizacoes`). Só desenho aqui.
@@ -12,39 +11,48 @@ import React, {useEffect, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import Svg, {Circle, ClipPath, Defs, G, Line, Path, Rect} from 'react-native-svg';
 
-import Icone from '../Icone';
-import {cores, espaco, raio} from '../../theme';
+import {
+  Icon,
+  espacamento,
+  raios,
+  useEstilosDS,
+  useTheme,
+  type CoresSemanticas,
+  type TemaDS,
+} from '../../design-system';
+import type {CoresEsporte} from '../../design-system/tokens/colors';
 import type {
   Finalizacao,
   ResultadoFinalizacao,
 } from '../../engine/simulation/finalizacoes';
 
-const LINHA = 'rgba(234, 242, 230, 0.5)';
-const LINHA_FORTE = 'rgba(234, 242, 230, 0.85)';
-const TURFA = '#123A25';
-const TURFA_LISTRA = '#0F3120';
-const REDE = 'rgba(234, 242, 230, 0.18)';
+// Gramado — mesmo verde da Tática nova (padrão visual atual).
+const CAMPO_VERDE = '#2E9E58';
+const CAMPO_VERDE_2 = '#2A9151';
+const CAL = 'rgba(255, 255, 255, 0.85)';
+const CAL_FRACA = 'rgba(255, 255, 255, 0.5)';
 const LISTRAS = 6;
 const TRANSPARENTE = 'transparent';
 
-/** Cor + preenchimento do dot conforme o desfecho do chute. */
-function estiloResultado(resultado: ResultadoFinalizacao): {
-  cor: string;
-  preenchido: boolean;
-} {
+/** Cor (token) + preenchimento do dot conforme o desfecho do chute. */
+function estiloResultado(
+  resultado: ResultadoFinalizacao,
+  cores: CoresSemanticas,
+  esporte: CoresEsporte,
+): {cor: string; preenchido: boolean} {
   switch (resultado) {
     case 'gol':
-      return {cor: cores.sucesso, preenchido: true};
+      return {cor: esporte.match.goal, preenchido: true};
     case 'defesa':
-      return {cor: cores.aviso, preenchido: true};
+      return {cor: cores.warning, preenchido: true};
     case 'trave':
-      return {cor: cores.secundaria, preenchido: true};
+      return {cor: cores.accent, preenchido: true};
     case 'penalti_perdido':
-      return {cor: cores.perigo, preenchido: true};
+      return {cor: cores.danger, preenchido: true};
     case 'bloqueada':
-      return {cor: cores.textoSecundario, preenchido: false};
+      return {cor: cores.textSecondary, preenchido: false};
     default:
-      return {cor: cores.textoMuted, preenchido: false};
+      return {cor: cores.textMuted, preenchido: false};
   }
 }
 
@@ -56,13 +64,6 @@ const ROTULO_RESULTADO: Record<ResultadoFinalizacao, string> = {
   bloqueada: 'Bloqueado',
   penalti_perdido: 'Pênalti perdido',
 };
-
-const LEGENDA = [
-  {rotulo: 'Gol', cor: cores.sucesso, preenchido: true},
-  {rotulo: 'No alvo', cor: cores.aviso, preenchido: true},
-  {rotulo: 'Trave', cor: cores.secundaria, preenchido: true},
-  {rotulo: 'Para fora', cor: cores.textoMuted, preenchido: false},
-];
 
 export default function MapaFinalizacoes({
   finalizacoes,
@@ -78,6 +79,8 @@ export default function MapaFinalizacoes({
   chaveFiltro: string;
   vazioTexto?: string;
 }): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores, esporte} = useTheme();
   const [sel, setSel] = useState(0);
   useEffect(() => setSel(0), [chaveFiltro]);
 
@@ -86,6 +89,13 @@ export default function MapaFinalizacoes({
   const noAlvo = finalizacoes.filter(f => f.noAlvo).length;
   const selIdx = total > 0 ? Math.min(sel, total - 1) : 0;
   const atual = total > 0 ? finalizacoes[selIdx] : null;
+
+  const legenda = [
+    {rotulo: 'Gol', cor: esporte.match.goal, preenchido: true},
+    {rotulo: 'No alvo', cor: cores.warning, preenchido: true},
+    {rotulo: 'Trave', cor: cores.accent, preenchido: true},
+    {rotulo: 'Para fora', cor: cores.textMuted, preenchido: false},
+  ];
 
   const W = largura;
 
@@ -120,27 +130,27 @@ export default function MapaFinalizacoes({
       ) : null}
 
       <View style={styles.legenda}>
-        {LEGENDA.map(item => {
-          const fundo = item.preenchido ? item.cor : TRANSPARENTE;
-          return (
-            <View key={item.rotulo} style={styles.legendaItem}>
-              <View
-                style={[
-                  styles.legendaDot,
-                  {borderColor: item.cor, backgroundColor: fundo},
-                ]}
-              />
-              <Text style={styles.legendaTexto}>{item.rotulo}</Text>
-            </View>
-          );
-        })}
+        {legenda.map(item => (
+          <View key={item.rotulo} style={styles.legendaItem}>
+            <View
+              style={[
+                styles.legendaDot,
+                {
+                  borderColor: item.cor,
+                  backgroundColor: item.preenchido ? item.cor : TRANSPARENTE,
+                },
+              ]}
+            />
+            <Text style={styles.legendaTexto}>{item.rotulo}</Text>
+          </View>
+        ))}
         <Text style={styles.legendaXg}>tamanho = xG</Text>
       </View>
     </View>
   );
 }
 
-/** Baliza com rede: chutes no alvo posicionados; o selecionado em destaque. */
+/** Baliza (sobre fundo claro): grade cinza + chutes no alvo coloridos. */
 function Baliza({
   largura,
   finalizacoes,
@@ -150,6 +160,7 @@ function Baliza({
   finalizacoes: Finalizacao[];
   selecionado: number;
 }): React.JSX.Element {
+  const {cores, esporte} = useTheme();
   const W = largura;
   const H = Math.round(W * 0.34);
   const postX = W * 0.2;
@@ -173,7 +184,7 @@ function Baliza({
           y1={topo}
           x2={postX + (postW / 10) * i}
           y2={base}
-          stroke={REDE}
+          stroke={cores.border}
           strokeWidth={0.75}
         />
       ))}
@@ -184,7 +195,7 @@ function Baliza({
           y1={topo + (frameH / 5) * i}
           x2={postX + postW}
           y2={topo + (frameH / 5) * i}
-          stroke={REDE}
+          stroke={cores.border}
           strokeWidth={0.75}
         />
       ))}
@@ -194,13 +205,20 @@ function Baliza({
           postX + postW
         } ${base}`}
         fill="none"
-        stroke={LINHA_FORTE}
+        stroke={cores.textMuted}
         strokeWidth={3}
       />
-      <Line x1={0} y1={base} x2={W} y2={base} stroke={LINHA} strokeWidth={1.5} />
+      <Line
+        x1={0}
+        y1={base}
+        x2={W}
+        y2={base}
+        stroke={cores.border}
+        strokeWidth={1.5}
+      />
       {/* Chutes no alvo. */}
       {noAlvo.map(({f, i}) => {
-        const {cor} = estiloResultado(f.resultado);
+        const {cor} = estiloResultado(f.resultado, cores, esporte);
         const ativo = i === selecionado;
         return (
           <Circle
@@ -209,9 +227,9 @@ function Baliza({
             cy={gy(f.golY ?? 0.2)}
             r={ativo ? 6 : 4}
             fill={cor}
-            stroke={ativo ? LINHA_FORTE : cor}
+            stroke={ativo ? cores.textPrimary : cor}
             strokeWidth={ativo ? 2 : 1}
-            opacity={ativo ? 1 : 0.7}
+            opacity={ativo ? 1 : 0.75}
           />
         );
       })}
@@ -219,7 +237,7 @@ function Baliza({
   );
 }
 
-/** Campo (terço de ataque) com todos os chutes; trajetória do selecionado. */
+/** Campo (terço de ataque) no gramado do jogo; trajetória do selecionado. */
 function Campo({
   largura,
   finalizacoes,
@@ -231,6 +249,7 @@ function Campo({
   selecionado: number;
   aoSelecionar: (i: number) => void;
 }): React.JSX.Element {
+  const {cores, esporte} = useTheme();
   const W = largura;
   const H = Math.round(W * 0.82);
   const mx = 8;
@@ -264,7 +283,13 @@ function Campo({
         </ClipPath>
       </Defs>
       <G clipPath="url(#mapaClip)">
-        <Rect x={mx} y={golY} width={larguraUtil} height={H - golY - 6} fill={TURFA} />
+        <Rect
+          x={mx}
+          y={golY}
+          width={larguraUtil}
+          height={H - golY - 6}
+          fill={CAMPO_VERDE}
+        />
         {Array.from({length: LISTRAS}).map((_, i) =>
           i % 2 === 1 ? (
             <Rect
@@ -273,7 +298,7 @@ function Campo({
               y={golY}
               width={larguraUtil / LISTRAS}
               height={H - golY - 6}
-              fill={TURFA_LISTRA}
+              fill={CAMPO_VERDE_2}
             />
           ) : null,
         )}
@@ -285,7 +310,7 @@ function Campo({
         height={H - golY - 6}
         rx={12}
         fill="none"
-        stroke={LINHA}
+        stroke={CAL}
         strokeWidth={1.5}
       />
       {/* Baliza (marca) no topo. */}
@@ -295,7 +320,7 @@ function Campo({
         width={golW}
         height={5}
         fill="none"
-        stroke={LINHA_FORTE}
+        stroke={CAL}
         strokeWidth={2.5}
       />
       {/* Grande e pequena área + meia-lua. */}
@@ -305,7 +330,7 @@ function Campo({
         width={areaW}
         height={areaH}
         fill="none"
-        stroke={LINHA}
+        stroke={CAL}
         strokeWidth={1.5}
       />
       <Rect
@@ -314,7 +339,7 @@ function Campo({
         width={pequenaW}
         height={pequenaH}
         fill="none"
-        stroke={LINHA}
+        stroke={CAL}
         strokeWidth={1.2}
       />
       <Path
@@ -322,10 +347,10 @@ function Campo({
           golY + areaH + H * 0.08
         } ${cx + areaW * 0.16} ${golY + areaH}`}
         fill="none"
-        stroke={LINHA}
+        stroke={CAL}
         strokeWidth={1.2}
       />
-      <Circle cx={cx} cy={penaltiY} r={2} fill={LINHA} />
+      <Circle cx={cx} cy={penaltiY} r={2} fill={CAL} />
       {/* Trajetória do chute selecionado (até o centro do gol). */}
       {sel ? (
         <Line
@@ -333,15 +358,15 @@ function Campo({
           y1={py(sel.y)}
           x2={cx}
           y2={golY}
-          stroke={LINHA_FORTE}
+          stroke={CAL}
           strokeWidth={1.4}
           strokeDasharray="5 4"
-          opacity={0.8}
+          opacity={0.85}
         />
       ) : null}
       {/* Dots (com área de toque). */}
       {ordenados.map(({f, i}) => {
-        const {cor, preenchido} = estiloResultado(f.resultado);
+        const {cor, preenchido} = estiloResultado(f.resultado, cores, esporte);
         const r = raioDot(f.xG);
         const ativo = i === selecionado;
         return (
@@ -353,7 +378,7 @@ function Campo({
                 cy={py(f.y)}
                 r={r + 3.5}
                 fill={TRANSPARENTE}
-                stroke={LINHA_FORTE}
+                stroke={CAL}
                 strokeWidth={2}
               />
             ) : null}
@@ -361,10 +386,10 @@ function Campo({
               cx={px(f.x)}
               cy={py(f.y)}
               r={r}
-              fill={preenchido ? cor : TRANSPARENTE}
+              fill={preenchido ? cor : CAL_FRACA}
               stroke={cor}
               strokeWidth={preenchido ? 1 : 1.6}
-              opacity={0.95}
+              opacity={0.98}
             />
           </G>
         );
@@ -373,7 +398,7 @@ function Campo({
   );
 }
 
-/** Painel do chute selecionado, navegável (‹ ›) — igual ao Sofascore. */
+/** Painel do chute selecionado, navegável (‹ ›). */
 function PainelChute({
   finalizacao,
   nome,
@@ -389,6 +414,7 @@ function PainelChute({
   aoAnterior: () => void;
   aoProximo: () => void;
 }): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
   const iniciais = nome
     .split(' ')
     .map(p => p[0])
@@ -427,7 +453,10 @@ function PainelChute({
         />
         <DadoChute rotulo="Situação" valor={finalizacao.situacao} />
         <DadoChute rotulo="Tipo de chute" valor={finalizacao.pe} />
-        <DadoChute rotulo="Origem" valor={finalizacao.deFora ? 'Fora da área' : 'Na área'} />
+        <DadoChute
+          rotulo="Origem"
+          valor={finalizacao.deFora ? 'Fora da área' : 'Na área'}
+        />
       </View>
     </View>
   );
@@ -442,6 +471,7 @@ function Seta({
   onPress: () => void;
   rotulo: string;
 }): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
   return (
     <Pressable
       accessibilityRole="button"
@@ -449,12 +479,19 @@ function Seta({
       onPress={onPress}
       hitSlop={8}
       style={styles.seta}>
-      <Icone nome={nome} tamanho={18} cor={cores.primaria} />
+      <Icon nome={nome} size={18} color="brand" />
     </Pressable>
   );
 }
 
-function DadoChute({rotulo, valor}: {rotulo: string; valor: string}): React.JSX.Element {
+function DadoChute({
+  rotulo,
+  valor,
+}: {
+  rotulo: string;
+  valor: string;
+}): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
   return (
     <View style={styles.dado}>
       <Text style={styles.dadoValor} numberOfLines={1}>
@@ -474,9 +511,11 @@ function Resumo({
   rotulo: string;
   destaque?: boolean;
 }): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
   return (
     <View style={styles.resumoItem}>
-      <Text style={[styles.resumoValor, destaque && {color: cores.primariaClara}]}>
+      <Text style={[styles.resumoValor, destaque && {color: cores.success}]}>
         {valor}
       </Text>
       <Text style={styles.resumoRotulo}>{rotulo}</Text>
@@ -484,145 +523,144 @@ function Resumo({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    alignItems: 'center',
-    gap: espaco.sm,
-  },
-  resumo: {
-    flexDirection: 'row',
-    gap: espaco.lg,
-    justifyContent: 'center',
-  },
-  resumoItem: {
-    alignItems: 'center',
-  },
-  resumoValor: {
-    color: cores.texto,
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  resumoRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  vazio: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-    paddingVertical: espaco.md,
-    textAlign: 'center',
-  },
-  painel: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
-    borderWidth: 1,
-    padding: espaco.sm,
-    width: '100%',
-  },
-  painelTopo: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.xs,
-  },
-  painelJogador: {
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  avatar: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieElevada,
-    borderColor: cores.bordaClara,
-    borderRadius: 999,
-    borderWidth: 1,
-    height: 34,
-    justifyContent: 'center',
-    width: 34,
-  },
-  avatarTexto: {
-    color: cores.texto,
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  painelNome: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  painelContagem: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  painelMinuto: {
-    backgroundColor: cores.superficie,
-    borderRadius: raio.sm,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 3,
-  },
-  painelMinutoTexto: {
-    color: cores.texto,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  seta: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderRadius: 999,
-    height: 30,
-    justifyContent: 'center',
-    width: 30,
-  },
-  painelGrade: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: espaco.sm,
-  },
-  dado: {
-    alignItems: 'center',
-    paddingVertical: espaco.xs,
-    width: '33.33%',
-  },
-  dadoValor: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  dadoRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 10,
-    fontWeight: '600',
-    marginTop: 1,
-  },
-  legenda: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.sm,
-    justifyContent: 'center',
-  },
-  legendaItem: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 4,
-  },
-  legendaDot: {
-    borderRadius: 999,
-    borderWidth: 1.6,
-    height: 11,
-    width: 11,
-  },
-  legendaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  legendaXg: {
-    color: cores.textoMuted,
-    fontSize: 10,
-    fontStyle: 'italic',
-  },
-});
+const criarEstilos = (t: TemaDS) =>
+  StyleSheet.create({
+    wrap: {
+      alignItems: 'center',
+      gap: espacamento[2],
+    },
+    resumo: {
+      flexDirection: 'row',
+      gap: espacamento[6],
+      justifyContent: 'center',
+    },
+    resumoItem: {
+      alignItems: 'center',
+    },
+    resumoValor: {
+      color: t.cores.textPrimary,
+      fontSize: 20,
+      fontWeight: '900',
+    },
+    resumoRotulo: {
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    vazio: {
+      color: t.cores.textSecondary,
+      fontSize: 12,
+      paddingVertical: espacamento[3],
+      textAlign: 'center',
+    },
+    painel: {
+      backgroundColor: t.cores.surface,
+      borderColor: t.cores.border,
+      borderRadius: raios.md,
+      borderWidth: 1,
+      padding: espacamento[2],
+      width: '100%',
+    },
+    painelTopo: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: espacamento[1],
+    },
+    painelJogador: {
+      alignItems: 'center',
+      flex: 1,
+      flexDirection: 'row',
+      gap: espacamento[2],
+    },
+    avatar: {
+      alignItems: 'center',
+      backgroundColor: t.cores.brandSoft,
+      borderRadius: 999,
+      height: 34,
+      justifyContent: 'center',
+      width: 34,
+    },
+    avatarTexto: {
+      color: t.cores.brand,
+      fontSize: 12,
+      fontWeight: '900',
+    },
+    painelNome: {
+      color: t.cores.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    painelContagem: {
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    painelMinuto: {
+      backgroundColor: t.cores.brand,
+      borderRadius: raios.sm,
+      paddingHorizontal: espacamento[2],
+      paddingVertical: 3,
+    },
+    painelMinutoTexto: {
+      color: t.cores.onBrand,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    seta: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surfaceSubtle,
+      borderRadius: 999,
+      height: 30,
+      justifyContent: 'center',
+      width: 30,
+    },
+    painelGrade: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginTop: espacamento[2],
+    },
+    dado: {
+      alignItems: 'center',
+      paddingVertical: espacamento[1],
+      width: '33.33%',
+    },
+    dadoValor: {
+      color: t.cores.textPrimary,
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    dadoRotulo: {
+      color: t.cores.textSecondary,
+      fontSize: 10,
+      fontWeight: '600',
+      marginTop: 1,
+    },
+    legenda: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: espacamento[2],
+      justifyContent: 'center',
+    },
+    legendaItem: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 4,
+    },
+    legendaDot: {
+      borderRadius: 999,
+      borderWidth: 1.6,
+      height: 11,
+      width: 11,
+    },
+    legendaTexto: {
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    legendaXg: {
+      color: t.cores.textMuted,
+      fontSize: 10,
+      fontStyle: 'italic',
+    },
+  });
