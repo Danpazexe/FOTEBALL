@@ -158,8 +158,10 @@ type PlacarAoVivo = {
   id: string;
   nomeCasa: string;
   nomeFora: string;
-  corCasa: string;
-  corFora: string;
+  idCasa: string;
+  idFora: string;
+  siglaCasa: string;
+  siglaFora: string;
   golsCasa: number;
   golsFora: number;
 };
@@ -891,8 +893,10 @@ function MatchSimulation(): React.JSX.Element | null {
       id: jogo.id,
       nomeCasa: jogo.nomeCasa,
       nomeFora: jogo.nomeFora,
-      corCasa: jogo.corCasa,
-      corFora: jogo.corFora,
+      idCasa: jogo.clubeCasa.id,
+      idFora: jogo.clubeFora.id,
+      siglaCasa: jogo.clubeCasa.sigla,
+      siglaFora: jogo.clubeFora.sigla,
       golsCasa: jogo.estado.placarCasa,
       golsFora: jogo.estado.placarFora,
     }));
@@ -1558,19 +1562,40 @@ function LinhaRodada({
   duracaoTotal: number;
 }): React.JSX.Element {
   const fim = minuto >= duracaoTotal;
+  // Como na tabela: quem está ganhando embolsaria +3 (empate não soma "vitória").
+  const casaGanhando = item.golsCasa > item.golsFora;
+  const foraGanhando = item.golsFora > item.golsCasa;
   return (
     <View style={styles.rodada}>
-      <View style={[styles.rodadaFaixa, {backgroundColor: item.corCasa}]} />
-      <Text variant="labelM" numberOfLines={1} style={styles.rodadaNomeEsq}>
+      <TeamCrest clubeId={item.idCasa} sigla={item.siglaCasa} size={20} />
+      <Text
+        variant="labelM"
+        weight={casaGanhando ? '800' : '600'}
+        numberOfLines={1}
+        style={styles.rodadaNomeEsq}>
         {item.nomeCasa}
       </Text>
-      <Text variant="labelL" tabular>
+      {casaGanhando ? (
+        <Text variant="caption" weight="800" color="success" tabular>
+          +3
+        </Text>
+      ) : null}
+      <Text variant="labelL" tabular style={styles.rodadaPlacar}>
         {item.golsCasa} - {item.golsFora}
       </Text>
-      <Text variant="labelM" numberOfLines={1} style={styles.rodadaNomeDir}>
+      {foraGanhando ? (
+        <Text variant="caption" weight="800" color="success" tabular>
+          +3
+        </Text>
+      ) : null}
+      <Text
+        variant="labelM"
+        weight={foraGanhando ? '800' : '600'}
+        numberOfLines={1}
+        style={styles.rodadaNomeDir}>
         {item.nomeFora}
       </Text>
-      <View style={[styles.rodadaFaixa, {backgroundColor: item.corFora}]} />
+      <TeamCrest clubeId={item.idFora} sigla={item.siglaFora} size={20} />
       <Text
         variant="caption"
         color={fim ? 'textMuted' : 'danger'}
@@ -1826,9 +1851,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: espacamento[3],
     minHeight: 44,
   },
-  rodadaFaixa: {width: 3, height: 22, borderRadius: 2},
   rodadaNomeEsq: {flex: 1, textAlign: 'right'},
   rodadaNomeDir: {flex: 1, textAlign: 'left'},
+  rodadaPlacar: {minWidth: 40, textAlign: 'center'},
   rodadaMin: {minWidth: 28, textAlign: 'right'},
 
   // Tabela ao vivo
