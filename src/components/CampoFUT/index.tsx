@@ -52,6 +52,17 @@ import type {Clube, Formacao, Player, Position, Tatica} from '../../types';
 import Escudo from '../Escudo';
 import Icone from '../Icone';
 
+/**
+ * Nome curto para caber sob a ficha (estilo Sofascore): apelido de uma palavra
+ * fica como está (Neymar, Rafael); nome composto vira o ÚLTIMO sobrenome
+ * (Deivid Washington → Washington). Evita que rótulos vizinhos colidam.
+ */
+function nomeCampo(jogador: Player): string {
+  const base = (jogador.apelido ?? jogador.nome).trim();
+  const partes = base.split(/\s+/);
+  return partes.length <= 1 ? base : partes[partes.length - 1];
+}
+
 /** Faixa de cor do overall — mesma régua do OverallBadge (DS). */
 function faixaCorOverall(overall: number): CorTexto {
   if (overall >= 75) {
@@ -98,7 +109,10 @@ const GHOST_LEVANTA = 0.78;
 // Tabuleiro tático CHAPADO (visto de cima). As fichas são posicionadas por
 // projetarSlot num retângulo plano; o MESMO mapa alimenta desenho e hit-test.
 // Margens (fração) para as fichas + nomes caberem dentro das linhas.
-const MARGEM_X = 0.12;
+// Margem lateral do tabuleiro. Menor = a linha de 4 se ESPALHA mais (antes 0.12
+// apertava os 4 do meio até os círculos se encostarem). Fica ≥ metade da ficha
+// pra não clipar o jogador mais aberto na borda.
+const MARGEM_X = 0.075;
 const MARGEM_Y = 0.05;
 
 /**
@@ -197,7 +211,7 @@ function CampoFUT({
   const {cores} = useTheme();
   // Tabuleiro CHAPADO (retrato). As fichas são CÍRCULOS (quadrado = diâmetro).
   const altura = Math.round(largura * 1.42);
-  const cardW = Math.round(largura * 0.155); // diâmetro do círculo
+  const cardW = Math.round(largura * 0.122); // diâmetro do círculo (folga na linha de 4/5)
   const cardH = cardW; // ficha quadrada → círculo centrado no slot
   const cardBancoW = Math.round(largura * 0.16);
   // Ficha "fantasma" que segue o dedo no arraste (círculo um pouco maior).
@@ -659,11 +673,13 @@ function CartaFUT({
   const styles = useEstilosDS(criarEstilos);
   const {cores} = useTheme();
   const raio2 = largura / 2;
+  // Rótulo estreito e centrado sob a ficha (largura ~1.6× a ficha), com o nome
+  // curto + reticências — antes 2.2× e nome inteiro faziam os nomes colidirem.
   const nomeStyle = {
-    width: largura * 2.2,
-    left: -largura * 0.6,
+    width: largura * 1.6,
+    left: -largura * 0.3,
     top: largura + 2,
-    fontSize: Math.max(9, Math.round(largura * 0.2)),
+    fontSize: Math.max(9, Math.round(largura * 0.22)),
   };
 
   if (!jogador) {
@@ -717,8 +733,11 @@ function CartaFUT({
           </View>
         ) : null}
       </View>
-      <Text style={[styles.fichaNome, nomeStyle]} numberOfLines={1}>
-        {jogador.apelido ?? jogador.nome}
+      <Text
+        style={[styles.fichaNome, nomeStyle]}
+        numberOfLines={1}
+        ellipsizeMode="tail">
+        {nomeCampo(jogador)}
       </Text>
     </View>
   );
