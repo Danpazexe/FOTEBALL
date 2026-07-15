@@ -506,18 +506,28 @@ export function acumularEstatisticasMinuto(
 ): void {
   processarEventosDoMinuto(entrada, stats.casa, stats.fora);
 
-  // Momentum do minuto (casa positivo): base de POSSE (agora já alinhada a quem
-  // domina) + LANCES com peso maior, pra o gráfico ser DINÂMICO — um gol/chance
-  // cria um pico visível em vez de sumir sob o nível de posse (antes posse ×1.6
-  // dominava e o gráfico era só uma cópia suave da barra de posse).
-  let momento = (entrada.fracaoPosseCasa - 0.5) * 1.1;
+  // MOMENTO DE ATAQUE (casa positivo), estilo Sofascore: reflete quem CRIA PERIGO
+  // no minuto, não quem tem a bola. Assim um time clínico com menos posse (mas que
+  // finaliza muito) aparece de verdade no gráfico — antes era posse-based e a
+  // atividade ofensiva de quem não tinha a bola sumia (só os gols pontuavam).
+  //  • AMEAÇA do minuto = xG-base de cada lado (probGol × fatorTempo). É a criação
+  //    de chance por força/tática, independente de posse. (Sem o fator de
+  //    "comeback" pra o gráfico não apontar o perdedor que corre atrás.)
+  //  • TERRITÓRIO = posse, com peso pequeno (quem tem a bola tende a estar à frente).
+  //  • LANCES reais = picos: um GOL satura a barra do minuto no lado que marcou.
+  const ameacaCasa =
+    entrada.probabilidades.probGolCasaPorMinuto * entrada.fatorTempo;
+  const ameacaFora =
+    entrada.probabilidades.probGolForaPorMinuto * entrada.fatorTempo;
+  let momento =
+    (ameacaCasa - ameacaFora) * 22 + (entrada.fracaoPosseCasa - 0.5) * 0.5;
   for (const evento of entrada.eventosDoMinuto) {
     const ehCasa = evento.timeId === entrada.timeCasaId;
     const impacto =
       evento.tipo === 'gol'
-        ? 0.7
+        ? 1.0
         : evento.tipo === 'penalti' || evento.tipo === 'chance_perdida'
-          ? 0.4
+          ? 0.55
           : 0;
     momento += ehCasa ? impacto : -impacto;
   }
