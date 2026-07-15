@@ -10,7 +10,7 @@
  */
 
 import React, {useMemo, useState} from 'react';
-import {StyleSheet, View, useWindowDimensions} from 'react-native';
+import {Modal, StyleSheet, View, useWindowDimensions} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import {
@@ -21,22 +21,28 @@ import {
   EmptyState,
   Icon,
   PositionBadge,
+  IconButton,
+  Pressable,
   Screen,
   SectionHeader,
   SegmentedTabs,
   TeamCrest,
   Text,
   espacamento,
+  raios,
   useTheme,
   type CorTexto,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
 import MapaFinalizacoes from '../../components/MapaFinalizacoes';
+import ReplayGol from '../../components/ReplayGol';
 import {
   calcularNotaPartida,
   type ResultadoJogador,
 } from '../../engine/simulation/matchRating';
 import {extrairFinalizacoes} from '../../engine/simulation/finalizacoes';
+import {reconstruirLancesGol} from '../../engine/simulation/lanceReplay';
+import type {LanceGol} from '../../engine/simulation/lances';
 import {analisarMomentos, type TomMomento} from '../../engine/simulation/momentos';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {rotuloMinuto} from '../../utils/minutoPartida';
@@ -208,10 +214,47 @@ function MatchResult(): React.JSX.Element {
   const nomesJogadores = useMemo(() => {
     const mapa: Record<string, string> = {};
     for (const j of jogadores) {
-      mapa[j.id] = j.nome;
+      mapa[j.id] = nomeCurto(j);
     }
     return mapa;
   }, [jogadores]);
+
+  // Replay dos gols: reconstrução PURA/determinística (mesma filosofia do mapa
+  // de chutes) — o toque num gol abre a animação do lance.
+  const lancesGol = useMemo(() => {
+    if (!partida) {
+      return [];
+    }
+    const posicoes: Record<string, Position> = {};
+    for (const j of jogadores) {
+      posicoes[j.id] = j.posicaoPrincipal;
+    }
+    return reconstruirLancesGol(partida, posicoes);
+  }, [partida, jogadores]);
+  const [lanceAberto, setLanceAberto] = useState<LanceGol | null>(null);
+
+  // Evento → lance por IDENTIDADE (mesma ordenação estável da engine): dois gols
+  // do mesmo autor no mesmo minuto abrem replays distintos — casar por campos
+  // (minuto/time/autor) colidiria e esconderia o segundo lance.
+  const lancePorEvento = useMemo(() => {
+    const mapa = new Map<EventoPartida, LanceGol>();
+    if (!partida) {
+      return mapa;
+    }
+    const golsOrdenados = [...partida.eventos]
+      .sort((a, b) => a.minuto - b.minuto)
+      .filter(e => ehEventoGol(e.tipo));
+    golsOrdenados.forEach((evento, i) => {
+      const lance = lancesGol[i];
+      if (lance) {
+        mapa.set(evento, lance);
+      }
+    });
+    return mapa;
+  }, [partida, lancesGol]);
+
+  const lanceDoEvento = (evento: EventoPartida): LanceGol | null =>
+    lancePorEvento.get(evento) ?? null;
 
   const header = (
     <AppHeader title="Relatório da partida" onBack={() => nav.goBack()} />
@@ -373,19 +416,29 @@ function MatchResult(): React.JSX.Element {
             <View style={estilos.golsRow}>
               <View style={estilos.golsCol}>
                 {golsCasa.map((evento, i) => (
-                  <View key={`c_${i}`} style={estilos.golItem}>
+                  <Pressable
+                    key={`c_${i}`}
+                    style={estilos.golItem}
+                    hitSlop={{top: 4, bottom: 4}}
+                    accessibilityLabel={`Ver replay: ${rotuloGol(evento)}`}
+                    onPress={() => setLanceAberto(lanceDoEvento(evento))}>
                     <Icon nome="bola" size={14} color="success" />
                     <Text variant="bodyM" numberOfLines={1} style={estilos.golTexto}>
                       {rotuloGol(evento)}
                     </Text>
-                  </View>
+                    <Icon nome="jogar" size={12} color="textMuted" />
+                  </Pressable>
                 ))}
               </View>
               <View style={estilos.golsCol}>
                 {golsFora.map((evento, i) => (
-                  <View
+                  <Pressable
                     key={`f_${i}`}
-                    style={[estilos.golItem, estilos.golItemFim]}>
+                    style={[estilos.golItem, estilos.golItemFim]}
+                    hitSlop={{top: 4, bottom: 4}}
+                    accessibilityLabel={`Ver replay: ${rotuloGol(evento)}`}
+                    onPress={() => setLanceAberto(lanceDoEvento(evento))}>
+                    <Icon nome="jogar" size={12} color="textMuted" />
                     <Text
                       variant="bodyM"
                       numberOfLines={1}
@@ -394,10 +447,13 @@ function MatchResult(): React.JSX.Element {
                       {rotuloGol(evento)}
                     </Text>
                     <Icon nome="bola" size={14} color="success" />
-                  </View>
+                  </Pressable>
                 ))}
               </View>
             </View>
+            <Text variant="caption" color="textMuted" align="center">
+              Toque num gol para ver o replay do lance
+            </Text>
           </View>
         </Card>
       ) : null}
@@ -564,6 +620,34 @@ function MatchResult(): React.JSX.Element {
         onPress={() => nav.navigate('MainTabs')}
         fullWidth
       />
+
+      {/* Replay do gol (animação do lance) — abre ao tocar num gol da lista. */}
+      <Modal
+        visible={lanceAberto !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setLanceAberto(null)}>
+        <View style={[estilos.replayOverlay, {backgroundColor: cores.overlay}]}>
+          {lanceAberto ? (
+            <View
+              accessibilityViewIsModal
+              style={[estilos.replayCard, {backgroundColor: cores.surface}]}>
+              <View style={estilos.replayFechar}>
+                <IconButton
+                  icone="fechar"
+                  accessibilityLabel="Fechar replay"
+                  onPress={() => setLanceAberto(null)}
+                />
+              </View>
+              <ReplayGol
+                lance={lanceAberto}
+                nomes={nomesJogadores}
+                siglaTime={siglaClube(clubes, lanceAberto.timeId)}
+              />
+            </View>
+          ) : null}
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -571,6 +655,22 @@ function MatchResult(): React.JSX.Element {
 const estilos = StyleSheet.create({
   encerrado: {
     letterSpacing: 1.5,
+  },
+  replayOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: espacamento[4],
+  },
+  replayCard: {
+    borderRadius: raios.lg,
+    padding: espacamento[3],
+    gap: espacamento[2],
+    // Nunca maior que a janela (paisagem/fonte grande): o campo do ReplayGol já
+    // se limita pela altura da janela, e este teto protege o restante do card.
+    maxHeight: '100%',
+  },
+  replayFechar: {
+    alignItems: 'flex-end',
   },
   placarLinha: {
     alignItems: 'center',
@@ -598,6 +698,8 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     gap: espacamento[2],
+    // Linha tocável (abre o replay): altura mínima + hitSlop ⇒ alvo ≥44.
+    minHeight: 36,
   },
   golItemFim: {
     justifyContent: 'flex-end',
