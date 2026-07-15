@@ -16,8 +16,8 @@
  *
  * Toda a REGRA vem dos módulos puros já existentes (nada é reimplementado aqui):
  * geometria (coordenadas), adaptacao (penalidade fora de posição, item 12),
- * defaults (mutadores de formação) e validacao. O visual de tier vem do tema
- * (nivelCarta/corOverall/glowDoTier). O componente é controlado: recebe a
+ * defaults (mutadores de formação) e validacao. Cores e espaçamento vêm do
+ * Design System v2 (tokens). O componente é controlado: recebe a
  * formação e devolve a nova via `onAtualizarFormacao` (que valida na store).
  */
 
@@ -40,11 +40,28 @@ import {
   preencherCoordenadas,
 } from '../../engine/tactics/geometria';
 import {validarEscalacao} from '../../engine/tactics/validacao';
-import {useEstilosDS, useTheme, type TemaDS} from '../../design-system';
-import {corOverall, espaco, raio} from '../../theme';
+import {
+  espacamento,
+  raios,
+  useEstilosDS,
+  useTheme,
+  type CorTexto,
+  type TemaDS,
+} from '../../design-system';
 import type {Clube, Formacao, Player, Position, Tatica} from '../../types';
 import Escudo from '../Escudo';
 import Icone from '../Icone';
+
+/** Faixa de cor do overall — mesma régua do OverallBadge (DS). */
+function faixaCorOverall(overall: number): CorTexto {
+  if (overall >= 75) {
+    return 'success';
+  }
+  if (overall >= 60) {
+    return 'warning';
+  }
+  return 'danger';
+}
 
 type CampoFUTProps = {
   clube: Clube;
@@ -544,7 +561,11 @@ function Cabecalho({
 
       <View style={styles.cabDireita}>
         <View style={styles.cabOverall}>
-          <Text style={[styles.cabOverallNum, {color: corOverall(overall)}]}>
+          <Text
+            style={[
+              styles.cabOverallNum,
+              {color: cores[faixaCorOverall(overall)]},
+            ]}>
             {overall}
           </Text>
           <Text style={styles.cabOverallRotulo}>OVR</Text>
@@ -982,23 +1003,23 @@ const LINHA_CAMPO = 'rgba(255, 255, 255, 0.85)';
 const criarEstilos = (t: TemaDS) =>
   StyleSheet.create({
     overlay: {
-      gap: espaco.sm,
+      gap: espacamento[2],
     },
     cabecalho: {
       alignItems: 'center',
       backgroundColor: t.cores.surface,
       borderColor: t.cores.border,
-      borderRadius: raio.md,
+      borderRadius: raios.md,
       borderWidth: 1,
       flexDirection: 'row',
       justifyContent: 'space-between',
-      padding: espaco.sm,
+      padding: espacamento[2],
     },
     cabInfo: {
       alignItems: 'center',
       flex: 1,
       flexDirection: 'row',
-      gap: espaco.sm,
+      gap: espacamento[2],
     },
     cabTextos: {
       flex: 1,
@@ -1014,10 +1035,10 @@ const criarEstilos = (t: TemaDS) =>
       alignItems: 'center',
       alignSelf: 'flex-start',
       backgroundColor: t.cores.surfaceSubtle,
-      borderRadius: raio.sm,
+      borderRadius: raios.sm,
       flexDirection: 'row',
       gap: 4,
-      paddingHorizontal: espaco.sm,
+      paddingHorizontal: espacamento[2],
       paddingVertical: 2,
     },
     cabFormacao: {
@@ -1028,7 +1049,7 @@ const criarEstilos = (t: TemaDS) =>
     cabDireita: {
       alignItems: 'center',
       flexDirection: 'row',
-      gap: espaco.sm,
+      gap: espacamento[2],
     },
     cabOverall: {
       alignItems: 'center',
@@ -1049,11 +1070,11 @@ const criarEstilos = (t: TemaDS) =>
       alignItems: 'center',
       backgroundColor: t.cores.surfaceSubtle,
       borderColor: t.cores.border,
-      borderRadius: raio.sm,
+      borderRadius: raios.sm,
       borderWidth: 1,
       gap: 1,
-      paddingHorizontal: espaco.sm,
-      paddingVertical: espaco.xs,
+      paddingHorizontal: espacamento[2],
+      paddingVertical: espacamento[1],
     },
     tecnicoEstrelas: {
       color: t.cores.accent,
@@ -1070,12 +1091,12 @@ const criarEstilos = (t: TemaDS) =>
     },
     banner: {
       alignItems: 'center',
-      borderRadius: raio.sm,
+      borderRadius: raios.sm,
       borderWidth: 1,
       flexDirection: 'row',
-      gap: espaco.xs,
-      paddingHorizontal: espaco.sm,
-      paddingVertical: espaco.xs,
+      gap: espacamento[1],
+      paddingHorizontal: espacamento[2],
+      paddingVertical: espacamento[1],
     },
     bannerErro: {
       backgroundColor: t.cores.dangerSoft,
@@ -1199,15 +1220,15 @@ const criarEstilos = (t: TemaDS) =>
     taticaStrip: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: espaco.xs,
+      gap: espacamento[1],
       justifyContent: 'center',
     },
     taticaChip: {
       backgroundColor: t.cores.surfaceSubtle,
       borderColor: t.cores.border,
-      borderRadius: raio.sm,
+      borderRadius: raios.sm,
       borderWidth: 1,
-      paddingHorizontal: espaco.sm,
+      paddingHorizontal: espacamento[2],
       paddingVertical: 3,
     },
     taticaChipTexto: {
@@ -1218,7 +1239,7 @@ const criarEstilos = (t: TemaDS) =>
     bancoHeader: {
       alignItems: 'center',
       flexDirection: 'row',
-      gap: espaco.sm,
+      gap: espacamento[2],
     },
     bancoTitulo: {
       color: t.cores.textPrimary,
@@ -1240,7 +1261,7 @@ const criarEstilos = (t: TemaDS) =>
       fontSize: 12,
     },
     bancoConteudo: {
-      gap: espaco.sm,
+      gap: espacamento[2],
       paddingHorizontal: 2,
       paddingVertical: 2,
     },
