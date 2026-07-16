@@ -124,6 +124,20 @@ import {
   type EstadoSerieDCarreira,
 } from './serieDCarreira';
 import {resolverSerieDNaVirada, type ResumoSerieD} from './serieDSeason';
+import {
+  criarEstadoPatrocinioVazio,
+  type EstadoPatrocinio,
+} from '../types/patrocinio';
+import {
+  aceitarPropostaPatrocinio,
+  recusarPropostaPatrocinio,
+} from '../engine/patrocinio/patrocinioEngine';
+import {
+  encerrarContratoTemporada,
+  garantirPropostasIniciais,
+  processarPatrocinioRodada,
+  temContratoPatrocinioAtivo,
+} from './patrocinioIntegracao';
 import type {
   AtributoChave,
   ChutePartida,
@@ -293,6 +307,14 @@ export interface GameState {
    * na D ou durante a fase de grupos (que roda como liga ativa de 6 clubes).
    */
   serieDCarreira: EstadoSerieDCarreira | null;
+  /** Patrocínios do clube do usuário (propostas/contrato ativo/histórico). */
+  patrocinio: EstadoPatrocinio;
+  /** (Re)gera as propostas de patrocínio do clube do usuário para a temporada. */
+  gerarPropostasPatrocinioUsuario: () => void;
+  /** Aceita uma proposta de patrocínio (cria contrato ativo). */
+  aceitarPropostaPatrocinioUsuario: (propostaId: string) => void;
+  /** Recusa uma proposta de patrocínio. */
+  recusarPropostaPatrocinioUsuario: (propostaId: string) => void;
   iniciarNovaCarreira: (clubeId: string) => void;
   /** Assume um novo clube após demissão: mantém a reputação, recomeça a temporada. */
   assumirClube: (clubeId: string) => void;
@@ -401,6 +423,72 @@ function enxugarEstatisticasIA(partida: Partida): Partida {
           : chute.grandeChance,
     ),
     qualidadeDados: partida.chutes ? 'causal_summary' : partida.qualidadeDados,
+  };
+}
+
+/** O clube do usuário venceu a partida dele nesta rodada? */
+function usuarioVenceuNaRodada(
+  partidas: Partida[],
+  clubeUsuarioId: string | null,
+  rodada: number,
+): boolean {
+  if (!clubeUsuarioId) {
+    return false;
+  }
+  const jogo = partidas.find(
+    p =>
+      p.rodada === rodada &&
+      p.jogada &&
+      (p.timeCasa === clubeUsuarioId || p.timeFora === clubeUsuarioId),
+  );
+  if (!jogo || jogo.placarCasa === undefined || jogo.placarFora === undefined) {
+    return false;
+  }
+  const ehCasa = jogo.timeCasa === clubeUsuarioId;
+  const gols = ehCasa ? jogo.placarCasa : jogo.placarFora;
+  const golsAdv = ehCasa ? jogo.placarFora : jogo.placarCasa;
+  return gols > golsAdv;
+}
+
+/**
+ * Processa o patrocínio de UMA rodada (bônus por vitória + progresso de metas),
+ * creditando no clube do usuário. Devolve os clubes com o crédito aplicado e o
+ * novo estado de patrocínio. Sem clube/contrato, é um no-op.
+ */
+function processarPatrocinioNaRodada(
+  state: GameState,
+  clubes: Clube[],
+  tabela: TabelaClassificacao[],
+  partidas: Partida[],
+  partidaUsuario: Partida | null,
+): {clubes: Clube[]; patrocinio: EstadoPatrocinio} {
+  const clubeUsuario = clubes.find(c => c.id === state.clubeUsuarioId);
+  if (!clubeUsuario) {
+    return {clubes, patrocinio: state.patrocinio};
+  }
+  const venceu = usuarioVenceuNaRodada(
+    partidas,
+    state.clubeUsuarioId,
+    state.rodadaAtual,
+  );
+  const data = partidaUsuario?.data ?? state.dataAtual ?? `${state.temporadaAtual}-01-01`;
+  const res = processarPatrocinioRodada(
+    state.patrocinio,
+    {
+      clube: clubeUsuario,
+      tabela,
+      partidas,
+      temporada: Number(state.temporadaAtual),
+    },
+    venceu,
+    data,
+  );
+  if (res.clube === clubeUsuario && res.patrocinio === state.patrocinio) {
+    return {clubes, patrocinio: state.patrocinio};
+  }
+  return {
+    clubes: clubes.map(c => (c.id === clubeUsuario.id ? res.clube : c)),
+    patrocinio: res.patrocinio,
   };
 }
 
@@ -846,6 +934,34 @@ export const useGameStore = create<GameState>((set, get) => ({
   demissao: null,
   historicoSerieD: [],
   serieDCarreira: null,
+  patrocinio: criarEstadoPatrocinioVazio(),
+
+  gerarPropostasPatrocinioUsuario: () => {
+    const state = get();
+    const clube = selecionarClubeUsuario(state);
+    if (!clube) {
+      return;
+    }
+    const patrocinio = garantirPropostasIniciais(state.patrocinio, {
+      clube,
+      tabela: state.tabela,
+      partidas: state.partidas,
+      temporada: Number(state.temporadaAtual),
+    });
+    set({patrocinio});
+  },
+
+  aceitarPropostaPatrocinioUsuario: propostaId => {
+    set(state => ({
+      patrocinio: aceitarPropostaPatrocinio(state.patrocinio, propostaId),
+    }));
+  },
+
+  recusarPropostaPatrocinioUsuario: propostaId => {
+    set(state => ({
+      patrocinio: recusarPropostaPatrocinio(state.patrocinio, propostaId),
+    }));
+  },
 
   iniciarNovaCarreira: clubeId => {
     // SEMPRE parte do seed limpo (e da temporada inicial): uma "nova carreira"
@@ -886,6 +1002,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       demissao: null,
       historicoSerieD: [],
       serieDCarreira: null,
+      patrocinio: criarEstadoPatrocinioVazio(),
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -914,6 +1031,8 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
     // Nova carreira = conquistas zeradas (são vinculadas à carreira).
     useAchievementsStore.getState().reiniciarConquistas();
+    // Propostas de patrocínio da temporada inicial (já dá o que decidir no dia 1).
+    get().gerarPropostasPatrocinioUsuario();
   },
 
   assumirClube: clubeId => {
@@ -944,6 +1063,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       clubeUsuarioId: clubeId,
       rodadaAtual: 1,
       serieDCarreira: null,
+      // Novo clube = novo contrato de patrocínio (o anterior era do outro clube).
+      patrocinio: criarEstadoPatrocinioVazio(),
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -978,6 +1099,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         `Contratado pelo ${escolhido.nome} (${divisao}). Hora de provar seu valor.`,
       ),
     });
+    get().gerarPropostasPatrocinioUsuario();
   },
 
   iniciarMataMataDaCarreira: () => {
@@ -1122,16 +1244,28 @@ export const useGameStore = create<GameState>((set, get) => ({
       return aplicarBilheteria(clube, posicaoClube(tabela, clube.id), `${state.temporadaAtual}-rodada-${state.rodadaAtual}`);
     });
 
+    // Patrocínio da rodada: bônus por vitória do usuário + progresso das metas.
+    // Aplicado ANTES da carreira para o saldo creditado refletir no eixo
+    // financeiro (rodadasNoVermelho etc.).
+    const {clubes: clubesComPatrocinio, patrocinio: patrocinioRodada} =
+      processarPatrocinioNaRodada(
+        state,
+        clubesComBilheteria,
+        tabela,
+        partidasComPublico,
+        partidaUsuarioCompleta,
+      );
+
     const carreira = atualizarCarreiraPosRodada(
       state,
-      clubesComBilheteria,
+      clubesComPatrocinio,
       jogadoresAtualizados,
       partidaUsuarioCompleta,
       adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} simulada.`),
     );
 
     // Treino automático do ciclo (pulado se o usuário treinou na mão).
-    const clubeUsuario = clubesComBilheteria.find(
+    const clubeUsuario = clubesComPatrocinio.find(
       clube => clube.id === state.clubeUsuarioId,
     );
     const jogadoresFinais =
@@ -1149,7 +1283,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       jogadores: jogadoresFinais,
       partidas: partidasComPublico,
       tabela,
-      clubes: clubesComBilheteria,
+      clubes: clubesComPatrocinio,
+      patrocinio: patrocinioRodada,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
       ultimaPartidaUsuario: partidaUsuarioCompleta,
       // Calendário: data passa a ser a do jogo disputado. O treino do ciclo já
@@ -1170,7 +1305,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       jogadores: jogadoresFinais,
       partidas: partidasComPublico,
       tabela,
-      clubes: clubesComBilheteria,
+      clubes: clubesComPatrocinio,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
     });
     get().processarPropostasIA();
@@ -1291,16 +1426,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       );
     });
 
+    // Patrocínio da rodada (jogo do usuário ao vivo): bônus por vitória + metas.
+    const {clubes: clubesComPatrocinio, patrocinio: patrocinioRodada} =
+      processarPatrocinioNaRodada(
+        state,
+        clubesFinais,
+        tabela,
+        partidasComPublico,
+        partidaUsuario,
+      );
+
     const carreira = atualizarCarreiraPosRodada(
       state,
-      clubesFinais,
+      clubesComPatrocinio,
       jogadoresAtualizados,
       partidaUsuario,
       adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} disputada.`),
     );
 
     // Treino automático do ciclo (pulado se o usuário treinou na mão).
-    const clubeUsuario = clubesFinais.find(
+    const clubeUsuario = clubesComPatrocinio.find(
       clube => clube.id === state.clubeUsuarioId,
     );
     const jogadoresFinais =
@@ -1318,7 +1463,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       jogadores: jogadoresFinais,
       partidas: partidasComPublico,
       tabela,
-      clubes: clubesFinais,
+      clubes: clubesComPatrocinio,
+      patrocinio: patrocinioRodada,
       formacaoPreLive: null,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
       ultimaPartidaUsuario: partidaUsuario,
@@ -1338,7 +1484,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       jogadores: jogadoresFinais,
       partidas: partidasComPublico,
       tabela,
-      clubes: clubesFinais,
+      clubes: clubesComPatrocinio,
       rodadaAtual: Math.min(39, state.rodadaAtual + 1),
     });
     get().processarPropostasIA();
@@ -2280,14 +2426,41 @@ export const useGameStore = create<GameState>((set, get) => ({
     );
 
     // Acerto financeiro de fim de temporada (patrocínio, salários, manutenção
-    // e juros sobre dívida) em todos os clubes.
-    const clubesComFolha = clubesMaster.map(clube =>
+    // e juros sobre dívida) em todos os clubes. O clube do usuário COM contrato
+    // de patrocínio pula o patrocínio-por-reputação (a renda vem do contrato).
+    const usuarioTemContrato = temContratoPatrocinioAtivo(state.patrocinio);
+    let clubesComFolha = clubesMaster.map(clube =>
       aplicarAcertoFinanceiroAnual(
         clube,
         jogadoresDoClube(jogadoresEvoluidos, clube.id),
         `${state.temporadaAtual}-fim`,
+        usuarioTemContrato && clube.id === state.clubeUsuarioId,
       ),
     );
+
+    // Encerramento do contrato de patrocínio: metas finais + parcela da temporada
+    // + fecha contrato expirado. Usa as classificações da temporada que acabou.
+    let patrocinioEncerrado = state.patrocinio;
+    const clubeUsuarioFolha = clubesComFolha.find(
+      c => c.id === state.clubeUsuarioId,
+    );
+    if (clubeUsuarioFolha) {
+      const res = encerrarContratoTemporada(
+        state.patrocinio,
+        {
+          clube: clubeUsuarioFolha,
+          tabela: state.tabela,
+          partidas: state.partidas,
+          temporada: Number(state.temporadaAtual),
+        },
+        Number(proximaTemporada),
+        `${state.temporadaAtual}-fim`,
+      );
+      patrocinioEncerrado = res.patrocinio;
+      clubesComFolha = clubesComFolha.map(c =>
+        c.id === clubeUsuarioFolha.id ? res.clube : c,
+      );
+    }
 
     // A Série D roda DE VERDADE na virada (grupos + mata-mata reais via engine),
     // uma única vez, definindo a ordem de acesso à Série C. `null` = mundo sem os
@@ -2553,6 +2726,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           : state.historicoSerieD,
       // A carreira na D recomeça na fase de grupos (mata-mata montado só ao fim).
       serieDCarreira: null,
+      patrocinio: patrocinioEncerrado,
       jovensDisponiveis,
       propostasRecebidas: [],
       copa:
@@ -2567,6 +2741,10 @@ export const useGameStore = create<GameState>((set, get) => ({
             ),
       mensagens,
     });
+    // Propostas da nova temporada — já com a divisão/tabela novas (pós-acesso/
+    // rebaixamento). `garantirPropostasIniciais` regenera porque a temporada de
+    // propostas mudou.
+    get().gerarPropostasPatrocinioUsuario();
   },
 
   promoverJovem: jovemId => {
@@ -2722,6 +2900,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       demissao: null,
       historicoSerieD: [],
       serieDCarreira: null,
+      patrocinio: criarEstadoPatrocinioVazio(),
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

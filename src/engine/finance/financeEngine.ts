@@ -246,8 +246,14 @@ export function aplicarAcertoFinanceiroAnual(
   clube: Clube,
   jogadores: Player[],
   data: string,
+  /**
+   * Pula o patrocínio derivado da reputação. Usado para o clube do usuário
+   * quando ele tem um CONTRATO de patrocínio ativo (a renda vem do contrato,
+   * evitando pagar duas vezes). Clubes da IA sempre usam o por-reputação.
+   */
+  pularPatrocinioReputacao = false,
 ): Clube {
-  let atual = aplicarPatrocinioAnual(clube, data);
+  let atual = pularPatrocinioReputacao ? clube : aplicarPatrocinioAnual(clube, data);
   atual = aplicarFolhaMensal(atual, jogadores, data);
   atual = aplicarManutencaoEstadio(atual, data);
   // Juros por último: incidem sobre o saldo já consolidado da temporada.

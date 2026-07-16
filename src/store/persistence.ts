@@ -26,6 +26,10 @@ import {comHabilidades} from '../engine/progression/habilidades';
 import {comTipo} from '../engine/progression/tipoJogador';
 import type {EstadoSerieDCarreira} from './serieDCarreira';
 import type {ResumoSerieD} from './serieDSeason';
+import {
+  criarEstadoPatrocinioVazio,
+  type EstadoPatrocinio,
+} from '../types/patrocinio';
 import {CONFIG_PADRAO, type ConfigJogo, type GameState} from './useGameStore';
 import {migrarSnapshot, VERSAO_SAVE} from './saveMigrations';
 
@@ -65,6 +69,8 @@ export interface SnapshotJogo {
   historicoSerieD?: ResumoSerieD[];
   /** Mata-mata da Série D em andamento (carreira na D). Aditivo. */
   serieDCarreira?: EstadoSerieDCarreira | null;
+  /** Patrocínios do clube do usuário (propostas/contrato/histórico). Aditivo. */
+  patrocinio?: EstadoPatrocinio;
 }
 
 /**
@@ -102,6 +108,7 @@ export function montarSnapshot(
     todosJogadores: state.todosJogadores,
     historicoSerieD: state.historicoSerieD,
     serieDCarreira: state.serieDCarreira,
+    patrocinio: state.patrocinio,
   };
 }
 
@@ -146,6 +153,8 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     demissao: snapshot.demissao ?? null,
     historicoSerieD: snapshot.historicoSerieD ?? [],
     serieDCarreira: snapshot.serieDCarreira ?? null,
+    // Patrocínios: ausente em saves anteriores → estado vazio (nada fabricado).
+    patrocinio: snapshot.patrocinio ?? criarEstadoPatrocinioVazio(),
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
     // só a Série A). Aplica a migração de habilidades/tipo também aqui.
