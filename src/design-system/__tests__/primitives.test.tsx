@@ -30,12 +30,12 @@ describe('primitives do design system', () => {
     });
   });
 
-  it('Text usa a cor do tema escuro por padrão', () => {
+  it('Text usa a cor do tema claro por padrão', () => {
     let r!: TestRenderer.ReactTestRenderer;
     act(() => {
       r = TestRenderer.create(<Text>olá</Text>);
     });
-    expect(estiloDoNo(r.toJSON()).color).toBe(coresEscuras.textPrimary);
+    expect(estiloDoNo(r.toJSON()).color).toBe(coresClaras.textPrimary);
   });
 
   it('Text reage à troca de tema (escuro → claro)', () => {

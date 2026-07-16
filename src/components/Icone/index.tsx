@@ -14,9 +14,11 @@
 import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import {
+  Annoyed,
   ArrowRightLeft,
   Bandage,
   Banknote,
+  Bell,
   Building2,
   CalendarCheck,
   CalendarDays,
@@ -36,6 +38,7 @@ import {
   Eye,
   FastForward,
   Flag,
+  Frown,
   Gauge,
   Goal,
   GraduationCap,
@@ -44,14 +47,19 @@ import {
   Home,
   LayoutGrid,
   Landmark,
+  ListFilter,
   ListOrdered,
   Lock,
   type LucideIcon,
   Medal,
+  Meh,
   Megaphone,
+  Menu,
+  Newspaper,
   Pause,
   Play,
   Rocket,
+  Search,
   Settings,
   Shield,
   ShieldHalf,
@@ -59,8 +67,10 @@ import {
   Smile,
   Sprout,
   Square,
+  Star,
   Sun,
   Target,
+  TrendingUp,
   Trophy,
   Users,
   UserStar,
@@ -109,7 +119,19 @@ export type IconeNome =
   | 'clima-nublado'
   | 'clima-chuva'
   | 'gramado'
-  | 'olho';
+  | 'olho'
+  | 'menu'
+  | 'sino'
+  | 'noticia'
+  | 'busca'
+  | 'filtro'
+  | 'estrela'
+  | 'tendencia'
+  | 'ficha'
+  | 'humor-bom'
+  | 'humor-neutro'
+  | 'humor-cansado'
+  | 'humor-ruim';
 
 /** Nome semântico → componente do Lucide. */
 const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
@@ -154,6 +176,18 @@ const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
   'clima-chuva': CloudRain,
   gramado: Sprout,
   olho: Eye,
+  menu: Menu,
+  sino: Bell,
+  noticia: Newspaper,
+  busca: Search,
+  filtro: ListFilter,
+  estrela: Star,
+  tendencia: TrendingUp,
+  ficha: ClipboardList,
+  'humor-bom': Smile,
+  'humor-neutro': Meh,
+  'humor-cansado': Annoyed,
+  'humor-ruim': Frown,
 };
 
 /**

@@ -171,12 +171,15 @@ function Gabinete(): React.JSX.Element {
     : null;
 
   return (
-    <Screen scroll>
-      <AppBar
-        title="Gabinete"
-        subtitle={`${desbloqueadas}/${total} conquistas`}
-        onBack={() => nav.goBack()}
-      />
+    <Screen
+      scroll
+      header={
+        <AppBar
+          title="Gabinete"
+          subtitle={`${desbloqueadas}/${total} conquistas`}
+          onBack={() => nav.goBack()}
+        />
+      }>
 
       {clubeUsuarioId ? (
         <Card variante="outlined" style={styles.carreiraCard}>

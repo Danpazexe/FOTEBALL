@@ -27,9 +27,9 @@ interface TemaState {
 
 export const useTemaStore = create<TemaState>(set => ({
   tema: temaEscuro,
-  // Padrão 'escuro' DURANTE a migração: o app segue idêntico (telas ainda escuras).
-  // Vira 'sistema'/'claro' quando todas as telas suportarem o tema claro (Fase 6).
-  modo: 'escuro',
+  // Padrão 'claro' (North Star): as telas migradas assumem o tema claro. As telas
+  // ainda NÃO migradas seguem escuras pela ponte `tema` (useTema()), até migrarem.
+  modo: 'claro',
   esquemaSistema: 'escuro',
   definirModo: modo => set({modo}),
   definirEsquemaSistema: esquemaSistema => set({esquemaSistema}),

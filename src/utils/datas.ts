@@ -85,3 +85,39 @@ export function formatarDataLonga(iso: string): string {
   const {mes, dia} = partes(iso);
   return `${diaDaSemana(iso)}, ${dia} de ${MESES[mes - 1] ?? ''}`;
 }
+
+/**
+ * Rótulo relativo da data-alvo vista da data atual do jogo: "Hoje", "Amanhã",
+ * "em N dias" (até 6) ou a data curta. Determinístico (sem "hoje" do sistema).
+ */
+export function rotuloRelativo(dataAtual: string, dataAlvo: string): string {
+  const dias = diferencaEmDias(dataAtual, dataAlvo);
+  if (dias <= 0) {
+    return 'Hoje';
+  }
+  if (dias === 1) {
+    return 'Amanhã';
+  }
+  if (dias <= 6) {
+    return `em ${dias} dias`;
+  }
+  return formatarDataCurta(dataAlvo);
+}
+
+/**
+ * Horário PROVÁVEL de bola rolando, derivado do dia da semana — apenas
+ * apresentacional (o jogo não modela kickoff) e determinístico. Fim de semana à
+ * tarde/começo da noite; meio de semana à noite.
+ */
+export function horarioProvavel(iso: string): string {
+  switch (indiceDiaSemana(iso)) {
+    case 0: // domingo
+      return '16:00';
+    case 6: // sábado
+      return '18:30';
+    case 3: // quarta (rodada de meio de semana)
+      return '21:30';
+    default:
+      return '20:00';
+  }
+}

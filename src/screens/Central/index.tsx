@@ -50,7 +50,7 @@ const GRUPOS: {titulo: string; itens: Atalho[]}[] = [
   {
     titulo: 'Gestão',
     itens: [
-      {rotulo: 'Mercado', icone: 'mercado', ir: nav => nav.navigate('TransferMarket')},
+      {rotulo: 'Mercado', icone: 'mercado', ir: nav => nav.navigate('MainTabs', {screen: 'TransferMarket'})},
       {rotulo: 'Contrato', icone: 'dinheiro', ir: nav => nav.navigate('Contratos')},
     ],
   },
@@ -68,8 +68,9 @@ function Central(): React.JSX.Element {
   const nav = useAppNavigation();
 
   return (
-    <Screen scroll>
-      <AppBar title="Central do Técnico" subtitle="Gestão do clube" />
+    <Screen
+      scroll
+      header={<AppBar title="Central do Técnico" subtitle="Gestão do clube" />}>
 
       {/* Destaques — uso diário (Elenco / Tática / Treino). */}
       <View style={estilos.destaquesRow}>

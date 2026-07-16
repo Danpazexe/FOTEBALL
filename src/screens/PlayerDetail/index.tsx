@@ -7,17 +7,17 @@ import React from 'react';
 import {StyleSheet, View} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
-import CartaJogador from '../../components/CartaJogador';
 import AttributeRadar from '../../components/AttributeRadar';
-import OverallBadge from '../../components/OverallBadge';
 import StatBar from '../../components/StatBar';
+import PlayerAvatar from '../../components/PlayerAvatar';
 import {
-  AppBar,
+  AppHeader,
   Badge,
   Button,
   Card,
-  Chip,
   Icon,
+  OverallRing,
+  PositionBadge,
   Screen,
   StatValue,
   Text,
@@ -96,7 +96,6 @@ function PlayerDetail(): React.JSX.Element {
   const clubes = useGameStore(state => state.clubes);
   const venderJogador = useGameStore(state => state.venderJogador);
   const emprestarJogador = useGameStore(state => state.emprestarJogador);
-  const definirFocoTreino = useGameStore(state => state.definirFocoTreino);
   const definirCapitao = useGameStore(state => state.definirCapitao);
   const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
   const confirm = useConfirm();
@@ -104,8 +103,10 @@ function PlayerDetail(): React.JSX.Element {
 
   if (!jogador) {
     return (
-      <Screen scroll>
-        <AppBar title="Jogador" onBack={() => nav.goBack()} />
+      <Screen
+        header={
+          <AppHeader title="Perfil do jogador" onBack={() => nav.goBack()} />
+        }>
         <Text variant="bodyM" color="textSecondary">
           Jogador não encontrado.
         </Text>
@@ -166,17 +167,30 @@ function PlayerDetail(): React.JSX.Element {
   };
 
   return (
-    <Screen scroll>
-      <AppBar
-        title={jogador.nome}
-        subtitle={`${jogador.posicaoPrincipal} · ${jogador.idade} anos · ${jogador.nacionalidade}`}
-        onBack={() => nav.goBack()}
-        right={<OverallBadge overall={jogador.overall} />}
-      />
-
-      <View style={styles.cartaWrap}>
-        <CartaJogador jogador={jogador} />
-      </View>
+    <Screen
+      scroll
+      header={
+        <AppHeader title="Perfil do jogador" onBack={() => nav.goBack()} />
+      }>
+      {/* Identidade: avatar + nome + posição/idade + anel de overall */}
+      <Card variante="outlined" style={styles.identidade}>
+        <PlayerAvatar id={jogador.id} tamanho={64} />
+        <View style={styles.identidadeInfo}>
+          <View style={styles.identidadeNome}>
+            <Text variant="titleL" numberOfLines={1}>
+              {jogador.apelido ?? jogador.nome}
+            </Text>
+            {ehCapitao ? <Badge label="C" tom="brand" solido /> : null}
+          </View>
+          <View style={styles.identidadeMeta}>
+            <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
+            <Text variant="labelM" color="textSecondary" numberOfLines={1}>
+              {jogador.idade} anos · {jogador.nacionalidade}
+            </Text>
+          </View>
+        </View>
+        <OverallRing valor={jogador.overall} tamanho={56} />
+      </Card>
 
       <StatusChip tom={status.tom} icone={status.icone} rotulo={status.rotulo} />
       {jogador.emprestimo ? (
@@ -245,9 +259,9 @@ function PlayerDetail(): React.JSX.Element {
         <StatValue label="Salário" value={moeda(jogador.salario)} style={styles.flex} />
       </View>
       <View style={styles.metricsRow}>
-        <StatValue label="Condição" value={`${jogador.condicaoFisica}%`} style={styles.flex} />
-        <StatValue label="Moral" value={`${jogador.moral}`} style={styles.flex} />
-        <StatValue label="Forma" value={`${jogador.forma}`} style={styles.flex} />
+        <StatValue label="Condição" value={`${Math.round(jogador.condicaoFisica)}%`} style={styles.flex} />
+        <StatValue label="Moral" value={`${Math.round(jogador.moral)}`} style={styles.flex} />
+        <StatValue label="Forma" value={jogador.forma.toFixed(1)} style={styles.flex} />
       </View>
 
       <Secao titulo="Temporada">
@@ -319,32 +333,6 @@ function PlayerDetail(): React.JSX.Element {
                 fullWidth
               />
             )}
-          </Card>
-        </Secao>
-      ) : null}
-
-      {doClubeUsuario ? (
-        <Secao titulo="Foco de treino">
-          <Card variante="outlined" style={styles.cardGap}>
-            <Text variant="caption" color="textSecondary">
-              O atributo em foco evolui mais rápido nos treinos (limitado ao
-              potencial).
-            </Text>
-            <View style={styles.focoChips}>
-              <Chip
-                label="Nenhum"
-                selected={!jogador.focoTreino}
-                onPress={() => definirFocoTreino(jogador.id, null)}
-              />
-              {ATRIBUTOS.map(attr => (
-                <Chip
-                  key={attr.chave}
-                  label={attr.label}
-                  selected={jogador.focoTreino === attr.chave}
-                  onPress={() => definirFocoTreino(jogador.id, attr.chave)}
-                />
-              ))}
-            </View>
           </Card>
         </Secao>
       ) : null}
@@ -463,7 +451,10 @@ export default PlayerDetail;
 const styles = StyleSheet.create({
   flex: {flex: 1},
   caps: {textTransform: 'uppercase', letterSpacing: 1},
-  cartaWrap: {alignItems: 'center', marginVertical: espacamento[2]},
+  identidade: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  identidadeInfo: {flex: 1, gap: espacamento[1]},
+  identidadeNome: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  identidadeMeta: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
   radarWrap: {alignItems: 'center'},
   statusChip: {
     alignSelf: 'center',
@@ -510,6 +501,5 @@ const styles = StyleSheet.create({
   atributoProgressoBarra: {height: '100%', borderRadius: 2},
   nota: {marginTop: espacamento[1]},
   capitaoRow: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
-  focoChips: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[1]},
   acoes: {gap: espacamento[2]},
 });

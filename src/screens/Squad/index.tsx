@@ -1,207 +1,392 @@
+/**
+ * Aba Elenco (North Star — fiel ao mockup). Header com busca e filtro por ícone,
+ * abas em pílula (Todos/Titulares/Reservas), jogador em DESTAQUE (avatar, nome,
+ * posição/idade, anel de overall "GER" e dois selos: papel + moral) e a lista
+ * escaneável numa moldura: avatar · posição · nome · idade · overall · condição
+ * física · humor — com destaque para lesão/suspensão. Tocar abre o detalhe.
+ */
 import React, {useMemo, useState} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {ScrollView, StyleSheet, TextInput, View} from 'react-native';
 
-import MiniPlayerCard from '../../components/MiniPlayerCard';
 import {
   AppBar,
+  Badge,
   Card,
   Chip,
+  Divider,
+  Icon,
+  IconButton,
+  OverallRing,
+  PositionBadge,
+  ProgressBar,
+  Pressable,
   Screen,
-  StatValue,
+  SegmentedTabs,
   Text,
   espacamento,
   raios,
   useTheme,
+  type CorTexto,
 } from '../../design-system';
-import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
-import {useAppNavigation} from '../../navigation/types';
+import type {IconeNome} from '../../components/Icone';
+import PlayerAvatar from '../../components/PlayerAvatar';
+import {useElencoNavigation} from '../../navigation/types';
 import {
   selecionarClubeUsuario,
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {forcaDoClube} from '../../utils/forca';
-import {moedaCompacta} from '../../utils/formatters';
-import type {Position} from '../../types';
+import type {Player, Position} from '../../types';
 
+type Aba = 'todos' | 'titulares' | 'reservas';
 type FiltroPosicao = 'Todos' | Position;
 
+const ABAS: Array<{chave: Aba; rotulo: string}> = [
+  {chave: 'todos', rotulo: 'Todos'},
+  {chave: 'titulares', rotulo: 'Titulares'},
+  {chave: 'reservas', rotulo: 'Reservas'},
+];
+
 const FILTROS: FiltroPosicao[] = [
-  'Todos',
-  'GOL',
-  'ZAG',
-  'LD',
-  'LE',
-  'VOL',
-  'MC',
-  'MEI',
-  'PD',
-  'PE',
-  'SA',
-  'CA',
+  'Todos', 'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
 ];
 
 /**
- * Aba Elenco — grade de mini-cartas (tier) com filtro por posição. Tocar uma
- * carta abre o detalhe do jogador. Migrada ao Design System v2.
+ * Emote de condição — SEGUE A MESMA REGRA DA BARRA de condição física (limiares
+ * 75/50), então barra e emote ficam SEMPRE da mesma cor no mesmo momento. Os
+ * tokens success/warning/danger são idênticos a esporte.fitness.high/medium/low.
+ * (Antes o emote olhava a moral — quase uniforme no jogo — e ficava sempre verde.)
  */
-function Squad() {
-  const nav = useAppNavigation();
+const LIMIAR_COND_ALTA = 75;
+const LIMIAR_COND_MEDIA = 50;
+
+function humorJogador(
+  condicao: number,
+): {icone: IconeNome; cor: CorTexto; rotulo: string} {
+  if (condicao >= LIMIAR_COND_ALTA) {
+    return {icone: 'humor-bom', cor: 'success', rotulo: 'Descansado'};
+  }
+  if (condicao >= LIMIAR_COND_MEDIA) {
+    return {icone: 'humor-cansado', cor: 'warning', rotulo: 'Cansado'};
+  }
+  return {icone: 'humor-ruim', cor: 'danger', rotulo: 'Exausto'};
+}
+
+function nomeCurto(jogador: Player): string {
+  return jogador.apelido ?? jogador.nome;
+}
+
+function normalizar(texto: string): string {
+  return texto
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
+function Squad(): React.JSX.Element {
+  const nav = useElencoNavigation();
+  const {cores} = useTheme();
   const jogadores = useJogadoresUsuario();
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
-  const todosJogadores = useGameStore(state => state.jogadores);
+  const [aba, setAba] = useState<Aba>('todos');
   const [filtro, setFiltro] = useState<FiltroPosicao>('Todos');
+  const [busca, setBusca] = useState('');
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const [filtroAberto, setFiltroAberto] = useState(false);
 
-  const jogadoresFiltrados = useMemo(() => {
-    if (filtro === 'Todos') {
-      return jogadores;
-    }
-    return jogadores.filter(jogador => jogador.posicaoPrincipal === filtro);
-  }, [jogadores, filtro]);
-
-  const resumo = useMemo(() => {
-    const total = jogadores.length;
-    const media =
-      total === 0
-        ? 0
-        : Math.round(jogadores.reduce((s, j) => s + j.overall, 0) / total);
-    const valor = jogadores.reduce((s, j) => s + j.valorMercado, 0);
-    const indisponiveis = jogadores.filter(
-      j => j.lesionado || j.suspenso,
-    ).length;
-    const folha = calcularFolhaSalarial(jogadores);
-    return {total, media, valor, indisponiveis, folha};
-  }, [jogadores]);
-
-  // Contagem por posição — alimenta o número no chip de filtro.
-  const contagem = useMemo(() => {
-    const mapa: Partial<Record<Position, number>> = {};
-    for (const jogador of jogadores) {
-      mapa[jogador.posicaoPrincipal] =
-        (mapa[jogador.posicaoPrincipal] ?? 0) + 1;
-    }
-    return mapa;
-  }, [jogadores]);
-
-  const forca = useMemo(
-    () => (clubeUsuario ? forcaDoClube(clubeUsuario, todosJogadores) : null),
-    [clubeUsuario, todosJogadores],
+  const titularesIds = useMemo(
+    () =>
+      new Set(
+        clubeUsuario?.formacaoAtual?.titulares.map(t => t.jogadorId) ?? [],
+      ),
+    [clubeUsuario],
   );
 
+  const jogadoresFiltrados = useMemo(() => {
+    const alvo = normalizar(busca.trim());
+    return jogadores
+      .filter(j => {
+        if (aba === 'titulares') {
+          return titularesIds.has(j.id);
+        }
+        if (aba === 'reservas') {
+          return !titularesIds.has(j.id);
+        }
+        return true;
+      })
+      .filter(j => filtro === 'Todos' || j.posicaoPrincipal === filtro)
+      .filter(j => alvo === '' || normalizar(nomeCurto(j)).includes(alvo));
+  }, [jogadores, aba, filtro, busca, titularesIds]);
+
+  // Jogador em destaque: o capitão, ou o de maior overall.
+  const destaque = useMemo(() => {
+    if (jogadores.length === 0) {
+      return null;
+    }
+    const capitao = jogadores.find(j => j.id === clubeUsuario?.capitaoId);
+    return capitao ?? jogadores.reduce((m, j) => (j.overall > m.overall ? j : m));
+  }, [jogadores, clubeUsuario]);
+
+  const abrir = (id: string) => nav.navigate('PlayerDetail', {jogadorId: id});
+
   return (
-    <Screen scroll>
-      <AppBar
-        title="Elenco"
-        subtitle={`${resumo.total} jogadores · média ${resumo.media} · folha ${moedaCompacta(
-          resumo.folha,
-        )}`}
+    <Screen
+      scroll
+      header={
+        <AppBar
+          title="Elenco"
+          right={
+            <View style={styles.headerAcoes}>
+              <IconButton
+                icone="busca"
+                onPress={() => setBuscaAberta(v => !v)}
+                accessibilityLabel="Buscar jogador"
+                tom={buscaAberta ? 'brand' : 'textPrimary'}
+              />
+              <IconButton
+                icone="filtro"
+                onPress={() => setFiltroAberto(v => !v)}
+                accessibilityLabel="Filtrar por posição"
+                tom={filtroAberto || filtro !== 'Todos' ? 'brand' : 'textPrimary'}
+              />
+              <IconButton
+                icone="lesao"
+                onPress={() => nav.navigate('DepartamentoMedico')}
+                accessibilityLabel="Departamento médico"
+              />
+            </View>
+          }
+        />
+      }>
+      <SegmentedTabs
+        abas={ABAS.map(a => ({chave: a.chave, rotulo: a.rotulo}))}
+        ativa={aba}
+        onSelect={c => setAba(c as Aba)}
       />
 
-      <View style={styles.metricsRow}>
-        <StatValue label="Jogadores" value={`${resumo.total}`} style={styles.metric} />
-        <StatValue label="Média OVR" value={`${resumo.media}`} style={styles.metric} />
-        <StatValue label="Valor" value={moedaCompacta(resumo.valor)} style={styles.metric} />
-      </View>
-      {resumo.indisponiveis > 0 ? (
-        <Text variant="labelM" color="warning">
-          {resumo.indisponiveis} jogador(es) indisponível(eis) (lesão/suspensão).
-        </Text>
+      {buscaAberta ? (
+        <TextInput
+          value={busca}
+          onChangeText={setBusca}
+          autoFocus
+          placeholder="Buscar por nome"
+          placeholderTextColor={cores.textMuted}
+          accessibilityLabel="Buscar por nome"
+          style={[
+            styles.busca,
+            {
+              backgroundColor: cores.surfaceSubtle,
+              borderColor: cores.border,
+              color: cores.textPrimary,
+            },
+          ]}
+        />
       ) : null}
 
-      <View style={styles.chipsRow}>
-        {FILTROS.map(opcao => {
-          const n = opcao === 'Todos' ? jogadores.length : contagem[opcao] ?? 0;
-          return (
+      {filtroAberto ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipsRow}>
+          {FILTROS.map(opcao => (
             <Chip
               key={opcao}
-              label={`${opcao} ${n}`}
+              label={opcao}
               selected={filtro === opcao}
               onPress={() => setFiltro(opcao)}
             />
-          );
-        })}
-      </View>
+          ))}
+        </ScrollView>
+      ) : null}
+
+      {destaque ? (
+        <DestaqueJogador
+          jogador={destaque}
+          ehCapitao={destaque.id === clubeUsuario?.capitaoId}
+          corDivisor={cores.border}
+          onPress={() => abrir(destaque.id)}
+        />
+      ) : null}
 
       {jogadoresFiltrados.length === 0 ? (
         <Text variant="bodyM" color="textSecondary">
-          Nenhum jogador nesta posição.
+          Nenhum jogador neste filtro.
         </Text>
       ) : (
-        <View style={styles.grade}>
-          {jogadoresFiltrados.map(jogador => (
-            <MiniPlayerCard
-              key={jogador.id}
-              jogador={jogador}
-              ehCapitao={clubeUsuario?.capitaoId === jogador.id}
-              onPress={() =>
-                nav.navigate('PlayerDetail', {jogadorId: jogador.id})
-              }
-            />
+        <Card variante="outlined" padding={0}>
+          {jogadoresFiltrados.map((jogador, i) => (
+            <React.Fragment key={jogador.id}>
+              {i > 0 ? <Divider /> : null}
+              <LinhaJogador
+                jogador={jogador}
+                ehCapitao={jogador.id === clubeUsuario?.capitaoId}
+                onPress={() => abrir(jogador.id)}
+              />
+            </React.Fragment>
           ))}
-        </View>
-      )}
-
-      {forca ? (
-        <Card variante="outlined" padding={4} style={styles.resumo}>
-          <Text variant="labelM" color="textSecondary" style={styles.caps}>
-            Resumo do elenco
-          </Text>
-          <ResumoLinha label="Força ofensiva" valor={forca.ataque} />
-          <ResumoLinha label="Meio-campo" valor={forca.meio} />
-          <ResumoLinha label="Defesa" valor={forca.defesa} />
-          <Text variant="caption" color="warning">
-            {resumo.indisponiveis > 0
-              ? `Risco: ${resumo.indisponiveis} jogador(es) indisponível(eis)`
-              : 'Sem desfalques no momento'}
-          </Text>
         </Card>
-      ) : null}
+      )}
     </Screen>
   );
 }
 
-function ResumoLinha({
-  label,
-  valor,
+/** Card do jogador em destaque (avatar + nome + posição/idade + anel + selos). */
+function DestaqueJogador({
+  jogador,
+  ehCapitao,
+  corDivisor,
+  onPress,
 }: {
-  label: string;
-  valor: number;
+  jogador: Player;
+  ehCapitao: boolean;
+  corDivisor: string;
+  onPress: () => void;
 }): React.JSX.Element {
-  const {cores} = useTheme();
-  const pct = Math.max(0, Math.min(100, (Math.round(valor) / 99) * 100));
+  const humor = humorJogador(jogador.condicaoFisica);
+  const tag = ehCapitao
+    ? 'Capitão'
+    : jogador.overall >= 80
+    ? 'Craque'
+    : 'Peça-chave';
+
   return (
-    <View style={styles.resumoLinha}>
-      <Text variant="labelM" style={styles.resumoLabel}>
-        {label}
-      </Text>
-      <View style={[styles.resumoTrack, {backgroundColor: cores.surfaceSubtle}]}>
-        <View
-          style={[
-            styles.resumoFill,
-            {width: `${pct}%`, backgroundColor: cores.brand},
-          ]}
-        />
+    <Card variante="interactive" onPress={onPress} style={styles.destaque}>
+      <View style={styles.destaqueTopo}>
+        <PlayerAvatar id={jogador.id} tamanho={56} />
+        <View style={styles.destaqueInfo}>
+          <View style={styles.linhaNome}>
+            <Text variant="titleM" numberOfLines={1}>
+              {nomeCurto(jogador)}
+            </Text>
+            {ehCapitao ? <Badge label="C" tom="brand" solido /> : null}
+          </View>
+          <Text variant="labelM" color="textSecondary">
+            {jogador.posicaoPrincipal} · {jogador.idade} anos
+          </Text>
+        </View>
+        <OverallRing valor={jogador.overall} tamanho={52} rotulo="GER" />
       </View>
-    </View>
+
+      <Divider />
+
+      <View style={styles.selos}>
+        <View style={styles.selo}>
+          <Icon nome="ficha" size={16} color="textSecondary" />
+          <Text variant="labelM" numberOfLines={1}>
+            {tag}
+          </Text>
+          <Icon nome="estrela" size={16} color="accent" />
+        </View>
+        <View style={[styles.divisorVertical, {backgroundColor: corDivisor}]} />
+        <View style={styles.selo}>
+          <Icon nome={humor.icone} size={16} color={humor.cor} />
+          <Text variant="labelM" numberOfLines={1} color={humor.cor}>
+            {humor.rotulo}
+          </Text>
+        </View>
+      </View>
+    </Card>
+  );
+}
+
+/** Linha da lista: avatar · posição · nome · idade · overall · condição · humor. */
+function LinhaJogador({
+  jogador,
+  ehCapitao,
+  onPress,
+}: {
+  jogador: Player;
+  ehCapitao: boolean;
+  onPress: () => void;
+}): React.JSX.Element {
+  const {esporte} = useTheme();
+  const cf = jogador.condicaoFisica;
+  // Mesmos limiares do emote (humorJogador) → barra e emote na mesma cor.
+  const corCf =
+    cf >= LIMIAR_COND_ALTA
+      ? esporte.fitness.high
+      : cf >= LIMIAR_COND_MEDIA
+      ? esporte.fitness.medium
+      : esporte.fitness.low;
+  const indisponivel = jogador.lesionado || jogador.suspenso;
+  const humor = humorJogador(jogador.condicaoFisica);
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={styles.linha}
+      accessibilityLabel={`${nomeCurto(jogador)}, ${jogador.posicaoPrincipal}, overall ${jogador.overall}`}>
+      <PlayerAvatar id={jogador.id} tamanho={40} />
+      <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
+      <View style={styles.linhaNomeWrap}>
+        <Text variant="labelL" numberOfLines={1}>
+          {nomeCurto(jogador)}
+        </Text>
+        {ehCapitao ? (
+          <Text variant="caption" color="brand" weight="800">
+            C
+          </Text>
+        ) : null}
+      </View>
+      <Text variant="labelM" color="textSecondary" tabular style={styles.colIdade}>
+        {jogador.idade}
+      </Text>
+      <Text variant="titleM" tabular style={styles.colOvr}>
+        {jogador.overall}
+      </Text>
+      <View style={styles.colCf}>
+        <ProgressBar valor={jogador.condicaoFisica} cor={corCf} altura={6} />
+      </View>
+      {indisponivel ? (
+        <Icon
+          nome={jogador.lesionado ? 'lesao' : 'cartao'}
+          size={18}
+          color="danger"
+        />
+      ) : (
+        <Icon nome={humor.icone} size={18} color={humor.cor} />
+      )}
+    </Pressable>
   );
 }
 
 export default Squad;
 
 const styles = StyleSheet.create({
-  metricsRow: {flexDirection: 'row', gap: espacamento[3]},
-  metric: {flex: 1},
-  chipsRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
-  grade: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
-  resumo: {gap: espacamento[3]},
-  caps: {textTransform: 'uppercase', letterSpacing: 1},
-  resumoLinha: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
-  resumoLabel: {width: 104},
-  resumoTrack: {
-    flex: 1,
-    height: 9,
-    borderRadius: raios.full,
-    overflow: 'hidden',
+  headerAcoes: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
+  busca: {
+    borderRadius: raios.md,
+    borderWidth: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    paddingHorizontal: espacamento[3],
+    paddingVertical: espacamento[2],
   },
-  resumoFill: {height: '100%', borderRadius: raios.full},
+  chipsRow: {flexDirection: 'row', gap: espacamento[2], paddingRight: espacamento[4]},
+  // Destaque
+  destaque: {gap: espacamento[3]},
+  destaqueTopo: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  destaqueInfo: {flex: 1, gap: 3},
+  linhaNome: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  selos: {flexDirection: 'row', alignItems: 'center'},
+  selo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[2],
+  },
+  divisorVertical: {width: 1, alignSelf: 'stretch', marginHorizontal: espacamento[3]},
+  // Linha
+  linha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[3],
+    minHeight: 56,
+    paddingHorizontal: espacamento[3],
+    paddingVertical: espacamento[1],
+  },
+  linhaNomeWrap: {flex: 1, flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  colIdade: {minWidth: 22, textAlign: 'right'},
+  colOvr: {minWidth: 24, textAlign: 'right'},
+  colCf: {width: 40},
 });

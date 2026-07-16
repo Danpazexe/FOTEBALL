@@ -18,7 +18,7 @@
  * Invariante: cada evento de GOL (`gol`/`gol_contra`) vira exatamente um chute com
  * `gol: true` para o time que marcou → nº de gols no mapa == placar.
  */
-import type {EventoPartida, Partida, Position} from '../../types';
+import type {ChutePartida, EventoPartida, Partida, Position} from '../../types';
 import {ehEventoGol} from '../../types';
 import {criarRNGComSeed, hashString, type RandomGenerator} from './rng';
 
@@ -41,7 +41,8 @@ export type SituacaoChute =
   | 'Escanteio'
   | 'Contra-ataque'
   | 'Pênalti'
-  | 'Falta';
+  | 'Falta'
+  | 'Rebote';
 
 /** Um chute posicionado no terço de ataque (coordenadas normalizadas 0..1). */
 export interface Finalizacao {
@@ -162,10 +163,94 @@ function derivarGol(
   };
 }
 
+/** Rótulo de UI da parte do corpo persistida no chute V2. */
+function peDoChuteV2(corpo: ChutePartida['corpo']): PeChute {
+  if (corpo === 'cabeca') {
+    return 'Cabeça';
+  }
+  return corpo === 'pe_esquerdo' ? 'Pé esquerdo' : 'Pé direito';
+}
+
+/** Rótulo de UI da situação persistida no chute V2. */
+function situacaoDoChuteV2(chute: ChutePartida): SituacaoChute {
+  switch (chute.situacao) {
+    case 'penalti':
+      return 'Pênalti';
+    case 'falta':
+      return 'Falta';
+    case 'escanteio':
+      return 'Escanteio';
+    case 'contra_ataque':
+      return 'Contra-ataque';
+    case 'rebote':
+      return 'Rebote';
+    default:
+      return chute.assistenciaId !== undefined ? 'Assistência' : 'Jogo aberto';
+  }
+}
+
+/** Converte um chute FACTUAL do ledger V2 para o formato do mapa. */
+function finalizacaoDoChuteV2(chute: ChutePartida): Finalizacao {
+  const resultado: ResultadoFinalizacao =
+    chute.resultado === 'gol'
+      ? 'gol'
+      : chute.situacao === 'penalti'
+        ? 'penalti_perdido'
+        : chute.resultado === 'defesa'
+          ? 'defesa'
+          : chute.resultado === 'trave'
+            ? 'trave'
+            : chute.resultado === 'bloqueado'
+              ? 'bloqueada'
+              : 'fora';
+  return {
+    timeId: chute.timeId,
+    jogadorId: chute.jogadorId,
+    minuto: chute.minuto,
+    primeiroTempo: chute.minuto <= 45,
+    resultado,
+    gol: chute.resultado === 'gol',
+    noAlvo: chute.golX !== undefined,
+    xG: chute.xg,
+    xGOT: chute.xgot,
+    x: chute.x,
+    y: chute.y,
+    golX: chute.golX,
+    golY: chute.golY,
+    deFora: chute.deFora,
+    pe: peDoChuteV2(chute.corpo),
+    situacao: situacaoDoChuteV2(chute),
+  };
+}
+
+/**
+ * FACHADA do mapa de finalizações (RF-09/RF-11): partidas da engine causal V2
+ * devolvem os chutes REAIS persistidos (`factual: true`); partidas legacy
+ * caem na reconstrução plausível e a UI deve rotular como estimativa.
+ * Gols anulados pelo VAR ficam fora do mapa (mesma convenção das estatísticas).
+ */
+export function obterFinalizacoesPartida(
+  partida: Partida,
+  posicoes: Record<string, Position>,
+): {finalizacoes: Finalizacao[]; factual: boolean} {
+  const chutes = partida.chutes;
+  if (chutes !== undefined && chutes.length > 0) {
+    return {
+      finalizacoes: chutes
+        .filter(chute => chute.resultado !== 'gol_anulado')
+        .map(finalizacaoDoChuteV2)
+        .sort((a, b) => a.minuto - b.minuto),
+      factual: true,
+    };
+  }
+  return {finalizacoes: extrairFinalizacoes(partida, posicoes), factual: false};
+}
+
 /**
  * Reconstrói a lista de finalizações da partida (ordenada por minuto). `posicoes`
  * mapeia jogadorId → posição natural (para o corredor do chute); ausências caem
- * no centro. Determinístico por `partida.id`.
+ * no centro. Determinístico por `partida.id`. USO: apenas partidas LEGACY (a
+ * fachada `obterFinalizacoesPartida` decide) — nunca apresentar como factual.
  */
 export function extrairFinalizacoes(
   partida: Partida,
@@ -179,7 +264,10 @@ export function extrairFinalizacoes(
       return;
     }
     // VAR anulou o gol: não é um chute "real" no mapa (evita confundir o placar).
-    if (evento.tipo === 'chance_perdida' && /anulad/i.test(evento.descricao)) {
+    if (
+      evento.tipo === 'chance_perdida' &&
+      (evento.anuladoVAR === true || /anulad/i.test(evento.descricao))
+    ) {
       return;
     }
 

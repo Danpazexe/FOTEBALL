@@ -99,19 +99,22 @@ function NewCareer(): React.JSX.Element {
   }
 
   return (
-    <Screen scroll>
-      <AppBar
-        title={divisaoFiltro ? `Brasileirão ${divisaoFiltro}` : 'Brasileirão'}
-        subtitle="Escolha o clube"
-        onBack={nav.goBack}
-        right={
-          <Image
-            source={logoDaDivisao(divisaoFiltro)}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-        }
-      />
+    <Screen
+      scroll
+      header={
+        <AppBar
+          title={divisaoFiltro ? `Brasileirão ${divisaoFiltro}` : 'Brasileirão'}
+          subtitle="Escolha o clube"
+          onBack={nav.goBack}
+          right={
+            <Image
+              source={logoDaDivisao(divisaoFiltro)}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          }
+        />
+      }>
       {secoes.map(secao => (
         <View key={secao.divisao} style={styles.secao}>
           <Text variant="labelM" color="textSecondary" style={styles.caps}>

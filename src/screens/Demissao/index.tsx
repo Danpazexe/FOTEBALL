@@ -115,11 +115,14 @@ function Demissao(): React.JSX.Element {
   }
 
   return (
-    <Screen scroll>
-      <AppBar
-        title="Você foi demitido"
-        subtitle={`Reputação ${reputacaoTecnico}/100`}
-      />
+    <Screen
+      scroll
+      header={
+        <AppBar
+          title="Você foi demitido"
+          subtitle={`Reputação ${reputacaoTecnico}/100`}
+        />
+      }>
 
       <Card variante="status" status="danger" padding={4}>
         <Text variant="bodyM">

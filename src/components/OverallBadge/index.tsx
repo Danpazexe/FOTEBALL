@@ -1,26 +1,36 @@
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
-import {corOverall, glowDoTier, nivelCarta} from '../../theme';
+import {useTheme, type CorTexto} from '../../design-system';
 
 type OverallBadgeProps = {
   overall: number;
   size?: number;
-  /** Brilho do tier por trás do disco (v0.0.2). Desligue em listas densas. */
+  /** Mantido por compatibilidade; sem efeito na paleta nova (sem glow de tier). */
   glow?: boolean;
 };
 
-function OverallBadge({overall, size = 36, glow = true}: OverallBadgeProps) {
-  const cor = corOverall(overall);
-  const tier = nivelCarta(overall);
+/** Faixa de cor por overall — mesma lógica do anel (alto/verde, médio/âmbar). */
+function faixaCor(overall: number): CorTexto {
+  if (overall >= 75) {
+    return 'success';
+  }
+  if (overall >= 60) {
+    return 'warning';
+  }
+  return 'danger';
+}
+
+function OverallBadge({overall, size = 36}: OverallBadgeProps) {
+  const {cores} = useTheme();
+  const cor = cores[faixaCor(overall)];
   return (
     <View
       style={[
         styles.badge,
-        glow ? glowDoTier(overall) : null,
         {
           borderColor: cor,
-          backgroundColor: tier.background,
+          backgroundColor: cores.surface,
           width: size,
           height: size,
           borderRadius: size / 2,

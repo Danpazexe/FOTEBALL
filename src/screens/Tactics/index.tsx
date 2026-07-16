@@ -1,28 +1,27 @@
 /**
- * Tela Tática. Escalação estilo FUT: o técnico monta o time num campo com CARTAS
- * (CampoFUT) — arrasta um card sobre outro para trocar, ou puxa um reserva do
- * banco horizontal sobre um titular para substituir. O cabeçalho traz clube,
- * overall do time e card do técnico; o banner valida as regras mínimas. Também há
- * "preencher rápido" por esquema-base e as instruções táticas.
+ * Tela Tática (North Star). O técnico monta o time no campo estilo FUT (CampoFUT,
+ * com drag-drop) e ajusta as instruções em SELETORES (dropdown): formação no topo,
+ * e mentalidade/marcação/linha/ritmo/lado/amplidão em linhas. "SALVAR TÁTICA"
+ * confirma e volta (as mudanças já são persistidas na hora).
  *
- * Mantém o scroll travado enquanto há um arraste em curso, para o gesto de
- * reposicionar não disputar com a rolagem da tela.
+ * Mantém o scroll travado durante um arraste, para o gesto não disputar com a
+ * rolagem. O CampoFUT e seus gestos são preservados integralmente.
  */
 
 import React, {useState} from 'react';
-import {
-  Dimensions,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {Dimensions, StyleSheet, View} from 'react-native';
 
 import CampoFUT from '../../components/CampoFUT';
-import Chip from '../../components/Chip';
 import {useConfirm, useToast} from '../../components/feedback';
-import {AppHeader, Botao, OptionGroup, Section} from '../../components/ui';
+import {
+  AppBar,
+  Button,
+  Screen,
+  SectionHeader,
+  SelectRow,
+  Text,
+  espacamento,
+} from '../../design-system';
 import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
@@ -35,7 +34,6 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {cores, espaco} from '../../theme';
 import type {Tatica} from '../../types';
 
 const OPCOES_ESTILO: Tatica['estiloOfensivo'][] = [
@@ -66,6 +64,7 @@ const OPCOES_AMPLIDAO: NonNullable<Tatica['amplidao']>[] = [
   'Normal',
   'Amplo',
 ];
+const NOMES_ESTRATEGIA = ESTRATEGIAS.map(e => e.nome);
 
 function Tactics(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -87,15 +86,20 @@ function Tactics(): React.JSX.Element {
   const formacao = clubeUsuario?.formacaoAtual ?? null;
   const taticaAtual = clubeUsuario?.taticaAtual ?? null;
 
-  const largura = Math.min(Dimensions.get('window').width - espaco.lg * 2, 360);
+  const largura = Math.min(
+    Dimensions.get('window').width - espacamento[4] * 2,
+    360,
+  );
 
   if (!clubeUsuario || !taticaAtual || !formacao) {
     return (
-      <SafeAreaView style={styles.screen}>
+      <Screen>
         <View style={styles.vazio}>
-          <Text style={styles.vazioTexto}>Carregando escalação…</Text>
+          <Text variant="bodyM" color="textSecondary">
+            Carregando escalação…
+          </Text>
         </View>
-      </SafeAreaView>
+      </Screen>
     );
   }
 
@@ -137,167 +141,126 @@ function Tactics(): React.JSX.Element {
     toast('Escalados os 11 melhores.', 'sucesso');
   }
 
+  const aplicarEstrategia = (nome: string) => {
+    const estr = ESTRATEGIAS.find(e => e.nome === nome);
+    if (estr) {
+      atualizarTaticaUsuario(estr.tatica);
+    }
+  };
+
+  const ajustar = <K extends keyof Tatica>(chave: K, valor: Tatica[K]) =>
+    atualizarTaticaUsuario({...taticaAtual, [chave]: valor});
+
+  const salvar = () => {
+    toast('Tática salva.', 'sucesso');
+    nav.goBack();
+  };
+
   return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.conteudo}
-        scrollEnabled={!arrastando}
-        showsVerticalScrollIndicator={false}>
-        <AppHeader
-          titulo="Escalação"
-          subtitulo={clubeUsuario.nome}
+    <Screen
+      scroll
+      scrollEnabled={!arrastando}
+      header={
+        <AppBar
+          title="Tática"
+          subtitle={clubeUsuario.nome}
           onBack={() => nav.goBack()}
         />
+      }>
+      <SelectRow
+        pill
+        label="Formação"
+        valor={formacaoTipo}
+        opcoes={FORMACOES_DISPONIVEIS}
+        onSelect={v =>
+          aplicarFormacao(v as (typeof FORMACOES_DISPONIVEIS)[number])
+        }
+      />
 
-        <CampoFUT
-          clube={clubeUsuario}
-          formacao={formacao}
-          jogadores={jogadores}
-          tatica={taticaAtual}
-          forca={forca}
-          reputacaoTecnico={reputacaoTecnico}
-          largura={largura}
-          onAtualizarFormacao={atualizarFormacaoUsuario}
-          onArrastandoChange={setArrastando}
-          onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
+      <CampoFUT
+        clube={clubeUsuario}
+        formacao={formacao}
+        jogadores={jogadores}
+        tatica={taticaAtual}
+        forca={forca}
+        reputacaoTecnico={reputacaoTecnico}
+        largura={largura}
+        onAtualizarFormacao={atualizarFormacaoUsuario}
+        onArrastandoChange={setArrastando}
+        onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
+      />
+
+      <Button
+        titulo="Escalar os 11 melhores"
+        variante="ghost"
+        icone="tatica"
+        onPress={escalarMelhores}
+        fullWidth
+      />
+
+      <SectionHeader titulo="Instruções" />
+      <View style={styles.controles}>
+        <SelectRow
+          label="Estratégia"
+          valor={estrategia ?? 'Personalizada'}
+          opcoes={NOMES_ESTRATEGIA}
+          onSelect={aplicarEstrategia}
         />
+        <SelectRow
+          label="Mentalidade"
+          valor={taticaAtual.estiloOfensivo}
+          opcoes={OPCOES_ESTILO}
+          onSelect={v => ajustar('estiloOfensivo', v as Tatica['estiloOfensivo'])}
+        />
+        <SelectRow
+          label="Marcação"
+          valor={taticaAtual.marcacao}
+          opcoes={OPCOES_MARCACAO}
+          onSelect={v => ajustar('marcacao', v as Tatica['marcacao'])}
+        />
+        <SelectRow
+          label="Linha defensiva"
+          valor={taticaAtual.linhaDefensiva}
+          opcoes={OPCOES_LINHA}
+          onSelect={v => ajustar('linhaDefensiva', v as Tatica['linhaDefensiva'])}
+        />
+        <SelectRow
+          label="Ritmo"
+          valor={taticaAtual.ritmo}
+          opcoes={OPCOES_RITMO}
+          onSelect={v => ajustar('ritmo', v as Tatica['ritmo'])}
+        />
+        <SelectRow
+          label="Lado de ataque"
+          valor={taticaAtual.ladoAtaque ?? 'Ambos'}
+          opcoes={OPCOES_LADO}
+          onSelect={v =>
+            ajustar('ladoAtaque', v as NonNullable<Tatica['ladoAtaque']>)
+          }
+        />
+        <SelectRow
+          label="Amplidão"
+          valor={taticaAtual.amplidao ?? 'Normal'}
+          opcoes={OPCOES_AMPLIDAO}
+          onSelect={v =>
+            ajustar('amplidao', v as NonNullable<Tatica['amplidao']>)
+          }
+        />
+      </View>
 
-        <View style={styles.melhoresWrap}>
-          <Botao
-            titulo="Escalar os 11 melhores"
-            variante="secundaria"
-            icone="tatica"
-            onPress={escalarMelhores}
-          />
-        </View>
-
-        <Section titulo="Estratégia">
-          <View style={styles.chipRow}>
-            {ESTRATEGIAS.map(estr => (
-              <Chip
-                key={estr.nome}
-                label={estr.nome}
-                ativo={estr.nome === estrategia}
-                onPress={() => atualizarTaticaUsuario(estr.tatica)}
-              />
-            ))}
-          </View>
-        </Section>
-
-        <Section titulo="Formação">
-          <View style={styles.chipRow}>
-            {FORMACOES_DISPONIVEIS.map(tipo => (
-              <Chip
-                key={tipo}
-                label={tipo}
-                ativo={tipo === formacaoTipo}
-                onPress={() => aplicarFormacao(tipo)}
-              />
-            ))}
-          </View>
-        </Section>
-
-        <Section titulo="Instruções">
-          <OptionGroup
-            titulo="Estilo ofensivo"
-            valor={taticaAtual.estiloOfensivo}
-            opcoes={OPCOES_ESTILO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                estiloOfensivo: valor as Tatica['estiloOfensivo'],
-              })
-            }
-          />
-          <OptionGroup
-            titulo="Marcação"
-            valor={taticaAtual.marcacao}
-            opcoes={OPCOES_MARCACAO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                marcacao: valor as Tatica['marcacao'],
-              })
-            }
-          />
-          <OptionGroup
-            titulo="Linha defensiva"
-            valor={taticaAtual.linhaDefensiva}
-            opcoes={OPCOES_LINHA}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                linhaDefensiva: valor as Tatica['linhaDefensiva'],
-              })
-            }
-          />
-          <OptionGroup
-            titulo="Ritmo"
-            valor={taticaAtual.ritmo}
-            opcoes={OPCOES_RITMO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                ritmo: valor as Tatica['ritmo'],
-              })
-            }
-          />
-          <OptionGroup
-            titulo="Lado de ataque"
-            valor={taticaAtual.ladoAtaque ?? 'Ambos'}
-            opcoes={OPCOES_LADO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                ladoAtaque: valor as NonNullable<Tatica['ladoAtaque']>,
-              })
-            }
-          />
-          <OptionGroup
-            titulo="Amplidão"
-            valor={taticaAtual.amplidao ?? 'Normal'}
-            opcoes={OPCOES_AMPLIDAO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                amplidao: valor as NonNullable<Tatica['amplidao']>,
-              })
-            }
-          />
-        </Section>
-      </ScrollView>
-    </SafeAreaView>
+      <Button titulo="SALVAR TÁTICA" onPress={salvar} fullWidth />
+    </Screen>
   );
 }
 
 export default Tactics;
 
 const styles = StyleSheet.create({
-  screen: {
-    backgroundColor: cores.fundo,
-    flex: 1,
-  },
-  conteudo: {
-    padding: espaco.lg,
-    paddingBottom: espaco.xl * 2,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.sm,
-  },
-  melhoresWrap: {
-    marginTop: espaco.md,
-  },
+  controles: {gap: espacamento[2]},
   vazio: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    padding: espaco.xl,
-  },
-  vazioTexto: {
-    color: cores.textoSecundario,
-    fontSize: 13,
-    fontWeight: '600',
+    padding: espacamento[6],
   },
 });

@@ -1,35 +1,36 @@
 /**
- * Treino da Semana. O técnico escolhe O QUE treinar (por posição ou habilidade)
- * e COM QUE intensidade, vê o impacto e confirma. Migrado ao Design System v2.
+ * Treino da semana — SIMPLES e RÁPIDO (estilo Brasfoot). Uma decisão principal:
+ * o FOCO da semana (4 opções claras) + a intensidade (carga). O impacto é
+ * mostrado de forma enxuta (condição, forma, risco) e confirma. Sem drilldown
+ * por posição nem foco individual por jogador. Migrado ao Design System v2.
  */
 
 import React, {useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {
-  AppBar,
+  AppHeader,
   Badge,
   Button,
   Card,
   Chip,
   Icon,
+  Pressable,
   Screen,
   Text,
   espacamento,
+  raios,
   useTheme,
   type CorTexto,
 } from '../../design-system';
+import type {IconeNome} from '../../components/Icone';
 import {useToast} from '../../components/feedback';
 import {calcularEfeitoTreino} from '../../engine/progression/treinoAtributos';
 import {
-  CATALOGO_TREINOS,
   INTENSIDADES,
   INTENSIDADES_ORDEM,
-  TREINO_PADRAO_ID,
   buscarTreino,
-  type CategoriaTreino,
   type IntensidadeTreino,
-  type SecaoPosicao,
 } from '../../engine/progression/treinoTipos';
 import {grupoDaPosicao} from '../../engine/tactics/posicoes';
 import {useAppNavigation} from '../../navigation/types';
@@ -39,21 +40,18 @@ import {
   useJogadoresUsuario,
 } from '../../store/useGameStore';
 
-const SECOES_POSICAO: SecaoPosicao[] = [
-  'Goleiros',
-  'Zagueiros',
-  'Laterais',
-  'Meio-campistas',
-  'Atacantes',
+/** Os 4 focos da semana — cada um mapeia para um treino real do catálogo. */
+const FOCOS: Array<{
+  id: string;
+  nome: string;
+  descricao: string;
+  icone: IconeNome;
+}> = [
+  {id: 'hab_fisico', nome: 'Físico', descricao: 'Força e resistência', icone: 'tendencia'},
+  {id: 'hab_defesa', nome: 'Defesa', descricao: 'Marcação e desarme', icone: 'clube'},
+  {id: 'hab_passe', nome: 'Criação', descricao: 'Passe e visão de jogo', icone: 'tatica'},
+  {id: 'hab_finalizacao', nome: 'Ataque', descricao: 'Finalização', icone: 'bola'},
 ];
-
-const SECAO_CURTA: Record<SecaoPosicao, string> = {
-  Goleiros: 'GOL',
-  Zagueiros: 'ZAG',
-  Laterais: 'LAT',
-  'Meio-campistas': 'MEI',
-  Atacantes: 'ATA',
-};
 
 /** Tom (token) de risco de lesão a partir do risco-base da intensidade. */
 function rotuloRisco(risco: number): {texto: string; tom: CorTexto} {
@@ -64,7 +62,7 @@ function rotuloRisco(risco: number): {texto: string; tom: CorTexto} {
     return {texto: 'Baixo', tom: 'success'};
   }
   if (risco <= 0.035) {
-    return {texto: 'Médio', tom: 'accent'};
+    return {texto: 'Médio', tom: 'warning'};
   }
   return {texto: 'Alto', tom: 'danger'};
 }
@@ -77,10 +75,10 @@ function media(valores: number[]): number {
 }
 
 function corMoralTom(moral: number): CorTexto {
-  return moral >= 75 ? 'success' : moral >= 50 ? 'accent' : 'danger';
+  return moral >= 75 ? 'success' : moral >= 50 ? 'warning' : 'danger';
 }
 function corCondicaoTom(valor: number): CorTexto {
-  return valor >= 75 ? 'success' : valor >= 45 ? 'accent' : 'danger';
+  return valor >= 75 ? 'success' : valor >= 45 ? 'warning' : 'danger';
 }
 
 function Semana(): React.JSX.Element {
@@ -93,31 +91,30 @@ function Semana(): React.JSX.Element {
   const conversarComGrupo = useGameStore(state => state.conversarComGrupo);
   const jaConversou = useGameStore(state => state.conversouComGrupo);
 
-  const [categoria, setCategoria] = useState<CategoriaTreino>('posicao');
-  const [secao, setSecao] = useState<SecaoPosicao>('Zagueiros');
-  const [treinoId, setTreinoId] = useState<string>('zag_marcacao');
+  const [focoId, setFocoId] = useState<string>(FOCOS[0].id);
   const [intensidade, setIntensidade] = useState<IntensidadeTreino>('normal');
 
-  const treino = buscarTreino(treinoId);
+  const treino = buscarTreino(focoId);
   const nivelInfra = clube?.estadio.nivelInfraestrutura ?? 3;
   const moralMedia = useMemo(() => media(elenco.map(j => j.moral)), [elenco]);
 
-  const porPosicao = useMemo(
-    () => CATALOGO_TREINOS.filter(t => t.categoria === 'posicao'),
-    [],
-  );
-  const porHabilidade = useMemo(
-    () => CATALOGO_TREINOS.filter(t => t.categoria === 'habilidade'),
-    [],
-  );
-
-  const treinosVisiveis = useMemo(
-    () =>
-      categoria === 'posicao'
-        ? porPosicao.filter(t => t.secao === secao)
-        : porHabilidade,
-    [categoria, secao, porPosicao, porHabilidade],
-  );
+  // Prontidão do elenco (dado real): lesionados, cansados (condição baixa) e
+  // disponíveis. Guia a decisão de carga da semana.
+  const prontidao = useMemo(() => {
+    let lesionados = 0;
+    let cansados = 0;
+    let disponiveis = 0;
+    for (const j of elenco) {
+      if (j.lesionado) {
+        lesionados += 1;
+      } else if (j.condicaoFisica < 65) {
+        cansados += 1;
+      } else {
+        disponiveis += 1;
+      }
+    }
+    return {lesionados, cansados, disponiveis};
+  }, [elenco]);
 
   const preview = useMemo(() => {
     if (!treino) {
@@ -159,23 +156,6 @@ function Semana(): React.JSX.Element {
     );
   };
 
-  const trocarCategoria = (cat: CategoriaTreino) => {
-    setCategoria(cat);
-    if (cat === 'habilidade') {
-      setTreinoId(porHabilidade[0]?.id ?? TREINO_PADRAO_ID);
-    } else {
-      setTreinoId(porPosicao.find(t => t.secao === secao)?.id ?? treinoId);
-    }
-  };
-
-  const selecionarSecao = (nova: SecaoPosicao) => {
-    setSecao(nova);
-    const primeiro = porPosicao.find(t => t.secao === nova);
-    if (primeiro) {
-      setTreinoId(primeiro.id);
-    }
-  };
-
   const confirmar = () => {
     if (!treino) {
       return;
@@ -186,72 +166,73 @@ function Semana(): React.JSX.Element {
   };
 
   return (
-    <Screen scroll>
-      <AppBar
-        title="Treino da Semana"
-        subtitle="Desenvolva os atributos do elenco"
-        onBack={() => nav.goBack()}
-      />
-
-      <Card variante="outlined" style={styles.moralCard}>
-        <View style={styles.rowBetween}>
-          <View style={styles.moralLabelWrap}>
-            <Icon nome="conversa" size={18} color="textSecondary" />
-            <Text variant="titleM">Moral do elenco</Text>
-          </View>
-          <Text variant="titleL" color={corMoralTom(moralMedia)} tabular>
-            {moralMedia.toFixed(0)}
-          </Text>
-        </View>
-        <Button
-          titulo={jaConversou ? 'Grupo já reunido' : 'Conversar com o grupo'}
-          variante="secondary"
-          disabled={jaConversou}
-          onPress={aoConversar}
-          fullWidth
+    <Screen
+      scroll
+      header={<AppHeader title="Treino" onBack={() => nav.goBack()} />}>
+      {/* Prontidão do elenco */}
+      <Card variante="outlined" style={styles.prontidaoCard}>
+        <ProntidaoStat
+          valor={prontidao.disponiveis}
+          rotulo="Disponíveis"
+          tom="success"
+        />
+        <ProntidaoStat valor={prontidao.cansados} rotulo="Cansados" tom="warning" />
+        <ProntidaoStat
+          valor={prontidao.lesionados}
+          rotulo="Lesionados"
+          tom="danger"
         />
       </Card>
+      {prontidao.cansados > 0 ? (
+        <Card variante="status" status="warning" padding={3} style={styles.cargaCard}>
+          <Icon nome="lesao" size={18} color="warning" />
+          <Text variant="labelL" style={styles.flex}>
+            {prontidao.cansados} jogador{prontidao.cansados > 1 ? 'es' : ''}{' '}
+            cansado{prontidao.cansados > 1 ? 's' : ''} — prefira carga leve
+          </Text>
+        </Card>
+      ) : null}
 
+      {/* Foco da semana — 4 opções claras */}
       <View style={styles.section}>
         <Text variant="labelM" color="textSecondary" style={styles.caps}>
-          O que treinar
+          Foco da semana
         </Text>
-        <View style={styles.segment}>
-          {(['posicao', 'habilidade'] as CategoriaTreino[]).map(cat => (
-            <Chip
-              key={cat}
-              label={cat === 'posicao' ? 'Por posição' : 'Por habilidade'}
-              selected={categoria === cat}
-              onPress={() => trocarCategoria(cat)}
-              style={styles.flex}
-            />
-          ))}
-        </View>
-        {categoria === 'posicao' ? (
-          <View style={styles.segment}>
-            {SECOES_POSICAO.map(s => (
-              <Chip
-                key={s}
-                label={SECAO_CURTA[s]}
-                selected={s === secao}
-                onPress={() => selecionarSecao(s)}
-                style={styles.flex}
-              />
-            ))}
-          </View>
-        ) : null}
-        <View style={styles.chipRow}>
-          {treinosVisiveis.map(t => (
-            <Chip
-              key={t.id}
-              label={t.nome}
-              selected={t.id === treinoId}
-              onPress={() => setTreinoId(t.id)}
-            />
-          ))}
+        <View style={styles.focoGrid}>
+          {FOCOS.map(foco => {
+            const ativo = foco.id === focoId;
+            return (
+              <Pressable
+                key={foco.id}
+                onPress={() => setFocoId(foco.id)}
+                accessibilityState={{selected: ativo}}
+                style={[
+                  styles.focoCard,
+                  {
+                    backgroundColor: ativo ? cores.brandSoft : cores.surface,
+                    borderColor: ativo ? cores.brand : cores.border,
+                  },
+                ]}>
+                <Icon
+                  nome={foco.icone}
+                  size={22}
+                  color={ativo ? 'brand' : 'textSecondary'}
+                />
+                <View style={styles.flex}>
+                  <Text variant="labelL" color={ativo ? 'brand' : 'textPrimary'}>
+                    {foco.nome}
+                  </Text>
+                  <Text variant="caption" color="textSecondary" numberOfLines={1}>
+                    {foco.descricao}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
+      {/* Intensidade (carga) */}
       <View style={styles.section}>
         <Text variant="labelM" color="textSecondary" style={styles.caps}>
           Intensidade
@@ -268,29 +249,16 @@ function Semana(): React.JSX.Element {
         </View>
       </View>
 
+      {/* Impacto da semana (enxuto) */}
       {treino && preview ? (
         <Card variante="outlined" style={styles.resumoCard}>
           <View style={styles.rowBetween}>
-            <Text variant="titleM" style={styles.flex}>
-              Treino de {treino.nome}
-            </Text>
+            <Text variant="titleM">Impacto da semana</Text>
             <Badge
               label={`${preview.comAfinidade}/${elenco.length} ideais`}
               tom="accent"
             />
           </View>
-
-          <View style={styles.efeitos}>
-            {treino.efeitos.map(efeito => (
-              <View key={efeito} style={styles.efeitoLinha}>
-                <Icon nome="seta-cima" size={14} color="brand" />
-                <Text variant="bodyM">{efeito}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={[styles.divisor, {backgroundColor: cores.border}]} />
-
           <View style={styles.metricaLinha}>
             <Text variant="bodyM" color="textSecondary">
               Condição média
@@ -324,6 +292,26 @@ function Semana(): React.JSX.Element {
         </Card>
       ) : null}
 
+      {/* Moral do elenco */}
+      <Card variante="outlined" style={styles.moralCard}>
+        <View style={styles.rowBetween}>
+          <View style={styles.moralLabelWrap}>
+            <Icon nome="conversa" size={18} color="textSecondary" />
+            <Text variant="titleM">Moral do elenco</Text>
+          </View>
+          <Text variant="titleL" color={corMoralTom(moralMedia)} tabular>
+            {moralMedia.toFixed(0)}
+          </Text>
+        </View>
+        <Button
+          titulo={jaConversou ? 'Grupo já reunido' : 'Conversar com o grupo'}
+          variante="secondary"
+          disabled={jaConversou}
+          onPress={aoConversar}
+          fullWidth
+        />
+      </Card>
+
       <Button
         titulo="Confirmar treino"
         variante="primary"
@@ -334,10 +322,35 @@ function Semana(): React.JSX.Element {
   );
 }
 
+/** Célula da prontidão do elenco (número colorido + rótulo). */
+function ProntidaoStat({
+  valor,
+  rotulo,
+  tom,
+}: {
+  valor: number;
+  rotulo: string;
+  tom: CorTexto;
+}): React.JSX.Element {
+  return (
+    <View style={styles.prontidaoStat}>
+      <Text variant="titleL" color={tom} tabular>
+        {valor}
+      </Text>
+      <Text variant="caption" color="textSecondary">
+        {rotulo}
+      </Text>
+    </View>
+  );
+}
+
 export default Semana;
 
 const styles = StyleSheet.create({
   caps: {textTransform: 'uppercase', letterSpacing: 1},
+  prontidaoCard: {flexDirection: 'row', alignItems: 'center'},
+  prontidaoStat: {flex: 1, alignItems: 'center', gap: 2},
+  cargaCard: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
   moralCard: {gap: espacamento[2]},
   rowBetween: {
     flexDirection: 'row',
@@ -350,16 +363,19 @@ const styles = StyleSheet.create({
     gap: espacamento[1],
   },
   section: {gap: espacamento[2]},
-  segment: {flexDirection: 'row', gap: espacamento[1]},
-  flex: {flex: 1},
-  chipRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
-  resumoCard: {gap: espacamento[2]},
-  efeitos: {gap: espacamento[1]},
-  efeitoLinha: {
+  focoGrid: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
+  focoCard: {
+    flexBasis: '47%',
+    flexGrow: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: espacamento[2],
+    padding: espacamento[3],
+    borderWidth: 1,
+    borderRadius: raios.md,
   },
-  divisor: {height: StyleSheet.hairlineWidth},
+  flex: {flex: 1},
+  chipRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
+  resumoCard: {gap: espacamento[2]},
   metricaLinha: {flexDirection: 'row', justifyContent: 'space-between'},
 });

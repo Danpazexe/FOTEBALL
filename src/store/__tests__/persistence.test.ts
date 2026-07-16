@@ -56,6 +56,59 @@ describe('persistence', () => {
     expect(aplicado.rodadaAtual).toBe(estado.rodadaAtual);
   });
 
+  it('engine V2: ledger de chutes e qualidade de dados sobrevivem ao save; legacy fica legacy', () => {
+    const estado = useGameStore.getState();
+    const [primeira] = estado.partidas;
+    expect(primeira).toBeDefined();
+    if (!primeira) {
+      return;
+    }
+    const partidaV2 = {
+      ...primeira,
+      id: 'partida_v2_teste',
+      jogada: true,
+      placarCasa: 1,
+      placarFora: 0,
+      engineVersion: 2 as const,
+      qualidadeDados: 'causal_full' as const,
+      chutes: [
+        {
+          id: 'chute_10_1',
+          timeId: primeira.timeCasa,
+          jogadorId: 'j1',
+          minuto: 10,
+          posseId: 'seq_10_casa',
+          situacao: 'jogo_aberto' as const,
+          corpo: 'pe_direito' as const,
+          x: 0.5,
+          y: 0.12,
+          golX: 0.3,
+          golY: 0.2,
+          xg: 0.31,
+          xgot: 0.55,
+          resultado: 'gol' as const,
+          grandeChance: true,
+          deFora: false,
+        },
+      ],
+    };
+    const comV2 = {
+      ...estado,
+      partidas: [...estado.partidas.slice(1), partidaV2],
+    };
+    const aplicado = aplicarSnapshot(montarSnapshot(comV2));
+    const partidas = aplicado.partidas ?? [];
+    const reidratada = partidas.find(p => p.id === 'partida_v2_teste');
+    expect(reidratada?.engineVersion).toBe(2);
+    expect(reidratada?.qualidadeDados).toBe('causal_full');
+    expect(reidratada?.chutes).toHaveLength(1);
+    expect(reidratada?.chutes?.[0]?.xg).toBe(0.31);
+    // Partidas legacy (sem ledger) atravessam o save SEM dados fabricados.
+    const legacy = partidas.find(p => p.id !== 'partida_v2_teste');
+    expect(legacy?.chutes).toBeUndefined();
+    expect(legacy?.engineVersion).toBeUndefined();
+  });
+
   it('snapshot inclui config e propostas recebidas (não eram salvos antes)', () => {
     const estado = useGameStore.getState();
     const snap = montarSnapshot(estado, [{id: 'primeira_vitoria'}]);

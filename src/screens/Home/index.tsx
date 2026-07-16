@@ -1,51 +1,52 @@
 /**
- * Tela inicial — "Mesa do Técnico" (Módulo 2).
- * Cabeçalho com escudo/saldo/ajustes; forma recente; card do próximo jogo com
- * barras de força; avisos (lesões/suspensões/saldo); atalhos rápidos; última
- * partida e notícias.
+ * Tela inicial — Home (North Star). Centro de decisão do técnico, na ordem:
+ * identidade do clube → PRÓXIMA PARTIDA (hero) → estado (posição/pts/moral) →
+ * pendências do técnico → classificação compacta. Os sistemas ricos (objetivo,
+ * diretoria, copa, série D, imprensa, sequências, avisos por jogador) são
+ * PRESERVADOS abaixo da dobra ("detalhe por toque"), não removidos.
+ *
+ * Nada é calculado a mais aqui: tudo vem do store/engine; as pendências e a
+ * janela da classificação são derivações puras (ver ./derivados).
  */
 
 import React, {useMemo} from 'react';
-import {Image, Pressable, StyleSheet, View} from 'react-native';
+import {Image, StyleSheet, View} from 'react-native';
 
 import {
+  Badge,
   Box,
   Button,
   Card,
   Chip,
+  Divider,
   Icon,
+  ManagerTask,
+  Pressable,
   Screen,
+  SectionHeader,
+  StandingRow,
+  TeamCrest,
   Text,
   espacamento,
-  useTheme,
   type CorTexto,
 } from '../../design-system';
 import AlertasCard, {type Alerta} from '../../components/AlertasCard';
 import {LOGO_COPA, LOGO_SERIE_D} from '../../assets/escudos';
-import FormaRecente from '../../components/FormaRecente';
-import ProximoJogoCard from '../../components/ProximoJogoCard';
+import type {IconeNome} from '../../components/Icone';
 import {useConfirm, useToast} from '../../components/feedback';
 import {forcaDoClube} from '../../utils/forca';
-import {
-  confrontoDoClube,
-  type EstadoCopa,
-} from '../../engine/season/copaEngine';
+import {confrontoDoClube, type EstadoCopa} from '../../engine/season/copaEngine';
 import {
   definirObjetivoTemporada,
   metaCumprida,
 } from '../../engine/carreira/objetivo';
-import {
-  calcularPressaoDiretoria,
-  type NivelPressao,
-} from '../../engine/carreira/pressao';
 import {avaliarUltimato} from '../../engine/carreira/ultimato';
-import {gerarManchetes, type TomManchete} from '../../engine/carreira/imprensa';
 import {
   calcularSequencias,
   type JogoResultado,
 } from '../../engine/season/sequencias';
 import {classicoEntre} from '../../engine/season/classicos';
-import {useAppNavigation} from '../../navigation/types';
+import {useInicioNavigation} from '../../navigation/types';
 import {
   calcularProximoEvento,
   selecionarClubeUsuario,
@@ -54,54 +55,32 @@ import {
 } from '../../store/useGameStore';
 import {limiteDerrotasPorDivisao} from '../../store/helpers';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
-import type {Clube, Partida} from '../../types';
+import {horarioProvavel, rotuloRelativo} from '../../utils/datas';
+import {
+  derivarJanelaClassificacao,
+  derivarPendencias,
+  type DestinoPendencia,
+} from './derivados';
+import type {Clube} from '../../types';
 
-const MAX_FORMA = 5;
 const MAX_ALERTAS = 5;
+const MAX_PENDENCIAS = 3;
 
-/** Token de cor do termômetro da diretoria por nível de pressão. */
-function corDaPressao(nivel: NivelPressao): CorTexto {
-  if (nivel === 'Tranquilo' || nivel === 'Estável') {
-    return 'success';
+/** Moral média (0-100) → nota 0-10 + carinha + cor. */
+function humorDaMoral(moral0a100: number): {
+  nota: number;
+  icone: IconeNome;
+  cor: CorTexto;
+} {
+  const nota = Math.round(moral0a100 / 10);
+  if (nota >= 7) {
+    return {nota, icone: 'humor-bom', cor: 'success'};
   }
-  if (nivel === 'Pressionado') {
-    return 'warning';
+  if (nota >= 4) {
+    return {nota, icone: 'humor-neutro', cor: 'warning'};
   }
-  return 'danger';
+  return {nota, icone: 'humor-ruim', cor: 'danger'};
 }
-
-/** Token de cor do marcador da manchete pelo tom editorial. */
-function corDoTom(tom: TomManchete): CorTexto {
-  if (tom === 'positivo') {
-    return 'success';
-  }
-  if (tom === 'negativo') {
-    return 'danger';
-  }
-  return 'textMuted';
-}
-
-/**
- * Reputação do técnico (0-100) → estrelas + rótulo curto para o StatCard.
- * 5 estrelas mapeiam a faixa; mínimo 1 (um técnico contratado nunca é 0 estrela).
- */
-function reputacaoResumo(rep: number): {estrelas: string; label: string} {
-  const cheias = Math.max(1, Math.min(5, Math.round(rep / 20)));
-  const estrelas = '★'.repeat(cheias) + '☆'.repeat(5 - cheias);
-  const label =
-    rep >= 80
-      ? 'Ídolo da torcida'
-      : rep >= 60
-      ? 'Respeitado'
-      : rep >= 40
-      ? 'Em construção'
-      : rep >= 20
-      ? 'Contestado'
-      : 'Ameaçado';
-  return {estrelas, label};
-}
-
-type ResultadoForma = 'V' | 'E' | 'D';
 
 /** Linha-resumo da Copa para o card do Home (próximo adversário / status). */
 function resumoCopa(
@@ -121,27 +100,96 @@ function resumoCopa(
   return `Próximo adversário: ${nomeClube(clubes, adversarioId)}`;
 }
 
-function resultadoDoUsuario(
-  partida: Partida,
-  clubeUsuarioId: string,
-): ResultadoForma {
-  const ehCasa = partida.timeCasa === clubeUsuarioId;
-  const golsPro = ehCasa ? partida.placarCasa ?? 0 : partida.placarFora ?? 0;
-  const golsContra = ehCasa ? partida.placarFora ?? 0 : partida.placarCasa ?? 0;
-  if (golsPro > golsContra) {
-    return 'V';
-  }
-  if (golsPro < golsContra) {
-    return 'D';
-  }
-  return 'E';
+/** Célula de estado do clube (número tabular + rótulo + carinha opcional). */
+function CelulaStat({
+  valor,
+  rotulo,
+  icone,
+  corIcone,
+}: {
+  valor: string | number;
+  rotulo: string;
+  icone?: IconeNome;
+  corIcone?: CorTexto;
+}): React.JSX.Element {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`${rotulo}: ${valor}`}
+      style={estilos.statCell}>
+      <View style={estilos.statValorRow}>
+        <Text variant="titleL" tabular>
+          {valor}
+        </Text>
+        {icone ? (
+          <Icon nome={icone} size={20} color={corIcone ?? 'textMuted'} />
+        ) : null}
+      </View>
+      <Text variant="labelM" color="textSecondary">
+        {rotulo}
+      </Text>
+    </View>
+  );
+}
+
+/** Hero da próxima partida — superfície `scoreboard` (azul-marinho) + CTA. */
+function HeroPartida({
+  casa,
+  fora,
+  quando,
+  horario,
+  estadio,
+  onJogar,
+}: {
+  casa: Clube;
+  fora: Clube;
+  quando: string;
+  horario: string;
+  estadio: string;
+  onJogar: () => void;
+}): React.JSX.Element {
+  return (
+    <Box bg="scoreboard" radius="lg" padding={4} gap={3}>
+      <View style={estilos.heroTimes}>
+        <View style={estilos.heroTime}>
+          <TeamCrest clubeId={casa.id} sigla={casa.sigla} size={44} />
+          <Text variant="titleL" color="onScoreboard">
+            {casa.sigla}
+          </Text>
+        </View>
+        <Text variant="titleM" color="onScoreboard">
+          ×
+        </Text>
+        <View style={[estilos.heroTime, estilos.heroTimeDir]}>
+          <Text variant="titleL" color="onScoreboard">
+            {fora.sigla}
+          </Text>
+          <TeamCrest clubeId={fora.id} sigla={fora.sigla} size={44} />
+        </View>
+      </View>
+      <View style={estilos.heroInfo}>
+        <Text variant="labelL" color="onScoreboard">
+          {quando} · {horario}
+        </Text>
+        {estadio ? (
+          <Text
+            variant="caption"
+            color="onScoreboard"
+            numberOfLines={1}
+            style={estilos.heroEstadio}>
+            {estadio}
+          </Text>
+        ) : null}
+      </View>
+      <Button titulo="JOGAR PARTIDA" onPress={onJogar} fullWidth />
+    </Box>
+  );
 }
 
 function Home(): React.JSX.Element {
-  const nav = useAppNavigation();
+  const nav = useInicioNavigation();
   const confirm = useConfirm();
   const toast = useToast();
-  const {cores} = useTheme();
 
   const clubes = useGameStore(state => state.clubes);
   const jogadores = useGameStore(state => state.jogadores);
@@ -161,13 +209,16 @@ function Home(): React.JSX.Element {
   const finalizarTemporada = useGameStore(state => state.finalizarTemporada);
   const avancarParaData = useGameStore(state => state.avancarParaData);
   const demissao = useGameStore(state => state.demissao);
-  const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
   const derrotasConsecutivas = useGameStore(
     state => state.derrotasConsecutivas,
   );
   const rodadasNoVermelho = useGameStore(state => state.rodadasNoVermelho);
   const dificuldade = useGameStore(state => state.config.dificuldade);
   const propostasRecebidas = useGameStore(state => state.propostasRecebidas);
+  const jovensDisponiveis = useGameStore(state => state.jovensDisponiveis);
+  const temporadaAtual = useGameStore(state => state.temporadaAtual);
+  const dataAtual = useGameStore(state => state.dataAtual);
+  const mensagens = useGameStore(state => state.mensagens);
 
   // Demissão: assim que a diretoria demite, leva o técnico à tela de recontratação.
   React.useEffect(() => {
@@ -217,49 +268,6 @@ function Home(): React.JSX.Element {
       })
     : null;
 
-  // Termômetro de pressão da diretoria — espelha os gatilhos de demissão + meta.
-  const pressao = useMemo(
-    () =>
-      clubeUsuario && objetivo
-        ? calcularPressaoDiretoria({
-            derrotasConsecutivas,
-            limiteDerrotas: limiteDerrotasPorDivisao(
-              clubeUsuario.divisao ?? 'Série A',
-            ),
-            rodadasNoVermelho,
-            reputacaoTecnico,
-            posicaoAtual: posicaoReal,
-            posicaoAlvo: objetivo.posicaoAlvo,
-            totalClubes: tabela.length,
-          })
-        : null,
-    [
-      clubeUsuario,
-      objetivo,
-      derrotasConsecutivas,
-      rodadasNoVermelho,
-      reputacaoTecnico,
-      posicaoReal,
-      tabela.length,
-    ],
-  );
-
-  const forma = useMemo<ResultadoForma[]>(() => {
-    if (!clubeUsuarioId) {
-      return [];
-    }
-    return partidas
-      .filter(
-        partida =>
-          partida.jogada &&
-          (partida.timeCasa === clubeUsuarioId ||
-            partida.timeFora === clubeUsuarioId),
-      )
-      .sort((a, b) => a.rodada - b.rodada)
-      .slice(-MAX_FORMA)
-      .map(partida => resultadoDoUsuario(partida, clubeUsuarioId));
-  }, [partidas, clubeUsuarioId]);
-
   const alertas = useMemo<Alerta[]>(() => {
     if (!clubeUsuario || !clubeUsuarioId) {
       return [];
@@ -297,8 +305,7 @@ function Home(): React.JSX.Element {
     return lista.slice(0, MAX_ALERTAS);
   }, [clubeUsuario, clubeUsuarioId, jogadores]);
 
-  // Estado no relance (StatCards do topo): moral médio do elenco, reputação e
-  // propostas recebidas — resumo antes do detalhe.
+  // Estado no relance: moral médio do elenco (0-100) → nota 0-10 + humor.
   const moralMedia = useMemo(() => {
     if (!clubeUsuarioId) {
       return 0;
@@ -311,8 +318,45 @@ function Home(): React.JSX.Element {
       elenco.reduce((soma, j) => soma + j.moral, 0) / elenco.length,
     );
   }, [jogadores, clubeUsuarioId]);
-  const reputacao = reputacaoResumo(reputacaoTecnico);
+  const humor = humorDaMoral(moralMedia);
+  const semElenco = moralMedia === 0;
   const numPropostas = propostasRecebidas.length;
+
+  // Jogadores indisponíveis (lesão + suspensão) — base de uma pendência.
+  const indisponiveis = useMemo(() => {
+    if (!clubeUsuarioId) {
+      return 0;
+    }
+    return jogadores.filter(
+      j => j.clubeId === clubeUsuarioId && (j.lesionado || j.suspenso),
+    ).length;
+  }, [jogadores, clubeUsuarioId]);
+
+  // Pendências do técnico — agrega sinais reais numa lista acionável priorizada.
+  const pendencias = useMemo(
+    () =>
+      derivarPendencias({
+        indisponiveis,
+        propostas: numPropostas,
+        jovens: jovensDisponiveis.length,
+        saldoNegativo: (clubeUsuario?.financas.saldo ?? 0) < 0,
+        saldoTexto: moedaCompacta(clubeUsuario?.financas.saldo ?? 0),
+        metaForaDoRumo: !metaNoRumo,
+      }),
+    [
+      indisponiveis,
+      numPropostas,
+      jovensDisponiveis.length,
+      clubeUsuario,
+      metaNoRumo,
+    ],
+  );
+
+  // Classificação compacta — janela de 5 ao redor do clube.
+  const janela = useMemo(
+    () => derivarJanelaClassificacao({tabela, clubes, clubeUsuarioId}),
+    [tabela, clubes, clubeUsuarioId],
+  );
 
   const confronto = useMemo(() => {
     if (!proximoJogo) {
@@ -331,41 +375,10 @@ function Home(): React.JSX.Element {
     };
   }, [proximoJogo, clubes, jogadores]);
 
-  const mandoCasa = proximoJogo?.timeCasa === clubeUsuarioId;
-
   // Clássico: o próximo jogo é uma rivalidade reconhecida?
   const classico = proximoJogo
     ? classicoEntre(proximoJogo.timeCasa, proximoJogo.timeFora)
     : null;
-
-  // Última partida disputada pelo clube — base editorial do feed de imprensa.
-  const ultimaJogada = useMemo(() => {
-    if (!clubeUsuarioId) {
-      return null;
-    }
-    const jogadas = partidas
-      .filter(
-        partida =>
-          partida.jogada &&
-          (partida.timeCasa === clubeUsuarioId ||
-            partida.timeFora === clubeUsuarioId),
-      )
-      .sort((a, b) => a.rodada - b.rodada);
-    const ultima = jogadas[jogadas.length - 1];
-    if (!ultima || ultima.placarCasa == null || ultima.placarFora == null) {
-      return null;
-    }
-    const mandante = ultima.timeCasa === clubeUsuarioId;
-    return {
-      golsFavor: mandante ? ultima.placarCasa : ultima.placarFora,
-      golsContra: mandante ? ultima.placarFora : ultima.placarCasa,
-      adversario: nomeClube(
-        clubes,
-        mandante ? ultima.timeFora : ultima.timeCasa,
-      ),
-      mandante,
-    };
-  }, [partidas, clubeUsuarioId, clubes]);
 
   // Sequências (streaks) atuais do clube — derivadas do histórico da temporada.
   const sequencias = useMemo(() => {
@@ -397,42 +410,6 @@ function Home(): React.JSX.Element {
     }
     return calcularSequencias(jogosSeq);
   }, [partidas, clubeUsuarioId]);
-
-  const proximoAdversario =
-    proximoJogo && clubeUsuarioId
-      ? nomeClube(
-          clubes,
-          proximoJogo.timeCasa === clubeUsuarioId
-            ? proximoJogo.timeFora
-            : proximoJogo.timeCasa,
-        )
-      : null;
-
-  // Feed de imprensa — manchetes editoriais derivadas do estado atual.
-  const manchetes = useMemo(
-    () =>
-      clubeUsuario && objetivo
-        ? gerarManchetes({
-            nomeClube: clubeUsuario.nome,
-            ultima: ultimaJogada,
-            nivelPressao: pressao?.nivel ?? 'Tranquilo',
-            temUltimato: ultimato != null,
-            posicaoAtual: posicaoReal,
-            posicaoAlvo: objetivo.posicaoAlvo,
-            objetivoDescricao: objetivo.descricao,
-            proximoAdversario,
-          })
-        : [],
-    [
-      clubeUsuario,
-      objetivo,
-      ultimaJogada,
-      pressao,
-      ultimato,
-      posicaoReal,
-      proximoAdversario,
-    ],
-  );
 
   // Próximo evento do calendário (treino → jogo → fim de temporada).
   const proximoEvento = useMemo(
@@ -514,133 +491,96 @@ function Home(): React.JSX.Element {
     }
   };
 
+  const irParaPendencia = (destino: DestinoPendencia) => {
+    switch (destino) {
+      case 'elenco':
+        nav.navigate('MainTabs', {screen: 'Elenco'});
+        return;
+      case 'mercado':
+        nav.navigate('MainTabs', {screen: 'TransferMarket'});
+        return;
+      case 'academia':
+        nav.navigate('Academia');
+        return;
+      case 'clube':
+        nav.navigate('MainTabs', {screen: 'Club'});
+        return;
+      case 'gabinete':
+        nav.navigate('Gabinete');
+        return;
+    }
+  };
+
+  // Bloco polimórfico da "Próxima partida": jogo da liga (hero), confronto de
+  // Copa na vez, transições da Série D, fim de temporada ou "nenhum jogo".
+  const heroPartida =
+    proximoJogo && confronto ? (
+      <HeroPartida
+        casa={confronto.casa}
+        fora={confronto.fora}
+        quando={rotuloRelativo(dataAtual, proximoJogo.data)}
+        horario={horarioProvavel(proximoJogo.data)}
+        estadio={confronto.casa.estadio?.nome ?? ''}
+        onJogar={handleJogarPartida}
+      />
+    ) : (
+      <Text variant="bodyM" color="textSecondary">
+        Nenhum jogo agendado.
+      </Text>
+    );
+
   return (
-    <Screen scroll>
-      {/* Cabeçalho — banner da marca (temável: texto onBrand nos dois temas). */}
-      <Box bg="brandStrong" radius="lg" padding={4} gap={2}>
-        <View style={estilos.linhaEntre}>
-          <Text
-            variant="labelM"
-            color="onBrand"
-            numberOfLines={1}
-            style={estilos.flex}>
-            {(clubeUsuario?.nome ?? 'FOTEBALL').toUpperCase()}
+    <Screen
+      scroll
+      header={
+        <View style={estilos.header}>
+          <Pressable
+            onPress={() => nav.navigate('Noticias')}
+            minSize="min"
+            accessibilityLabel={
+              mensagens.length > 0
+                ? `Notícias, ${mensagens.length} novas`
+                : 'Notícias'
+            }
+            style={estilos.headerBotao}>
+            <Icon nome="noticia" color="textSecondary" />
+            {mensagens.length > 0 ? (
+              <View style={estilos.sinoBadge}>
+                <Badge count={mensagens.length} tom="danger" solido />
+              </View>
+            ) : null}
+          </Pressable>
+          <Text variant="titleXL" align="center" style={estilos.flex}>
+            FOTEBALL
           </Text>
           <Pressable
             onPress={() => nav.navigate('Settings')}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel="Ajustes">
-            <Icon nome="ajustes" color="onBrand" size="md" />
+            minSize="min"
+            accessibilityLabel="Ajustes"
+            style={estilos.headerBotao}>
+            <Icon nome="ajustes" color="textSecondary" />
           </Pressable>
         </View>
-        <View style={estilos.linhaEntre}>
-          <Text
-            variant="titleXL"
-            color="onBrand"
-            numberOfLines={1}
-            style={estilos.flex}>
-            Mesa do Técnico
+      }>
+      {/* Identidade do clube. */}
+      <View style={estilos.identidade}>
+        <TeamCrest
+          clubeId={clubeUsuario?.id ?? ''}
+          sigla={clubeUsuario?.sigla ?? ''}
+          nome={clubeUsuario?.nome}
+          size={40}
+        />
+        <View style={estilos.flex}>
+          <Text variant="titleL" numberOfLines={1}>
+            {clubeUsuario?.nome ?? 'FOTEBALL'}
           </Text>
-          <Box bg="surface" radius="full" px={3} py={1}>
-            <Text
-              variant="labelL"
-              color={
-                (clubeUsuario?.financas.saldo ?? 0) < 0 ? 'danger' : 'textPrimary'
-              }
-              tabular>
-              {moedaCompacta(clubeUsuario?.financas.saldo ?? 0)}
-            </Text>
-          </Box>
+          <Text variant="labelM" color="textSecondary" numberOfLines={1}>
+            {temporadaAtual} · {clubeUsuario?.divisao ?? 'Série A'}
+          </Text>
         </View>
-        <View style={estilos.linhaEntre}>
-          <Text
-            variant="labelM"
-            color="onBrand"
-            numberOfLines={1}
-            tabular
-            style={estilos.flex}>
-            {clubeUsuario?.divisao ?? 'Série A'} · {posicao} · {jogos} jogos ·{' '}
-            {pontos} pts
-          </Text>
-          {forma.length > 0 ? (
-            <FormaRecente resultados={forma} compacto />
-          ) : null}
-        </View>
-      </Box>
-
-      {/* Estado no relance — moral / reputação / propostas. */}
-      <View style={estilos.relanceRow}>
-        <Card
-          variante="interactive"
-          onPress={() => nav.navigate('MainTabs', {screen: 'Elenco'})}
-          style={estilos.statCard}>
-          <Text variant="labelM" color="textSecondary">
-            Moral
-          </Text>
-          <Text
-            variant="titleL"
-            color={
-              moralMedia >= 75
-                ? 'success'
-                : moralMedia >= 50
-                ? 'textPrimary'
-                : 'danger'
-            }
-            tabular>
-            {moralMedia}%
-          </Text>
-          <Text variant="caption" color="textMuted" numberOfLines={1}>
-            {moralMedia >= 75
-              ? 'Confiante'
-              : moralMedia >= 50
-              ? 'Equilibrado'
-              : 'Tenso'}
-          </Text>
-        </Card>
-        <Card
-          variante="interactive"
-          onPress={() => nav.navigate('Gabinete')}
-          style={estilos.statCard}>
-          <Text variant="labelM" color="textSecondary">
-            Reputação
-          </Text>
-          <Text
-            variant="titleM"
-            color={reputacaoTecnico >= 60 ? 'accent' : 'textPrimary'}>
-            {reputacao.estrelas}
-          </Text>
-          <Text variant="caption" color="textMuted" numberOfLines={1}>
-            {reputacao.label}
-          </Text>
-        </Card>
-        <Card
-          variante={numPropostas > 0 ? 'interactive' : 'outlined'}
-          onPress={
-            numPropostas > 0 ? () => nav.navigate('TransferMarket') : undefined
-          }
-          style={estilos.statCard}>
-          <View style={estilos.linhaEntre}>
-            <Text variant="labelM" color="textSecondary">
-              Propostas
-            </Text>
-            {numPropostas > 0 ? (
-              <Icon nome="mercado" size={14} color="accent" />
-            ) : null}
-          </View>
-          <Text
-            variant="titleL"
-            color={numPropostas > 0 ? 'accent' : 'textPrimary'}
-            tabular>
-            {numPropostas}
-          </Text>
-          <Text variant="caption" color="textMuted" numberOfLines={1}>
-            {numPropostas > 0 ? 'Aguardando' : 'Nenhuma'}
-          </Text>
-        </Card>
       </View>
 
-      {/* Ultimato — exigência concreta da diretoria. */}
+      {/* Ultimato — urgente, permanece em destaque no topo. */}
       {ultimato ? (
         <Card variante="status" status="danger" padding={4} style={estilos.gap1}>
           <View style={estilos.linhaIcone}>
@@ -653,94 +593,15 @@ function Home(): React.JSX.Element {
         </Card>
       ) : null}
 
-      {/* Objetivo + Diretoria — dois mini-cards lado a lado. */}
-      {objetivo && pressao ? (
-        <View style={estilos.duplaBotoes}>
-          <Card
-            variante="interactive"
-            accessibilityLabel="Ver a tabela"
-            onPress={() => nav.navigate('MainTabs', {screen: 'Competition'})}
-            style={estilos.miniCard}>
-            <View style={estilos.linhaIcone}>
-              <Icon nome="trofeu" size={14} color="warning" />
-              <Text variant="labelM" color="textSecondary" style={estilos.caps}>
-                Objetivo
-              </Text>
-            </View>
-            <Text variant="titleM" numberOfLines={1}>
-              {objetivo.tipo}
-            </Text>
-            <Text
-              variant="caption"
-              color={metaNoRumo ? 'success' : 'danger'}
-              numberOfLines={1}>
-              {metaNoRumo ? 'No rumo' : 'Fora da meta'} · até{' '}
-              {objetivo.posicaoAlvo}º
-            </Text>
-          </Card>
-          <Card
-            variante="interactive"
-            accessibilityLabel="Ver o gabinete do técnico"
-            onPress={() => nav.navigate('Gabinete')}
-            style={estilos.miniCard}>
-            <View style={estilos.linhaIcone}>
-              <Icon nome="conversa" size={14} color={corDaPressao(pressao.nivel)} />
-              <Text variant="labelM" color="textSecondary" style={estilos.caps}>
-                Diretoria
-              </Text>
-            </View>
-            <Text
-              variant="titleM"
-              color={corDaPressao(pressao.nivel)}
-              numberOfLines={1}>
-              {pressao.nivel}
-            </Text>
-            <View
-              style={[
-                estilos.pressaoTrilha,
-                {backgroundColor: cores.surfaceSubtle},
-              ]}>
-              <View
-                style={[
-                  estilos.pressaoBarra,
-                  {
-                    width: `${pressao.pontuacao}%`,
-                    backgroundColor: cores[corDaPressao(pressao.nivel)],
-                  },
-                ]}
-              />
-            </View>
-          </Card>
-        </View>
-      ) : null}
-
-      {/* Sequências (streaks). */}
-      {sequencias.length > 0 ? (
-        <View style={estilos.sequenciasRow}>
-          {sequencias.map(seq => (
-            <Chip
-              key={seq.tipo}
-              label={seq.rotulo}
-              tom={seq.destaque === 'bom' ? 'brand' : 'danger'}
-              selected
-            />
-          ))}
-        </View>
-      ) : null}
-
-      {/* Clássico à vista. */}
-      {classico ? (
-        <Card variante="status" status="warning" padding={3}>
-          <View style={estilos.linhaIcone}>
-            <Icon nome="apito" size={15} color="warning" />
-            <Text variant="labelL" color="warning">
-              CLÁSSICO · {classico.nome}
-            </Text>
-          </View>
-        </Card>
-      ) : null}
-
-      {/* Próximo compromisso (o card já se rotula). */}
+      {/* PRÓXIMA PARTIDA (hero). */}
+      <SectionHeader
+        titulo="Próxima partida"
+        trailing={
+          classico ? (
+            <Badge label={`Clássico · ${classico.nome}`} tom="accent" />
+          ) : undefined
+        }
+      />
       {ehSerieD ? (
         !serieDCarreira ? (
           proximoEvento.tipo === 'fim' ? (
@@ -751,20 +612,8 @@ function Home(): React.JSX.Element {
               onPress={handleIniciarMataMata}
               fullWidth
             />
-          ) : proximoJogo && confronto ? (
-            <ProximoJogoCard
-              partida={proximoJogo}
-              clubeCasa={confronto.casa}
-              clubeFora={confronto.fora}
-              forcaCasa={confronto.forcaCasa}
-              forcaFora={confronto.forcaFora}
-              mandoCasa={mandoCasa}
-              onJogar={handleJogarPartida}
-            />
           ) : (
-            <Text variant="bodyM" color="textSecondary">
-              Nenhum jogo agendado.
-            </Text>
+            heroPartida
           )
         ) : mataMataEmAndamento ? (
           <Button
@@ -815,23 +664,88 @@ function Home(): React.JSX.Element {
           onPress={handleFinalizarTemporada}
           fullWidth
         />
-      ) : proximoJogo && confronto ? (
-        <ProximoJogoCard
-          partida={proximoJogo}
-          clubeCasa={confronto.casa}
-          clubeFora={confronto.fora}
-          forcaCasa={confronto.forcaCasa}
-          forcaFora={confronto.forcaFora}
-          mandoCasa={mandoCasa}
-          onJogar={handleJogarPartida}
-        />
       ) : (
-        <Text variant="bodyM" color="textSecondary">
-          Nenhum jogo agendado.
-        </Text>
+        heroPartida
       )}
 
-      {/* Copa do Brasil — card em linha. */}
+      {/* Estado do clube — posição / pontos / moral. */}
+      <View style={estilos.statsRow}>
+        <CelulaStat valor={posicao} rotulo="posição" />
+        <Divider vertical />
+        <CelulaStat valor={pontos} rotulo="pts" />
+        <Divider vertical />
+        <CelulaStat
+          valor={semElenco ? '-' : humor.nota}
+          rotulo="moral"
+          icone={semElenco ? undefined : humor.icone}
+          corIcone={humor.cor}
+        />
+      </View>
+
+      {/* Pendências do técnico. */}
+      <SectionHeader
+        titulo="Pendências do técnico"
+        trailing={
+          pendencias.length > 0 ? (
+            <Badge count={pendencias.length} tom="danger" solido />
+          ) : undefined
+        }
+      />
+      {pendencias.length > 0 ? (
+        pendencias.slice(0, MAX_PENDENCIAS).map(pendencia => (
+          <ManagerTask
+            key={pendencia.id}
+            titulo={pendencia.titulo}
+            subtitulo={pendencia.subtitulo}
+            icone={pendencia.icone}
+            tom={pendencia.tom}
+            onPress={() => irParaPendencia(pendencia.destino)}
+          />
+        ))
+      ) : (
+        <ManagerTask
+          titulo="Tudo em ordem"
+          subtitulo="Nenhuma pendência no momento"
+          icone="check"
+          tom="brand"
+        />
+      )}
+
+      {/* Classificação compacta. */}
+      {janela.length > 0 ? (
+        <>
+          <SectionHeader
+            titulo="Classificação"
+            acaoLabel="Ver tabela"
+            onAcao={() => nav.navigate('MainTabs', {screen: 'Competition'})}
+          />
+          <View style={estilos.tabelaHeader}>
+            <Text variant="caption" color="textMuted" style={estilos.colJ}>
+              J
+            </Text>
+            <Text variant="caption" color="textMuted" style={estilos.colPts}>
+              PTS
+            </Text>
+          </View>
+          {janela.map(linha => (
+            <StandingRow
+              key={linha.clubeId}
+              posicao={linha.posicao}
+              clubeId={linha.clubeId}
+              sigla={linha.sigla}
+              nome={linha.nome}
+              jogos={linha.jogos}
+              pontos={linha.pontos}
+              destacado={linha.destacado}
+            />
+          ))}
+        </>
+      ) : null}
+
+      {/* ───────── Detalhe por toque (profundidade preservada) ───────── */}
+      <Divider style={estilos.sep} />
+
+      {/* Copa do Brasil — atalho. */}
       {copa ? (
         <Card
           variante="interactive"
@@ -881,35 +795,26 @@ function Home(): React.JSX.Element {
         </Card>
       ) : null}
 
+      {/* Avisos do elenco — cada jogador abre o detalhe. */}
       <AlertasCard
         alertas={alertas}
         onAbrirJogador={jogadorId => nav.navigate('PlayerDetail', {jogadorId})}
       />
 
-      {/* Imprensa — manchetes editoriais. */}
-      {manchetes.length > 0 ? (
-        <Card variante="outlined" padding={4} style={estilos.gap2}>
-          <View style={estilos.linhaIcone}>
-            <Icon nome="conversa" size={15} color="accent" />
-            <Text variant="labelM" color="textSecondary">
-              IMPRENSA
-            </Text>
-          </View>
-          {manchetes.map(manchete => (
-            <View key={manchete.id} style={estilos.mancheteLinha}>
-              <View
-                style={[
-                  estilos.mancheteDot,
-                  {backgroundColor: cores[corDoTom(manchete.tom)]},
-                ]}
-              />
-              <Text variant="bodyM" color="textSecondary" style={estilos.flex}>
-                {manchete.texto}
-              </Text>
-            </View>
+      {/* Sequências (streaks). */}
+      {sequencias.length > 0 ? (
+        <View style={estilos.sequenciasRow}>
+          {sequencias.map(seq => (
+            <Chip
+              key={seq.tipo}
+              label={seq.rotulo}
+              tom={seq.destaque === 'bom' ? 'brand' : 'danger'}
+              selected
+            />
           ))}
-        </Card>
+        </View>
       ) : null}
+
     </Screen>
   );
 }
@@ -919,39 +824,72 @@ export default Home;
 const estilos = StyleSheet.create({
   flex: {flex: 1},
   gap1: {gap: espacamento[1]},
-  gap2: {gap: espacamento[2]},
-  linhaEntre: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: espacamento[2],
-  },
   linhaIcone: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: espacamento[2],
   },
-  relanceRow: {flexDirection: 'row', gap: espacamento[2]},
-  statCard: {flex: 1, gap: espacamento[1]},
-  duplaBotoes: {flexDirection: 'row', gap: espacamento[2]},
-  miniCard: {flex: 1, gap: espacamento[1]},
-  pressaoTrilha: {
-    height: 8,
-    borderRadius: 999,
-    overflow: 'hidden',
-    marginTop: espacamento[1],
+  caps: {textTransform: 'uppercase', letterSpacing: 0.8},
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[1],
   },
-  pressaoBarra: {height: '100%', borderRadius: 999},
+  headerBotao: {alignItems: 'center', justifyContent: 'center'},
+  sinoBadge: {position: 'absolute', top: -2, right: -6},
+  // Identidade
+  identidade: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[3],
+  },
+  // Hero
+  heroTimes: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  heroTime: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[2],
+  },
+  heroTimeDir: {justifyContent: 'flex-end'},
+  heroInfo: {alignItems: 'center', gap: 2},
+  heroEstadio: {opacity: 0.8},
+  // Estado do clube
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    paddingVertical: espacamento[1],
+  },
+  statCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+    paddingVertical: espacamento[1],
+  },
+  statValorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[1],
+  },
+  // Classificação
+  tabelaHeader: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: espacamento[2],
+    paddingHorizontal: espacamento[2],
+  },
+  colJ: {width: 28, textAlign: 'center'},
+  colPts: {width: 32, textAlign: 'right'},
+  // Secundários
+  sep: {marginVertical: espacamento[2]},
   sequenciasRow: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
   copaJogo: {alignItems: 'center', gap: espacamento[2]},
   copaJogoLogo: {height: 56, width: '55%'},
   linhaCard: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
   miniLogo: {height: 36, width: 36},
-  mancheteLinha: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: espacamento[2],
-  },
-  mancheteDot: {width: 7, height: 7, borderRadius: 999, marginTop: 6},
-  caps: {textTransform: 'uppercase', letterSpacing: 0.8},
 });

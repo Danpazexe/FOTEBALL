@@ -126,6 +126,7 @@ import {
 import {resolverSerieDNaVirada, type ResumoSerieD} from './serieDSeason';
 import type {
   AtributoChave,
+  ChutePartida,
   Clube,
   EstadoFinanceiro,
   EstatisticasPartida,
@@ -307,6 +308,8 @@ export interface GameState {
     posse?: {casa: number; fora: number},
     /** Estatísticas avançadas acumuladas pela engine durante a partida. */
     estatisticas?: EstatisticasPartida,
+    /** Ledger causal de chutes da engine V2 (fonte do mapa factual). */
+    chutes?: ChutePartida[],
   ) => void;
   atualizarTaticaUsuario: (tatica: Tatica) => void;
   /** Define a tática do adversário (IA) no jogo do usuário — preview honesto. */
@@ -387,6 +390,17 @@ function enxugarEstatisticasIA(partida: Partida): Partida {
       fora: enxugarTime(partida.estatisticas.fora),
       momentumPorMinuto: [],
     },
+    // Ledger RESUMIDO (causal_summary): guarda os chutes que contam a história
+    // — gols, defesas, traves, anulados e grandes chances. Chutes de rotina
+    // (fora/bloqueado sem perigo) saem do save; os AGREGADOS já os registram.
+    // O resumo nunca altera placar/estatísticas — só o que fica armazenado.
+    chutes: partida.chutes?.filter(
+      chute =>
+        chute.resultado !== 'fora' && chute.resultado !== 'bloqueado'
+          ? true
+          : chute.grandeChance,
+    ),
+    qualidadeDados: partida.chutes ? 'causal_summary' : partida.qualidadeDados,
   };
 }
 
@@ -1172,6 +1186,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     placarFora,
     posse,
     estatisticas,
+    chutes,
   ) => {
     const state = get();
     const jogosRodada = state.partidas.filter(
@@ -1218,6 +1233,9 @@ export const useGameStore = create<GameState>((set, get) => ({
               posseCasa: posse?.casa,
               posseFora: posse?.fora,
               estatisticas,
+              chutes,
+              engineVersion: chutes ? (2 as const) : partida.engineVersion,
+              qualidadeDados: chutes ? ('causal_full' as const) : partida.qualidadeDados,
               titularesCasa: idsTitularesDisponiveis(
                 clubeCasa,
                 jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),

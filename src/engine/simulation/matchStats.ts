@@ -1,23 +1,25 @@
 /**
- * Estatísticas avançadas da partida — acumuladas minuto a minuto a partir do
- * jogo REAL; nada é inventado na UI. Duas fontes alimentam os números:
+ * ESTATÍSTICAS DA PARTIDA — REDUCERS DO LEDGER CAUSAL (Fase 6 da engine V2).
  *
- * 1. EVENTOS do simulador (gol, pênalti, chance, cartão): cada um vira as
- *    contagens que implica — gol => finalização no alvo; cartão => falta;
- *    pênalti => falta do adversário + finalização na área...
- * 2. VOLUME por minuto derivado do estado real: posse do minuto, probabilidade
- *    de gol ATUAL do motor (fadiga/expulsões/momentum inclusos), atributos dos
- *    jogadores EM CAMPO, tática e clima — com um RNG próprio que não interfere
- *    no sorteio de eventos (mesma seed => mesma partida de antes).
+ * Este módulo NÃO sorteia futebol: ele REDUZ os fatos produzidos pela cadeia
+ * causal (posse → chance → chute → resolução) em números agregados:
+ *  • finalizações / no alvo / na área / de fora ← ChutePartida reais;
+ *  • xG ← soma do xG dos chutes válidos; xA ← xG dos chutes assistidos;
+ *  • grandes chances ← classificação da OPORTUNIDADE (não do resultado);
+ *  • escanteios/impedimentos/faltas ← contagens factuais do minuto + cartões;
+ *  • posse/zonas/passes/duelos ← derivação determinística da posse real e dos
+ *    atributos de quem está EM CAMPO (sem RNG — mesmo minuto, mesmos números).
  *
- * Invariantes garantidos (cobertos por teste):
- * finalizacoes = finalizacoesNaArea + finalizacoesDeFora;
- * finalizacoesNoAlvo >= gols; passesCertos <= passesTentados;
- * faltas >= cartões do time.
+ * Convenções documentadas:
+ *  • finalização NO ALVO = gol + defesa (trave NÃO conta);
+ *  • chute com gol ANULADO pelo VAR fica no ledger, mas NÃO conta em
+ *    finalizações nem no xG oficial (o lance foi invalidado por impedimento);
+ *  • gol contra conta como finalização no alvo do time que marcou, sem
+ *    creditar chute a nenhum jogador.
  */
 
-import {ehEventoGol} from '../../types';
 import type {
+  ChutePartida,
   ClimaPartida,
   EstatisticasPartida,
   EstatisticasTimePartida,
@@ -27,7 +29,6 @@ import type {
   Tatica,
 } from '../../types';
 
-import type {ProbabilidadesPartida} from './probabilityCalc';
 import {limitar, type RandomGenerator} from './rng';
 
 /** Acumulador mutável de um time (floats; arredonda só no fim). */
@@ -60,11 +61,19 @@ export interface EstatisticasAoVivo {
   fora: AcumuladorTime;
   clima: ClimaPartida;
   temperatura: number;
-  /** Momentum por minuto na perspectiva da casa (−1..1). */
+  /** Momentum por minuto na perspectiva da casa (−1..1) — ver momentumEngine. */
   momentumPorMinuto: number[];
 }
 
-/** Tudo que o acumulador precisa saber sobre UM minuto simulado. */
+/** Fatos REAIS de um lado num minuto (produzidos pela cadeia causal). */
+export interface FatosMinutoLado {
+  chutes: ChutePartida[];
+  escanteios: number;
+  impedimentos: number;
+  faltas: number;
+}
+
+/** Tudo que o reducer precisa saber sobre UM minuto simulado. */
 export interface EntradaMinutoEstatisticas {
   timeCasaId: string;
   /** Jogadores realmente EM CAMPO neste minuto (sem expulsos/lesionados). */
@@ -72,14 +81,15 @@ export interface EntradaMinutoEstatisticas {
   emCampoFora: Player[];
   taticaCasa: Tatica | null | undefined;
   taticaFora: Tatica | null | undefined;
-  probabilidades: ProbabilidadesPartida;
+  /** Eventos do minuto (cartões viram faltas; falta de pênalti idem). */
   eventosDoMinuto: EventoPartida[];
+  fatosCasa: FatosMinutoLado;
+  fatosFora: FatosMinutoLado;
   /** Fração de posse da CASA neste minuto (a mesma da barra de posse). */
   fracaoPosseCasa: number;
-  fatorTempo: number;
-  momentumCasa: number;
-  momentumFora: number;
-  rng: RandomGenerator;
+  /** Urgência pelo placar (>1 = atrás, correndo atrás do prejuízo). */
+  urgenciaCasa: number;
+  urgenciaFora: number;
 }
 
 function criarAcumuladorTime(): AcumuladorTime {
@@ -112,9 +122,9 @@ function criarAcumuladorTime(): AcumuladorTime {
 }
 
 /**
- * Sorteia as condições do jogo (determinístico pela seed via `rng`). O clima
- * influencia o VOLUME das estatísticas (passes certos, dribles, faltas) — a
- * probabilidade de gol do motor não muda, preservando o balanceamento.
+ * Sorteia as CONDIÇÕES do jogo (clima/temperatura) — apresentação, não fato
+ * esportivo: influencia execução (precisão de passe), nunca cria lances.
+ * Determinístico pela seed via `rng` (stream de apresentação).
  */
 export function criarEstatisticasAoVivo(rng: RandomGenerator): EstatisticasAoVivo {
   const sorteioClima = rng();
@@ -130,6 +140,16 @@ export function criarEstatisticasAoVivo(rng: RandomGenerator): EstatisticasAoViv
   };
 }
 
+function mediaAtributo(
+  jogadores: Player[],
+  seletor: (jogador: Player) => number,
+): number {
+  if (jogadores.length === 0) {
+    return 60;
+  }
+  return jogadores.reduce((soma, j) => soma + seletor(j), 0) / jogadores.length;
+}
+
 /** Corredor do campo pela posição natural: 0=esquerda, 1=centro, 2=direita. */
 function corredorDaPosicao(posicao: Position): 0 | 1 | 2 {
   if (posicao === 'LE' || posicao === 'PE') {
@@ -141,46 +161,9 @@ function corredorDaPosicao(posicao: Position): 0 | 1 | 2 {
   return 1;
 }
 
-function mediaAtributo(
-  jogadores: Player[],
-  seletor: (jogador: Player) => number,
-): number {
-  if (jogadores.length === 0) {
-    return 60;
-  }
-  return jogadores.reduce((soma, j) => soma + seletor(j), 0) / jogadores.length;
-}
-
-/** Peso de quem FINALIZA (não de quem marca): posição de área + aptidão. */
-function pesoFinalizador(jogador: Player): number {
-  const posicao = jogador.posicaoPrincipal;
-  const base =
-    posicao === 'CA'
-      ? 6
-      : ['PD', 'PE', 'SA'].includes(posicao)
-        ? 4
-        : ['MEI', 'MC'].includes(posicao)
-          ? 2
-          : 0.5;
-  return base * (Math.max(20, jogador.atributos.finalizacao) / 70);
-}
-
-function escolherFinalizador(
-  jogadores: Player[],
-  rng: RandomGenerator,
-): Player | undefined {
-  const total = jogadores.reduce((s, j) => s + pesoFinalizador(j), 0);
-  if (total <= 0) {
-    return jogadores[0];
-  }
-  let cursor = rng() * total;
-  for (const jogador of jogadores) {
-    cursor -= pesoFinalizador(jogador);
-    if (cursor <= 0) {
-      return jogador;
-    }
-  }
-  return jogadores[0];
+/** Corredor REAL do chute pela coordenada x persistida no ledger. */
+function corredorDoChute(chute: ChutePartida): 0 | 1 | 2 {
+  return chute.x < 0.42 ? 0 : chute.x > 0.58 ? 2 : 1;
 }
 
 function registrarFinalizacaoJogador(
@@ -195,23 +178,45 @@ function registrarFinalizacaoJogador(
   };
 }
 
-/** Aplica ao acumulador o que os EVENTOS reais do minuto implicam. */
-function processarEventosDoMinuto(
+/** Reduz os CHUTES reais de um lado no acumulador (fonte única: o ledger). */
+function reduzirChutes(time: AcumuladorTime, chutes: ChutePartida[]): void {
+  for (const chute of chutes) {
+    if (chute.resultado === 'gol_anulado') {
+      continue; // invalidado pelo VAR: fica no ledger, fora das estatísticas
+    }
+    const noAlvo = chute.resultado === 'gol' || chute.resultado === 'defesa';
+    time.finalizacoes += 1;
+    time.finalizacoesNoAlvo += noAlvo ? 1 : 0;
+    time.finalizacoesNaArea += chute.deFora ? 0 : 1;
+    time.finalizacoesDeFora += chute.deFora ? 1 : 0;
+    time.grandesChances += chute.grandeChance ? 1 : 0;
+    time.golsEsperados += chute.xg;
+    if (chute.assistenciaId !== undefined) {
+      time.assistenciasEsperadas += chute.xg;
+    }
+    const corredor = corredorDoChute(chute);
+    time.perigoSetores[corredor] =
+      (time.perigoSetores[corredor] ?? 0) +
+      (chute.resultado === 'gol' ? 1 : chute.deFora ? 0.3 : 0.55);
+    // Gol contra: o lance conta para o time que marcou, mas não credita
+    // finalização a jogador nenhum (o "autor" é um defensor adversário).
+    if (chute.golContra !== true) {
+      registrarFinalizacaoJogador(time, chute.jogadorId, noAlvo);
+    }
+  }
+}
+
+/** Faltas implícitas nos eventos: cartão = falta; falta de pênalti idem. */
+function reduzirEventos(
   entrada: EntradaMinutoEstatisticas,
   casa: AcumuladorTime,
   fora: AcumuladorTime,
 ): void {
-  const rng = entrada.rng;
-  const porId = new Map(
-    [...entrada.emCampoCasa, ...entrada.emCampoFora].map(j => [j.id, j]),
-  );
   // Faltas de pênalti que JÁ viraram cartão neste minuto: o cartão conta a
   // falta sozinho — sem isto o mesmo lance somaria duas faltas.
   const punidosComCartao = new Set(
     entrada.eventosDoMinuto
-      .filter(
-        e => e.tipo === 'cartao_amarelo' || e.tipo === 'cartao_vermelho',
-      )
+      .filter(e => e.tipo === 'cartao_amarelo' || e.tipo === 'cartao_vermelho')
       .map(e => e.jogadorId),
   );
 
@@ -219,70 +224,21 @@ function processarEventosDoMinuto(
     const ehCasa = evento.timeId === entrada.timeCasaId;
     const time = ehCasa ? casa : fora;
     const adversario = ehCasa ? fora : casa;
-    const autor = porId.get(evento.jogadorId);
-    const corredor = evento.penaltiData
-      ? 1
-      : corredorDaPosicao(autor?.posicaoPrincipal ?? 'MC');
 
-    if (ehEventoGol(evento.tipo)) {
-      const naArea = evento.penaltiData ? true : rng() < 0.8;
-      time.finalizacoes += 1;
-      time.finalizacoesNoAlvo += 1;
-      time.finalizacoesNaArea += naArea ? 1 : 0;
-      time.finalizacoesDeFora += naArea ? 0 : 1;
-      time.grandesChances += 1;
-      time.perigoSetores[corredor] = (time.perigoSetores[corredor] ?? 0) + 1;
-      // Gol contra: o "autor" é um defensor ADVERSÁRIO — o lance conta como chance
-      // da equipe que marcou (mantém finalizacoesNoAlvo/grandesChances >= placar),
-      // mas não credita finalização a nenhum jogador do time.
-      if (evento.tipo === 'gol') {
-        registrarFinalizacaoJogador(time, evento.jogadorId, true);
-      }
-      // Gol de pênalti: o adversário cometeu a falta que originou a cobrança
-      // (a menos que o infrator já tenha sido punido com cartão no lance).
-      if (
-        evento.penaltiData &&
-        !(evento.jogadorFaltaId && punidosComCartao.has(evento.jogadorFaltaId))
-      ) {
-        adversario.faltas += 1;
-      }
-    } else if (evento.tipo === 'penalti') {
-      // Pênalti desperdiçado: defendido = foi no alvo; para fora, não.
-      const defendido =
-        evento.penaltiData !== undefined &&
-        evento.penaltiData.direcaoGoleiro === evento.penaltiData.direcaoChute;
-      time.finalizacoes += 1;
-      time.finalizacoesNaArea += 1;
-      time.finalizacoesNoAlvo += defendido ? 1 : 0;
-      time.grandesChances += 1;
-      time.perigoSetores[1] = (time.perigoSetores[1] ?? 0) + 0.8;
-      if (
-        !(evento.jogadorFaltaId && punidosComCartao.has(evento.jogadorFaltaId))
-      ) {
-        adversario.faltas += 1;
-      }
-      registrarFinalizacaoJogador(time, evento.jogadorId, defendido);
-    } else if (evento.tipo === 'chance_perdida') {
-      const naArea = rng() < 0.7;
-      time.finalizacoes += 1;
-      time.finalizacoesNaArea += naArea ? 1 : 0;
-      time.finalizacoesDeFora += naArea ? 0 : 1;
-      const noAlvo = rng() < 0.45;
-      time.finalizacoesNoAlvo += noAlvo ? 1 : 0;
-      time.grandesChances += 1;
-      time.perigoSetores[corredor] = (time.perigoSetores[corredor] ?? 0) + 0.7;
-      registrarFinalizacaoJogador(time, evento.jogadorId, noAlvo);
-    } else if (
-      evento.tipo === 'cartao_amarelo' ||
-      evento.tipo === 'cartao_vermelho'
-    ) {
+    if (evento.tipo === 'cartao_amarelo' || evento.tipo === 'cartao_vermelho') {
       time.faltas += 1;
+    } else if (
+      evento.penaltiData !== undefined &&
+      !(evento.jogadorFaltaId && punidosComCartao.has(evento.jogadorFaltaId))
+    ) {
+      // Pênalti (convertido ou não): o adversário cometeu a falta da cobrança.
+      adversario.faltas += 1;
     }
   }
 }
 
 /** Pesos das LINHAS (def/meio/ata) da posse por zona, conforme tática e jogo. */
-function pesosLinhas(tatica: Tatica | null | undefined, momentum: number): number[] {
+function pesosLinhas(tatica: Tatica | null | undefined, urgencia: number): number[] {
   const linhas = [0.28, 0.44, 0.28];
   if (tatica?.linhaDefensiva === 'Recuada') {
     linhas[0] += 0.05;
@@ -301,8 +257,8 @@ function pesosLinhas(tatica: Tatica | null | undefined, momentum: number): numbe
     linhas[0] += 0.03;
     linhas[2] += 0.05;
   }
-  // Atrás do placar (momentum > 1): empurra o time para o terço ofensivo.
-  if (momentum > 1.02) {
+  // Atrás do placar (urgência > 1): empurra o time para o terço ofensivo.
+  if (urgencia > 1.02) {
     linhas[2] += 0.05;
     linhas[0] -= 0.05;
   }
@@ -332,83 +288,22 @@ function pesosColunas(emCampo: Player[]): number[] {
   return pesos.map(p => p / total);
 }
 
-/** Acumula o volume sintético de UM lado num minuto (posse, chutes, faltas...). */
-function acumularVolumeTime(
+/**
+ * Volume DERIVADO de um lado num minuto: passes, duelos, cruzamentos e posse
+ * por zona — tudo função determinística da posse real do minuto, da tática e
+ * de quem está em campo (execução), sem criar fatos novos.
+ */
+function acumularVolumeDerivado(
   time: AcumuladorTime,
   emCampo: Player[],
   tatica: Tatica | null | undefined,
-  taticaAdversario: Tatica | null | undefined,
   fracaoPosse: number,
-  probGolMinuto: number,
-  probPenaltiMinuto: number,
-  fatorTempo: number,
-  momentum: number,
+  urgencia: number,
   clima: ClimaPartida,
   temperatura: number,
-  rng: RandomGenerator,
 ): void {
   const chuva = clima === 'Chuvoso';
   const linha = emCampo.filter(j => j.posicaoPrincipal !== 'GOL');
-
-  // xG/xA: a probabilidade REAL de gol do minuto (com reta final e momentum) é,
-  // por definição, os gols esperados do modelo. Pênalti vale ~0.78 de xG.
-  const xgMinuto = probGolMinuto * fatorTempo * momentum;
-  time.golsEsperados += xgMinuto + probPenaltiMinuto * 0.78;
-  // O motor credita garçom em ~70% dos gols de jogo aberto.
-  time.assistenciasEsperadas += xgMinuto * 0.7;
-
-  // Finalização extra (sem evento do simulador): quem pressiona chuta mais.
-  // Calibrado p/ ~25–29 chutes/jogo (soma dos dois times) — ver medição de stats.
-  const probFinalizacao = limitar(xgMinuto * 8, 0.022, 0.4);
-  if (rng() < probFinalizacao) {
-    const naArea = rng() < 0.58;
-    const noAlvo = rng() < (naArea ? 0.36 : 0.24) * (chuva ? 0.9 : 1);
-    time.finalizacoes += 1;
-    time.finalizacoesNaArea += naArea ? 1 : 0;
-    time.finalizacoesDeFora += naArea ? 0 : 1;
-    time.finalizacoesNoAlvo += noAlvo ? 1 : 0;
-    const autor = escolherFinalizador(linha, rng);
-    if (autor) {
-      registrarFinalizacaoJogador(time, autor.id, noAlvo);
-      const corredor = corredorDaPosicao(autor.posicaoPrincipal);
-      time.perigoSetores[corredor] =
-        (time.perigoSetores[corredor] ?? 0) + (naArea ? 0.45 : 0.3);
-    }
-    // Chute na área rende escanteio com frequência (desvio/defesa).
-    if (naArea && rng() < 0.42) {
-      time.escanteios += 1;
-    }
-  }
-  // Escanteio de pressão sem chute (cruzamento afastado pela zaga).
-  if (rng() < 0.032 * (0.5 + fracaoPosse)) {
-    time.escanteios += 1;
-  }
-
-  // Faltas: marcação pesada e ritmo intenso cobram seu preço.
-  const agressividade =
-    (tatica?.marcacao === 'Pressão alta'
-      ? 1.5
-      : tatica?.marcacao === 'Individual'
-        ? 1.25
-        : 1) *
-    (tatica?.ritmo === 'Intenso' ? 1.15 : 1) *
-    (chuva ? 1.1 : 1);
-  if (rng() < 0.115 * agressividade) {
-    time.faltas += 1;
-  }
-
-  // Impedimentos: bola longa contra linha adiantada é a receita clássica.
-  const probImpedimento =
-    0.016 *
-    (tatica?.estiloOfensivo === 'Ataque direto'
-      ? 1.6
-      : tatica?.estiloOfensivo === 'Contra-ataque'
-        ? 1.3
-        : 1) *
-    (taticaAdversario?.linhaDefensiva === 'Adiantada' ? 1.5 : 1);
-  if (rng() < probImpedimento) {
-    time.impedimentos += 1;
-  }
 
   // Passes: ~9.5 passes/minuto de jogo repartidos pela posse do minuto.
   const fatorEstiloPasses =
@@ -482,7 +377,7 @@ function acumularVolumeTime(
     (tatica?.estiloOfensivo === 'Ataque direto' ? 1.25 : 1);
 
   // Posse por zona: distribui a posse do minuto na grade 3×3 do próprio time.
-  const linhas = pesosLinhas(tatica, momentum);
+  const linhas = pesosLinhas(tatica, urgencia);
   const colunas = pesosColunas(emCampo);
   for (let l = 0; l < 3; l += 1) {
     for (let c = 0; c < 3; c += 1) {
@@ -495,57 +390,40 @@ function acumularVolumeTime(
   }
 }
 
-/** Acumula TUDO de um minuto simulado (eventos reais + volume dos dois lados). */
+/** Acumula TUDO de um minuto simulado (fatos do ledger + volume derivado). */
 export function acumularEstatisticasMinuto(
   stats: EstatisticasAoVivo,
   entrada: EntradaMinutoEstatisticas,
 ): void {
-  processarEventosDoMinuto(entrada, stats.casa, stats.fora);
+  reduzirChutes(stats.casa, entrada.fatosCasa.chutes);
+  reduzirChutes(stats.fora, entrada.fatosFora.chutes);
 
-  // Momentum do minuto (casa positivo): posse do minuto + peso dos lances.
-  let momento = (entrada.fracaoPosseCasa - 0.5) * 1.6;
-  for (const evento of entrada.eventosDoMinuto) {
-    const ehCasa = evento.timeId === entrada.timeCasaId;
-    const impacto =
-      evento.tipo === 'gol'
-        ? 0.4
-        : evento.tipo === 'penalti' || evento.tipo === 'chance_perdida'
-          ? 0.2
-          : 0;
-    momento += ehCasa ? impacto : -impacto;
-  }
-  stats.momentumPorMinuto.push(
-    Math.round(limitar(momento, -1, 1) * 100) / 100,
-  );
+  stats.casa.escanteios += entrada.fatosCasa.escanteios;
+  stats.fora.escanteios += entrada.fatosFora.escanteios;
+  stats.casa.impedimentos += entrada.fatosCasa.impedimentos;
+  stats.fora.impedimentos += entrada.fatosFora.impedimentos;
+  stats.casa.faltas += entrada.fatosCasa.faltas;
+  stats.fora.faltas += entrada.fatosFora.faltas;
 
-  const p = entrada.probabilidades;
-  acumularVolumeTime(
+  reduzirEventos(entrada, stats.casa, stats.fora);
+
+  acumularVolumeDerivado(
     stats.casa,
     entrada.emCampoCasa,
     entrada.taticaCasa,
-    entrada.taticaFora,
     entrada.fracaoPosseCasa,
-    p.probGolCasaPorMinuto,
-    p.probPenaltiCasaPorMinuto,
-    entrada.fatorTempo,
-    entrada.momentumCasa,
+    entrada.urgenciaCasa,
     stats.clima,
     stats.temperatura,
-    entrada.rng,
   );
-  acumularVolumeTime(
+  acumularVolumeDerivado(
     stats.fora,
     entrada.emCampoFora,
     entrada.taticaFora,
-    entrada.taticaCasa,
     1 - entrada.fracaoPosseCasa,
-    p.probGolForaPorMinuto,
-    p.probPenaltiForaPorMinuto,
-    entrada.fatorTempo,
-    entrada.momentumFora,
+    entrada.urgenciaFora,
     stats.clima,
     stats.temperatura,
-    entrada.rng,
   );
 }
 

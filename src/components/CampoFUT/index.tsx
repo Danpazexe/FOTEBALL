@@ -16,8 +16,8 @@
  *
  * Toda a REGRA vem dos módulos puros já existentes (nada é reimplementado aqui):
  * geometria (coordenadas), adaptacao (penalidade fora de posição, item 12),
- * defaults (mutadores de formação) e validacao. O visual de tier vem do tema
- * (nivelCarta/corOverall/glowDoTier). O componente é controlado: recebe a
+ * defaults (mutadores de formação) e validacao. Cores e espaçamento vêm do
+ * Design System v2 (tokens). O componente é controlado: recebe a
  * formação e devolve a nova via `onAtualizarFormacao` (que valida na store).
  */
 
@@ -30,14 +30,7 @@ import Animated, {
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, {
-  Ellipse,
-  G,
-  Line,
-  Path,
-  Polygon,
-  Rect,
-} from 'react-native-svg';
+import Svg, {Ellipse, Line, Rect} from 'react-native-svg';
 
 import {trocarTitular} from '../../api/database/seed/defaults';
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
@@ -47,11 +40,39 @@ import {
   preencherCoordenadas,
 } from '../../engine/tactics/geometria';
 import {validarEscalacao} from '../../engine/tactics/validacao';
-import {cores, corOverall, espaco, raio, suaves} from '../../theme';
+import {
+  espacamento,
+  raios,
+  useEstilosDS,
+  useTheme,
+  type CorTexto,
+  type TemaDS,
+} from '../../design-system';
 import type {Clube, Formacao, Player, Position, Tatica} from '../../types';
 import Escudo from '../Escudo';
-import FichaCamisa from '../FichaCamisa';
 import Icone from '../Icone';
+
+/**
+ * Nome curto para caber sob a ficha (estilo Sofascore): apelido de uma palavra
+ * fica como está (Neymar, Rafael); nome composto vira o ÚLTIMO sobrenome
+ * (Deivid Washington → Washington). Evita que rótulos vizinhos colidam.
+ */
+function nomeCampo(jogador: Player): string {
+  const base = (jogador.apelido ?? jogador.nome).trim();
+  const partes = base.split(/\s+/);
+  return partes.length <= 1 ? base : partes[partes.length - 1];
+}
+
+/** Faixa de cor do overall — mesma régua do OverallBadge (DS). */
+function faixaCorOverall(overall: number): CorTexto {
+  if (overall >= 75) {
+    return 'success';
+  }
+  if (overall >= 60) {
+    return 'warning';
+  }
+  return 'danger';
+}
 
 type CampoFUTProps = {
   clube: Clube;
@@ -85,30 +106,19 @@ type SharedNum = SharedValue<number>;
 // sob o dedo) — senão, mirando pela carta, o drop cai fora do alvo.
 const GHOST_LEVANTA = 0.78;
 
-/**
- * Trapézio do campo em coordenadas NATIVAS do SVG do Sofascore (viewBox
- * 2232×1790). O fundo (gol de ataque, longe) fica no TOPO — estreito; a frente
- * (nosso gol/GK, perto) na BASE — larga. Valores medidos das linhas laterais do
- * SVG: linha de fundo em y≈115 (meia-largura ~675), base em y≈1790 (meia-largura
- * ~1164), centro x≈1110. A MESMA projeção alimenta desenho, peças e hit-test.
- */
-const VB_LARGURA = 2232;
-const VB_ALTURA = 1790;
-const CAMPO_SVG = {
-  centroX: 1110,
-  topoY: 115,
-  baseY: 1790,
-  hwTopo: 675, // meia-largura da linha de fundo (topo/longe)
-  hwBase: 1164, // meia-largura na base (perto)
-  jogTopoY: 320, // faixa vertical das peças (margem p/ carta caber)
-  jogBaseY: 1700,
-  insetX: 0.82, // peças um pouco dentro das laterais
-};
+// Tabuleiro tático CHAPADO (visto de cima). As fichas são posicionadas por
+// projetarSlot num retângulo plano; o MESMO mapa alimenta desenho e hit-test.
+// Margens (fração) para as fichas + nomes caberem dentro das linhas.
+// Margem lateral do tabuleiro. Menor = a linha de 4 se ESPALHA mais (antes 0.12
+// apertava os 4 do meio até os círculos se encostarem). Fica ≥ metade da ficha
+// pra não clipar o jogador mais aberto na borda.
+const MARGEM_X = 0.075;
+const MARGEM_Y = 0.05;
 
 /**
- * Projeta (x,y ∈ 0..1) → centro da carta na tela + escala por profundidade. As
- * coordenadas nativas do SVG são mapeadas para o container (largura×altura), então
- * o campo pode ser esticado (preserveAspectRatio="none") que as peças acompanham.
+ * Projeta (x,y ∈ 0..1) → centro da FICHA na tela. Mapa LINEAR (sem perspectiva):
+ * x=0 esquerda … x=1 direita; y=0 nosso gol (base/baixo) … y=1 ataque (topo). A
+ * escala é constante (tabuleiro plano) — todas as fichas do mesmo tamanho.
  */
 function projetarSlot(
   x: number,
@@ -116,18 +126,12 @@ function projetarSlot(
   largura: number,
   altura: number,
 ): {cx: number; cy: number; escala: number} {
-  // y=1 (ataque) → topo/longe; y=0 (GK) → base/perto.
-  const nativaY = CAMPO_SVG.jogBaseY - y * (CAMPO_SVG.jogBaseY - CAMPO_SVG.jogTopoY);
-  const frac =
-    (nativaY - CAMPO_SVG.topoY) / (CAMPO_SVG.baseY - CAMPO_SVG.topoY);
-  const meiaLargura =
-    CAMPO_SVG.hwTopo + (CAMPO_SVG.hwBase - CAMPO_SVG.hwTopo) * frac;
-  const nativaX = CAMPO_SVG.centroX + (x - 0.5) * 2 * meiaLargura * CAMPO_SVG.insetX;
-  const escala = 0.72 + 0.42 * frac;
+  const mx = largura * MARGEM_X;
+  const my = altura * MARGEM_Y;
   return {
-    cx: (nativaX / VB_LARGURA) * largura,
-    cy: (nativaY / VB_ALTURA) * altura,
-    escala,
+    cx: mx + x * (largura - 2 * mx),
+    cy: altura - my - y * (altura - 2 * my),
+    escala: 1,
   };
 }
 
@@ -203,17 +207,16 @@ function CampoFUT({
   onArrastandoChange,
   largura,
 }: CampoFUTProps): React.JSX.Element {
-  // Campo do SVG do Sofascore (viewBox 2232×1790), LARGO/BAIXO como no print do
-  // usuário (não esticado alto). preserveAspectRatio="none" + as peças acompanham
-  // via projetarSlot.
-  const altura = Math.round(largura * 0.85);
-  const cardW = Math.round(largura * 0.15);
-  const cardH = Math.round(cardW * 1.2);
-  const cardBancoW = Math.round(largura * 0.24);
-  // Card "fantasma" que segue o dedo no arraste: a CARTA FUT completa, num
-  // tamanho médio, para mostrar o jogador sendo puxado (não uma bolinha).
-  const ghostW = Math.min(Math.round(largura * 0.5), 190);
-  const ghostH = Math.round(ghostW * 1.2);
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
+  // Tabuleiro CHAPADO (retrato). As fichas são CÍRCULOS (quadrado = diâmetro).
+  const altura = Math.round(largura * 1.42);
+  const cardW = Math.round(largura * 0.122); // diâmetro do círculo (folga na linha de 4/5)
+  const cardH = cardW; // ficha quadrada → círculo centrado no slot
+  const cardBancoW = Math.round(largura * 0.16);
+  // Ficha "fantasma" que segue o dedo no arraste (círculo um pouco maior).
+  const ghostW = Math.min(Math.round(largura * 0.28), 120);
+  const ghostH = ghostW;
   // Quanto o centro visual do fantasma fica ACIMA do dedo (compensado no drop).
   const ghostOffset = Math.round(ghostH * (GHOST_LEVANTA - 0.5));
   // Raio de captura do drop: >= metade da distância vertical entre slots
@@ -423,18 +426,11 @@ function CampoFUT({
 
       <BannerValidacao validacao={validacao} />
 
-      <PlacaPublicidade largura={largura} />
-
       <View
         ref={pitchRef}
         onLayout={medirPitch}
         style={[styles.pitch, {width: largura, height: altura}]}>
-        <PitchEstadio
-          largura={largura}
-          altura={altura}
-          linhaDefensiva={tatica.linhaDefensiva}
-          ladoAtaque={tatica.ladoAtaque ?? 'Ambos'}
-        />
+        <PitchEstadio largura={largura} altura={altura} />
 
         <Pressable
           accessibilityRole="button"
@@ -444,7 +440,7 @@ function CampoFUT({
           <Icone
             nome={modoEdicao ? 'check' : 'olho'}
             tamanho={18}
-            cor={modoEdicao ? cores.contrastePrimaria : cores.primaria}
+            cor={modoEdicao ? cores.onBrand : cores.brand}
           />
         </Pressable>
 
@@ -529,15 +525,17 @@ function CampoFUT({
         </>
       )}
 
-      {/* Card FUT completo que segue o dedo durante o arraste. */}
+      {/* Ficha circular que segue o dedo durante o arraste. */}
       <Animated.View
         pointerEvents="none"
         style={[styles.ghost, {width: ghostW, height: ghostH}, ghostStyle]}>
         {jogadorArrastado ? (
-          <FichaCamisa
+          <CartaFUT
             jogador={jogadorArrastado}
             posicaoEscalada={jogadorArrastado.posicaoPrincipal}
             largura={ghostW}
+            destaque={false}
+            esmaecer={false}
           />
         ) : null}
       </Animated.View>
@@ -557,6 +555,8 @@ function Cabecalho({
   formacaoDetectada: string;
   reputacaoTecnico: number;
 }): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
   const overall = Math.round(forca?.overall ?? 0);
   return (
     <View style={styles.cabecalho}>
@@ -567,7 +567,7 @@ function Cabecalho({
             {clube.nome}
           </Text>
           <View style={styles.cabFormacaoChip}>
-            <Icone nome="tatica" tamanho={12} cor={cores.primaria} />
+            <Icone nome="tatica" tamanho={12} cor={cores.brand} />
             <Text style={styles.cabFormacao}>{formacaoDetectada}</Text>
           </View>
         </View>
@@ -575,7 +575,11 @@ function Cabecalho({
 
       <View style={styles.cabDireita}>
         <View style={styles.cabOverall}>
-          <Text style={[styles.cabOverallNum, {color: corOverall(overall)}]}>
+          <Text
+            style={[
+              styles.cabOverallNum,
+              {color: cores[faixaCorOverall(overall)]},
+            ]}>
             {overall}
           </Text>
           <Text style={styles.cabOverallRotulo}>OVR</Text>
@@ -588,10 +592,12 @@ function Cabecalho({
 
 /** Card compacto do técnico: reputação em estrelas (0-5) + valor. */
 function CardTecnico({reputacao}: {reputacao: number}): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
   const estrelas = Math.max(0, Math.min(5, Math.round(reputacao / 20)));
   return (
     <View style={styles.tecnico}>
-      <Icone nome="conversa" tamanho={16} cor={cores.secundaria} />
+      <Icone nome="conversa" tamanho={16} cor={cores.accent} />
       <Text style={styles.tecnicoEstrelas}>
         {'★'.repeat(estrelas)}
         <Text style={styles.tecnicoEstrelasVazias}>
@@ -609,11 +615,13 @@ function BannerValidacao({
 }: {
   validacao: ReturnType<typeof validarEscalacao>;
 }): React.JSX.Element | null {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
   if (!validacao.valido) {
     return (
       <View style={[styles.banner, styles.bannerErro]}>
-        <Icone nome="fechar" tamanho={14} cor={cores.perigo} />
-        <Text style={[styles.bannerTexto, {color: cores.perigo}]}>
+        <Icone nome="fechar" tamanho={14} cor={cores.danger} />
+        <Text style={[styles.bannerTexto, {color: cores.danger}]}>
           {validacao.erros[0]}
         </Text>
       </View>
@@ -622,8 +630,8 @@ function BannerValidacao({
   if (validacao.avisos.length > 0) {
     return (
       <View style={[styles.banner, styles.bannerAviso]}>
-        <Icone nome="lesao" tamanho={14} cor={cores.secundaria} />
-        <Text style={[styles.bannerTexto, {color: cores.secundariaEscura}]}>
+        <Icone nome="lesao" tamanho={14} cor={cores.accent} />
+        <Text style={[styles.bannerTexto, {color: cores.warning}]}>
           {validacao.avisos[0]}
           {validacao.avisos.length > 1
             ? ` (+${validacao.avisos.length - 1})`
@@ -634,8 +642,8 @@ function BannerValidacao({
   }
   return (
     <View style={[styles.banner, styles.bannerOk]}>
-      <Icone nome="check" tamanho={14} cor={cores.primaria} />
-      <Text style={[styles.bannerTexto, {color: cores.primariaEscura}]}>
+      <Icone nome="check" tamanho={14} cor={cores.brand} />
+      <Text style={[styles.bannerTexto, {color: cores.brandStrong}]}>
         Escalação válida
       </Text>
     </View>
@@ -643,27 +651,9 @@ function BannerValidacao({
 }
 
 /**
- * Placa de publicidade (LED) na borda do campo — a marca do jogo repetida numa
- * faixa escura, como o painel de patrocínio atrás do gol nos apps de futebol.
- */
-function PlacaPublicidade({largura}: {largura: number}): React.JSX.Element {
-  const repeticoes = Math.max(4, Math.round(largura / 90));
-  return (
-    <View style={[styles.placa, {width: largura}]}>
-      {Array.from({length: repeticoes}).map((_, i) => (
-        <Text key={i} style={styles.placaTexto} numberOfLines={1}>
-          FOTEBALL
-        </Text>
-      ))}
-    </View>
-  );
-}
-
-/**
- * Carta FUT compacta (usada no campo e no banco). Fundo = tier do overall;
- * BORDA = anel de encaixe na posição (verde natural → vermelho improviso), que
- * é a penalidade fora de posição já calibrada em `adaptacao`. Quando destacada
- * (alvo de drop), a borda vira verde-marca e a carta cresce um tico.
+ * Ficha CIRCULAR do jogador no tabuleiro: círculo azul com o OVERALL e o nome
+ * embaixo. Destaque (alvo de drop) = anel âmbar + cresce; esmaecer = card sendo
+ * arrastado. Slot vazio = círculo tracejado com a posição.
  */
 function CartaFUT({
   jogador,
@@ -680,40 +670,75 @@ function CartaFUT({
   esmaecer: boolean;
   ehCapitao?: boolean;
 }): React.JSX.Element {
-  const altura = Math.round(largura * 1.2);
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
+  const raio2 = largura / 2;
+  // Rótulo estreito e centrado sob a ficha (largura ~1.6× a ficha), com o nome
+  // curto + reticências — antes 2.2× e nome inteiro faziam os nomes colidirem.
+  const nomeStyle = {
+    width: largura * 1.6,
+    left: -largura * 0.3,
+    top: largura + 2,
+    fontSize: Math.max(9, Math.round(largura * 0.22)),
+  };
+
   if (!jogador) {
     return (
-      <View style={[styles.cartaVazia, {width: largura, height: altura}]}>
-        <Text style={styles.cartaVaziaTexto}>{posicaoEscalada}</Text>
+      <View
+        style={[
+          styles.fichaVazia,
+          {width: largura, height: largura, borderRadius: raio2},
+        ]}>
+        <Text
+          style={[styles.fichaVaziaTexto, {fontSize: Math.round(largura * 0.3)}]}>
+          {posicaoEscalada}
+        </Text>
       </View>
     );
   }
 
   const indisponivel = jogador.lesionado || jogador.suspenso;
+  const badge = Math.round(largura * 0.42);
 
-  // Camisa na cor viva do time (FichaCamisa): destaque = alvo de drop (brilho
-  // verde); esmaecer = card sendo arrastado.
   return (
-    <View
-      style={[
-        destaque ? styles.cartaDestaque : null,
-        esmaecer ? styles.cartaEsmaecida : null,
-      ]}>
-      <FichaCamisa
-        jogador={jogador}
-        posicaoEscalada={posicaoEscalada}
-        largura={largura}
-        ehCapitao={ehCapitao}
-      />
-      {indisponivel ? (
-        <View style={styles.cartaStatus}>
-          <Icone
-            nome={jogador.lesionado ? 'lesao' : 'cartao'}
-            tamanho={Math.round(largura * 0.18)}
-            cor={cores.contrastePrimaria}
-          />
-        </View>
-      ) : null}
+    <View>
+      <View
+        style={[
+          styles.ficha,
+          {width: largura, height: largura, borderRadius: raio2},
+          destaque ? styles.fichaDestaque : null,
+          esmaecer ? styles.fichaEsmaecida : null,
+        ]}>
+        <Text
+          style={[styles.fichaOverall, {fontSize: Math.round(largura * 0.42)}]}>
+          {jogador.overall}
+        </Text>
+        {ehCapitao ? (
+          <Text
+            style={[styles.fichaCapitao, {fontSize: Math.round(largura * 0.28)}]}>
+            C
+          </Text>
+        ) : null}
+        {indisponivel ? (
+          <View
+            style={[
+              styles.fichaStatus,
+              {width: badge, height: badge, borderRadius: badge / 2},
+            ]}>
+            <Icone
+              nome={jogador.lesionado ? 'lesao' : 'cartao'}
+              tamanho={Math.round(largura * 0.24)}
+              cor={cores.onBrand}
+            />
+          </View>
+        ) : null}
+      </View>
+      <Text
+        style={[styles.fichaNome, nomeStyle]}
+        numberOfLines={1}
+        ellipsizeMode="tail">
+        {nomeCampo(jogador)}
+      </Text>
     </View>
   );
 }
@@ -779,7 +804,7 @@ function PecaCampo({
     <GestureDetector gesture={gesto}>
       <View
         style={[
-          styles.slotWrap,
+          estilosFixos.slotWrap,
           {left: cx - cardW / 2, top: cy - cardH / 2, width: cardW},
         ]}>
         <CartaFUT
@@ -840,7 +865,7 @@ function PecaReserva({
 
   return (
     <GestureDetector gesture={gesto}>
-      <View style={!habilitado ? styles.reservaIndisponivel : null}>
+      <View style={!habilitado ? estilosFixos.reservaIndisponivel : null}>
         <CartaFUT
           jogador={jogador}
           posicaoEscalada={jogador.posicaoPrincipal}
@@ -855,6 +880,7 @@ function PecaReserva({
 
 /** Resumo tático ao vivo (chips): estilo, linha, ritmo, marcação. */
 function TaticaStrip({tatica}: {tatica: Tatica}): React.JSX.Element {
+  const styles = useEstilosDS(criarEstilos);
   const chips = [
     tatica.estiloOfensivo,
     `Linha ${tatica.linhaDefensiva.toLowerCase()}`,
@@ -875,418 +901,411 @@ function TaticaStrip({tatica}: {tatica: Tatica}): React.JSX.Element {
 }
 
 /**
- * Campo TRANSCRITO do SVG oficial do Sofascore (viewBox 2232×1790): gramado
- * trapezoidal em perspectiva, listras ceifadas trapezoidais, grande/pequena área
- * do fundo, meia-lua, círculo central (elipse) e linhas laterais — coordenadas
- * NATIVAS do SVG, escaladas pelo viewBox (= idêntico). A linha defensiva e as
- * setas de lado de ataque (extras do jogo) usam as mesmas coordenadas nativas
- * via `CAMPO_SVG`. SVG puro.
+ * Campo tático CHAPADO (visto de cima): gramado com listras + linhas de cal
+ * brancas (borda, meio, círculo central, áreas). viewBox proporcional ao
+ * container (sem distorção), SVG puro — sem perspectiva.
  */
 function PitchEstadio({
   largura,
   altura,
-  linhaDefensiva,
-  ladoAtaque,
 }: {
   largura: number;
   altura: number;
-  linhaDefensiva: Tatica['linhaDefensiva'];
-  ladoAtaque: NonNullable<Tatica['ladoAtaque']>;
 }): React.JSX.Element {
-  const hwEmY = (yy: number): number =>
-    CAMPO_SVG.hwTopo +
-    (CAMPO_SVG.hwBase - CAMPO_SVG.hwTopo) *
-      ((yy - CAMPO_SVG.topoY) / (CAMPO_SVG.baseY - CAMPO_SVG.topoY));
-
-  const fracLinha =
-    linhaDefensiva === 'Adiantada'
-      ? 0.42
-      : linhaDefensiva === 'Recuada'
-      ? 0.66
-      : 0.55;
-  const yLinha = CAMPO_SVG.topoY + fracLinha * (CAMPO_SVG.baseY - CAMPO_SVG.topoY);
-  const hwLinha = hwEmY(yLinha);
-
-  const setaBaseY = 360;
-  const setaTip = 150;
-  const hwSeta = hwEmY(setaBaseY);
-  const seta = (ax: number): string =>
-    `M${ax - 22} ${setaBaseY} L${ax - 22} ${setaTip + 70} L${ax - 62} ${
-      setaTip + 70
-    } L${ax} ${setaTip} L${ax + 62} ${setaTip + 70} L${ax + 22} ${
-      setaTip + 70
-    } L${ax + 22} ${setaBaseY} Z`;
-  const xsSeta =
-    ladoAtaque === 'Esquerda'
-      ? [CAMPO_SVG.centroX - hwSeta * 0.5]
-      : ladoAtaque === 'Direita'
-      ? [CAMPO_SVG.centroX + hwSeta * 0.5]
-      : ladoAtaque === 'Centro'
-      ? [CAMPO_SVG.centroX]
-      : [CAMPO_SVG.centroX - hwSeta * 0.5, CAMPO_SVG.centroX + hwSeta * 0.5];
-
+  const VH = Math.round((altura / largura) * 100);
+  const M = 3.5;
+  const meio = VH / 2;
+  const areaH = Math.round(VH * 0.13);
+  const golH = Math.round(VH * 0.05);
+  const raioC = 9;
+  const faixas = 8;
+  const fh = VH / faixas;
+  const sw = 0.7;
   return (
     <Svg
       width={largura}
       height={altura}
-      viewBox="0 0 2232 1790"
+      viewBox={`0 0 100 ${VH}`}
       preserveAspectRatio="none"
       pointerEvents="none"
       style={StyleSheet.absoluteFill}>
-      {/* Fundo escuro (cantos do topo, atrás do trapézio). */}
-      <Rect x={0} y={0} width={2232} height={1790} fill={FUNDO} />
-
-      {/* GRAMADO trapezoidal + listras ceifadas (coords do SVG do Sofascore). */}
-      <G transform="translate(-101.5 57.927)">
-        <Polygon fill={GRAMA} points="527.028 0 0 1732.074 2433 1732.074 1899.971 0" />
-        <Polygon fill={GRAMA_ESCURA} points="207.778 1202.112 2216.367 1202.112 2287 1448.074 131 1448.074" />
-        <Polygon fill={GRAMA} points="258.98 1022.719 2165.28 1022.719 2217.888 1202.112 206.365 1202.112" />
-        <Polygon fill={GRAMA_ESCURA} points="306.886 859.361 2119.917 859.361 2170.055 1022.719 258.055 1022.719" />
-        <Polygon fill={GRAMA} points="350.576 711.035 2074.885 711.035 2117.9 859.361 307.462 859.361" />
-        <Polygon fill={GRAMA_ESCURA} points="387.793 575.739 2036.14 575.739 2075.578 711.035 351.459 711.035" />
-        <Polygon fill={GRAMA} points="424.133 452.468 2000.064 452.468 2036.433 575.739 389.395 575.739" />
-        <Polygon fill={GRAMA_ESCURA} points="457.92 340.222 1970.335 340.222 2003.357 452.468 425.357 452.468" />
-        <Polygon fill={GRAMA} points="487.706 237.998 1937.524 237.998 1964.557 340.222 461.069 340.222" />
-        <Polygon fill={GRAMA_ESCURA} points="514.747 144.794 1914.915 144.794 1941.022 237.998 489.022 237.998" />
-        <Polygon fill={GRAMA} points="539.521 58.604 1887.269 58.604 1910.166 144.794 516.361 144.794" />
-      </G>
-
-      {/* LINHAS do campo (brancas) — coords do SVG do Sofascore. */}
-      <G transform="translate(-101.5 0)">
-        <G transform="translate(45.697 115)">
-          <G transform="translate(670.803 0)">
-            <Path
-              stroke={LINHA_CAMPO}
-              strokeWidth={5}
-              fill="none"
-              d="M965.07147 2.5 L1005.00042 220.462 L2.93778 220.462 L38.25713 2.5296 L965.07147 2.5 Z"
-            />
-            <Path
-              stroke={LINHA_CAMPO}
-              strokeWidth={5}
-              fill="none"
-              d="M747.754858 2.5050774 L757.500562 89.2346 L239.67786 89.2346 L247.766856 2.5050774 L747.754858 2.5050774 Z M295.001085 221.526983 C426.053217 300.824339 563.304447 300.824339 706.754778 221.526983"
-            />
-            <Ellipse cx={496.894} cy={149.948} rx={11.261} ry={5.796} fill={LINHA_CAMPO} />
-          </G>
-          <G transform="translate(189.803 857)">
-            <Rect width={1959} height={6.867} y={192.492} fill={LINHA_CAMPO} />
-            <Ellipse cx={980.458} cy={196.138} rx={26.32} ry={22.904} fill={LINHA_CAMPO} />
-            <Ellipse
-              cx={980.303}
-              cy={203.5}
-              rx={235.696}
-              ry={199.5}
-              stroke={LINHA_CAMPO}
-              strokeWidth={8}
-              fill="none"
-            />
-          </G>
-          <Path
-            stroke={LINHA_CAMPO}
-            strokeWidth={4}
-            fill="none"
-            transform="translate(490.803 3)"
-            d="M0 15 C13.398 13.453 21.325 8.775 23.782 0.968 M1360 14.648 C1352.075 14.344 1347.024 13.491 1344.848 12.09 C1337.704 7.489 1337.256 0 1337.256 0"
+      <Rect x={0} y={0} width={100} height={VH} fill={CAMPO_VERDE} />
+      {Array.from({length: faixas}).map((_, i) =>
+        i % 2 === 0 ? (
+          <Rect
+            key={i}
+            x={0}
+            y={i * fh}
+            width={100}
+            height={fh}
+            fill={CAMPO_VERDE_2}
           />
-          <Polygon fill={LINHA_CAMPO} points="491.955 0.001 499 0 7.029 1674.992 0 1675" />
-          <Polygon fill={LINHA_CAMPO} points="1842.58 0.005 1849.467 0.005 2328.584 1674.991 2321.694 1675.005" />
-          <Polygon fill={LINHA_CAMPO} points="498.879 0.005 1844.078 0.005 1844.078 5.054 497.441 5.054" />
-        </G>
-      </G>
-
-      {/* EXTRAS do jogo: linha defensiva (tracejada) + setas de lado de ataque. */}
-      <Line
-        x1={CAMPO_SVG.centroX - hwLinha + 60}
-        y1={yLinha}
-        x2={CAMPO_SVG.centroX + hwLinha - 60}
-        y2={yLinha}
-        stroke={cores.primariaClara}
-        strokeWidth={16}
-        strokeDasharray="60 42"
+        ) : null,
+      )}
+      <Rect
+        x={M}
+        y={M}
+        width={100 - 2 * M}
+        height={VH - 2 * M}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
       />
-      {xsSeta.map(ax => (
-        <Path key={ax} d={seta(ax)} fill={cores.secundaria} opacity={0.95} />
-      ))}
+      <Line
+        x1={M}
+        y1={meio}
+        x2={100 - M}
+        y2={meio}
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      <Ellipse
+        cx={50}
+        cy={meio}
+        rx={raioC}
+        ry={raioC}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      <Ellipse cx={50} cy={meio} rx={0.9} ry={0.9} fill={LINHA_CAMPO} />
+      {/* Área de ataque (topo) */}
+      <Rect
+        x={25}
+        y={M}
+        width={50}
+        height={areaH}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      <Rect
+        x={37}
+        y={M}
+        width={26}
+        height={golH}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      {/* Área de defesa (base) */}
+      <Rect
+        x={25}
+        y={VH - M - areaH}
+        width={50}
+        height={areaH}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
+      <Rect
+        x={37}
+        y={VH - M - golH}
+        width={26}
+        height={golH}
+        fill="none"
+        stroke={LINHA_CAMPO}
+        strokeWidth={sw}
+      />
     </Svg>
   );
 }
 
 export default CampoFUT;
 
-// Cores do gramado e linhas transcritas do SVG do Sofascore: verde base e verde
-// escuro das listras ceifadas, linhas de cal claras, e fundo escuro nos cantos.
-const GRAMA = '#015c2d';
-const GRAMA_ESCURA = '#014522';
-const LINHA_CAMPO = 'rgba(240, 245, 238, 0.9)';
-const FUNDO = '#0A140D';
+// Cores do gramado (tabuleiro chapado): verde base + verde da listra ceifada e
+// linhas de cal brancas. Objeto de campo — fixo nos dois temas.
+const CAMPO_VERDE = '#2E9E58';
+const CAMPO_VERDE_2 = '#2A9151';
+const LINHA_CAMPO = 'rgba(255, 255, 255, 0.85)';
 
-const styles = StyleSheet.create({
-  overlay: {
-    gap: espaco.sm,
-  },
-  cabecalho: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: espaco.sm,
-  },
-  cabInfo: {
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  cabTextos: {
-    flex: 1,
-    gap: 3,
-  },
-  cabNome: {
-    color: cores.texto,
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: -0.3,
-  },
-  cabFormacaoChip: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    backgroundColor: cores.superficieAlt,
-    borderRadius: raio.sm,
-    flexDirection: 'row',
-    gap: 4,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 2,
-  },
-  cabFormacao: {
-    color: cores.texto,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  cabDireita: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  cabOverall: {
-    alignItems: 'center',
-  },
-  cabOverallNum: {
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: -1,
-  },
-  cabOverallRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 1,
-    marginTop: -2,
-  },
-  tecnico: {
-    alignItems: 'center',
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    gap: 1,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: espaco.xs,
-  },
-  tecnicoEstrelas: {
-    color: cores.secundaria,
-    fontSize: 11,
-    letterSpacing: 1,
-  },
-  tecnicoEstrelasVazias: {
-    color: cores.bordaClara,
-  },
-  tecnicoRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 9,
-    fontWeight: '700',
-  },
-  banner: {
-    alignItems: 'center',
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: espaco.xs,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: espaco.xs,
-  },
-  bannerErro: {
-    backgroundColor: suaves.vermelho,
-    borderColor: cores.perigo,
-  },
-  bannerAviso: {
-    backgroundColor: suaves.amarelo,
-    borderColor: cores.secundaria,
-  },
-  bannerOk: {
-    backgroundColor: suaves.verde,
-    borderColor: cores.primaria,
-  },
-  bannerTexto: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  pitch: {
-    alignSelf: 'center',
-    position: 'relative',
-  },
-  placa: {
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: '#081009',
-    borderColor: cores.bordaClara,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    flexDirection: 'row',
-    height: 22,
-    justifyContent: 'space-around',
-    marginBottom: -espaco.xs,
-    overflow: 'hidden',
-  },
-  placaTexto: {
-    color: cores.secundaria,
-    fontSize: 11,
-    fontStyle: 'italic',
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    opacity: 0.8,
-  },
-  botaoOlho: {
-    alignItems: 'center',
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: 999,
-    borderWidth: 1,
-    elevation: 3,
-    height: 38,
-    justifyContent: 'center',
-    left: 6,
-    position: 'absolute',
-    shadowColor: '#0F1E3D',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.12,
-    shadowRadius: 5,
-    top: 6,
-    width: 38,
-    zIndex: 999,
-  },
-  botaoOlhoAtivo: {
-    backgroundColor: cores.primaria,
-    borderColor: cores.primaria,
-  },
+const criarEstilos = (t: TemaDS) =>
+  StyleSheet.create({
+    overlay: {
+      gap: espacamento[2],
+    },
+    cabecalho: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surface,
+      borderColor: t.cores.border,
+      borderRadius: raios.md,
+      borderWidth: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      padding: espacamento[2],
+    },
+    cabInfo: {
+      alignItems: 'center',
+      flex: 1,
+      flexDirection: 'row',
+      gap: espacamento[2],
+    },
+    cabTextos: {
+      flex: 1,
+      gap: 3,
+    },
+    cabNome: {
+      color: t.cores.textPrimary,
+      fontSize: 15,
+      fontWeight: '900',
+      letterSpacing: -0.3,
+    },
+    cabFormacaoChip: {
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      backgroundColor: t.cores.surfaceSubtle,
+      borderRadius: raios.sm,
+      flexDirection: 'row',
+      gap: 4,
+      paddingHorizontal: espacamento[2],
+      paddingVertical: 2,
+    },
+    cabFormacao: {
+      color: t.cores.textPrimary,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    cabDireita: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: espacamento[2],
+    },
+    cabOverall: {
+      alignItems: 'center',
+    },
+    cabOverallNum: {
+      fontSize: 30,
+      fontWeight: '900',
+      letterSpacing: -1,
+    },
+    cabOverallRotulo: {
+      color: t.cores.textSecondary,
+      fontSize: 9,
+      fontWeight: '800',
+      letterSpacing: 1,
+      marginTop: -2,
+    },
+    tecnico: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surfaceSubtle,
+      borderColor: t.cores.border,
+      borderRadius: raios.sm,
+      borderWidth: 1,
+      gap: 1,
+      paddingHorizontal: espacamento[2],
+      paddingVertical: espacamento[1],
+    },
+    tecnicoEstrelas: {
+      color: t.cores.accent,
+      fontSize: 11,
+      letterSpacing: 1,
+    },
+    tecnicoEstrelasVazias: {
+      color: t.cores.borderStrong,
+    },
+    tecnicoRotulo: {
+      color: t.cores.textSecondary,
+      fontSize: 9,
+      fontWeight: '700',
+    },
+    banner: {
+      alignItems: 'center',
+      borderRadius: raios.sm,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: espacamento[1],
+      paddingHorizontal: espacamento[2],
+      paddingVertical: espacamento[1],
+    },
+    bannerErro: {
+      backgroundColor: t.cores.dangerSoft,
+      borderColor: t.cores.danger,
+    },
+    bannerAviso: {
+      backgroundColor: t.cores.accentSoft,
+      borderColor: t.cores.accent,
+    },
+    bannerOk: {
+      backgroundColor: t.cores.brandSoft,
+      borderColor: t.cores.brand,
+    },
+    bannerTexto: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    pitch: {
+      alignSelf: 'center',
+      position: 'relative',
+    },
+    botaoOlho: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surface,
+      borderColor: t.cores.border,
+      borderRadius: 999,
+      borderWidth: 1,
+      elevation: 3,
+      height: 38,
+      justifyContent: 'center',
+      left: 6,
+      position: 'absolute',
+      shadowColor: '#0F1E3D',
+      shadowOffset: {width: 0, height: 2},
+      shadowOpacity: 0.12,
+      shadowRadius: 5,
+      top: 6,
+      width: 38,
+      zIndex: 999,
+    },
+    botaoOlhoAtivo: {
+      backgroundColor: t.cores.brand,
+      borderColor: t.cores.brand,
+    },
+    ficha: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.cores.brand,
+      borderWidth: 2,
+      borderColor: t.cores.onBrand,
+    },
+    fichaOverall: {
+      color: t.cores.onBrand,
+      fontWeight: '900',
+    },
+    fichaNome: {
+      position: 'absolute',
+      textAlign: 'center',
+      color: t.cores.onBrand,
+      fontSize: 10,
+      fontWeight: '800',
+      textShadowColor: 'rgba(0, 0, 0, 0.55)',
+      textShadowOffset: {width: 0, height: 1},
+      textShadowRadius: 2,
+    },
+    fichaDestaque: {
+      borderColor: t.cores.accent,
+      borderWidth: 3,
+      elevation: 8,
+      shadowColor: t.cores.accent,
+      shadowOffset: {width: 0, height: 0},
+      shadowOpacity: 0.85,
+      shadowRadius: 8,
+      transform: [{scale: 1.14}],
+    },
+    fichaEsmaecida: {
+      opacity: 0.35,
+    },
+    fichaVazia: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(0, 0, 0, 0.16)',
+      borderColor: 'rgba(255, 255, 255, 0.7)',
+      borderStyle: 'dashed',
+      borderWidth: 2,
+    },
+    fichaVaziaTexto: {
+      color: t.cores.onBrand,
+      fontWeight: '800',
+      textShadowColor: 'rgba(0, 0, 0, 0.5)',
+      textShadowOffset: {width: 0, height: 1},
+      textShadowRadius: 2,
+    },
+    fichaCapitao: {
+      position: 'absolute',
+      top: -2,
+      right: 0,
+      color: t.cores.accent,
+      fontWeight: '900',
+      textShadowColor: 'rgba(0, 0, 0, 0.6)',
+      textShadowOffset: {width: 0, height: 1},
+      textShadowRadius: 2,
+    },
+    fichaStatus: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.cores.danger,
+      borderWidth: 1.5,
+      borderColor: t.cores.onBrand,
+      position: 'absolute',
+      right: -2,
+      bottom: -2,
+      zIndex: 5,
+    },
+    dica: {
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      textAlign: 'center',
+    },
+    taticaStrip: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: espacamento[1],
+      justifyContent: 'center',
+    },
+    taticaChip: {
+      backgroundColor: t.cores.surfaceSubtle,
+      borderColor: t.cores.border,
+      borderRadius: raios.sm,
+      borderWidth: 1,
+      paddingHorizontal: espacamento[2],
+      paddingVertical: 3,
+    },
+    taticaChipTexto: {
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    bancoHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: espacamento[2],
+    },
+    bancoTitulo: {
+      color: t.cores.textPrimary,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    bancoContagem: {
+      backgroundColor: t.cores.surfaceSubtle,
+      borderRadius: 999,
+      color: t.cores.textSecondary,
+      fontSize: 11,
+      fontWeight: '800',
+      overflow: 'hidden',
+      paddingHorizontal: 7,
+      paddingVertical: 1,
+    },
+    bancoVazio: {
+      color: t.cores.textSecondary,
+      fontSize: 12,
+    },
+    bancoConteudo: {
+      gap: espacamento[2],
+      paddingHorizontal: 2,
+      paddingVertical: 2,
+    },
+    ghost: {
+      elevation: 14,
+      left: 0,
+      position: 'absolute',
+      shadowColor: '#0B1E3F',
+      shadowOffset: {width: 0, height: 10},
+      shadowOpacity: 0.4,
+      shadowRadius: 18,
+      top: 0,
+    },
+  });
+
+/**
+ * Estilos SEM cor (geometria/estado) das peças de gesto. Estáticos de propósito:
+ * PecaCampo/PecaReserva não dependem do tema, então não precisam do hook e a
+ * lógica de drag-drop fica intocada.
+ */
+const estilosFixos = StyleSheet.create({
   slotWrap: {
     position: 'absolute',
   },
-  cartaDestaque: {
-    elevation: 12,
-    shadowColor: cores.primaria,
-    shadowOffset: {width: 0, height: 0},
-    shadowOpacity: 0.9,
-    shadowRadius: 12,
-    transform: [{scale: 1.1}],
-  },
-  cartaEsmaecida: {
-    opacity: 0.35,
-  },
-  cartaVazia: {
-    alignItems: 'center',
-    backgroundColor: cores.glassForte,
-    borderColor: cores.bordaTransl,
-    borderRadius: raio.sm,
-    borderStyle: 'dashed',
-    borderWidth: 2,
-    justifyContent: 'center',
-  },
-  cartaVaziaTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  cartaStatus: {
-    alignItems: 'center',
-    backgroundColor: cores.perigo,
-    borderRadius: 999,
-    height: 18,
-    justifyContent: 'center',
-    position: 'absolute',
-    right: 4,
-    top: 4,
-    width: 18,
-    zIndex: 5,
-  },
-  dica: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    textAlign: 'center',
-  },
-  taticaStrip: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: espaco.xs,
-    justifyContent: 'center',
-  },
-  taticaChip: {
-    backgroundColor: cores.superficieAlt,
-    borderColor: cores.borda,
-    borderRadius: raio.sm,
-    borderWidth: 1,
-    paddingHorizontal: espaco.sm,
-    paddingVertical: 3,
-  },
-  taticaChipTexto: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  bancoHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: espaco.sm,
-  },
-  bancoTitulo: {
-    color: cores.texto,
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  bancoContagem: {
-    backgroundColor: cores.superficieAlt,
-    borderRadius: 999,
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '800',
-    overflow: 'hidden',
-    paddingHorizontal: 7,
-    paddingVertical: 1,
-  },
-  bancoVazio: {
-    color: cores.textoSecundario,
-    fontSize: 12,
-  },
-  bancoConteudo: {
-    gap: espaco.sm,
-    paddingHorizontal: 2,
-    paddingVertical: 2,
-  },
   reservaIndisponivel: {
     opacity: 0.5,
-  },
-  ghost: {
-    elevation: 14,
-    left: 0,
-    position: 'absolute',
-    shadowColor: '#0B1E3F',
-    shadowOffset: {width: 0, height: 10},
-    shadowOpacity: 0.4,
-    shadowRadius: 18,
-    top: 0,
   },
 });

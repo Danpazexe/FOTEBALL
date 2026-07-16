@@ -1,26 +1,27 @@
 /**
- * Aba "Clube" / Finanças. Saldo em destaque, donuts de receitas/despesas, alerta
- * de folha, projeção, estádio, preço do ingresso e histórico. Migrada ao DS v2.
+ * Visão do Clube (aberta pela Central do Clube). Identidade, estádio, reputação e
+ * moral, instalações (com melhorias reais do estádio) e preço do ingresso. O
+ * financeiro detalhado vive na tela Finanças. Dados reais de `clube`. DS v2.
  */
-
 import React, {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 
-import DonutChart, {type FatiaDonut} from '../../components/DonutChart';
 import {
-  AppBar,
+  AppHeader,
+  Box,
   Button,
   Card,
   Chip,
+  Divider,
+  EmptyState,
   Icon,
   Screen,
-  StatValue,
+  TeamCrest,
   Text,
   espacamento,
 } from '../../design-system';
 import {useToast} from '../../components/feedback';
-import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
-import {useAppNavigation} from '../../navigation/types';
+import {useClubeNavigation} from '../../navigation/types';
 import {
   CAPACIDADE_MAX_ESTADIO,
   INFRA_MAX_ESTADIO,
@@ -29,24 +30,9 @@ import {
   custoMelhoriaInfra,
   selecionarClubeUsuario,
   useGameStore,
+  useJogadoresUsuario,
 } from '../../store/useGameStore';
 import {moeda, moedaCompacta} from '../../utils/formatters';
-import type {Transacao} from '../../types';
-
-const ROTULO_CATEGORIA: Record<string, string> = {
-  bilheteria: 'Bilheteria',
-  patrocinio: 'Patrocínio',
-  premiacoes: 'Premiações',
-  vendaJogadores: 'Vendas',
-  salarios: 'Salários',
-  manutencaoEstadio: 'Estádio',
-  comissoes: 'Comissões',
-  contratacoes: 'Contratações',
-};
-
-// Paleta de séries do gráfico (categórica, independente de tema).
-const CORES_RECEITA = ['#13A65A', '#F2B43C', '#2878F0', '#8B5CF6'];
-const CORES_DESPESA = ['#D64545', '#F59E0B', '#FB923C', '#64748B'];
 
 const PRESETS_PRECO: {rotulo: string; fator: number}[] = [
   {rotulo: 'Barato', fator: 0.75},
@@ -54,190 +40,101 @@ const PRESETS_PRECO: {rotulo: string; fator: number}[] = [
   {rotulo: 'Caro', fator: 1.4},
 ];
 
-function agregar(
-  historico: Transacao[],
-  tipo: 'receita' | 'despesa',
-  paleta: string[],
-): {fatias: FatiaDonut[]; total: number} {
-  const mapa = new Map<string, number>();
-  for (const transacao of historico) {
-    if (transacao.tipo !== tipo) {
-      continue;
-    }
-    mapa.set(
-      transacao.categoria,
-      (mapa.get(transacao.categoria) ?? 0) + Math.abs(transacao.valor),
-    );
-  }
-  const entradas = [...mapa.entries()].sort((a, b) => b[1] - a[1]);
-  const fatias: FatiaDonut[] = entradas.map(([categoria, valor], index) => ({
-    valor,
-    cor: paleta[index % paleta.length],
-    label: ROTULO_CATEGORIA[categoria] ?? categoria,
-  }));
-  const total = fatias.reduce((soma, fatia) => soma + fatia.valor, 0);
-  return {fatias, total};
-}
-
 function Club(): React.JSX.Element {
-  const nav = useAppNavigation();
+  const nav = useClubeNavigation();
   const toast = useToast();
-  const clubeUsuario = useGameStore(selecionarClubeUsuario);
-  const jogadores = useGameStore(state => state.jogadores);
+  const clube = useGameStore(selecionarClubeUsuario);
+  const elenco = useJogadoresUsuario();
   const melhorarEstadio = useGameStore(state => state.melhorarEstadio);
   const ajustarPrecoIngresso = useGameStore(
     state => state.ajustarPrecoIngresso,
   );
 
-  const elenco = useMemo(
-    () => jogadores.filter(j => j.clubeId === clubeUsuario?.id),
-    [jogadores, clubeUsuario],
+  const moral = useMemo(
+    () =>
+      elenco.length === 0
+        ? 0
+        : elenco.reduce((s, j) => s + j.moral, 0) / elenco.length / 10,
+    [elenco],
   );
 
-  const receitas = useMemo(
-    () =>
-      clubeUsuario
-        ? agregar(clubeUsuario.financas.historicoTransacoes, 'receita', CORES_RECEITA)
-        : {fatias: [], total: 0},
-    [clubeUsuario],
-  );
-  const despesas = useMemo(
-    () =>
-      clubeUsuario
-        ? agregar(clubeUsuario.financas.historicoTransacoes, 'despesa', CORES_DESPESA)
-        : {fatias: [], total: 0},
-    [clubeUsuario],
-  );
+  const voltar = () =>
+    nav.canGoBack() ? nav.goBack() : nav.navigate('CentralClube');
 
-  if (!clubeUsuario) {
+  if (!clube) {
     return (
-      <Screen scroll>
-        <AppBar title="Clube" subtitle="Finanças do clube" />
-        <Text variant="bodyM" color="textSecondary">
-          Nenhum clube selecionado.
-        </Text>
+      <Screen header={<AppHeader title="Visão geral" onBack={voltar} />}>
+        <View style={styles.vazio}>
+          <EmptyState
+            icone="estadio"
+            title="Nenhum clube selecionado"
+            description="Inicie ou carregue uma carreira para ver o clube."
+          />
+        </View>
       </Screen>
     );
   }
 
-  const {financas, estadio} = clubeUsuario;
-  const historico = financas.historicoTransacoes;
+  const {financas, estadio} = clube;
   const capacidadeMaxima = estadio.capacidade >= CAPACIDADE_MAX_ESTADIO;
   const infraMaxima = estadio.nivelInfraestrutura >= INFRA_MAX_ESTADIO;
   const custoCapacidade = custoAmpliacaoEstadio(estadio.capacidade);
   const custoInfra = custoMelhoriaInfra(estadio.nivelInfraestrutura);
+  const fatorPreco = estadio.precoIngressoFator ?? 1;
+  const precoEfetivo = Math.round(estadio.precoMedioIngresso * fatorPreco);
+
   const aoMelhorar = (tipo: 'capacidade' | 'infraestrutura') => {
     const resultado = melhorarEstadio(tipo);
     toast(resultado.mensagem, resultado.ok ? 'sucesso' : 'erro');
   };
-  const fatorPreco = estadio.precoIngressoFator ?? 1;
-  const precoEfetivo = Math.round(estadio.precoMedioIngresso * fatorPreco);
-  const folha = calcularFolhaSalarial(elenco);
-  const pctFolha = receitas.total > 0 ? (folha / receitas.total) * 100 : 0;
-  const folhaAlta = pctFolha > 80;
-  const semDados = receitas.total === 0 && despesas.total === 0;
-  const saldoNeg = financas.saldo < 0;
 
   return (
-    <Screen scroll>
-      <AppBar title={clubeUsuario.nome} subtitle="Finanças do clube" />
-
-      <Card variante="status" status={saldoNeg ? 'danger' : 'brand'}>
-        <View style={styles.saldoHero}>
-          <Icon nome="dinheiro" size={28} color={saldoNeg ? 'danger' : 'brand'} />
-          <View style={styles.flex}>
-            <Text variant="labelM" color="textSecondary" style={styles.caps}>
-              Saldo do clube
-            </Text>
-            <Text
-              variant="titleXL"
-              color={saldoNeg ? 'danger' : 'brand'}
-              tabular
-              numberOfLines={1}
-              adjustsFontSizeToFit>
-              {moeda(financas.saldo)}
-            </Text>
-          </View>
+    <Screen scroll header={<AppHeader title="Visão geral" onBack={voltar} />}>
+      {/* Identidade */}
+      <Card variante="outlined" style={styles.identidade}>
+        <TeamCrest clubeId={clube.id} sigla={clube.sigla} size={56} />
+        <View style={styles.flex}>
+          <Text variant="titleL" numberOfLines={1}>
+            {clube.nome}
+          </Text>
+          <Text variant="labelM" color="textSecondary">
+            {clube.fundacao ? `Fundado em ${clube.fundacao} · ` : ''}
+            {clube.divisao ?? 'Série A'}
+          </Text>
         </View>
       </Card>
 
-      <View style={styles.metricsRow}>
-        <StatValue
-          label="Estádio"
-          value={estadio.capacidade.toLocaleString('pt-BR')}
-          style={styles.flex}
-        />
-        <StatValue
-          label="Reputação"
-          value={String(clubeUsuario.reputacao)}
-          style={styles.flex}
-        />
-        <StatValue label="Folha" value={moedaCompacta(folha)} style={styles.flex} />
-      </View>
-
-      {folhaAlta ? (
-        <Card variante="status" status="warning">
-          <View style={styles.linhaIcone}>
-            <Icon nome="apito" size={16} color="warning" />
-            <Text variant="bodyM" style={styles.flex}>
-              Atenção: salários consomem {pctFolha.toFixed(0)}% da receita.
-              Considere vender jogadores de alto salário.
-            </Text>
-          </View>
-        </Card>
-      ) : null}
-
-      {semDados ? (
-        <Text variant="bodyM" color="textSecondary">
-          Sem movimentações financeiras ainda.
+      {/* Estádio (faixa) */}
+      <Box bg="scoreboard" radius="lg" padding={4} gap={1}>
+        <Text variant="titleM" color="onScoreboard" align="center">
+          {estadio.nome}
         </Text>
-      ) : (
-        <>
-          <Secao titulo="Receitas">
-            <Card variante="outlined">
-              <View style={styles.donutLinha}>
-                <DonutChart
-                  fatias={receitas.fatias}
-                  valorCentro={moedaCompacta(receitas.total)}
-                  labelCentro="Receitas"
-                />
-                <Legenda fatias={receitas.fatias} />
-              </View>
-            </Card>
-          </Secao>
-          <Secao titulo="Despesas">
-            <Card variante="outlined">
-              <View style={styles.donutLinha}>
-                <DonutChart
-                  fatias={despesas.fatias}
-                  valorCentro={moedaCompacta(despesas.total)}
-                  labelCentro="Despesas"
-                />
-                <Legenda fatias={despesas.fatias} />
-              </View>
-            </Card>
-          </Secao>
-        </>
-      )}
+        <Text variant="labelM" color="onScoreboard" align="center">
+          Capacidade {estadio.capacidade.toLocaleString('pt-BR')}
+        </Text>
+      </Box>
 
-      <Card variante="outlined">
-        <View style={styles.rowBetween}>
-          <Text variant="bodyM" color="textSecondary">
-            Após a próxima folha
-          </Text>
-          <Text
-            variant="titleM"
-            color={financas.saldo - folha < 0 ? 'danger' : 'textPrimary'}
-            tabular>
-            {moeda(financas.saldo - folha)}
-          </Text>
-        </View>
+      {/* Reputação · Capacidade · Moral */}
+      <Card variante="outlined" style={styles.statsRow}>
+        <CelulaStat valor={String(clube.reputacao)} rotulo="Reputação" icone="medalha" />
+        <Divider vertical />
+        <CelulaStat valor={String(elenco.length)} rotulo="Elenco" icone="elenco" />
+        <Divider vertical />
+        <CelulaStat
+          valor={moral.toFixed(1).replace('.', ',')}
+          rotulo="Moral"
+          icone="humor-bom"
+        />
       </Card>
 
-      <Secao titulo="Estádio">
+      {/* Instalações */}
+      <View style={styles.secao}>
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          Instalações
+        </Text>
         <Card variante="outlined" style={styles.cardGap}>
-          <Text variant="titleM">{estadio.nome}</Text>
-          <Linha label="Capacidade" valor={estadio.capacidade.toLocaleString('pt-BR')} />
+          <Linha label="Estádio" valor={`${estadio.capacidade.toLocaleString('pt-BR')} lugares`} />
+          <Divider />
           <Linha label="Infraestrutura" valor={`Nível ${estadio.nivelInfraestrutura}`} />
           <Text variant="caption" color="textSecondary">
             Capacidade aumenta a bilheteria e o mando; infraestrutura acelera a
@@ -270,9 +167,13 @@ function Club(): React.JSX.Element {
             fullWidth
           />
         </View>
-      </Secao>
+      </View>
 
-      <Secao titulo="Preço do ingresso">
+      {/* Preço do ingresso */}
+      <View style={styles.secao}>
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          Preço do ingresso
+        </Text>
         <Card variante="outlined" style={styles.cardGap}>
           <Linha label="Preço médio" valor={moeda(precoEfetivo)} />
           <View style={styles.precoBotoes}>
@@ -291,64 +192,37 @@ function Club(): React.JSX.Element {
             ideal entre lotar barato e cobrar caro.
           </Text>
         </Card>
-      </Secao>
-
-      <Secao titulo="Histórico Financeiro">
-        {historico.length > 0 ? (
-          <Card variante="outlined" style={styles.cardGap}>
-            {historico.slice(0, 6).map((transacao, index) => {
-              const receita = transacao.tipo === 'receita';
-              return (
-                <View key={`${transacao.data}_${index}`} style={styles.transacao}>
-                  <Icon
-                    nome={receita ? 'seta-cima' : 'seta-baixo'}
-                    size={16}
-                    color={receita ? 'brand' : 'danger'}
-                  />
-                  <Text variant="bodyM" style={styles.flex} numberOfLines={1}>
-                    {transacao.descricao}
-                  </Text>
-                  <Text
-                    variant="labelL"
-                    color={receita ? 'brand' : 'danger'}
-                    tabular>
-                    {receita ? '+' : '-'}
-                    {moedaCompacta(Math.abs(transacao.valor))}
-                  </Text>
-                </View>
-              );
-            })}
-          </Card>
-        ) : (
-          <Text variant="bodyM" color="textSecondary">
-            Nenhuma transação registrada.
-          </Text>
-        )}
-      </Secao>
+      </View>
 
       <Button
-        icone="mercado"
-        titulo="Mercado de Transferências"
-        onPress={() => nav.navigate('TransferMarket')}
+        icone="dinheiro"
+        titulo="Ver finanças do clube"
+        variante="secondary"
+        onPress={() => nav.navigate('Financas')}
         fullWidth
       />
     </Screen>
   );
 }
 
-function Secao({
-  titulo,
-  children,
+function CelulaStat({
+  valor,
+  rotulo,
+  icone,
 }: {
-  titulo: string;
-  children: React.ReactNode;
+  valor: string;
+  rotulo: string;
+  icone: import('../../components/Icone').IconeNome;
 }): React.JSX.Element {
   return (
-    <View style={styles.secao}>
-      <Text variant="labelM" color="textSecondary" style={styles.caps}>
-        {titulo}
+    <View style={styles.celula}>
+      <Icon nome={icone} size={16} color="textSecondary" />
+      <Text variant="titleM" tabular>
+        {valor}
       </Text>
-      {children}
+      <Text variant="caption" color="textSecondary">
+        {rotulo}
+      </Text>
     </View>
   );
 }
@@ -366,32 +240,15 @@ function Linha({label, valor}: {label: string; valor: string}): React.JSX.Elemen
   );
 }
 
-function Legenda({fatias}: {fatias: FatiaDonut[]}): React.JSX.Element {
-  return (
-    <View style={styles.legenda}>
-      {fatias.map(fatia => (
-        <View key={fatia.label} style={styles.legendaItem}>
-          <View style={[styles.legendaPonto, {backgroundColor: fatia.cor}]} />
-          <Text variant="caption" color="textSecondary" style={styles.flex}>
-            {fatia.label}
-          </Text>
-          <Text variant="caption" tabular>
-            {moedaCompacta(fatia.valor)}
-          </Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 export default Club;
 
 const styles = StyleSheet.create({
   flex: {flex: 1},
+  vazio: {flex: 1, justifyContent: 'center', padding: espacamento[4]},
   caps: {textTransform: 'uppercase', letterSpacing: 1},
-  saldoHero: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
-  metricsRow: {flexDirection: 'row', gap: espacamento[2]},
-  linhaIcone: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  identidade: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  statsRow: {flexDirection: 'row', alignItems: 'center'},
+  celula: {flex: 1, alignItems: 'center', gap: 2},
   secao: {gap: espacamento[2]},
   cardGap: {gap: espacamento[2]},
   rowBetween: {
@@ -399,20 +256,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  donutLinha: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espacamento[3],
-  },
-  legenda: {flex: 1, gap: espacamento[1]},
-  legendaItem: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
-  legendaPonto: {width: 10, height: 10, borderRadius: 4},
   obras: {gap: espacamento[2]},
   precoBotoes: {flexDirection: 'row', gap: espacamento[2]},
-  transacao: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: espacamento[2],
-    paddingVertical: espacamento[1],
-  },
 });

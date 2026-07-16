@@ -1,35 +1,41 @@
 /**
- * Central de PRÉ-JOGO (redesenho). Uma tela de decisão: primeiro o CONFRONTO,
- * depois a SUA PRONTIDÃO (o que libera/bloqueia entrar em campo — validação,
- * fadiga, desfalques), o DOSSIÊ do adversário (intel acionável, não números
- * soltos), a escalação no campo, condição/moral do time, o ajuste de tática e,
- * por fim, o gate Simular / Jogar ao vivo.
+ * PRÉ-JOGO — a "prancheta" do técnico antes da partida. Uma tela de LEITURA que
+ * prepara a decisão: onde/quando é o jogo, o confronto, a forma recente dos dois
+ * times, uma comparação enxuta (força, gols/jogo, momento), o jogador-chave do
+ * adversário e os avisos da escalação. A ação principal é uma só — "Ir para
+ * escalação" — que leva ao editor de time/tática (tela Tactics).
  *
- * A escalação e a tática são persistidas na hora (mesmas actions da tela de
- * Tática); o MatchSimulation tira um retrato antes do jogo, então mexer aqui
- * não vaza para a escalação oficial se a partida for abandonada.
- *
- * O scroll trava enquanto há um arraste no campo (o gesto não disputa com a
- * rolagem), como na tela de Tática.
+ * Só mostra dado real: forma recente, gols/jogo e momento são DERIVADOS das
+ * partidas já jogadas; a força vem do cálculo da engine; nada é inventado. Ainda
+ * FIXA a tática provável do adversário uma vez por confronto (era o único ponto
+ * do app que fazia isso), para a simulação seguinte ficar coerente. DS v2.
  */
 
-import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {Dimensions, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import React, {useEffect, useMemo, useRef} from 'react';
+import {StyleSheet, View} from 'react-native';
 
-import {AppHeader, Botao, OptionGroup, Section} from '../../components/ui';
-import CampoFUT from '../../components/CampoFUT';
-import Chip from '../../components/Chip';
-import Escudo from '../../components/Escudo';
-import {useConfirm, useToast} from '../../components/feedback';
+import PlayerAvatar from '../../components/PlayerAvatar';
+import type {IconeNome} from '../../components/Icone';
 import {
-  FORMACOES_DISPONIVEIS,
-  montarFormacao,
-} from '../../api/database/seed/defaults';
+  AppHeader,
+  Badge,
+  Box,
+  Button,
+  Card,
+  Divider,
+  EmptyState,
+  Icon,
+  OverallRing,
+  PositionBadge,
+  Screen,
+  TeamCrest,
+  Text,
+  espacamento,
+  type CorTexto,
+} from '../../design-system';
 import {taticaProvavelIA} from '../../engine/tactics/preview';
 import {validarEscalacao} from '../../engine/tactics/validacao';
-import {calcularMando} from '../../engine/simulation/probabilityCalc';
-import {preverResultado} from '../../engine/simulation/probabilidadeResultado';
+import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {
   selecionarClubeUsuario,
@@ -37,60 +43,243 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {
-  cores,
-  espaco,
-  raio,
-  sombra,
-  tabular,
-  tipografia,
-} from '../../theme';
 import {forcaDoClube} from '../../utils/forca';
-import type {Tatica} from '../../types';
+import type {Partida, Player} from '../../types';
 
-const OPCOES_ESTILO: Tatica['estiloOfensivo'][] = [
-  'Equilibrado',
-  'Posse de bola',
-  'Contra-ataque',
-  'Ataque direto',
-];
-const OPCOES_MARCACAO: Tatica['marcacao'][] = [
-  'Zona',
-  'Individual',
-  'Pressão alta',
-];
-const OPCOES_LINHA: Tatica['linhaDefensiva'][] = [
-  'Recuada',
-  'Normal',
-  'Adiantada',
-];
-const OPCOES_RITMO: Tatica['ritmo'][] = ['Lento', 'Normal', 'Intenso'];
+// ─── Derivações puras (só partidas/elenco, nunca inventadas) ─────────────────
+
+type Resultado = 'V' | 'E' | 'D';
+
+/** Cor da pílula por resultado; letra sempre por token, cor nunca é único sinal. */
+const CORES_FORMA: Record<
+  Resultado,
+  {bg: 'success' | 'border' | 'danger'; texto: CorTexto}
+> = {
+  V: {bg: 'success', texto: 'onBrand'},
+  E: {bg: 'border', texto: 'textPrimary'},
+  D: {bg: 'danger', texto: 'onBrand'},
+};
+
+/** Últimos até 5 resultados do clube (ordem cronológica), das partidas jogadas. */
+function formaRecente(clubeId: string, partidas: Partida[]): Resultado[] {
+  const jogos = partidas
+    .filter(
+      p =>
+        p.jogada &&
+        (p.timeCasa === clubeId || p.timeFora === clubeId) &&
+        p.placarCasa !== undefined &&
+        p.placarFora !== undefined,
+    )
+    .sort((a, b) =>
+      a.data < b.data ? -1 : a.data > b.data ? 1 : a.rodada - b.rodada,
+    );
+
+  const out: Resultado[] = [];
+  for (const p of jogos.slice(-5)) {
+    const pc = p.placarCasa;
+    const pf = p.placarFora;
+    if (pc === undefined || pf === undefined) {
+      continue;
+    }
+    const emCasa = p.timeCasa === clubeId;
+    const pro = emCasa ? pc : pf;
+    const contra = emCasa ? pf : pc;
+    if (pro > contra) {
+      out.push('V');
+    } else if (pro < contra) {
+      out.push('D');
+    } else if (p.vencedorPenaltis) {
+      out.push(p.vencedorPenaltis === clubeId ? 'V' : 'D');
+    } else {
+      out.push('E');
+    }
+  }
+  return out;
+}
+
+/** Pontos (V=3, E=1) da forma recente — o "momento" numérico. */
+function pontosForma(resultados: Resultado[]): number {
+  return resultados.reduce(
+    (soma, r) => soma + (r === 'V' ? 3 : r === 'E' ? 1 : 0),
+    0,
+  );
+}
+
+/** Média de gols marcados por jogo, das partidas jogadas. */
+function golsPorJogo(clubeId: string, partidas: Partida[]): number {
+  let marcados = 0;
+  let jogos = 0;
+  for (const p of partidas) {
+    if (!p.jogada) {
+      continue;
+    }
+    const emCasa = p.timeCasa === clubeId;
+    const emFora = p.timeFora === clubeId;
+    if (!emCasa && !emFora) {
+      continue;
+    }
+    const pc = p.placarCasa;
+    const pf = p.placarFora;
+    if (pc === undefined || pf === undefined) {
+      continue;
+    }
+    jogos += 1;
+    marcados += emCasa ? pc : pf;
+  }
+  return jogos > 0 ? marcados / jogos : 0;
+}
+
+/** O maior overall DISPONÍVEL do elenco (cai para o maior geral se todos fora). */
+function jogadorChave(clubeId: string, jogadores: Player[]): Player | null {
+  const doClube = jogadores.filter(j => j.clubeId === clubeId);
+  if (doClube.length === 0) {
+    return null;
+  }
+  const disponiveis = doClube.filter(j => !j.lesionado && !j.suspenso);
+  const pool = disponiveis.length > 0 ? disponiveis : doClube;
+  const ordenados = [...pool].sort((a, b) => b.overall - a.overall);
+  return ordenados[0] ?? null;
+}
+
+/** Data legível (Sáb, 12 abr) — sem hora, que o domínio não fornece. */
+function rotuloData(iso: string): string {
+  if (iso.length < 10) {
+    return iso;
+  }
+  const ano = Number(iso.slice(0, 4));
+  const mes = Number(iso.slice(5, 7));
+  const dia = Number(iso.slice(8, 10));
+  if (!ano || !mes || !dia) {
+    return iso;
+  }
+  const semana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const meses = [
+    'jan',
+    'fev',
+    'mar',
+    'abr',
+    'mai',
+    'jun',
+    'jul',
+    'ago',
+    'set',
+    'out',
+    'nov',
+    'dez',
+  ];
+  const diaSemana = semana[new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay()];
+  return `${diaSemana}, ${dia} ${meses[mes - 1]}`;
+}
+
+/** Par de cores para uma comparação: quem tem o valor maior recebe destaque. */
+function coresComparacao(casa: number, fora: number): [CorTexto, CorTexto] {
+  if (casa > fora) {
+    return ['brand', 'textSecondary'];
+  }
+  if (fora > casa) {
+    return ['textSecondary', 'brand'];
+  }
+  return ['textPrimary', 'textPrimary'];
+}
+
+// ─── Blocos de UI ────────────────────────────────────────────────────────────
+
+/** Cinco pílulas V/E/D coloridas (verde/cinza/vermelho). */
+function Forma({resultados}: {resultados: Resultado[]}): React.JSX.Element {
+  if (resultados.length === 0) {
+    return (
+      <Text variant="caption" color="textMuted">
+        Sem jogos
+      </Text>
+    );
+  }
+  return (
+    <View style={styles.pillRow}>
+      {resultados.map((r, i) => (
+        <Box
+          key={`${i}-${r}`}
+          bg={CORES_FORMA[r].bg}
+          radius="sm"
+          align="center"
+          justify="center"
+          style={styles.pill}>
+          <Text variant="caption" weight="800" color={CORES_FORMA[r].texto}>
+            {r}
+          </Text>
+        </Box>
+      ))}
+    </View>
+  );
+}
+
+/** Linha da comparação: valor casa · rótulo · valor fora. */
+function LinhaComparacao({
+  rotulo,
+  casa,
+  fora,
+  cores: coresLinha,
+}: {
+  rotulo: string;
+  casa: string;
+  fora: string;
+  cores: [CorTexto, CorTexto];
+}): React.JSX.Element {
+  return (
+    <View style={styles.compRow}>
+      <Text
+        style={styles.compVal}
+        variant="numeric"
+        tabular
+        weight="800"
+        align="left"
+        color={coresLinha[0]}>
+        {casa}
+      </Text>
+      <Text
+        style={styles.compRotulo}
+        variant="caption"
+        color="textSecondary"
+        align="center">
+        {rotulo}
+      </Text>
+      <Text
+        style={styles.compVal}
+        variant="numeric"
+        tabular
+        weight="800"
+        align="right"
+        color={coresLinha[1]}>
+        {fora}
+      </Text>
+    </View>
+  );
+}
+
+/** Rótulo de seção em caixa-alta. */
+function TituloBloco({texto}: {texto: string}): React.JSX.Element {
+  return (
+    <Text variant="labelM" color="textSecondary" style={styles.caps}>
+      {texto}
+    </Text>
+  );
+}
+
+type Aviso = {icone: IconeNome; cor: CorTexto; texto: string};
 
 function PreJogo(): React.JSX.Element {
   const nav = useAppNavigation();
-  const toast = useToast();
-  const confirm = useConfirm();
 
   const clubeUsuario = useGameStore(selecionarClubeUsuario);
   const clubes = useGameStore(state => state.clubes);
   const jogadores = useGameStore(state => state.jogadores);
+  const partidas = useGameStore(state => state.partidas);
   const jogadoresUsuario = useJogadoresUsuario();
   const proximo = useGameStore(selecionarProximoJogo);
-  const avancarRodada = useGameStore(state => state.avancarRodada);
-  const atualizarFormacaoUsuario = useGameStore(
-    state => state.atualizarFormacaoUsuario,
-  );
-  const atualizarTaticaUsuario = useGameStore(
-    state => state.atualizarTaticaUsuario,
-  );
   const definirTaticaAdversario = useGameStore(
     state => state.definirTaticaAdversario,
   );
-  const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
-
-  const [arrastando, setArrastando] = useState(false);
-
-  const largura = Math.min(Dimensions.get('window').width - espaco.lg * 2, 360);
+  const avancarRodada = useGameStore(state => state.avancarRodada);
+  const toast = useToast();
 
   const confronto = useMemo(() => {
     if (!proximo) {
@@ -128,11 +317,11 @@ function PreJogo(): React.JSX.Element {
     };
   }, [confronto, clubeUsuario, proximo]);
 
-  // Fixa a tática do adversário no estado UMA vez por confronto. Cuidado: definir
-  // a tática muda a FORÇA do clube (calcularForcaTime usa a tática), o que
-  // recalcularia `confronto`→`advInfo` e re-dispararia este efeito com uma nova
-  // recomendação — um loop de feedback ("Maximum update depth exceeded"). O guard
-  // por id do adversário corta o loop (a tela remonta a cada nova partida).
+  // Fixa a tática do adversário no estado UMA vez por confronto. Definir a tática
+  // muda a FORÇA do clube (calcularForcaTime usa a tática), o que recalcularia
+  // `confronto`→`advInfo` e re-dispararia este efeito com nova recomendação — um
+  // loop de feedback. O guard por id do adversário corta o loop (a tela remonta a
+  // cada nova partida).
   const advFixadoRef = useRef<string | null>(null);
   useEffect(() => {
     if (advInfo && advFixadoRef.current !== advInfo.id) {
@@ -142,447 +331,352 @@ function PreJogo(): React.JSX.Element {
   }, [advInfo, definirTaticaAdversario]);
 
   const formacao = clubeUsuario?.formacaoAtual ?? null;
-  const taticaAtual = clubeUsuario?.taticaAtual ?? null;
 
-  const validacao = useMemo(
-    () => (formacao ? validarEscalacao(formacao, jogadoresUsuario) : null),
-    [formacao, jogadoresUsuario],
-  );
+  // Avisos da escalação (mesma validação da tela de Tática) — não bloqueiam aqui,
+  // só apontam o que corrigir antes do jogo.
+  const avisos = useMemo<Aviso[]>(() => {
+    if (!formacao) {
+      return [
+        {
+          icone: 'tatica',
+          cor: 'warning',
+          texto: 'Monte sua escalação antes do jogo.',
+        },
+      ];
+    }
+    const validacao = validarEscalacao(formacao, jogadoresUsuario);
+    const lista: Aviso[] = [];
+    for (const erro of validacao.erros) {
+      lista.push({icone: 'fechar', cor: 'danger', texto: erro});
+    }
+    for (const aviso of validacao.avisos) {
+      lista.push({icone: 'lesao', cor: 'warning', texto: aviso});
+    }
+    return lista;
+  }, [formacao, jogadoresUsuario]);
 
-  if (!proximo || !confronto || !clubeUsuario || !formacao || !taticaAtual) {
+  if (!proximo || !confronto || !clubeUsuario) {
     return (
-      <SafeAreaView style={styles.screen}>
-        <AppHeader titulo="Pré-jogo" onBack={() => nav.goBack()} />
-        <Text style={styles.vazio}>Nenhum jogo agendado.</Text>
-      </SafeAreaView>
+      <Screen header={<AppHeader title="Pré-jogo" onBack={() => nav.goBack()} />}>
+        <EmptyState
+          title="Nenhum jogo agendado"
+          description="Não há próxima partida na temporada."
+          icone="calendario"
+        />
+      </Screen>
     );
   }
 
   const mandoCasa = proximo.timeCasa === clubeUsuario.id;
-  const forcaMinha = mandoCasa ? confronto.forcaCasa : confronto.forcaFora;
-  const forcaDele = mandoCasa ? confronto.forcaFora : confronto.forcaCasa;
   const adversario = mandoCasa ? confronto.fora : confronto.casa;
-  const advTatica = advInfo?.tatica ?? null;
-  const diff = forcaMinha.overall + (mandoCasa ? 3 : 0) - forcaDele.overall;
+  const chave = jogadorChave(adversario.id, jogadores);
 
-  // "Quem vai ganhar?" — coerente com a simulação (mesmo modelo de gols).
-  const mandoFator = calcularMando(
-    confronto.casa.estadio.capacidade,
-    confronto.casa.reputacao,
-  );
-  const previsao = preverResultado(
-    confronto.forcaCasa,
-    confronto.forcaFora,
-    mandoCasa ? taticaAtual : advTatica ?? taticaAtual,
-    mandoCasa ? advTatica ?? taticaAtual : taticaAtual,
-    mandoFator,
-  );
-  const probVoce = mandoCasa ? previsao.vitoriaCasa : previsao.vitoriaFora;
-  const pctVoce = Math.round(probVoce * 100);
-  const pctEmpate = Math.round(previsao.empate * 100);
-  const pctAdv = Math.max(0, 100 - pctVoce - pctEmpate);
+  // Favoritismo pela força + bônus de mando, na perspectiva do usuário.
+  const forcaMinha = mandoCasa
+    ? confronto.forcaCasa.overall
+    : confronto.forcaFora.overall;
+  const forcaDele = mandoCasa
+    ? confronto.forcaFora.overall
+    : confronto.forcaCasa.overall;
+  const diff = forcaMinha + (mandoCasa ? 3 : 0) - forcaDele;
   const favoritismo =
     Math.abs(diff) < 2
       ? 'Equilíbrio'
-      : `${diff > 0 ? 'Favorito' : 'Azarão'}${
-          Math.abs(diff) >= 6 ? '' : ' leve'
-        }`;
-  const corFavoritismo =
-    diff >= 2 ? cores.sucesso : diff <= -2 ? cores.perigo : cores.textoSecundario;
+      : `${diff > 0 ? 'Favorito' : 'Azarão'}${Math.abs(diff) >= 6 ? '' : ' leve'}`;
+  const favTom = diff >= 2 ? 'success' : diff <= -2 ? 'danger' : 'neutral';
 
-  const podeJogar = validacao?.valido ?? false;
-  const formacaoTipo = formacao.tipo;
-
-  // Trocar de esquema remonta a escalação (desfaz o arraste manual) — confirma.
-  async function trocarFormacao(
-    tipo: (typeof FORMACOES_DISPONIVEIS)[number],
-  ): Promise<void> {
-    if (tipo === formacaoTipo) {
-      return;
-    }
-    const ok = await confirm({
-      titulo: `Trocar para ${tipo}?`,
-      mensagem:
-        'Remonta a escalação a partir do novo esquema, desfazendo ajustes manuais de posição.',
-      confirmarLabel: 'Trocar',
-    });
-    if (!ok) {
-      return;
-    }
-    atualizarFormacaoUsuario(montarFormacao(jogadoresUsuario, tipo));
-  }
-
-  // Preenche o XI com os melhores jogadores disponíveis para a formação atual.
-  async function escalarMelhores(): Promise<void> {
-    const ok = await confirm({
-      titulo: 'Escalar os 11 melhores?',
-      mensagem:
-        'Preenche a escalação automaticamente com os melhores jogadores disponíveis para a formação atual, desfazendo ajustes manuais de posição.',
-      confirmarLabel: 'Escalar',
-    });
-    if (!ok) {
-      return;
-    }
-    const preset = formacaoTipo === 'Personalizada' ? '4-3-3' : formacaoTipo;
-    atualizarFormacaoUsuario(montarFormacao(jogadoresUsuario, preset));
-    toast('Escalados os 11 melhores.', 'sucesso');
-  }
+  const formaCasa = formaRecente(confronto.casa.id, partidas);
+  const formaFora = formaRecente(confronto.fora.id, partidas);
+  const forcaCasaN = Math.round(confronto.forcaCasa.overall);
+  const forcaForaN = Math.round(confronto.forcaFora.overall);
+  const gpjCasa = golsPorJogo(confronto.casa.id, partidas);
+  const gpjFora = golsPorJogo(confronto.fora.id, partidas);
+  const momCasa = pontosForma(formaCasa);
+  const momFora = pontosForma(formaFora);
 
   return (
-    <SafeAreaView style={styles.screen}>
-      <ScrollView
-        contentContainerStyle={styles.conteudo}
-        scrollEnabled={!arrastando}
-        showsVerticalScrollIndicator={false}>
-        <AppHeader
-          titulo={`Rodada ${proximo.rodada}`}
-          subtitulo={`Brasileirão ${clubeUsuario.divisao ?? 'Série A'}`}
-          onBack={() => nav.goBack()}
-        />
+    <Screen
+      scroll
+      header={<AppHeader title="Pré-jogo" onBack={() => nav.goBack()} />}>
+      {/* CONTEXTO — competição · rodada / estádio · data */}
+      <View style={styles.meta}>
+        <Text
+          variant="labelM"
+          color="textSecondary"
+          align="center"
+          style={styles.caps}>
+          Brasileirão {clubeUsuario.divisao ?? 'Série A'} · Rodada{' '}
+          {proximo.rodada}
+        </Text>
+        <View style={styles.metaLinha}>
+          <Icon nome="estadio" size="sm" color="textMuted" />
+          <Text variant="caption" color="textMuted" numberOfLines={1}>
+            {confronto.casa.estadio.nome}
+          </Text>
+          <Text variant="caption" color="textMuted">
+            ·
+          </Text>
+          <Icon nome="calendario" size="sm" color="textMuted" />
+          <Text variant="caption" color="textMuted">
+            {rotuloData(proximo.data)}
+          </Text>
+        </View>
+      </View>
 
-        {/* CONFRONTO — hero */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroConfronto}>
-            <View style={styles.heroTime}>
-              <Escudo
-                clubeId={confronto.casa.id}
-                sigla={confronto.casa.sigla}
-                tamanho={54}
-              />
-              <Text style={styles.heroNome} numberOfLines={1}>
-                {confronto.casa.nome}
-              </Text>
-              <Text style={[styles.heroOverall, tabular]}>
-                {Math.round(confronto.forcaCasa.overall)}
-              </Text>
-              <Text style={[styles.heroMando, mandoCasa && styles.heroVoce]}>
-                {mandoCasa ? 'VOCÊ · CASA' : 'CASA'}
-              </Text>
-            </View>
+      {/* CONFRONTO — placar escuro */}
+      <Box bg="scoreboard" radius="lg" padding={4}>
+        <View style={styles.placar}>
+          <View style={styles.placarTime}>
+            <TeamCrest
+              clubeId={confronto.casa.id}
+              sigla={confronto.casa.sigla}
+              nome={confronto.casa.nome}
+              size={56}
+            />
+            <Text variant="titleM" weight="800" color="onScoreboard">
+              {confronto.casa.sigla}
+            </Text>
+            <Text
+              variant="caption"
+              color="onScoreboard"
+              align="center"
+              numberOfLines={1}>
+              {confronto.casa.nome}
+            </Text>
+            <Text variant="caption" color="onScoreboard" style={styles.caps}>
+              {mandoCasa ? 'Você · Casa' : 'Casa'}
+            </Text>
+          </View>
 
-            <View style={styles.heroCentro}>
-              <Text style={styles.heroVs}>VS</Text>
-              <Chip label={favoritismo} tom="suave" cor={corFavoritismo} pequeno />
-            </View>
+          <View style={styles.placarCentro}>
+            <Text variant="titleL" weight="900" color="onScoreboard">
+              VS
+            </Text>
+            <Badge label={favoritismo} tom={favTom} solido />
+          </View>
 
-            <View style={styles.heroTime}>
-              <Escudo
-                clubeId={confronto.fora.id}
-                sigla={confronto.fora.sigla}
-                tamanho={54}
-              />
-              <Text style={styles.heroNome} numberOfLines={1}>
-                {confronto.fora.nome}
-              </Text>
-              <Text style={[styles.heroOverall, tabular]}>
-                {Math.round(confronto.forcaFora.overall)}
-              </Text>
-              <Text style={[styles.heroMando, !mandoCasa && styles.heroVoce]}>
-                {!mandoCasa ? 'VOCÊ · FORA' : 'FORA'}
-              </Text>
-            </View>
+          <View style={styles.placarTime}>
+            <TeamCrest
+              clubeId={confronto.fora.id}
+              sigla={confronto.fora.sigla}
+              nome={confronto.fora.nome}
+              size={56}
+            />
+            <Text variant="titleM" weight="800" color="onScoreboard">
+              {confronto.fora.sigla}
+            </Text>
+            <Text
+              variant="caption"
+              color="onScoreboard"
+              align="center"
+              numberOfLines={1}>
+              {confronto.fora.nome}
+            </Text>
+            <Text variant="caption" color="onScoreboard" style={styles.caps}>
+              {!mandoCasa ? 'Você · Fora' : 'Fora'}
+            </Text>
           </View>
         </View>
+      </Box>
 
-        {/* QUEM VAI GANHAR? — previsão coerente com o modelo de gols da engine */}
-        <Section titulo="Quem vai ganhar?">
-          <View style={styles.previsaoBarra}>
-            <View
-              style={[
-                styles.previsaoSeg,
-                {flex: Math.max(1, pctVoce), backgroundColor: cores.primaria},
-              ]}
-            />
-            <View
-              style={[
-                styles.previsaoSeg,
-                {flex: Math.max(1, pctEmpate), backgroundColor: cores.bordaClara},
-              ]}
-            />
-            <View
-              style={[
-                styles.previsaoSeg,
-                {flex: Math.max(1, pctAdv), backgroundColor: cores.perigo},
-              ]}
-            />
-          </View>
-          <View style={styles.previsaoLegenda}>
-            <View style={styles.previsaoItem}>
-              <Text style={[styles.previsaoPct, {color: cores.primariaClara}]}>
-                {pctVoce}%
-              </Text>
-              <Text style={styles.previsaoRotulo}>Você</Text>
+      {/* FORMA RECENTE */}
+      <View style={styles.bloco}>
+        <TituloBloco texto="Forma recente" />
+        <Card variante="outlined" padding={3}>
+          <View style={styles.formaRow}>
+            <View style={styles.formaLado}>
+              <Forma resultados={formaCasa} />
             </View>
-            <View style={styles.previsaoItemCentro}>
-              <Text style={[styles.previsaoPct, {color: cores.textoSecundario}]}>
-                {pctEmpate}%
-              </Text>
-              <Text style={styles.previsaoRotulo}>Empate</Text>
-            </View>
-            <View style={styles.previsaoItemDir}>
-              <Text style={[styles.previsaoPct, {color: cores.perigo}]}>
-                {pctAdv}%
-              </Text>
-              <Text style={styles.previsaoRotulo} numberOfLines={1}>
-                {adversario.sigla}
-              </Text>
+            <Text variant="caption" color="textMuted" align="center">
+              Últimos 5
+            </Text>
+            <View style={[styles.formaLado, styles.formaDir]}>
+              <Forma resultados={formaFora} />
             </View>
           </View>
-        </Section>
+        </Card>
+      </View>
 
-        {/* ESCALAÇÃO */}
-        <Section titulo="Escalação">
-          <CampoFUT
-            clube={clubeUsuario}
-            formacao={formacao}
-            jogadores={jogadoresUsuario}
-            tatica={taticaAtual}
-            forca={forcaMinha}
-            reputacaoTecnico={reputacaoTecnico}
-            largura={largura}
-            onAtualizarFormacao={atualizarFormacaoUsuario}
-            onArrastandoChange={setArrastando}
-            onAbrirJogador={jogadorId =>
-              nav.navigate('PlayerDetail', {jogadorId})
-            }
+      {/* COMPARAÇÃO */}
+      <View style={styles.bloco}>
+        <TituloBloco texto="Comparação" />
+        <Card variante="outlined" padding={3}>
+          <LinhaComparacao
+            rotulo="Força"
+            casa={String(forcaCasaN)}
+            fora={String(forcaForaN)}
+            cores={coresComparacao(forcaCasaN, forcaForaN)}
           />
+          <Divider />
+          <LinhaComparacao
+            rotulo="Gols/jogo"
+            casa={gpjCasa.toFixed(1)}
+            fora={gpjFora.toFixed(1)}
+            cores={coresComparacao(gpjCasa, gpjFora)}
+          />
+          <Divider />
+          <LinhaComparacao
+            rotulo="Momento"
+            casa={String(momCasa)}
+            fora={String(momFora)}
+            cores={coresComparacao(momCasa, momFora)}
+          />
+        </Card>
+      </View>
 
-          <View style={styles.melhoresWrap}>
-            <Botao
-              titulo="Escalar os 11 melhores"
-              variante="secundaria"
-              icone="tatica"
-              onPress={escalarMelhores}
-            />
-          </View>
-
-          <Text style={styles.subTitulo}>Trocar formação</Text>
-          <View style={styles.chipRow}>
-            {FORMACOES_DISPONIVEIS.map(tipo => (
-              <Chip
-                key={tipo}
-                label={tipo}
-                ativo={formacaoTipo === tipo}
-                onPress={() => trocarFormacao(tipo)}
-              />
-            ))}
-          </View>
-        </Section>
-
-        {/* TÁTICA */}
-        <Section titulo="Tática">
-          <OptionGroup
-            titulo="Estilo ofensivo"
-            valor={taticaAtual.estiloOfensivo}
-            opcoes={OPCOES_ESTILO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                estiloOfensivo: valor as Tatica['estiloOfensivo'],
-              })
-            }
-          />
-          <OptionGroup
-            titulo="Marcação"
-            valor={taticaAtual.marcacao}
-            opcoes={OPCOES_MARCACAO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                marcacao: valor as Tatica['marcacao'],
-              })
-            }
-          />
-          <OptionGroup
-            titulo="Linha defensiva"
-            valor={taticaAtual.linhaDefensiva}
-            opcoes={OPCOES_LINHA}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                linhaDefensiva: valor as Tatica['linhaDefensiva'],
-              })
-            }
-          />
-          <OptionGroup
-            titulo="Ritmo"
-            valor={taticaAtual.ritmo}
-            opcoes={OPCOES_RITMO}
-            onSelect={valor =>
-              atualizarTaticaUsuario({
-                ...taticaAtual,
-                ritmo: valor as Tatica['ritmo'],
-              })
-            }
-          />
-        </Section>
-
-        {/* CONFIRMAR INÍCIO */}
-        <View style={styles.acoes}>
-          <View style={styles.acaoSimular}>
-            <Botao
-              variante="secundaria"
-              icone="simular"
-              titulo="Simular"
-              disabled={!podeJogar}
-              style={styles.botaoAltura}
-              onPress={() => {
-                avancarRodada();
-                toast('Rodada simulada.', 'sucesso');
-                nav.navigate('MainTabs');
-              }}
-            />
-          </View>
-          <View style={styles.acaoJogar}>
-            <Botao
-              variante="ouro"
-              icone="jogar"
-              titulo="Jogar ao vivo"
-              disabled={!podeJogar}
-              style={styles.botaoAltura}
-              onPress={() => nav.navigate('MatchSimulation')}
-            />
-          </View>
+      {/* JOGADOR-CHAVE DO ADVERSÁRIO */}
+      {chave ? (
+        <View style={styles.bloco}>
+          <TituloBloco texto="Jogador-chave do adversário" />
+          <Card
+            variante="interactive"
+            padding={3}
+            onPress={() => nav.navigate('PlayerDetail', {jogadorId: chave.id})}>
+            <View style={styles.chaveRow}>
+              <PlayerAvatar id={chave.id} tamanho={48} />
+              <View style={styles.chaveInfo}>
+                <Text variant="bodyL" weight="700" numberOfLines={1}>
+                  {chave.apelido ?? chave.nome}
+                </Text>
+                <View style={styles.chaveMeta}>
+                  <PositionBadge
+                    posicao={chave.posicaoPrincipal}
+                    tamanho="sm"
+                  />
+                  <Text variant="caption" color="textSecondary">
+                    {chave.idade} anos · {adversario.sigla}
+                  </Text>
+                </View>
+              </View>
+              <OverallRing valor={chave.overall} tamanho={46} />
+            </View>
+          </Card>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      ) : null}
+
+      {/* AÇÕES — iniciar a partida (simular ou ao vivo) + ajustar escalação */}
+      {(() => {
+        const podeJogar = !avisos.some(a => a.cor === 'danger');
+        return (
+          <View style={styles.acoesLinha}>
+            <View style={styles.acaoSimular}>
+              <Button
+                titulo=""
+                icone="simular"
+                iconeSize={26}
+                variante="secondary"
+                tamanho="lg"
+                disabled={!podeJogar}
+                fullWidth
+                onPress={() => {
+                  avancarRodada();
+                  toast('Rodada simulada.', 'sucesso');
+                  nav.navigate('MainTabs');
+                }}
+              />
+            </View>
+            <View style={styles.acaoEscalar}>
+              <Button
+                titulo=""
+                icone="tatica"
+                iconeSize={26}
+                variante="secondary"
+                tamanho="lg"
+                fullWidth
+                onPress={() => nav.navigate('Tactics')}
+              />
+            </View>
+            <View style={styles.acaoJogar}>
+              <Button
+                titulo="Jogar ao vivo"
+                variante="primary"
+                tamanho="lg"
+                icone="jogar"
+                iconeSize={22}
+                disabled={!podeJogar}
+                fullWidth
+                onPress={() => nav.navigate('MatchSimulation')}
+              />
+            </View>
+          </View>
+        );
+      })()}
+    </Screen>
   );
 }
 
 export default PreJogo;
 
 const styles = StyleSheet.create({
-  screen: {
-    backgroundColor: cores.fundo,
-    flex: 1,
-  },
-  conteudo: {
-    padding: espaco.lg,
-    paddingBottom: espaco.xl * 2,
-  },
-  vazio: {
-    color: cores.textoSecundario,
-    fontSize: 14,
-    padding: espaco.lg,
-    textAlign: 'center',
-  },
-  // CONFRONTO — hero
-  heroCard: {
-    backgroundColor: cores.superficie,
-    borderColor: cores.borda,
-    borderRadius: raio.lg,
-    borderWidth: 1,
-    gap: espaco.lg,
-    marginBottom: espaco.md,
-    padding: espaco.lg,
-    ...sombra.card,
-  },
-  heroConfronto: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  heroTime: {
+  caps: {textTransform: 'uppercase', letterSpacing: 1},
+  flex: {flex: 1},
+  acoesLinha: {flexDirection: 'row', gap: espacamento[2]},
+  acaoSimular: {flex: 20},
+  acaoEscalar: {flex: 25},
+  acaoJogar: {flex: 55},
+  meta: {gap: espacamento[1]},
+  metaLinha: {
     alignItems: 'center',
-    flex: 1,
-    gap: espaco.xs,
-  },
-  heroNome: {
-    color: cores.texto,
-    fontSize: 13,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  heroOverall: {
-    color: cores.primaria,
-    fontSize: 34,
-    fontWeight: '900',
-    letterSpacing: -1,
-  },
-  heroMando: {
-    color: cores.textoMuted,
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-  heroVoce: {
-    color: cores.secundaria,
-  },
-  heroCentro: {
-    alignItems: 'center',
-    gap: espaco.sm,
-    paddingTop: espaco.xl,
-  },
-  heroVs: {
-    color: cores.textoSecundario,
-    fontSize: 16,
-    fontWeight: '900',
-  },
-  // PRONTIDÃO
-  previsaoBarra: {
-    flexDirection: 'row',
-    gap: 3,
-    height: 14,
-  },
-  previsaoSeg: {
-    borderRadius: raio.pill,
-    height: '100%',
-  },
-  previsaoLegenda: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: espaco.sm,
-  },
-  previsaoItem: {
-    alignItems: 'flex-start',
-    flex: 1,
-  },
-  previsaoItemCentro: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  previsaoItemDir: {
-    alignItems: 'flex-end',
-    flex: 1,
-  },
-  previsaoPct: {
-    ...tabular,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  previsaoRotulo: {
-    color: cores.textoSecundario,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  // ESCALAÇÃO
-  melhoresWrap: {
-    marginTop: espaco.md,
-  },
-  subTitulo: {
-    color: cores.textoSecundario,
-    ...tipografia.secao,
-    marginTop: espaco.sm,
-  },
-  chipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: espaco.sm,
+    gap: espacamento[1],
+    justifyContent: 'center',
   },
-  // CONFIRMAR
-  acoes: {
+  // CONFRONTO
+  placar: {
+    alignItems: 'flex-start',
     flexDirection: 'row',
-    gap: espaco.sm,
-    marginTop: espaco.md,
+    justifyContent: 'space-between',
   },
-  acaoSimular: {
+  placarTime: {
+    alignItems: 'center',
     flex: 1,
+    gap: espacamento[1],
   },
-  acaoJogar: {
-    flex: 2,
+  placarCentro: {
+    alignItems: 'center',
+    gap: espacamento[2],
+    paddingTop: espacamento[4],
   },
-  botaoAltura: {
-    minHeight: 54,
+  // BLOCOS
+  bloco: {gap: espacamento[2]},
+  // FORMA
+  formaRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espacamento[2],
+    justifyContent: 'space-between',
   },
+  formaLado: {flex: 1},
+  formaDir: {alignItems: 'flex-end'},
+  pillRow: {flexDirection: 'row', gap: espacamento[1]},
+  pill: {height: 22, width: 22},
+  // COMPARAÇÃO
+  compRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    paddingVertical: espacamento[2],
+  },
+  compVal: {flex: 1},
+  compRotulo: {flex: 1.4},
+  // JOGADOR-CHAVE
+  chaveRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espacamento[3],
+  },
+  chaveInfo: {flex: 1, gap: espacamento[1]},
+  chaveMeta: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espacamento[2],
+  },
+  // AVISOS
+  avisoRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espacamento[2],
+    paddingVertical: espacamento[2],
+  },
+  avisoTexto: {flex: 1},
 });

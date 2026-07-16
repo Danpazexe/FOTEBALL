@@ -105,8 +105,11 @@ function LeagueSelect(): React.JSX.Element {
   const nav = useAppNavigation();
 
   return (
-    <Screen scroll>
-      <AppBar title="Nova carreira" subtitle="Escolha a liga" onBack={nav.goBack} />
+    <Screen
+      scroll
+      header={
+        <AppBar title="Nova carreira" subtitle="Escolha a liga" onBack={nav.goBack} />
+      }>
 
       {COMPETICOES.map(grupo => (
         <View key={grupo.pais} style={styles.grupo}>

@@ -485,7 +485,16 @@ describe('estatísticas avançadas (acumuladas minuto a minuto)', () => {
         );
         expect(lado.finalizacoes).toBeGreaterThanOrEqual(lado.finalizacoesNoAlvo);
         expect(lado.passesCertos).toBeLessThanOrEqual(lado.passesTentados);
-        expect(lado.grandesChances).toBeGreaterThanOrEqual(placar);
+        // RN-05 (engine causal V2): grande chance classifica a OPORTUNIDADE
+        // (xG ≥ limiar), não o resultado — um gol de chance ruim NÃO vira
+        // grande chance. O invariante forte agora é placar == gols do ledger.
+        expect(lado.grandesChances).toBeLessThanOrEqual(lado.finalizacoes);
+        const timeIdLado =
+          lado === est.casa ? partida.timeCasa : partida.timeFora;
+        const golsLedger = (partida.chutes ?? []).filter(
+          c => c.resultado === 'gol' && c.timeId === timeIdLado,
+        ).length;
+        expect(golsLedger).toBe(placar);
         // Cartões implicam faltas.
         const cartoes = partida.eventos.filter(
           e =>
