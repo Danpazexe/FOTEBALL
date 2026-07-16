@@ -6,6 +6,14 @@ import type {ForcaTime} from './teamStrength';
 export interface ProbabilidadesPartida {
   probGolCasaPorMinuto: number;
   probGolForaPorMinuto: number;
+  /**
+   * Gols esperados por minuto SEM o efeito do goleiro adversário — alvo da
+   * CRIAÇÃO de chances na engine causal V2 (o goleiro entra na resolução de
+   * cada chute, em xgModel.ajusteGoleiro, com a mesma curva; aplicar nos dois
+   * pontos dobraria o efeito).
+   */
+  xgBaseCasaPorMinuto: number;
+  xgBaseForaPorMinuto: number;
   probCartaoCasaPorMinuto: number;
   probCartaoForaPorMinuto: number;
   probPenaltiCasaPorMinuto: number;
@@ -158,25 +166,33 @@ export function calcularProbabilidades(
   // parelhos (diferenca=0), aumentá-lo NÃO mexe no balanço 75x75 — só reduz as
   // zebras de gap real (Série A: overall 69–80, gap ≤ 11). No gap 11 o forte
   // passou a vencer ~59% fora / ~70% em casa (zebra ~10–17%). Ver matchBalance.
-  const golsEsperadosCasa = limitar(
+  const xgBaseCasa = limitar(
     (1.35 +
       diferencaCasa * 0.042 +
       vantagemAtaqueCasa +
       modMatchupAtaque(taticaCasa, taticaFora)) *
       mando *
-      fatorRitmoGols(taticaCasa.ritmo) *
-      fatorGoleiro(fora.forcaGoleiro),
+      fatorRitmoGols(taticaCasa.ritmo),
     0.35,
     3.2,
   );
-  const golsEsperadosFora = limitar(
+  const xgBaseFora = limitar(
     (1.17 -
       diferencaCasa * 0.032 +
       vantagemAtaqueFora +
       modMatchupAtaque(taticaFora, taticaCasa)) *
       (1 - (mando - 1) * 0.55) *
-      fatorRitmoGols(taticaFora.ritmo) *
-      fatorGoleiro(casa.forcaGoleiro),
+      fatorRitmoGols(taticaFora.ritmo),
+    0.3,
+    2.9,
+  );
+  const golsEsperadosCasa = limitar(
+    xgBaseCasa * fatorGoleiro(fora.forcaGoleiro),
+    0.35,
+    3.2,
+  );
+  const golsEsperadosFora = limitar(
+    xgBaseFora * fatorGoleiro(casa.forcaGoleiro),
     0.3,
     2.9,
   );
@@ -193,6 +209,8 @@ export function calcularProbabilidades(
   return {
     probGolCasaPorMinuto: golsEsperadosCasa / 90,
     probGolForaPorMinuto: golsEsperadosFora / 90,
+    xgBaseCasaPorMinuto: xgBaseCasa / 90,
+    xgBaseForaPorMinuto: xgBaseFora / 90,
     probCartaoCasaPorMinuto: 0.018 * fatorCartao(taticaCasa),
     probCartaoForaPorMinuto: 0.018 * fatorCartao(taticaFora),
     // Pênalti: o adversário marca pesado => esta equipe ganha o pênalti.

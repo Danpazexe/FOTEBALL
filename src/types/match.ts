@@ -42,7 +42,94 @@ export interface EventoPartida {
   penaltiData?: PenaltiResultado;
   /** Pênalti do time do usuário aguardando cobrança interativa (não resolvido). */
   penaltiPendente?: boolean;
+  /**
+   * Vínculo causal com o chute do ledger que originou o lance (engine V2).
+   * Todo gol V2 tem chuteId; eventos antigos (saves V1) não têm.
+   */
+  chuteId?: string;
+  /** Gol anulado pelo VAR (flag estruturada — não inferir da descrição). */
+  anuladoVAR?: boolean;
+  /** VAR flagrou o pênalti que originou este lance. */
+  varFlagra?: boolean;
+  /** Gol nascido de falha do goleiro adversário. */
+  falhaGoleiro?: boolean;
+  /** Gol nascido de falha grave da defesa adversária. */
+  falhaDefesa?: boolean;
+  /** Expulsão por segundo cartão amarelo (não vermelho direto). */
+  segundoAmarelo?: boolean;
 }
+
+/** Desfecho estruturado de um chute do ledger causal (engine V2). */
+export type ResultadoChute =
+  | 'gol'
+  | 'defesa' // no alvo, goleiro defendeu
+  | 'bloqueado'
+  | 'fora'
+  | 'trave'
+  | 'gol_anulado'; // entrou, mas o VAR anulou (não conta no placar)
+
+/** Origem da jogada que gerou o chute (estruturada, não texto). */
+export type SituacaoLance =
+  | 'jogo_aberto'
+  | 'contra_ataque'
+  | 'escanteio'
+  | 'falta'
+  | 'penalti'
+  | 'rebote';
+
+export type ParteCorpoChute = 'pe_direito' | 'pe_esquerdo' | 'cabeca';
+
+/**
+ * Chute FACTUAL produzido pela engine causal V2 durante a simulação — fonte
+ * única do placar, do xG e do mapa de finalizações. Persistido na Partida
+ * (partidas de saves antigos não têm; a UI então mostra estado legacy honesto).
+ * Invariantes: placar == chutes com resultado 'gol' por lado; xG do time ==
+ * soma de `xg` dos chutes válidos do lado.
+ */
+export interface ChutePartida {
+  id: string;
+  timeId: string;
+  /** Autor do chute. Em gol contra, é o DEFENSOR que marcou contra (golContra). */
+  jogadorId: string;
+  /** Garçom do lance (quando houver). */
+  assistenciaId?: string;
+  /** Goleiro que enfrentou o chute. */
+  goleiroId?: string;
+  minuto: number;
+  /** Origem causal: id da posse/sequência ofensiva que gerou o chute. */
+  posseId: string;
+  situacao: SituacaoLance;
+  corpo: ParteCorpoChute;
+  /** Posição no terço de ataque: x 0=esq…1=dir; y 0=linha do gol…1=fundo. */
+  x: number;
+  y: number;
+  /** Posição na baliza (apenas chutes no alvo): 0..1 esq→dir / chão→travessão. */
+  golX?: number;
+  golY?: number;
+  /** Qualidade objetiva da chance (0..1). xG do time = soma dos chutes. */
+  xg: number;
+  /** Qualidade do chute que foi ao gol (0 quando não foi no alvo). */
+  xgot: number;
+  resultado: ResultadoChute;
+  grandeChance: boolean;
+  /** Chute de fora da área. */
+  deFora: boolean;
+  /** O gol saiu de falha do goleiro (evento raro, estruturado). */
+  falhaGoleiro?: boolean;
+  /** Gol contra: o autor é um defensor do time adversário ao `timeId`. */
+  golContra?: boolean;
+}
+
+/** Versão do motor que produziu a partida (ausente = V1/legacy). */
+export type VersaoEnginePartida = 1 | 2;
+
+/**
+ * Qualidade dos dados esportivos persistidos:
+ *  • legacy — partida de save antigo ou motor de fundo (sem ledger causal);
+ *  • causal_full — partida do usuário com ledger completo;
+ *  • causal_summary — partida da IA: chutes + agregados (sem detalhe por minuto).
+ */
+export type QualidadeDadosPartida = 'legacy' | 'causal_full' | 'causal_summary';
 
 /** Condição climática da partida (sorteada pela engine, determinística por seed). */
 export type ClimaPartida = 'Ensolarado' | 'Nublado' | 'Chuvoso';
@@ -141,4 +228,14 @@ export interface Partida {
    * prorrogação). Ausente em jogos de liga e em jogos resolvidos no tempo.
    */
   vencedorPenaltis?: string;
+  /** Versão do motor que simulou (ausente em saves antigos = V1). */
+  engineVersion?: VersaoEnginePartida;
+  /** Qualidade dos dados persistidos (ausente = legacy). */
+  qualidadeDados?: QualidadeDadosPartida;
+  /**
+   * Ledger de chutes FACTUAIS da engine causal V2 (ordenado por minuto).
+   * Fonte do placar, do xG e do mapa de finalizações. Ausente em partidas
+   * legacy — a UI não fabrica dados no lugar.
+   */
+  chutes?: ChutePartida[];
 }

@@ -25,13 +25,19 @@ export type {
   Transacao,
 } from './club';
 export type {
+  ChutePartida,
   ClimaPartida,
   EstatisticasPartida,
   EstatisticasTimePartida,
   EventoPartida,
   EventoPartidaTipo,
+  ParteCorpoChute,
   Partida,
   PenaltiResultado,
+  QualidadeDadosPartida,
+  ResultadoChute,
+  SituacaoLance,
+  VersaoEnginePartida,
 } from './match';
 export {ehEventoGol} from './match';
 export type {

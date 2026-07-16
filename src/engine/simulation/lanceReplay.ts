@@ -31,7 +31,7 @@ import type {
   TipoPassoLance,
 } from './lances';
 import {
-  extrairFinalizacoes,
+  obterFinalizacoesPartida,
   type Finalizacao,
   type SituacaoChute,
 } from './finalizacoes';
@@ -537,7 +537,9 @@ export function reconstruirLancesGol(
   const eventosOrdenados = [...partida.eventos].sort(
     (a, b) => a.minuto - b.minuto,
   );
-  const finalizacoes = extrairFinalizacoes(partida, posicoes);
+  // Partidas V2 ancoram no chute FACTUAL do ledger (posição/xG reais);
+  // legacy cai na reconstrução plausível — mesma fonte do mapa de chutes.
+  const finalizacoes = obterFinalizacoesPartida(partida, posicoes).finalizacoes;
   const finUsadas = new Set<number>();
   const lances: LanceGol[] = [];
 

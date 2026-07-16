@@ -97,6 +97,7 @@ import type {
   Player,
   TabelaClassificacao,
 } from '../../types';
+import {ehEventoGol} from '../../types';
 import {useAppNavigation, useAppRoute} from '../../navigation/types';
 import {useFocusEffect} from '@react-navigation/native';
 
@@ -690,13 +691,15 @@ function MatchSimulation(): React.JSX.Element | null {
         const assist = ev.jogadorAssistenciaId
           ? nomesRef.current[ev.jogadorAssistenciaId] ?? 'assistência'
           : undefined;
+        // Flags estruturadas da engine V2 primeiro; regex só como fallback de
+        // compatibilidade com eventos antigos (RF-17: nada de lógica por texto).
         detalhe = ev.penaltiData
           ? nomeFalta
             ? `Gol de pênalti · falta de ${nomeFalta}`
             : 'Gol de pênalti'
-          : /falha do goleiro/i.test(ev.descricao)
+          : ev.falhaGoleiro === true || /falha do goleiro/i.test(ev.descricao)
           ? 'Gol · falha do goleiro'
-          : /falha grave da defesa/i.test(ev.descricao)
+          : ev.falhaDefesa === true || /falha grave da defesa/i.test(ev.descricao)
           ? 'Gol · falha da defesa'
           : /falta/i.test(ev.descricao)
           ? 'Golaço de falta'
@@ -720,13 +723,15 @@ function MatchSimulation(): React.JSX.Element | null {
       } else if (ev.tipo === 'cartao_amarelo') {
         detalhe = 'Cartão amarelo';
       } else if (ev.tipo === 'cartao_vermelho') {
-        detalhe = /segundo amarelo/i.test(ev.descricao)
-          ? 'Expulso · 2º amarelo'
-          : 'Cartão vermelho';
+        detalhe =
+          ev.segundoAmarelo === true || /segundo amarelo/i.test(ev.descricao)
+            ? 'Expulso · 2º amarelo'
+            : 'Cartão vermelho';
       } else if (ev.tipo === 'chance_perdida') {
-        detalhe = /anulado/i.test(ev.descricao)
-          ? 'Gol anulado pelo VAR'
-          : 'Chance perdida';
+        detalhe =
+          ev.anuladoVAR === true || /anulado/i.test(ev.descricao)
+            ? 'Gol anulado pelo VAR'
+            : 'Chance perdida';
       } else if (ev.tipo === 'lesao') {
         detalhe = 'Lesão';
       } else if (ev.tipo === 'falta_cobranca') {
@@ -789,23 +794,27 @@ function MatchSimulation(): React.JSX.Element | null {
         const doUsuario =
           (ev.timeId === fixture.timeCasa) ===
           (ladoUsuarioRef.current === 'casa');
+        // Flags estruturadas da engine V2 primeiro; texto só como fallback de
+        // compatibilidade (RF-17: nenhuma decisão depende de parsing).
+        const varFlagrou = ev.varFlagra === true || ev.descricao.includes('VAR flagra');
         if (ev.tipo === 'gol_contra') {
           saborGolRef.current = 'contra';
         } else if (ev.tipo === 'gol') {
-          saborGolRef.current = /falha do goleiro/i.test(ev.descricao)
-            ? 'falhaGoleiro'
-            : 'normal';
+          saborGolRef.current =
+            ev.falhaGoleiro === true || /falha do goleiro/i.test(ev.descricao)
+              ? 'falhaGoleiro'
+              : 'normal';
         }
         // VAR intervindo (pênalti flagrado): "atenção, o VAR está checando" antes
         // do desfecho. Chamada direta (gated) porque o gol converte o lote.
-        if (comSomDeLance && ev.descricao.includes('VAR flagra')) {
+        if (comSomDeLance && varFlagrou) {
           tocarVarChecando();
         }
         if (ev.tipo === 'cartao_vermelho') {
           registrarSom(3, () => tocarExpulsao(doUsuario));
         } else if (ev.tipo === 'penalti') {
           // Pênalti do VAR já é anunciado pelo "VAR checando" acima — não dobra o apito.
-          if (!ev.descricao.includes('VAR flagra')) {
+          if (!varFlagrou) {
             registrarSom(2, () => tocarPenalti());
           }
         } else if (ev.tipo === 'lesao') {
@@ -815,8 +824,8 @@ function MatchSimulation(): React.JSX.Element | null {
         } else if (ev.tipo === 'substituicao') {
           registrarSom(1, () => tocarSubstituicao());
         } else if (ev.tipo === 'chance_perdida') {
-          // O VAR anula gol virando um 'chance_perdida' com "anulado" na descrição.
-          if (ev.descricao.includes('anulado')) {
+          // Gol anulado pelo VAR chega como 'chance_perdida' com flag estruturada.
+          if (ev.anuladoVAR === true || ev.descricao.includes('anulado')) {
             registrarSom(2, () => tocarVarAnulado());
           } else {
             registrarSom(1, () => tocarChancePerdida());
@@ -1018,6 +1027,7 @@ function MatchSimulation(): React.JSX.Element | null {
           e.placarFora,
           calcularPossePartida(e),
           calcularEstatisticasFinais(e),
+          [...e.chutes].sort((a, b) => a.minuto - b.minuto),
         );
     }
     // Salva JÁ o resultado — não espera o debounce do autosave (se o app fechar
@@ -1150,6 +1160,15 @@ function MatchSimulation(): React.JSX.Element | null {
   const clubeCasaId = clubeCasaObj?.id ?? '';
   const clubeForaId = clubeForaObj?.id ?? '';
   const momentum = condicoes?.momentumPorMinuto ?? [];
+  // Marcadores de GOL no gráfico de momento (separados da altura das barras —
+  // a barra é pressão ofensiva; o gol é um marcador do minuto).
+  const eventosAoVivo = estadoRef.current?.eventos ?? [];
+  const minutosGolCasa = eventosAoVivo
+    .filter(e => ehEventoGol(e.tipo) && e.timeId === clubeCasaId)
+    .map(e => e.minuto);
+  const minutosGolFora = eventosAoVivo
+    .filter(e => ehEventoGol(e.tipo) && e.timeId === clubeForaId)
+    .map(e => e.minuto);
   const finCasa = condicoes?.casa.finalizacoes ?? 0;
   const alvoCasa = condicoes?.casa.finalizacoesNoAlvo ?? 0;
   const estadoRotulo = terminou
@@ -1228,7 +1247,11 @@ function MatchSimulation(): React.JSX.Element | null {
               </View>
             </View>
 
-            <MomentoChart momentum={momentum} />
+            <MomentoChart
+              momentum={momentum}
+              minutosGolCasa={minutosGolCasa}
+              minutosGolFora={minutosGolFora}
+            />
 
             <View style={styles.statsRow}>
               <CelulaStat valor={`${posseCasa}%`} rotulo="Posse de bola" />
@@ -1748,10 +1771,25 @@ function CelulaStat({
   );
 }
 
-/** "Momento da partida": barras de momentum por minuto (−1..1, casa=verde). */
-function MomentoChart({momentum}: {momentum: number[]}): React.JSX.Element {
+/**
+ * "Momento da partida": barras de PRESSÃO OFENSIVA recente por minuto (−1..1,
+ * casa acima / visitante abaixo). O GOL aparece como MARCADOR (ponto) no
+ * minuto — separado da altura da barra, que é só pressão. Linha divisória
+ * marca o intervalo (45').
+ */
+function MomentoChart({
+  momentum,
+  minutosGolCasa,
+  minutosGolFora,
+}: {
+  momentum: number[];
+  minutosGolCasa: number[];
+  minutosGolFora: number[];
+}): React.JSX.Element {
   const {cores, esporte} = useTheme();
   const HALF = 22;
+  const golCasaNoMinuto = new Set(minutosGolCasa);
+  const golForaNoMinuto = new Set(minutosGolFora);
   return (
     <View style={styles.momento}>
       <Text
@@ -1771,9 +1809,27 @@ function MomentoChart({momentum}: {momentum: number[]}): React.JSX.Element {
         ) : (
           momentum.map((m, i) => {
             const alt = Math.min(1, Math.abs(m)) * HALF;
+            const minutoBarra = i + 1;
+            const golCasa = golCasaNoMinuto.has(minutoBarra);
+            const golFora = golForaNoMinuto.has(minutoBarra);
             return (
-              <View key={i} style={styles.momentoCol}>
+              <View
+                key={i}
+                style={[
+                  styles.momentoCol,
+                  minutoBarra === 45
+                    ? [styles.momentoIntervalo, {borderRightColor: cores.onScoreboard}]
+                    : null,
+                ]}>
                 <View style={styles.momentoTopo}>
+                  {golCasa ? (
+                    <View
+                      style={[
+                        styles.momentoGol,
+                        {backgroundColor: esporte.match.goal},
+                      ]}
+                    />
+                  ) : null}
                   {m > 0 ? (
                     <View
                       style={[
@@ -1789,6 +1845,14 @@ function MomentoChart({momentum}: {momentum: number[]}): React.JSX.Element {
                       style={[
                         styles.momentoBar,
                         {height: alt, backgroundColor: esporte.match.cardRed},
+                      ]}
+                    />
+                  ) : null}
+                  {golFora ? (
+                    <View
+                      style={[
+                        styles.momentoGol,
+                        {backgroundColor: esporte.match.cardRed},
                       ]}
                     />
                   ) : null}
@@ -1833,9 +1897,13 @@ const styles = StyleSheet.create({
   momentoVazio: {flex: 1, justifyContent: 'center'},
   momentoBase: {height: 2, borderRadius: 1, opacity: 0.25},
   momentoCol: {flex: 1, marginHorizontal: 0.3},
-  momentoTopo: {flex: 1, justifyContent: 'flex-end'},
-  momentoFundo: {flex: 1, justifyContent: 'flex-start'},
+  momentoTopo: {flex: 1, justifyContent: 'flex-end', alignItems: 'center', gap: 1},
+  momentoFundo: {flex: 1, justifyContent: 'flex-start', alignItems: 'center', gap: 1},
   momentoBar: {width: '100%', borderRadius: 1},
+  // Marcador de GOL: ponto acima/abaixo da barra do minuto (não altera a barra).
+  momentoGol: {width: 4, height: 4, borderRadius: 2},
+  // Divisória vertical do intervalo (após a coluna dos 45').
+  momentoIntervalo: {borderRightWidth: 1, marginRight: 1, opacity: 0.9},
 
   // Condições
   condicoes: {

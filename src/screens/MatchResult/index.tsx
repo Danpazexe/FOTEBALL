@@ -40,7 +40,7 @@ import {
   calcularNotaPartida,
   type ResultadoJogador,
 } from '../../engine/simulation/matchRating';
-import {extrairFinalizacoes} from '../../engine/simulation/finalizacoes';
+import {obterFinalizacoesPartida} from '../../engine/simulation/finalizacoes';
 import {reconstruirLancesGol} from '../../engine/simulation/lanceReplay';
 import type {LanceGol} from '../../engine/simulation/lances';
 import {analisarMomentos, type TomMomento} from '../../engine/simulation/momentos';
@@ -199,17 +199,20 @@ function MatchResult(): React.JSX.Element {
     [jogadores],
   );
 
-  // Mapa de chutes: reconstruído de forma PURA/determinística dos eventos reais.
-  const finalizacoes = useMemo(() => {
+  // Mapa de chutes: partidas da engine V2 usam os chutes FACTUAIS persistidos
+  // (posição/xG reais do lance); partidas legacy caem na reconstrução
+  // determinística e recebem o selo de estimativa (RF-11 — legacy honesto).
+  const mapaChutes = useMemo(() => {
     if (!partida) {
-      return [];
+      return {finalizacoes: [], factual: false};
     }
     const posicoes: Record<string, Position> = {};
     for (const j of jogadores) {
       posicoes[j.id] = j.posicaoPrincipal;
     }
-    return extrairFinalizacoes(partida, posicoes);
+    return obterFinalizacoesPartida(partida, posicoes);
   }, [partida, jogadores]);
+  const finalizacoes = mapaChutes.finalizacoes;
 
   const nomesJogadores = useMemo(() => {
     const mapa: Record<string, string> = {};
@@ -556,11 +559,21 @@ function MatchResult(): React.JSX.Element {
         </Card>
       ) : null}
 
-      {/* Mapa de finalizações (chutes reconstruídos dos eventos) */}
+      {/* Mapa de finalizações — factual (engine V2) ou estimado (legacy) */}
       {finalizacoes.length > 0 ? (
         <Card>
           <View style={estilos.cardInner}>
             <SectionHeader titulo="Mapa de finalizações" />
+            {!mapaChutes.factual ? (
+              <Text variant="caption" color="textMuted">
+                Posições estimadas a partir dos lances (partida sem dados
+                completos de chute).
+              </Text>
+            ) : partida.qualidadeDados === 'causal_summary' ? (
+              <Text variant="caption" color="textMuted">
+                Principais finalizações registradas da partida.
+              </Text>
+            ) : null}
             <SegmentedTabs
               abas={[
                 {chave: 'casa', rotulo: siglaCasa},
