@@ -4,7 +4,7 @@
  * o orçamento após a proposta; envia usando as regras REAIS do mercado
  * (fazerPropostaCompra), tratando contraproposta/aceite/recusa. DS v2.
  */
-import React, {useState} from 'react';
+import React, {useMemo, useState} from 'react';
 import {StyleSheet, TextInput, View} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
@@ -41,10 +41,18 @@ function Negociacao(): React.JSX.Element {
   const route = useRoute<RouteProp<MercadoStackParamList, 'Negociacao'>>();
   const {jogadorId} = route.params;
 
-  const jogador = useGameStore(state =>
-    state.jogadores.find(j => j.id === jogadorId),
+  // Mercado universal: o alvo pode estar em qualquer liga (liga ativa vence).
+  const jogador = useGameStore(
+    state =>
+      state.jogadores.find(j => j.id === jogadorId) ??
+      state.todosJogadores.find(j => j.id === jogadorId),
   );
-  const clubes = useGameStore(state => state.clubes);
+  const clubesLiga = useGameStore(state => state.clubes);
+  const todosClubes = useGameStore(state => state.todosClubes);
+  const clubes = useMemo(
+    () => [...clubesLiga, ...todosClubes],
+    [clubesLiga, todosClubes],
+  );
   const clube = useGameStore(selecionarClubeUsuario);
   const fazerPropostaCompra = useGameStore(state => state.fazerPropostaCompra);
 

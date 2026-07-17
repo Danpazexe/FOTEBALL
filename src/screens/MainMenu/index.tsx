@@ -29,6 +29,7 @@ function MainMenu(): React.JSX.Element {
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
   const temporadaAtual = useGameStore(state => state.temporadaAtual);
   const rodadaAtual = useGameStore(state => state.rodadaAtual);
+  const partidas = useGameStore(state => state.partidas);
 
   const clube = clubeUsuarioId
     ? clubes.find(item => item.id === clubeUsuarioId)
@@ -37,7 +38,12 @@ function MainMenu(): React.JSX.Element {
     ? tabela.findIndex(linha => linha.clubeId === clubeUsuarioId)
     : -1;
   const posicao = indiceTabela === -1 ? tabela.length : indiceTabela + 1;
-  const rodadaExibida = Math.min(rodadaAtual, 38);
+  // Total de rodadas da liga ATIVA (38 no Brasileirão, 34 na Premier…).
+  const totalRodadas = partidas.reduce(
+    (maior, partida) => Math.max(maior, partida.rodada),
+    0,
+  );
+  const rodadaExibida = Math.min(rodadaAtual, totalRodadas || rodadaAtual);
 
   return (
     <Screen scroll>
@@ -68,7 +74,10 @@ function MainMenu(): React.JSX.Element {
             </View>
             <View style={styles.chips}>
               <InfoChip icone="calendario" texto={`Temporada ${temporadaAtual}`} />
-              <InfoChip icone="bola" texto={`Rodada ${rodadaExibida}/38`} />
+              <InfoChip
+                icone="bola"
+                texto={`Rodada ${rodadaExibida}/${totalRodadas || 38}`}
+              />
               <InfoChip icone="tabela" texto={`${posicao}º lugar`} />
             </View>
           </>

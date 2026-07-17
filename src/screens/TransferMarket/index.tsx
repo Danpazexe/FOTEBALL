@@ -36,6 +36,7 @@ import {
 } from '../../engine/transfers/emprestimoEngine';
 import {useMercadoNavigation} from '../../navigation/types';
 import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
+import {combinarMundoStore} from '../../store/transferenciaMundo';
 import {moeda, moedaCompacta, nomeClube, siglaClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
@@ -71,6 +72,8 @@ function TransferMarket(): React.JSX.Element {
 
   const jogadores = useGameStore(state => state.jogadores);
   const clubes = useGameStore(state => state.clubes);
+  const todosJogadores = useGameStore(state => state.todosJogadores);
+  const todosClubes = useGameStore(state => state.todosClubes);
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
   const propostas = useGameStore(state => state.propostasRecebidas);
   const responderPropostaVenda = useGameStore(
@@ -107,20 +110,29 @@ function TransferMarket(): React.JSX.Element {
 
   const alvoBusca = normalizar(busca.trim());
 
+  // Mercado UNIVERSAL: enxerga TODAS as ligas carregadas (não só a divisão
+  // jogada). A liga ativa vence para o elenco do usuário (estado vivo).
+  const mundo = useMemo(
+    () => combinarMundoStore({clubes, jogadores, todosClubes, todosJogadores}),
+    [clubes, jogadores, todosClubes, todosJogadores],
+  );
+  const jogadoresMundo = mundo.jogadores;
+  const clubesMundo = mundo.clubes;
+
   const disponiveis = useMemo(
     () =>
-      jogadores
+      jogadoresMundo
         .filter(j => j.clubeId !== clubeUsuarioId && j.clubeId !== null)
         .filter(j => filtro === 'Todos' || j.posicaoPrincipal === filtro)
         .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
         .sort((a, b) => b.overall - a.overall)
         .slice(0, LIMITE),
-    [jogadores, clubeUsuarioId, filtro, alvoBusca],
+    [jogadoresMundo, clubeUsuarioId, filtro, alvoBusca],
   );
 
   const emprestaveis = useMemo(
     () =>
-      jogadores
+      jogadoresMundo
         .filter(
           j =>
             j.clubeId !== clubeUsuarioId && j.clubeId !== null && !ehEmprestado(j),
@@ -129,7 +141,7 @@ function TransferMarket(): React.JSX.Element {
         .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
         .sort((a, b) => a.idade - b.idade || b.overall - a.overall)
         .slice(0, LIMITE),
-    [jogadores, clubeUsuarioId, filtro, alvoBusca],
+    [jogadoresMundo, clubeUsuarioId, filtro, alvoBusca],
   );
 
   const aoEmprestar = (jogador: Player) => {
@@ -277,7 +289,7 @@ function TransferMarket(): React.JSX.Element {
                   <MercadoRow
                     jogador={jogador}
                     clubeId={jogador.clubeId ?? ''}
-                    sigla={siglaClube(clubes, jogador.clubeId ?? '')}
+                    sigla={siglaClube(clubesMundo, jogador.clubeId ?? '')}
                     valorTexto={moedaCompacta(jogador.valorMercado)}
                     acaoLabel="Propor"
                     onAcao={() => abrirProposta(jogador)}
@@ -303,7 +315,7 @@ function TransferMarket(): React.JSX.Element {
                 <MercadoRow
                   jogador={jogador}
                   clubeId={jogador.clubeId ?? ''}
-                  sigla={siglaClube(clubes, jogador.clubeId ?? '')}
+                  sigla={siglaClube(clubesMundo, jogador.clubeId ?? '')}
                   extra={`taxa ${moeda(custoEmprestimo(jogador))}`}
                   valorTexto={moedaCompacta(jogador.valorMercado)}
                   acaoLabel="Pegar"

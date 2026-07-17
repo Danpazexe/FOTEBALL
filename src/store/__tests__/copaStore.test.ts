@@ -103,4 +103,40 @@ describe('Copa do Brasil no store', () => {
     expect(aplicado.copa?.faseAtual).toBe(estado().copa!.faseAtual);
     expect(aplicado.copa?.fases).toHaveLength(estado().copa!.fases.length);
   });
+
+  it('só clubes BRASILEIROS disputam a Copa (mundo multi-país não vaza)', () => {
+    const usuario = estado().clubes[3];
+    estado().iniciarNovaCarreira(usuario.id);
+
+    // Sem o filtro, o ranking por força escalaria os clubes internacionais
+    // (mais fortes do seed: Man City, Liverpool…) nas Oitavas.
+    const brasileiros = new Set(
+      estado()
+        .todosClubes.filter(clube =>
+          ['Série A', 'Série B', 'Série C', 'Série D'].includes(
+            clube.divisao ?? 'Série A',
+          ),
+        )
+        .map(clube => clube.id),
+    );
+    const participantes = estado().copa!.fases[0].confrontos.flatMap(c => [
+      c.timeA,
+      c.timeB,
+    ]);
+    expect(participantes.every(id => brasileiros.has(id))).toBe(true);
+  });
+
+  it('carreira INTERNACIONAL começa sem Copa do Brasil e com a liga certa', () => {
+    const clubeIngles = estado().todosClubes.find(
+      clube => clube.divisao === 'Premier League',
+    );
+    expect(clubeIngles).toBeDefined();
+    estado().iniciarNovaCarreira(clubeIngles!.id);
+
+    expect(estado().copa).toBeNull();
+    expect(estado().clubeUsuarioId).toBe(clubeIngles!.id);
+    // A liga ativa é a Premier: 20 clubes, 38 rodadas (turno + returno).
+    expect(estado().clubes).toHaveLength(20);
+    expect(Math.max(...estado().partidas.map(p => p.rodada))).toBe(38);
+  });
 });

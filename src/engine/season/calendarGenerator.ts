@@ -31,27 +31,34 @@ function rotacionar(times: string[]): string[] {
   return [fixo, ultimo, ...meio];
 }
 
+/** Marcador de FOLGA (bye): fecha o círculo do round-robin quando a liga tem
+ * nº ímpar de clubes — a cada rodada um clube "enfrenta" a folga e descansa. */
+const FOLGA = '__folga__';
+
 export function gerarCalendarioLiga(
   clubeIds: string[],
   temporada: string,
   competicaoId = `brasileirao_${temporada}`,
 ): Partida[] {
-  if (clubeIds.length % 2 !== 0) {
-    throw new Error('Calendário round-robin exige número par de clubes');
-  }
-
-  let times = [...clubeIds];
+  // Nº ímpar (ex.: Primera División com 3 clubes): entra a folga; nº par
+  // mantém o calendário EXATO de antes (mesmos ids/rodadas/datas).
+  let times = clubeIds.length % 2 !== 0 ? [...clubeIds, FOLGA] : [...clubeIds];
   const metade = times.length / 2;
   const partidas: Partida[] = [];
-  const offsetReturno = clubeIds.length - 1;
+  const offsetReturno = times.length - 1;
   const datas = datasDasRodadas(temporada, offsetReturno * 2);
 
-  for (let rodada = 1; rodada <= clubeIds.length - 1; rodada += 1) {
+  for (let rodada = 1; rodada <= offsetReturno; rodada += 1) {
     for (let index = 0; index < metade; index += 1) {
       const mandanteOriginal = times[index];
       const visitanteOriginal = times[times.length - 1 - index];
 
-      if (!mandanteOriginal || !visitanteOriginal) {
+      if (
+        !mandanteOriginal ||
+        !visitanteOriginal ||
+        mandanteOriginal === FOLGA ||
+        visitanteOriginal === FOLGA
+      ) {
         continue;
       }
 

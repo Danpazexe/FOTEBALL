@@ -6,6 +6,10 @@
  */
 import {loadSeedData} from '../api/database/seed/loadSeed';
 import {filtrarClubesSerieD} from '../engine/competitions';
+import {
+  ligasDoPais,
+  listarPaises,
+} from '../engine/competitions/registry/competitionRegistry';
 import {gerarCalendarioLiga} from '../engine/season/calendarGenerator';
 import {calcularTabela} from '../engine/season/classification';
 import {gerarCopaDoBrasil, type EstadoCopa} from '../engine/season/copaEngine';
@@ -29,6 +33,38 @@ export const N_ACESSO = 4;
  * automaticamente, sem mexer na lógica.
  */
 export const PIRAMIDE_DIVISOES = ['Série A', 'Série B', 'Série C', 'Série D'];
+
+/** Pirâmide de um país: divisões topo→base + nº que sobe/desce entre adjacentes. */
+export interface PiramidePais {
+  divisoes: string[];
+  nAcesso: number;
+}
+
+/**
+ * Pirâmides de TODOS os países (Brasil + internacionais). O Brasil mantém as
+ * constantes históricas (PIRAMIDE_DIVISOES/N_ACESSO = 4); as demais saem do
+ * registry (ex.: Premier↔Championship com 3). País de divisão única (Primera
+ * División) entra com nAcesso 0 — participa da posição final, sem movimento.
+ */
+export function piramidesDoMundo(): PiramidePais[] {
+  const piramides: PiramidePais[] = [
+    {divisoes: PIRAMIDE_DIVISOES, nAcesso: N_ACESSO},
+  ];
+  for (const pais of listarPaises()) {
+    if (pais.id === 'brasil') {
+      continue;
+    }
+    const divisoes = ligasDoPais(pais.id)
+      .map(liga => liga.divisaoLegada)
+      .filter((divisao): divisao is string => Boolean(divisao));
+    if (divisoes.length === 0) {
+      continue;
+    }
+    const topo = ligasDoPais(pais.id)[0];
+    piramides.push({divisoes, nAcesso: topo?.rebaixamento ?? 0});
+  }
+  return piramides;
+}
 
 /**
  * Premiação da Copa creditada ao usuário por fase VENCIDA (avançou).
@@ -142,7 +178,17 @@ export function calcularDatasFasesCopa(partidas: Partida[]): string[] {
   });
 }
 
-/** Gera a Copa do Brasil da temporada a partir do conjunto-mestre (todas as divisões). */
+/** A divisão pertence à pirâmide BRASILEIRA? (ligas internacionais ficam fora
+ * da Copa do Brasil e do acesso/rebaixamento nacional). */
+export function ehDivisaoBrasileira(divisao: string | undefined): boolean {
+  return PIRAMIDE_DIVISOES.includes(divisao ?? DIVISAO_PADRAO);
+}
+
+/**
+ * Gera a Copa do Brasil da temporada a partir do conjunto-mestre. Só clubes
+ * BRASILEIROS participam — com o mundo multi-país, o ranking por força pegaria
+ * os clubes internacionais (mais fortes do seed) sem esse filtro.
+ */
 export function gerarCopaParaTemporada(
   todosClubes: Clube[],
   todosJogadores: Player[],
@@ -151,7 +197,7 @@ export function gerarCopaParaTemporada(
   datasFases: string[],
 ): EstadoCopa {
   return gerarCopaDoBrasil(
-    todosClubes,
+    todosClubes.filter(clube => ehDivisaoBrasileira(clube.divisao)),
     todosJogadores,
     temporada,
     clubeUsuarioId,

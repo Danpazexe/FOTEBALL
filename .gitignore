@@ -85,3 +85,8 @@ game_audio.ogg
 
 # Vídeos (gravações de tela/WhatsApp — material de trabalho)
 *.mp4
+
+# Mockups e imagens de referência (material de trabalho, fora do bundle do app)
+mock de tela/
+ChatGPT Image*.png
+exec-*.png

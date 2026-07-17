@@ -108,11 +108,13 @@ import {
   calcularDatasFasesCopa,
   criarEstadoInicial,
   DIVISAO_PADRAO,
+  ehDivisaoBrasileira,
   gerarCopaParaTemporada,
   gerarLiga,
   gerarLigaSerieDGrupo,
   N_ACESSO,
   PIRAMIDE_DIVISOES,
+  piramidesDoMundo,
   PREMIACAO_COPA,
   TEMPORADA_INICIAL,
 } from './setup';
@@ -128,6 +130,14 @@ import {
   criarEstadoPatrocinioVazio,
   type EstadoPatrocinio,
 } from '../types/patrocinio';
+import type {TransferRecord} from '../types/world';
+import {
+  aplicarNegocioGlobal,
+  aplicarTransferenciasNaLiga,
+  combinarMundoStore,
+  espelharSaidaNoMestre,
+} from './transferenciaMundo';
+import {competicaoPorDivisaoLegada} from '../engine/competitions/registry/competitionRegistry';
 import {
   aceitarPropostaPatrocinio,
   recusarPropostaPatrocinio,
@@ -309,6 +319,8 @@ export interface GameState {
   serieDCarreira: EstadoSerieDCarreira | null;
   /** Patrocínios do clube do usuário (propostas/contrato ativo/histórico). */
   patrocinio: EstadoPatrocinio;
+  /** Histórico mundial de transferências (AD-09) — fonte de notícias/perfil. */
+  transferHistory: TransferRecord[];
   /** (Re)gera as propostas de patrocínio do clube do usuário para a temporada. */
   gerarPropostasPatrocinioUsuario: () => void;
   /** Aceita uma proposta de patrocínio (cria contrato ativo). */
@@ -935,6 +947,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   historicoSerieD: [],
   serieDCarreira: null,
   patrocinio: criarEstadoPatrocinioVazio(),
+  transferHistory: [],
 
   gerarPropostasPatrocinioUsuario: () => {
     const state = get();
@@ -1003,6 +1016,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       historicoSerieD: [],
       serieDCarreira: null,
       patrocinio: criarEstadoPatrocinioVazio(),
+      transferHistory: [],
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -1011,7 +1025,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       propostasRecebidas: [],
       formacaoPreLive: null,
       copa:
-        divisao === 'Série D'
+        // Sem Copa do Brasil na Série D (grupo curto) e fora do Brasil.
+        divisao === 'Série D' || !ehDivisaoBrasileira(divisao)
           ? null
           : gerarCopaParaTemporada(
               base.todosClubes,
@@ -1065,6 +1080,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       serieDCarreira: null,
       // Novo clube = novo contrato de patrocínio (o anterior era do outro clube).
       patrocinio: criarEstadoPatrocinioVazio(),
+      transferHistory: [],
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -1081,7 +1097,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       propostasRecebidas: [],
       formacaoPreLive: null,
       copa:
-        divisao === 'Série D'
+        divisao === 'Série D' || !ehDivisaoBrasileira(divisao)
           ? null
           : gerarCopaParaTemporada(
               state.todosClubes,
@@ -1896,42 +1912,57 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     const valor = precoVenda(jogador);
 
-    set(stateAtual => ({
-      jogadores: stateAtual.jogadores.map(item =>
-        item.id === jogadorId ? {...item, clubeId: null} : item,
-      ),
-      clubes: stateAtual.clubes.map(clube => {
-        if (clube.id !== clubeUsuarioId) {
-          return clube;
-        }
-        const elencoRestante = clube.elenco.filter(id => id !== jogadorId);
-        return registrarTransacao(
-          {
-            ...clube,
-            elenco: elencoRestante,
-            // Tira o vendido da escalação (senão vira id fantasma → XI vazio).
-            formacaoAtual: clube.formacaoAtual
-              ? removerJogadorDaFormacao(
-                  clube.formacaoAtual,
-                  jogadorId,
-                  elencoRestante,
-                )
-              : clube.formacaoAtual,
-          },
-          {
-            data: `${stateAtual.temporadaAtual}-mercado`,
-            tipo: 'receita',
-            categoria: 'vendaJogadores',
-            valor,
-            descricao: `Venda de ${jogador.nome}`,
-          },
-        );
-      }),
+    const jogadores = state.jogadores.map(item =>
+      item.id === jogadorId ? {...item, clubeId: null} : item,
+    );
+    const clubes = state.clubes.map(clube => {
+      if (clube.id !== clubeUsuarioId) {
+        return clube;
+      }
+      const elencoRestante = clube.elenco.filter(id => id !== jogadorId);
+      return registrarTransacao(
+        {
+          ...clube,
+          elenco: elencoRestante,
+          // Tira o vendido da escalação (senão vira id fantasma → XI vazio).
+          formacaoAtual: clube.formacaoAtual
+            ? removerJogadorDaFormacao(
+                clube.formacaoAtual,
+                jogadorId,
+                elencoRestante,
+              )
+            : clube.formacaoAtual,
+        },
+        {
+          data: `${state.temporadaAtual}-mercado`,
+          tipo: 'receita',
+          categoria: 'vendaJogadores',
+          valor,
+          descricao: `Venda de ${jogador.nome}`,
+        },
+      );
+    });
+    // Espelha no mundo MESTRE (senão o vendido "ressuscita" se a liga for
+    // reconstruída do mestre — ex.: assumirClube após demissão).
+    const mestre = espelharSaidaNoMestre({
+      todosClubes: state.todosClubes,
+      todosJogadores: state.todosJogadores,
+      clubesLiga: clubes,
+      jogadoresLiga: jogadores,
+      clubeIds: [clubeUsuarioId],
+      jogadorIds: [jogadorId],
+    });
+
+    set({
+      jogadores,
+      clubes,
+      todosClubes: mestre.todosClubes,
+      todosJogadores: mestre.todosJogadores,
       mensagens: adicionarMensagem(
-        stateAtual.mensagens,
+        state.mensagens,
         `${jogador.nome} vendido por R$ ${valor.toLocaleString('pt-BR')}.`,
       ),
-    }));
+    });
 
     return {
       ok: true,
@@ -1957,33 +1988,45 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
     const retorna = String(Number(temporadaAtual) + 1);
+    const jogadores = state.jogadores.map(item =>
+      item.id === jogadorId
+        ? criarEmprestimo(item, clubeDestinoId, retorna)
+        : item,
+    );
+    const clubes = state.clubes.map(clube => {
+      if (clube.id === clubeUsuarioId) {
+        const elencoRestante = clube.elenco.filter(id => id !== jogadorId);
+        return {
+          ...clube,
+          elenco: elencoRestante,
+          // Tira o emprestado da escalação (senão vira id fantasma → XI vazio).
+          formacaoAtual: clube.formacaoAtual
+            ? removerJogadorDaFormacao(
+                clube.formacaoAtual,
+                jogadorId,
+                elencoRestante,
+              )
+            : clube.formacaoAtual,
+        };
+      }
+      if (clube.id === clubeDestinoId) {
+        return {...clube, elenco: [...clube.elenco, jogadorId]};
+      }
+      return clube;
+    });
+    const mestre = espelharSaidaNoMestre({
+      todosClubes: state.todosClubes,
+      todosJogadores: state.todosJogadores,
+      clubesLiga: clubes,
+      jogadoresLiga: jogadores,
+      clubeIds: [clubeUsuarioId, clubeDestinoId],
+      jogadorIds: [jogadorId],
+    });
     set({
-      jogadores: state.jogadores.map(item =>
-        item.id === jogadorId
-          ? criarEmprestimo(item, clubeDestinoId, retorna)
-          : item,
-      ),
-      clubes: state.clubes.map(clube => {
-        if (clube.id === clubeUsuarioId) {
-          const elencoRestante = clube.elenco.filter(id => id !== jogadorId);
-          return {
-            ...clube,
-            elenco: elencoRestante,
-            // Tira o emprestado da escalação (senão vira id fantasma → XI vazio).
-            formacaoAtual: clube.formacaoAtual
-              ? removerJogadorDaFormacao(
-                  clube.formacaoAtual,
-                  jogadorId,
-                  elencoRestante,
-                )
-              : clube.formacaoAtual,
-          };
-        }
-        if (clube.id === clubeDestinoId) {
-          return {...clube, elenco: [...clube.elenco, jogadorId]};
-        }
-        return clube;
-      }),
+      jogadores,
+      clubes,
+      todosClubes: mestre.todosClubes,
+      todosJogadores: mestre.todosJogadores,
       mensagens: adicionarMensagem(
         state.mensagens,
         `${jogador.nome} emprestado ao ${destino.nome} até ${retorna}.`,
@@ -1997,7 +2040,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!clubeUsuarioId) {
       return;
     }
-    const jogador = state.jogadores.find(item => item.id === jogadorId);
+    // Mercado UNIVERSAL: o alvo pode estar em QUALQUER liga (mundo combinado).
+    const {clubes: clubesMundo, jogadores: jogadoresMundo} =
+      combinarMundoStore(state);
+    const jogador = jogadoresMundo.find(item => item.id === jogadorId);
     if (
       !jogador ||
       !jogador.clubeId ||
@@ -2006,46 +2052,37 @@ export const useGameStore = create<GameState>((set, get) => ({
     ) {
       return;
     }
-    const donoId = jogador.clubeId;
     const custo = custoEmprestimo(jogador);
-    const usuario = state.clubes.find(clube => clube.id === clubeUsuarioId);
+    const usuario = clubesMundo.find(clube => clube.id === clubeUsuarioId);
     if (!usuario || usuario.financas.saldo < custo) {
       return;
     }
     const retorna = String(Number(temporadaAtual) + 1);
+    const resultado = aplicarNegocioGlobal({
+      mundo: state,
+      transferHistory: state.transferHistory,
+      activeCompetitionId:
+        competicaoPorDivisaoLegada(state.clubes[0]?.divisao)?.id ?? null,
+      userClubId: clubeUsuarioId,
+      entrada: {
+        playerId: jogadorId,
+        fromClubId: jogador.clubeId,
+        toClubId: clubeUsuarioId,
+        type: 'loan',
+        fee: custo,
+        source: 'user',
+      },
+      date: `${temporadaAtual}-06-01`,
+    });
+    if (!resultado.ok) {
+      return;
+    }
     set({
-      jogadores: state.jogadores.map(item =>
-        item.id === jogadorId
-          ? criarEmprestimo(item, clubeUsuarioId, retorna)
-          : item,
-      ),
-      clubes: state.clubes.map(clube => {
-        if (clube.id === clubeUsuarioId) {
-          return registrarTransacao(
-            {...clube, elenco: [...clube.elenco, jogadorId]},
-            {
-              data: `${temporadaAtual}-mercado`,
-              tipo: 'despesa',
-              categoria: 'emprestimo',
-              valor: custo,
-              descricao: `Empréstimo de ${jogador.nome}`,
-            },
-          );
-        }
-        if (clube.id === donoId) {
-          return registrarTransacao(
-            {...clube, elenco: clube.elenco.filter(id => id !== jogadorId)},
-            {
-              data: `${temporadaAtual}-mercado`,
-              tipo: 'receita',
-              categoria: 'emprestimo',
-              valor: custo,
-              descricao: `Cessão de ${jogador.nome}`,
-            },
-          );
-        }
-        return clube;
-      }),
+      clubes: resultado.clubes,
+      jogadores: resultado.jogadores,
+      todosClubes: resultado.todosClubes,
+      todosJogadores: resultado.todosJogadores,
+      transferHistory: resultado.transferHistory,
       mensagens: adicionarMensagem(
         state.mensagens,
         `${jogador.nome} contratado por empréstimo até ${retorna} (taxa R$ ${custo.toLocaleString('pt-BR')}).`,
@@ -2061,9 +2098,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!usuarioId) {
       return {status: 'recusada', mensagem: 'Nenhuma carreira ativa.'};
     }
-    const jogador = state.jogadores.find(j => j.id === jogadorId);
-    const vendedor = state.clubes.find(c => c.id === jogador?.clubeId);
-    const usuario = state.clubes.find(c => c.id === usuarioId);
+    // Mercado UNIVERSAL: o alvo e o clube vendedor podem estar em QUALQUER liga
+    // carregada (não só a divisão jogada) — olha o mundo combinado.
+    const {clubes: clubesMundo, jogadores: jogadoresMundo} =
+      combinarMundoStore(state);
+    const jogador = jogadoresMundo.find(j => j.id === jogadorId);
+    const vendedor = clubesMundo.find(c => c.id === jogador?.clubeId);
+    const usuario = clubesMundo.find(c => c.id === usuarioId);
     if (!jogador || !vendedor || !usuario || jogador.clubeId === usuarioId) {
       return {status: 'recusada', mensagem: 'Jogador indisponível.'};
     }
@@ -2086,37 +2127,31 @@ export const useGameStore = create<GameState>((set, get) => ({
       return {status: 'recusada', mensagem: `${vendedor.nome} recusou a proposta.`};
     }
     if (resposta === 'aceita') {
+      const resultado = aplicarNegocioGlobal({
+        mundo: state,
+        transferHistory: state.transferHistory,
+        activeCompetitionId:
+          competicaoPorDivisaoLegada(state.clubes[0]?.divisao)?.id ?? null,
+        userClubId: usuarioId,
+        entrada: {
+          playerId: jogadorId,
+          fromClubId: vendedor.id,
+          toClubId: usuarioId,
+          type: 'permanent',
+          fee: valor,
+          source: 'user',
+        },
+        date: `${state.temporadaAtual}-06-01`,
+      });
+      if (!resultado.ok) {
+        return {status: 'recusada', mensagem: 'Transferência inválida.'};
+      }
       set(stateAtual => ({
-        jogadores: stateAtual.jogadores.map(item =>
-          item.id === jogadorId ? {...item, clubeId: usuarioId} : item,
-        ),
-        clubes: stateAtual.clubes.map(clube => {
-          if (clube.id === usuarioId) {
-            return registrarTransacao(
-              {...clube, elenco: [...clube.elenco, jogadorId]},
-              {
-                data: `${stateAtual.temporadaAtual}-mercado`,
-                tipo: 'despesa',
-                categoria: 'contratacoes',
-                valor,
-                descricao: `Compra de ${jogador.nome}`,
-              },
-            );
-          }
-          if (clube.id === vendedor.id) {
-            return registrarTransacao(
-              {...clube, elenco: clube.elenco.filter(id => id !== jogadorId)},
-              {
-                data: `${stateAtual.temporadaAtual}-mercado`,
-                tipo: 'receita',
-                categoria: 'vendaJogadores',
-                valor,
-                descricao: `Venda de ${jogador.nome}`,
-              },
-            );
-          }
-          return clube;
-        }),
+        clubes: resultado.clubes,
+        jogadores: resultado.jogadores,
+        todosClubes: resultado.todosClubes,
+        todosJogadores: resultado.todosJogadores,
+        transferHistory: resultado.transferHistory,
         mensagens: adicionarMensagem(
           stateAtual.mensagens,
           `${jogador.nome} contratado por R$ ${valor.toLocaleString('pt-BR')}.`,
@@ -2149,41 +2184,55 @@ export const useGameStore = create<GameState>((set, get) => ({
       }));
       return;
     }
-    set(stateAtual => ({
-      jogadores: stateAtual.jogadores.map(item =>
-        item.id === proposta.jogadorId
-          ? {...item, clubeId: comprador.id}
-          : item,
+    const jogadores = state.jogadores.map(item =>
+      item.id === proposta.jogadorId
+        ? {...item, clubeId: comprador.id}
+        : item,
+    );
+    const clubes = state.clubes.map(clube => {
+      if (clube.id === state.clubeUsuarioId) {
+        return registrarTransacao(
+          {...clube, elenco: clube.elenco.filter(id => id !== proposta.jogadorId)},
+          {
+            data: `${state.temporadaAtual}-mercado`,
+            tipo: 'receita',
+            categoria: 'vendaJogadores',
+            valor: proposta.valorProposto,
+            descricao: `Venda de ${jogador.nome}`,
+          },
+        );
+      }
+      if (clube.id === comprador.id) {
+        // Conservação de dinheiro: o clube comprador da IA paga o que o
+        // usuário recebe (mesma simetria de comprarJogador/fazerPropostaCompra).
+        return registrarTransacao(
+          {...clube, elenco: [...clube.elenco, proposta.jogadorId]},
+          {
+            data: `${state.temporadaAtual}-mercado`,
+            tipo: 'despesa',
+            categoria: 'contratacoes',
+            valor: proposta.valorProposto,
+            descricao: `Compra de ${jogador.nome}`,
+          },
+        );
+      }
+      return clube;
+    });
+    const mestre = espelharSaidaNoMestre({
+      todosClubes: state.todosClubes,
+      todosJogadores: state.todosJogadores,
+      clubesLiga: clubes,
+      jogadoresLiga: jogadores,
+      clubeIds: [state.clubeUsuarioId, comprador.id].filter(
+        (id): id is string => id !== null,
       ),
-      clubes: stateAtual.clubes.map(clube => {
-        if (clube.id === stateAtual.clubeUsuarioId) {
-          return registrarTransacao(
-            {...clube, elenco: clube.elenco.filter(id => id !== proposta.jogadorId)},
-            {
-              data: `${stateAtual.temporadaAtual}-mercado`,
-              tipo: 'receita',
-              categoria: 'vendaJogadores',
-              valor: proposta.valorProposto,
-              descricao: `Venda de ${jogador.nome}`,
-            },
-          );
-        }
-        if (clube.id === comprador.id) {
-          // Conservação de dinheiro: o clube comprador da IA paga o que o
-          // usuário recebe (mesma simetria de comprarJogador/fazerPropostaCompra).
-          return registrarTransacao(
-            {...clube, elenco: [...clube.elenco, proposta.jogadorId]},
-            {
-              data: `${stateAtual.temporadaAtual}-mercado`,
-              tipo: 'despesa',
-              categoria: 'contratacoes',
-              valor: proposta.valorProposto,
-              descricao: `Compra de ${jogador.nome}`,
-            },
-          );
-        }
-        return clube;
-      }),
+      jogadorIds: [proposta.jogadorId],
+    });
+    set(stateAtual => ({
+      jogadores,
+      clubes,
+      todosClubes: mestre.todosClubes,
+      todosJogadores: mestre.todosJogadores,
       propostasRecebidas: stateAtual.propostasRecebidas.filter(
         p => p.id !== propostaId,
       ),
@@ -2284,50 +2333,34 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
 
-    const novoClubePorJogador = new Map(
-      transferencias.map(t => [t.jogadorId, t.paraClubeId]),
-    );
-    const jogadores = state.jogadores.map(jogador => {
-      const para = novoClubePorJogador.get(jogador.id);
-      return para ? {...jogador, clubeId: para} : jogador;
-    });
-
-    const data = `${state.temporadaAtual}-mercado`;
     const nomeJogador = (id: string): string =>
       state.jogadores.find(jogador => jogador.id === id)?.nome ?? 'Jogador';
-    const clubes = state.clubes.map(clube => {
-      let atual = clube;
-      for (const t of transferencias) {
-        if (t.paraClubeId === atual.id) {
-          atual = registrarTransacao(
-            {...atual, elenco: [...atual.elenco, t.jogadorId]},
-            {
-              data,
-              tipo: 'despesa',
-              categoria: 'contratacoes',
-              valor: t.valor,
-              descricao: `Contratação de ${nomeJogador(t.jogadorId)}`,
-            },
-          );
-        }
-        if (t.deClubeId === atual.id) {
-          atual = registrarTransacao(
-            {...atual, elenco: atual.elenco.filter(id => id !== t.jogadorId)},
-            {
-              data,
-              tipo: 'receita',
-              categoria: 'vendaJogadores',
-              valor: t.valor,
-              descricao: `Venda de ${nomeJogador(t.jogadorId)}`,
-            },
-          );
-        }
-      }
-      return atual;
-    });
-
     const nomeClubeDe = (id: string): string =>
       state.clubes.find(clube => clube.id === id)?.nome ?? id;
+
+    // Operação ATÔMICA única (applyTransfer): finanças + elencos + REPARO de
+    // formação do vendedor (corrige o id fantasma do PI-09) + histórico.
+    const activeCompetitionId =
+      competicaoPorDivisaoLegada(state.clubes[0]?.divisao)?.id ?? null;
+    const resultado = aplicarTransferenciasNaLiga({
+      clubes: state.clubes,
+      jogadores: state.jogadores,
+      transferHistory: state.transferHistory,
+      entradas: transferencias.map(t => ({
+        playerId: t.jogadorId,
+        fromClubId: t.deClubeId,
+        toClubId: t.paraClubeId,
+        type: 'permanent' as const,
+        fee: t.valor,
+        source: 'ai' as const,
+        reasonCodes: ['ia_mercado'],
+      })),
+      date: state.dataAtual ?? `${state.temporadaAtual}-06-01`,
+      activeCompetitionId,
+      userClubId: state.clubeUsuarioId,
+      ignorarJanela: true,
+    });
+
     let mensagens = state.mensagens;
     for (const t of transferencias) {
       mensagens = adicionarMensagem(
@@ -2338,15 +2371,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       );
     }
 
-    set({jogadores, clubes, mensagens});
+    set({
+      jogadores: resultado.jogadores,
+      clubes: resultado.clubes,
+      transferHistory: resultado.transferHistory,
+      mensagens,
+    });
   },
 
   finalizarTemporada: () => {
     const state = get();
 
     // Numa carreira na Série D a temporada termina pelo MATA-MATA (não pela
-    // rodada 38 da liga): exige a chave do usuário resolvida (campeão/eliminado).
+    // última rodada da liga): exige a chave do usuário resolvida (campeão/
+    // eliminado). Nas demais, o total de rodadas é o da liga ATIVA (38 no
+    // Brasileirão, 34 na Premier, 42 na Championship…).
     const carreiraSerieD = state.serieDCarreira;
+    const totalRodadasLiga = state.partidas.reduce(
+      (maior, partida) => Math.max(maior, partida.rodada),
+      0,
+    );
     if (carreiraSerieD) {
       if (
         carreiraSerieD.fase !== 'campeao' &&
@@ -2354,7 +2398,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       ) {
         return;
       }
-    } else if (state.rodadaAtual <= 38) {
+    } else if (state.rodadaAtual <= totalRodadasLiga) {
       return;
     }
 
@@ -2509,13 +2553,22 @@ export const useGameStore = create<GameState>((set, get) => ({
       );
     };
 
+    // Pirâmides do MUNDO (Brasil + países internacionais, via registry): cada
+    // país fecha sua temporada — posição final, cota e acesso/rebaixamento.
+    const piramides = piramidesDoMundo();
+    const piramideAtiva = piramides.find(piramide =>
+      piramide.divisoes.includes(divisaoAtiva),
+    );
+
     // Cota de TV (§8.3): premia a posição FINAL na liga. Distribuída a todos os
     // clubes conforme divisão e colocação, no acerto de fim de temporada.
     const posicaoFinalPorClube = new Map<string, number>();
-    for (const div of PIRAMIDE_DIVISOES) {
-      ordemDivisao(div).forEach((id, indice) => {
-        posicaoFinalPorClube.set(id, indice + 1);
-      });
+    for (const piramide of piramides) {
+      for (const div of piramide.divisoes) {
+        ordemDivisao(div).forEach((id, indice) => {
+          posicaoFinalPorClube.set(id, indice + 1);
+        });
+      }
     }
     const clubesComCotaTV = clubesComFolha.map(clube => {
       const posicao = posicaoFinalPorClube.get(clube.id);
@@ -2530,20 +2583,30 @@ export const useGameStore = create<GameState>((set, get) => ({
       );
     });
 
-    // Troca entre divisões ADJACENTES da pirâmide que existam (A↔B, B↔C…): os
-    // N últimos de cima descem e os N primeiros de baixo sobem.
+    // Troca entre divisões ADJACENTES de CADA pirâmide (A↔B… no Brasil com 4;
+    // Premier↔Championship com 3): os N últimos de cima descem e os N
+    // primeiros de baixo sobem. País de divisão única não movimenta.
     const novaDivisaoPorClube = new Map<string, string>();
-    for (let i = 0; i < PIRAMIDE_DIVISOES.length - 1; i += 1) {
-      const acima = PIRAMIDE_DIVISOES[i];
-      const abaixo = PIRAMIDE_DIVISOES[i + 1];
-      const ordemAcima = ordemDivisao(acima);
-      const ordemAbaixo = ordemDivisao(abaixo);
-      if (ordemAcima.length === 0 || ordemAbaixo.length === 0) {
-        continue; // divisão ainda não cadastrada (ex.: Série C vazia)
+    for (const piramide of piramides) {
+      if (piramide.nAcesso <= 0) {
+        continue;
       }
-      const n = Math.min(N_ACESSO, ordemAcima.length, ordemAbaixo.length);
-      ordemAcima.slice(-n).forEach(id => novaDivisaoPorClube.set(id, abaixo));
-      ordemAbaixo.slice(0, n).forEach(id => novaDivisaoPorClube.set(id, acima));
+      for (let i = 0; i < piramide.divisoes.length - 1; i += 1) {
+        const acima = piramide.divisoes[i];
+        const abaixo = piramide.divisoes[i + 1];
+        const ordemAcima = ordemDivisao(acima);
+        const ordemAbaixo = ordemDivisao(abaixo);
+        if (ordemAcima.length === 0 || ordemAbaixo.length === 0) {
+          continue; // divisão ainda não cadastrada (ex.: Série C vazia)
+        }
+        const n = Math.min(
+          piramide.nAcesso,
+          ordemAcima.length,
+          ordemAbaixo.length,
+        );
+        ordemAcima.slice(-n).forEach(id => novaDivisaoPorClube.set(id, abaixo));
+        ordemAbaixo.slice(0, n).forEach(id => novaDivisaoPorClube.set(id, acima));
+      }
     }
 
     const todosClubesNovos = clubesComCotaTV.map(clube => {
@@ -2585,11 +2648,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       criarRNGComSeed(Number(proximaTemporada)),
     );
 
-    // Mensagens: destino do clube do usuário + rebaixados da divisão jogada.
+    // Mensagens: destino do clube do usuário + rebaixados da divisão jogada —
+    // sempre relativos à pirâmide do PAÍS ativo (Brasil ou internacional).
     const nomeClube = (id: string): string =>
       todosClubesNovos.find(clube => clube.id === id)?.nome ?? id;
-    const idxAntiga = PIRAMIDE_DIVISOES.indexOf(divisaoAtiva);
-    const idxNova = PIRAMIDE_DIVISOES.indexOf(divisaoUsuario);
+    const divisoesAtivas = piramideAtiva?.divisoes ?? PIRAMIDE_DIVISOES;
+    const idxAntiga = divisoesAtivas.indexOf(divisaoAtiva);
+    const idxNova = divisoesAtivas.indexOf(divisaoUsuario);
     let mensagens = state.mensagens;
     if (state.clubeUsuarioId && idxNova > idxAntiga) {
       mensagens = adicionarMensagem(
@@ -2602,11 +2667,13 @@ export const useGameStore = create<GameState>((set, get) => ({
         `Acesso à ${divisaoUsuario}! O clube subiu de divisão.`,
       );
     }
+    const nAcessoAtivo = piramideAtiva?.nAcesso ?? 0;
     const ehUltimaDivisao =
-      PIRAMIDE_DIVISOES.indexOf(divisaoAtiva) === PIRAMIDE_DIVISOES.length - 1;
-    const rebaixadosMinha = ehUltimaDivisao
-      ? []
-      : ordemDivisao(divisaoAtiva).slice(-N_ACESSO);
+      idxAntiga < 0 || idxAntiga === divisoesAtivas.length - 1;
+    const rebaixadosMinha =
+      ehUltimaDivisao || nAcessoAtivo <= 0
+        ? []
+        : ordemDivisao(divisaoAtiva).slice(-nAcessoAtivo);
     if (rebaixadosMinha.length > 0) {
       mensagens = adicionarMensagem(
         mensagens,
@@ -2730,8 +2797,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       jovensDisponiveis,
       propostasRecebidas: [],
       copa:
-        divisaoUsuario === 'Série D'
-          ? null // grupo de 10 rodadas não comporta as fases da Copa
+        // Série D (grupo de 10 rodadas não comporta as fases) e carreiras fora
+        // do Brasil ficam sem Copa do Brasil.
+        divisaoUsuario === 'Série D' || !ehDivisaoBrasileira(divisaoUsuario)
+          ? null
           : gerarCopaParaTemporada(
               todosClubesNovos,
               jogadoresEvoluidos,
@@ -2901,6 +2970,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       historicoSerieD: [],
       serieDCarreira: null,
       patrocinio: criarEstadoPatrocinioVazio(),
+      transferHistory: [],
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

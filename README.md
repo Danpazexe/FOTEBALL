@@ -6,7 +6,7 @@
 ![React Native](https://img.shields.io/badge/React%20Native-0.86-61DAFB?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.8%20strict-3178C6?logo=typescript)
 
-Assuma um clube, dispute o **Brasileirão** (Séries A, B e C), monte o time a cada
+Assuma um clube, dispute o **Brasileirão** (Séries A a D), monte o time a cada
 partida, negocie no mercado e busque o acesso — fugindo do rebaixamento.
 
 ---
@@ -16,11 +16,15 @@ partida, negocie no mercado e busque o acesso — fugindo do rebaixamento.
 - **Partida narrada ao vivo** — cada minuto é simulado na hora; pausar e fazer
   substituições durante o jogo muda o resultado (a força do time é recalculada
   minuto a minuto).
-- **Pirâmide de divisões** — Séries A, B e C com **acesso e rebaixamento** ao fim
-  da temporada (4 sobem / 4 descem).
-- **Identidade visual por divisão** — emblema e cores do placar mudam conforme a
-  série em que o clube joga.
-- **Mercado de transferências** — propostas, contratações e vendas.
+- **Pirâmide de divisões** — Séries A, B, C e D com **acesso e rebaixamento** ao
+  fim da temporada.
+- **Mundo multi-país (em expansão)** — Argentina (Primera División) e Inglaterra
+  (Premier League + Championship) com elencos reais e **mercado global** de
+  transferências entre países ([procedência](src/data/seed/PROCEDENCIA_INTERNACIONAL.md)).
+- **Identidade visual por divisão** — escudo de cada clube e emblema/cores da
+  liga mudam conforme a competição.
+- **Mercado de transferências** — propostas, contratações e vendas (operação
+  atômica com janelas, finanças simétricas e reparo de formação).
 - **Calendário** round-robin (turno e returno) com tabela de classificação.
 - **Progressão** — moral, evolução de jogadores e finanças do clube.
 
@@ -32,7 +36,7 @@ partida, negocie no mercado e busque o acesso — fugindo do rebaixamento.
 | Linguagem | TypeScript 5.8 (strict) |
 | Estado | Zustand v5 |
 | Persistência | SQLite via `@op-engineering/op-sqlite` |
-| UI | `react-native-svg` (placar/gráficos), `react-native-vector-icons` |
+| UI | `react-native-svg` (placar/gráficos), `lucide-react-native` (ícones), `react-native-reanimated` (animações) |
 | Testes | Jest |
 
 ## 📁 Estrutura
@@ -41,12 +45,14 @@ partida, negocie no mercado e busque o acesso — fugindo do rebaixamento.
 src/
 ├── engine/      # Lógica pura do jogo (simulação, temporada, transferências,
 │                # finanças, progressão, táticas) — sem React, determinística
+├── domain/      # Mundo canônico multi-país (WorldState, seletores, invariantes)
 ├── store/       # useGameStore (Zustand) + persistência (SQLite)
 ├── screens/     # Telas (partida, mercado, tabela, carreira…)
 ├── components/  # Componentes de UI reutilizáveis (ex.: Placar)
+├── design-system/ # Tokens, componentes e primitivas visuais (v2)
 ├── api/         # Repositórios de dados + seed (JSON dos clubes/jogadores)
-├── data/        # Dados de seed
-├── assets/      # Escudos dos clubes e logos das divisões (PNG)
+├── data/        # Seed por país: clubes/<pais>/<liga>/ e jogadores/<pais>/
+├── assets/      # Escudos por país (escudos/<pasta>/) e emblemas das ligas (PNG)
 ├── audio/       # Sons (gol, fim de jogo…)
 ├── navigation/  # React Navigation
 ├── theme/       # Cores, espaçamentos, paletas

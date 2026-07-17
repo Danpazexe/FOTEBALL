@@ -295,7 +295,7 @@ function Settings(): React.JSX.Element {
           FOTEBALL · protótipo jogável
         </Text>
         <Text variant="caption" color="textSecondary">
-          Liga de 20 clubes, 38 rodadas, simulação determinística.
+          Ligas do Brasil, Argentina e Inglaterra · simulação determinística.
         </Text>
       </SettingsSection>
     </Screen>
