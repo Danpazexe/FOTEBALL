@@ -25,6 +25,7 @@ import type {
 } from '../types';
 import {REPUTACAO_INICIAL} from '../engine/carreira/carreiraEngine';
 import {sugerirCapitao} from '../engine/carreira/capitao';
+import {comAtributosCalibrados} from '../engine/progression/calibracaoAtributos';
 import {comHabilidades} from '../engine/progression/habilidades';
 import {comTipo} from '../engine/progression/tipoJogador';
 import type {EstadoSerieDCarreira} from './serieDCarreira';
@@ -154,9 +155,12 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     treinouProximoJogo: snapshot.treinouProximoJogo ?? false,
     conversouComGrupo: snapshot.conversouComGrupo ?? false,
     clubes: comCapitaoPadrao(snapshot.clubes, snapshot.jogadores),
-    // Migração: saves anteriores ao sistema de habilidades/tipo não têm esses
-    // campos — deriva no load (no-op para quem já tem).
-    jogadores: snapshot.jogadores.map(comHabilidades).map(comTipo),
+    // Migração: calibra atributos ↔ overall (drift do épico Overall Dinâmico)
+    // e deriva habilidades/tipo — tudo idempotente (no-op para quem já tem).
+    jogadores: snapshot.jogadores
+      .map(comAtributosCalibrados)
+      .map(comHabilidades)
+      .map(comTipo),
     partidas: snapshot.partidas,
     tabela: snapshot.tabela,
     jovensDisponiveis: snapshot.jovensDisponiveis ?? [],
@@ -193,6 +197,7 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     ...(snapshot.todosJogadores
       ? {
           todosJogadores: snapshot.todosJogadores
+            .map(comAtributosCalibrados)
             .map(comHabilidades)
             .map(comTipo),
         }

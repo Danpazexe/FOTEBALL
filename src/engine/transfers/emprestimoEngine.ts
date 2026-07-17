@@ -1,5 +1,7 @@
 import type {Player} from '../../types';
 
+import {aplicarAlvoDeOverall} from '../progression/calibracaoAtributos';
+
 /**
  * Empréstimos de jogadores (BRASFOOT_MASTER §9.3). Um jogador cedido joga por
  * outro clube até o início da temporada de retorno, quando volta ao dono. O
@@ -56,16 +58,20 @@ export function processarRetornosEmprestimo(
     if (!emprestimo || emprestimo.retornaEmTemporada > novaTemporada) {
       return jogador;
     }
-    const overall =
+    // PR-01 (épico Overall Dinâmico): o bônus de desenvolvimento entra pelos
+    // ATRIBUTOS (viés por categoria/idade) e o overall resulta deles.
+    const alvo =
       jogador.idade < IDADE_MAX_DESENVOLVIMENTO
         ? Math.min(
             jogador.potencial,
             jogador.overall + BONUS_DESENVOLVIMENTO_EMPRESTIMO,
           )
         : jogador.overall;
+    const {atributos, overall} = aplicarAlvoDeOverall(jogador, alvo);
     return {
       ...jogador,
       clubeId: emprestimo.clubeDonoId,
+      atributos,
       overall,
       emprestimo: undefined,
     };

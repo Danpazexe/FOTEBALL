@@ -1,7 +1,10 @@
 import {PRIMEIROS_NOMES, SOBRENOMES} from '../../data/nomesBase';
 import type {Player, Position} from '../../types';
 import {inteiroEntre, type RandomGenerator} from '../simulation/rng';
+import {calibrarAtributosParaOverall} from './calibracaoAtributos';
+import {CATEGORIA_POR_ATRIBUTO} from './categoriasAtributos';
 import {comHabilidades} from './habilidades';
+import {pesosDaPosicao} from './overall';
 import {calcularValor} from './playerProgression';
 import {comTipo} from './tipoJogador';
 
@@ -90,9 +93,20 @@ export function gerarJovensTemporada(
   });
 }
 
+/** Jitter determinístico −3..+3 por (id, atributo) — dá identidade ao jovem. */
+function jitterAtributo(id: string, chave: string): number {
+  let hash = 0;
+  for (const caractere of `${id}|${chave}`) {
+    hash = (hash * 31 + caractere.charCodeAt(0)) >>> 0;
+  }
+  return (hash % 7) - 3;
+}
+
 /**
- * Converte um jovem promovido num `Player` completo do elenco. Atributos
- * iniciais espelham o overall (o jogador se especializa ao evoluir).
+ * Converte um jovem promovido num `Player` completo do elenco. ATRIBUTOS-FIRST
+ * (PR-01): os atributos nascem moldados pelo perfil da posição (fortes no que
+ * a função exige, com jitter determinístico) e calibrados para que o overall
+ * sorteado seja DERIVADO deles — nada de 12 atributos idênticos.
  */
 export function jovemParaPlayer(
   jovem: JovemTalento,
@@ -100,6 +114,16 @@ export function jovemParaPlayer(
   temporada: string,
 ): Player {
   const nivel = jovem.overall;
+  const pesos = pesosDaPosicao(jovem.posicao);
+  const atributosBrutos = {} as Player['atributos'];
+  for (const chave of Object.keys(CATEGORIA_POR_ATRIBUTO) as Array<
+    keyof Player['atributos']
+  >) {
+    // Fora do perfil da posição o jovem é visivelmente mais cru (-6).
+    const base = (pesos[chave] ?? 0) > 0 ? nivel : nivel - 6;
+    const valor = base + jitterAtributo(jovem.id, chave);
+    atributosBrutos[chave] = Math.min(99, Math.max(1, valor));
+  }
   const base: Player = {
     id: jovem.id,
     nome: jovem.nome,
@@ -108,20 +132,11 @@ export function jovemParaPlayer(
     posicaoPrincipal: jovem.posicao,
     posicoesSecundarias: [],
     pernaDominante: 'D',
-    atributos: {
-      finalizacao: nivel,
-      passe: nivel,
-      marcacao: nivel,
-      desarme: nivel,
-      velocidade: nivel,
-      resistencia: nivel,
-      forca: nivel,
-      reflexos: nivel,
-      posicionamento: nivel,
-      drible: nivel,
-      cabeceio: nivel,
-      cruzamento: nivel,
-    },
+    atributos: calibrarAtributosParaOverall(
+      atributosBrutos,
+      jovem.posicao,
+      jovem.overall,
+    ),
     overall: jovem.overall,
     potencial: jovem.potencial,
     condicaoFisica: 100,

@@ -1,5 +1,6 @@
-import type {Clube, Player, Position} from '../../types';
+import type {Clube, MotivoDesenvolvimento, Player, Position} from '../../types';
 
+import {aplicarAlvoDeOverall} from './calibracaoAtributos';
 import {derivarTipoJogador} from './tipoJogador';
 
 /**
@@ -90,7 +91,22 @@ export function fatorValorPorIdade(idade: number): number {
   return 0.78;
 }
 
-export function evoluirJogador(jogador: Player, clube: Clube): Player {
+/** Resultado detalhado da virada (alimenta ledger/relatórios — PR-05). */
+export interface EvolucaoAnual {
+  jogador: Player;
+  motivos: MotivoDesenvolvimento[];
+}
+
+/**
+ * Virada de temporada ATRIBUTOS-FIRST (PR-01): a curva de idade define um
+ * overall-ALVO (mesma calibração de sempre), mas os pontos entram/saem dos
+ * ATRIBUTOS — com viés por categoria e idade (físico decai primeiro; mental
+ * amadurece tarde) — e o overall final é DERIVADO deles via calcularOverall.
+ */
+export function evoluirJogadorDetalhado(
+  jogador: Player,
+  clube: Clube,
+): EvolucaoAnual {
   // Curva de força por idade (BRASFOOT_MASTER §3.3): crescimento forte na base,
   // moderado dos 21-24, PICO/plateau 25-29, e declínio progressivo a partir dos 30.
   const jovem = jogador.idade < 21;
@@ -126,14 +142,30 @@ export function evoluirJogador(jogador: Player, clube: Clube): Player {
             desempenhoBom
             ? 0
             : -0.5;
-  const novoOverall = Math.round(
+  const alvo = Math.round(
     limitar(jogador.overall + delta, 1, jogador.potencial),
   );
+  // PR-01: pontos entram/saem dos atributos; overall resulta deles.
+  const {atributos, overall: novoOverall} = aplicarAlvoDeOverall(jogador, alvo);
+
+  const motivos: MotivoDesenvolvimento[] = [];
+  if (novoOverall > jogador.overall) {
+    motivos.push('AGE_CURVE_GROWTH');
+  } else if (novoOverall < jogador.overall) {
+    motivos.push('AGE_CURVE_DECLINE');
+  }
+  if ((auge || veterano || jogador.idade >= 30) && desempenhoBom) {
+    motivos.push('GOOD_RECENT_FORM');
+  }
+  if (!jovem && !desempenhoBom && jogador.estatisticasTemporada.jogos < 20) {
+    motivos.push('LOW_MATCH_MINUTES');
+  }
 
   const novaIdade = jogador.idade + 1;
-  return {
+  const evoluido: Player = {
     ...jogador,
     idade: novaIdade,
+    atributos,
     overall: novoOverall,
     // Reclassifica o tipo: NOVATO gradua ao crescer/envelhecer, e o jogador
     // entra em VETERANO ao atingir a idade-limite (§3.4).
@@ -160,4 +192,9 @@ export function evoluirJogador(jogador: Player, clube: Clube): Player {
       notaMedia: 0,
     },
   };
+  return {jogador: evoluido, motivos};
+}
+
+export function evoluirJogador(jogador: Player, clube: Clube): Player {
+  return evoluirJogadorDetalhado(jogador, clube).jogador;
 }

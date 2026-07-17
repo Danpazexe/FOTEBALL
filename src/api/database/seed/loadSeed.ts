@@ -1,5 +1,6 @@
 import {clubesSeed} from '../../../data/seed/clubes';
 import {jogadoresSeed} from '../../../data/seed/jogadores';
+import {comAtributosCalibrados} from '../../../engine/progression/calibracaoAtributos';
 import {comHabilidades} from '../../../engine/progression/habilidades';
 import {comTipo} from '../../../engine/progression/tipoJogador';
 import type {Clube, Player} from '../../../types';
@@ -17,9 +18,13 @@ export interface SeedData {
  * arquivo por time em `data/seed/jogadores/<time>.json` (ver os index.ts).
  */
 export function loadSeedData(): SeedData {
-  // Deriva habilidades especiais e tipo (novato/veterano/normal) dos atributos
-  // uma única vez no load (respeitando o que vier explícito no JSON).
-  const jogadores = jogadoresSeed.map(comHabilidades).map(comTipo);
+  // Calibra atributos ↔ overall curado (PR-01: overall vira derivado; o valor
+  // autoral do seed é preservado) e deriva habilidades/tipo — tudo idempotente,
+  // respeitando o que vier explícito no JSON.
+  const jogadores = jogadoresSeed
+    .map(comAtributosCalibrados)
+    .map(comHabilidades)
+    .map(comTipo);
   return {
     jogadores,
     clubes: clubesSeed.map(clube => aplicarDefaultsClube(clube, jogadores)),

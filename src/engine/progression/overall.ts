@@ -75,6 +75,11 @@ const PERFIS: Record<GrupoPosicao, Pesos> = {
   },
 };
 
+/** Pesos de atributo do GRUPO da posição (para calibração/derivações). */
+export function pesosDaPosicao(posicao: Position): Pesos {
+  return PERFIS[grupoDaPosicao(posicao)];
+}
+
 /** Overall ponderado pela posição (1–99). */
 export function calcularOverall(
   atributos: PlayerAttributes,
