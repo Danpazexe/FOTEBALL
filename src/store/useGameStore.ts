@@ -29,6 +29,7 @@ import {
   calcularEfeitoTreino,
   aplicarEfeitoTreino,
 } from '../engine/progression/treinoAtributos';
+import {atualizarFormaPorNota} from '../engine/progression/formaEngine';
 import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
@@ -923,6 +924,9 @@ function aplicarResultadoNosJogadores(
 
     return {
       ...base,
+      // Forma reage ao DESEMPENHO (Onda 6): a nota do jogo empurra a fase
+      // técnica — antes a forma só mudava por treino (stub).
+      forma: atualizarFormaPorNota(base.forma, nota),
       estatisticasTemporada: {
         ...stats,
         jogos: stats.jogos + 1,

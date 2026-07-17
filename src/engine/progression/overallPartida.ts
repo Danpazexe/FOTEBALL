@@ -42,15 +42,24 @@ export interface OverallPartidaResultado {
 /**
  * Fatores por categoria a partir do estado do atleta. Faixas calibradas nas
  * dos multiplicadores atuais do motor (preparo 0.82–1.0; moral ±4%; forma
- * −6%..+10%) para a Onda 6 integrar sem choque de balanceamento.
+ * −6%..+10%) para integrar sem choque de balanceamento. `condicaoEfetiva`
+ * permite usar a condição minuto-a-minuto da partida ao vivo (fadiga dinâmica).
  */
-export function fatoresDoEstado(jogador: Player): FatoresPartida {
-  // Condição 10–100 → 0.82–1.0 (contínuo, sem degraus).
-  const fisico = 0.8 + 0.2 * (Math.max(10, Math.min(100, jogador.condicaoFisica)) / 100);
-  // Moral 10–100 → 0.96–1.04.
-  const mental = 0.96 + (Math.max(0, Math.min(100, jogador.moral)) / 100) * 0.08;
-  // Forma −3..+5 → 0.94–1.10.
-  const tecnico = 1 + Math.max(-3, Math.min(5, jogador.forma)) * 0.02;
+export function fatoresDoEstado(
+  jogador: Player,
+  condicaoEfetiva: number = jogador.condicaoFisica,
+): FatoresPartida {
+  const cond = Math.max(10, Math.min(100, condicaoEfetiva));
+  const moral = Math.max(0, Math.min(100, jogador.moral));
+  const forma = Math.max(-3, Math.min(5, jogador.forma));
+  // Condição é o fator DOMINANTE do estado (afeta o físico, ~1/3 do perfil).
+  // Amplitude larga (cond 100 → 1.0; cond 10 → 0.64) para que o cansaço extremo
+  // ainda force rodízio depois da modulação por categoria (calibrado no lab O6).
+  const fisico = 0.6 + 0.4 * (cond / 100);
+  // Moral e forma são fatores MENORES por design (afetam poucos atributos):
+  // moral 50 (neutra) = 1.0, faixa 0.94–1.06; forma 0 = 1.0, faixa 0.91–1.15.
+  const mental = 0.94 + (moral / 100) * 0.12;
+  const tecnico = 1 + forma * 0.03;
   return {
     fisico,
     tecnico,
@@ -82,10 +91,14 @@ export function atributosEfetivos(
 /**
  * Overall de Partida derivado dos atributos efetivos, com clamp Base±8 e 1–99.
  * `overallBase` aqui é o overall DECLARADO do jogador (pós-calibração da Onda
- * 2 ele é sempre igual ao derivado dos atributos base).
+ * 2 ele é sempre igual ao derivado dos atributos base). `condicaoEfetiva`
+ * (opcional) usa a condição minuto-a-minuto da partida ao vivo.
  */
-export function overallDePartida(jogador: Player): OverallPartidaResultado {
-  const fatores = fatoresDoEstado(jogador);
+export function overallDePartida(
+  jogador: Player,
+  condicaoEfetiva: number = jogador.condicaoFisica,
+): OverallPartidaResultado {
+  const fatores = fatoresDoEstado(jogador, condicaoEfetiva);
   const efetivos = atributosEfetivos(jogador, fatores);
   const bruto = calcularOverall(efetivos, jogador.posicaoPrincipal);
   const base = jogador.overall;

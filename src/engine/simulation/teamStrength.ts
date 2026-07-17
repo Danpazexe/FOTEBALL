@@ -1,5 +1,6 @@
 import type {Formacao, Player, Position, Tatica} from '../../types';
 import {calcularBonusHabilidades} from '../progression/habilidades';
+import {overallDePartida} from '../progression/overallPartida';
 import {fatorAdaptacao} from '../tactics/adaptacao';
 
 export interface ForcaTime {
@@ -47,37 +48,14 @@ export function linhaDaPosicao(
  * em degraus — abaixo de 20 o jogador rende só 35% (e corre risco de lesão). É o
  * que torna a rotação de elenco obrigatória.
  */
-// Condição é um fator MENOR (alvo ~10% do resultado, bem abaixo do overall):
-// cansaço penaliza, mas não é devastador (antes 55 de condição tirava 25% da
-// força → cansaço dominava o jogo). Curva bem mais suave.
-export function fatorPreparo(condicao: number): number {
-  if (condicao >= 80) {
-    return 1.0;
-  }
-  if (condicao >= 60) {
-    return 0.97;
-  }
-  if (condicao >= 40) {
-    return 0.93;
-  }
-  if (condicao >= 20) {
-    return 0.88;
-  }
-  return 0.82;
-}
-
-/** Fatores comuns (condição/moral/forma) que escalam a contribuição de um jogador. */
-function fatoresEstado(jogador: Player, condicaoEfetiva: number): number {
-  const fatorCondicao = fatorPreparo(condicaoEfetiva);
-  // Moral impacta a força efetiva em ±10% (BRASFOOT_MASTER §15): moral 0 → 0.90,
-  // moral 100 → 1.10, moral 50 (neutra) → 1.00.
-  // Moral também é fator MENOR (alvo ~10%): ±4% de força (antes ±10%, pesava
-  // mais que a própria qualidade do elenco).
-  const fatorMoral = 0.96 + (jogador.moral / 100) * 0.08;
-  const fatorForma = 1 + jogador.forma * 0.02;
-  return fatorCondicao * fatorMoral * fatorForma;
-}
-
+/**
+ * Contribuição de um jogador de linha = OVERALL DE PARTIDA (Onda 6) × adaptação.
+ * O Overall de Partida já embute condição/moral/forma MODULANDO OS ATRIBUTOS
+ * POR CATEGORIA (condição→físico, moral→mental, forma→técnico), com clamp
+ * Base±8 — substitui o antigo multiplicador escalar único `fatoresEstado`,
+ * eliminando a dupla contagem do estado. A condição minuto-a-minuto (ao vivo)
+ * entra por `condicaoEfetiva`.
+ */
 function contribuicaoJogador(
   jogador: Player,
   posicaoEscalada: Position,
@@ -85,32 +63,31 @@ function contribuicaoJogador(
 ): number {
   // Penalidade GRADUADA por improviso: rende menos quanto mais distante da
   // posição natural (ver `adaptacao`). Posição natural = fator 1.0; um zagueiro
-  // jogando de atacante (terço oposto) cai a ~0.6, e por aí vai. Substitui a
-  // antiga penalidade fixa de -5, que não distinguia "fora de posição parecida"
-  // de "improviso pesado".
+  // jogando de atacante (terço oposto) cai a ~0.6, e por aí vai.
   const fator = fatorAdaptacao(
     jogador.posicaoPrincipal,
     jogador.posicoesSecundarias,
     posicaoEscalada,
   );
-
-  return (
-    Math.max(1, jogador.overall * fator) *
-    fatoresEstado(jogador, condicaoEfetiva)
-  );
+  const {overallPartida} = overallDePartida(jogador, condicaoEfetiva);
+  return Math.max(1, overallPartida * fator);
 }
 
 /**
  * Contribuição do goleiro: pondera reflexos e posicionamento acima do overall
- * bruto, para que um paredão pese de verdade na defesa (não diluído na média
- * da zaga, como antes).
+ * bruto, para que um paredão pese de verdade na defesa. Usa o Overall de
+ * Partida e os ATRIBUTOS EFETIVOS (estado já embutido) — sem dupla contagem.
  */
 function contribuicaoGoleiro(jogador: Player, condicaoEfetiva: number): number {
-  const base =
-    jogador.overall * 0.5 +
-    jogador.atributos.reflexos * 0.3 +
-    jogador.atributos.posicionamento * 0.2;
-  return base * fatoresEstado(jogador, condicaoEfetiva);
+  const {overallPartida, atributosEfetivos} = overallDePartida(
+    jogador,
+    condicaoEfetiva,
+  );
+  return (
+    overallPartida * 0.5 +
+    atributosEfetivos.reflexos * 0.3 +
+    atributosEfetivos.posicionamento * 0.2
+  );
 }
 
 function media(valores: number[], fallback: number): number {
