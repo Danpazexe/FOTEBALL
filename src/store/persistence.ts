@@ -17,6 +17,9 @@ import type {
   EstadoFinanceiro,
   MotivoDemissao,
   Partida,
+  PendenciaCarreira,
+  PlanoTreino,
+  PlanoTreinoStatus,
   Player,
   TabelaClassificacao,
 } from '../types';
@@ -74,6 +77,13 @@ export interface SnapshotJogo {
   patrocinio?: EstadoPatrocinio;
   /** Histórico mundial de transferências (AD-09). Aditivo; vazio em saves antigos. */
   transferHistory?: TransferRecord[];
+  // Épico Overall Dinâmico (Onda 1) — aditivos, sem bump de versão:
+  /** Plano de treino recorrente do clube do usuário. */
+  planoTreino?: PlanoTreino | null;
+  /** Situação da configuração de treino (saves antigos → 'padrao_assistente'). */
+  planoTreinoStatus?: PlanoTreinoStatus;
+  /** Central de Pendências do clube. */
+  pendencias?: PendenciaCarreira[];
 }
 
 /**
@@ -113,6 +123,9 @@ export function montarSnapshot(
     serieDCarreira: state.serieDCarreira,
     patrocinio: state.patrocinio,
     transferHistory: state.transferHistory,
+    planoTreino: state.planoTreino,
+    planoTreinoStatus: state.planoTreinoStatus,
+    pendencias: state.pendencias,
   };
 }
 
@@ -160,6 +173,12 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     // Patrocínios: ausente em saves anteriores → estado vazio (nada fabricado).
     patrocinio: snapshot.patrocinio ?? criarEstadoPatrocinioVazio(),
     transferHistory: snapshot.transferHistory ?? [],
+    // Treino (épico Overall Dinâmico): save antigo já treinava no automático,
+    // então o default honesto é 'padrao_assistente' — nunca fingir escolha do
+    // usuário ('configurado_usuario' só quando ele configurar de fato).
+    planoTreino: snapshot.planoTreino ?? null,
+    planoTreinoStatus: snapshot.planoTreinoStatus ?? 'padrao_assistente',
+    pendencias: snapshot.pendencias ?? [],
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
     // só a Série A). Aplica a migração de habilidades/tipo também aqui.

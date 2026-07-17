@@ -159,6 +159,9 @@ import type {
   Formacao,
   MotivoDemissao,
   Partida,
+  PendenciaCarreira,
+  PlanoTreino,
+  PlanoTreinoStatus,
   Player,
   TabelaClassificacao,
   Tatica,
@@ -322,6 +325,15 @@ export interface GameState {
   patrocinio: EstadoPatrocinio;
   /** Histórico mundial de transferências (AD-09) — fonte de notícias/perfil. */
   transferHistory: TransferRecord[];
+  /**
+   * Plano de treino recorrente do clube do usuário (épico Overall Dinâmico).
+   * null até a Onda 4 ligar o executor; o CONTRATO já persiste no save.
+   */
+  planoTreino: PlanoTreino | null;
+  /** Situação da configuração de treino (nunca fingir escolha do usuário). */
+  planoTreinoStatus: PlanoTreinoStatus;
+  /** Central de Pendências do clube (o avanço consulta as bloqueantes). */
+  pendencias: PendenciaCarreira[];
   /** (Re)gera as propostas de patrocínio do clube do usuário para a temporada. */
   gerarPropostasPatrocinioUsuario: () => void;
   /** Aceita uma proposta de patrocínio (cria contrato ativo). */
@@ -949,6 +961,9 @@ export const useGameStore = create<GameState>((set, get) => ({
   serieDCarreira: null,
   patrocinio: criarEstadoPatrocinioVazio(),
   transferHistory: [],
+  planoTreino: null,
+  planoTreinoStatus: 'nao_configurado',
+  pendencias: [],
 
   gerarPropostasPatrocinioUsuario: () => {
     const state = get();
@@ -1018,6 +1033,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       serieDCarreira: null,
       patrocinio: criarEstadoPatrocinioVazio(),
       transferHistory: [],
+      // Carreira nova NUNCA finge treino escolhido: começa não configurado.
+      planoTreino: null,
+      planoTreinoStatus: 'nao_configurado',
+      pendencias: [],
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -1082,6 +1101,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       // Novo clube = novo contrato de patrocínio (o anterior era do outro clube).
       patrocinio: criarEstadoPatrocinioVazio(),
       transferHistory: [],
+      // O plano de treino era do clube anterior — recomeça não configurado.
+      planoTreino: null,
+      planoTreinoStatus: 'nao_configurado',
+      pendencias: [],
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -2983,6 +3006,9 @@ export const useGameStore = create<GameState>((set, get) => ({
       serieDCarreira: null,
       patrocinio: criarEstadoPatrocinioVazio(),
       transferHistory: [],
+      planoTreino: null,
+      planoTreinoStatus: 'nao_configurado',
+      pendencias: [],
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

@@ -1,4 +1,4 @@
-import type {AtributoChave} from '../../types';
+import type {AtributoChave, IntensidadeTreino} from '../../types';
 import type {GrupoPosicao} from '../tactics/posicoes';
 
 /**
@@ -13,7 +13,8 @@ import type {GrupoPosicao} from '../tactics/posicoes';
  * normaliza). `bonusMoral` representa a "confiança" que certas rotinas dão.
  */
 
-export type IntensidadeTreino = 'leve' | 'normal' | 'forte' | 'muito_forte';
+// Fonte única do tipo no contrato (types/treinoPlano); re-export p/ compat.
+export type {IntensidadeTreino} from '../../types';
 
 export interface ConfigIntensidade {
   rotulo: string;

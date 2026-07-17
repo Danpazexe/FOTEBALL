@@ -52,3 +52,26 @@ export type {
   MotivoDemissao,
   ResultadoCarreira,
 } from './carreira';
+export type {
+  CategoriaAtributo,
+  EstadoFisicoJogador,
+  MotivoDesenvolvimento,
+  PilaresRating,
+  RatingJogador,
+  RegistroDesenvolvimento,
+} from './desenvolvimento';
+export type {
+  IntensidadeTreino,
+  PlanoTreino,
+  PlanoTreinoStatus,
+  RecorrenciaPlanoTreino,
+  SemanaPlanoTreino,
+  SessaoPlanoTreino,
+} from './treinoPlano';
+export type {
+  EscopoEventoCarreira,
+  EventoCarreira,
+  PendenciaCarreira,
+  TipoEventoCarreira,
+  TipoPendencia,
+} from './calendario';

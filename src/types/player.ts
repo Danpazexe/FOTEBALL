@@ -120,6 +120,12 @@ export interface Player {
   condicaoFisica: number;
   moral: number;
   forma: number;
+  /**
+   * Estado físico do épico Overall Dinâmico (carga aguda/crônica, ritmo).
+   * Opcional para compatibilidade com saves antigos; derivado com defaults
+   * seguros no load (ver `types/desenvolvimento`). Populado pela Onda 5.
+   */
+  fisico?: import('./desenvolvimento').EstadoFisicoJogador;
   valorMercado: number;
   salario: number;
   contratoAte: string;
