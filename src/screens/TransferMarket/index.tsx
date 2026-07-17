@@ -37,6 +37,10 @@ import {
 import {useMercadoNavigation} from '../../navigation/types';
 import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
 import {combinarMundoStore} from '../../store/transferenciaMundo';
+import {
+  competicaoPorDivisaoLegada,
+  listarPaises,
+} from '../../engine/competitions/registry/competitionRegistry';
 import {moeda, moedaCompacta, nomeClube, siglaClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
 
@@ -84,6 +88,7 @@ function TransferMarket(): React.JSX.Element {
 
   const [aba, setAba] = useState<Aba>('disponiveis');
   const [filtro, setFiltro] = useState<Position | 'Todos'>('Todos');
+  const [filtroPais, setFiltroPais] = useState<string>('Todos');
   const [busca, setBusca] = useState('');
   const [buscaAberta, setBuscaAberta] = useState(false);
   const [filtroAberto, setFiltroAberto] = useState(false);
@@ -119,15 +124,36 @@ function TransferMarket(): React.JSX.Element {
   const jogadoresMundo = mundo.jogadores;
   const clubesMundo = mundo.clubes;
 
+  // País de cada clube (via competição) — para filtrar o mercado universal.
+  const paisPorClube = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const c of clubesMundo) {
+      const pais = competicaoPorDivisaoLegada(c.divisao)?.countryId;
+      if (pais) {
+        mapa.set(c.id, pais);
+      }
+    }
+    return mapa;
+  }, [clubesMundo]);
+  const paises = useMemo(
+    () => [{id: 'Todos', nome: 'Todos'}, ...listarPaises()],
+    [],
+  );
+
   const disponiveis = useMemo(
     () =>
       jogadoresMundo
         .filter(j => j.clubeId !== clubeUsuarioId && j.clubeId !== null)
         .filter(j => filtro === 'Todos' || j.posicaoPrincipal === filtro)
+        .filter(
+          j =>
+            filtroPais === 'Todos' ||
+            paisPorClube.get(j.clubeId ?? '') === filtroPais,
+        )
         .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
         .sort((a, b) => b.overall - a.overall)
         .slice(0, LIMITE),
-    [jogadoresMundo, clubeUsuarioId, filtro, alvoBusca],
+    [jogadoresMundo, clubeUsuarioId, filtro, filtroPais, paisPorClube, alvoBusca],
   );
 
   const emprestaveis = useMemo(
@@ -138,10 +164,15 @@ function TransferMarket(): React.JSX.Element {
             j.clubeId !== clubeUsuarioId && j.clubeId !== null && !ehEmprestado(j),
         )
         .filter(j => filtro === 'Todos' || j.posicaoPrincipal === filtro)
+        .filter(
+          j =>
+            filtroPais === 'Todos' ||
+            paisPorClube.get(j.clubeId ?? '') === filtroPais,
+        )
         .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
         .sort((a, b) => a.idade - b.idade || b.overall - a.overall)
         .slice(0, LIMITE),
-    [jogadoresMundo, clubeUsuarioId, filtro, alvoBusca],
+    [jogadoresMundo, clubeUsuarioId, filtro, filtroPais, paisPorClube, alvoBusca],
   );
 
   const aoEmprestar = (jogador: Player) => {
@@ -256,6 +287,23 @@ function TransferMarket(): React.JSX.Element {
             },
           ]}
         />
+      ) : null}
+
+      {/* Filtro por país: navega o mercado UNIVERSAL (só se há mais de um país). */}
+      {paises.length > 2 && (aba === 'disponiveis' || aba === 'emprestar') ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filtros}>
+          {paises.map(pais => (
+            <Chip
+              key={pais.id}
+              label={pais.nome}
+              selected={filtroPais === pais.id}
+              onPress={() => setFiltroPais(pais.id)}
+            />
+          ))}
+        </ScrollView>
       ) : null}
 
       {filtroAberto && (aba === 'disponiveis' || aba === 'emprestar') ? (
