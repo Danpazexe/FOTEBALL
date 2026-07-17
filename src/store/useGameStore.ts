@@ -93,6 +93,7 @@ import {
   processarRetornosEmprestimo,
 } from '../engine/transfers/emprestimoEngine';
 import {gerarTransferenciasIA} from '../engine/transfers/mercadoIA';
+import {processarDiasAte} from '../engine/calendar/pipelineDiario';
 import {useAchievementsStore} from './useAchievementsStore';
 import {
   jogadoresDoClube,
@@ -414,6 +415,58 @@ function adicionarMensagem(
   );
 }
 
+/** Teto da Central de Pendências (as mais novas primeiro; save enxuto). */
+const MAX_PENDENCIAS = 12;
+
+/** Acumula pendências novas sem duplicar (por id) e com teto. */
+function acumularPendencias(
+  atuais: PendenciaCarreira[],
+  novas: PendenciaCarreira[],
+): PendenciaCarreira[] {
+  if (novas.length === 0) {
+    return atuais;
+  }
+  const vistos = new Set(atuais.map(pendencia => pendencia.id));
+  const ineditas = novas.filter(pendencia => !vistos.has(pendencia.id));
+  if (ineditas.length === 0) {
+    return atuais;
+  }
+  return [...ineditas, ...atuais].slice(0, MAX_PENDENCIAS);
+}
+
+/** Pendência-padrão de carreira sem plano de treino configurado (mockup). */
+function pendenciaPlanoTreino(data: string): PendenciaCarreira {
+  return {
+    id: 'pend_plano_treino',
+    tipo: 'definir_plano_treino',
+    prioridade: 'alta',
+    titulo: 'Definir plano de treino',
+    descricao: 'Seu elenco não possui plano de treino definido.',
+    criadaEm: data,
+    bloqueante: false,
+  };
+}
+
+/** Propostas da IA que EXPIRAM na próxima rodada viram pendência (Central). */
+function pendenciasDePropostas(
+  propostas: PropostaTransferencia[],
+  rodadaAtual: number,
+  data: string,
+): PendenciaCarreira[] {
+  return propostas
+    .filter(proposta => proposta.expiracaoRodada === rodadaAtual + 1)
+    .map(proposta => ({
+      id: `pend_proposta_${proposta.id}`,
+      tipo: 'proposta_expirando' as const,
+      prioridade: 'alta' as const,
+      titulo: 'Responder proposta',
+      descricao: 'Uma proposta por um jogador seu expira na próxima rodada.',
+      entidadeId: proposta.jogadorId,
+      criadaEm: data,
+      bloqueante: false,
+    }));
+}
+
 /**
  * Enxuga as estatísticas de partidas da IA para o save não inflar: mantém os
  * agregados por time (xG, finalizações, zonas...) e descarta os detalhes
@@ -682,14 +735,10 @@ function aplicarResultadoNosJogadores(
         jogosSuspensao = 0;
       }
     }
+    // Lesão anda em DIAS REAIS pelo pipeline diário do calendário (Onda 3) —
+    // aqui só entram punições/lesões NOVAS desta partida.
     let lesionado = jogador.lesionado;
     let diasLesao = jogador.diasLesao;
-    if (lesionado && diasLesao > 0) {
-      diasLesao = Math.max(0, diasLesao - 7);
-      if (diasLesao === 0) {
-        lesionado = false;
-      }
-    }
 
     // 2) Novas punições a partir dos eventos deste jogo.
     const eventosDoJogador = partida.eventos.filter(
@@ -1033,10 +1082,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       serieDCarreira: null,
       patrocinio: criarEstadoPatrocinioVazio(),
       transferHistory: [],
-      // Carreira nova NUNCA finge treino escolhido: começa não configurado.
+      // Carreira nova NUNCA finge treino escolhido: começa não configurado,
+      // com a pendência correspondente já na Central (mockup Pendências).
       planoTreino: null,
       planoTreinoStatus: 'nao_configurado',
-      pendencias: [],
+      pendencias: [pendenciaPlanoTreino(liga.dataAtual)],
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -1104,7 +1154,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       // O plano de treino era do clube anterior — recomeça não configurado.
       planoTreino: null,
       planoTreinoStatus: 'nao_configurado',
-      pendencias: [],
+      pendencias: [pendenciaPlanoTreino(liga.dataAtual)],
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -1186,7 +1236,23 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   avancarParaData: data => {
-    set({dataAtual: data});
+    // Relógio canônico (Onda 3): mover a data PROCESSA os dias no pipeline
+    // (lesões andam por dia real; pendências nascem). Nunca anda para trás.
+    const state = get();
+    const periodo = processarDiasAte(
+      state.jogadores,
+      state.dataAtual,
+      data,
+      state.clubeUsuarioId,
+    );
+    if (periodo.diasProcessados === 0) {
+      return;
+    }
+    set({
+      jogadores: periodo.jogadores,
+      dataAtual: periodo.dataFinal,
+      pendencias: acumularPendencias(state.pendencias, periodo.novasPendencias),
+    });
   },
 
   avancarRodada: () => {
@@ -1199,7 +1265,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
 
-    let jogadoresAtualizados = state.jogadores;
+    // Relógio canônico (Onda 3): antes da bola rolar, os DIAS até a data da
+    // rodada passam pelo pipeline diário (lesões em dias reais, pendências).
+    // Também corrige o relógio nas rodadas de FOLGA do usuário (a data anda
+    // mesmo sem jogo dele).
+    const dataRodada = jogosRodada[0]?.data ?? state.dataAtual;
+    const periodo = processarDiasAte(
+      state.jogadores,
+      state.dataAtual,
+      dataRodada,
+      state.clubeUsuarioId,
+    );
+    const pendenciasAposDias = acumularPendencias(
+      state.pendencias,
+      [
+        ...periodo.novasPendencias,
+        ...pendenciasDePropostas(state.propostasRecebidas, state.rodadaAtual, dataRodada),
+      ],
+    );
+
+    let jogadoresAtualizados = periodo.jogadores;
     const partidasAtualizadas = state.partidas.map(partida => {
       const jogo = jogosRodada.find(item => item.id === partida.id);
 
@@ -1333,9 +1418,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       patrocinio: patrocinioRodada,
       rodadaAtual: rodadaAposAvanco,
       ultimaPartidaUsuario: partidaUsuarioCompleta,
-      // Calendário: data passa a ser a do jogo disputado. O treino do ciclo já
-      // foi aplicado automaticamente acima, então o próximo evento é o jogo.
-      dataAtual: partidaUsuarioCompleta?.data ?? state.dataAtual,
+      // Relógio canônico: a data anda pelo pipeline até a data da RODADA
+      // (inclusive nas rodadas de folga do usuário). O treino do ciclo já foi
+      // aplicado automaticamente acima, então o próximo evento é o jogo.
+      dataAtual: periodo.dataFinal,
+      pendencias: pendenciasAposDias,
       treinouProximoJogo: false,
       conversouComGrupo: false,
       reputacaoTecnico: carreira.reputacaoTecnico,
@@ -1390,7 +1477,22 @@ export const useGameStore = create<GameState>((set, get) => ({
         )
       : state.clubes;
 
-    let jogadoresAtualizados = state.jogadores;
+    // Relógio canônico (Onda 3): dias até a data da rodada passam pelo
+    // pipeline. Normalmente é no-op aqui (o pré-jogo já avançou a data via
+    // avancarParaData), mas garante o invariante em qualquer caminho.
+    const dataRodada = jogosRodada[0]?.data ?? state.dataAtual;
+    const periodo = processarDiasAte(
+      state.jogadores,
+      state.dataAtual,
+      dataRodada,
+      state.clubeUsuarioId,
+    );
+    const pendenciasAposDias = acumularPendencias(state.pendencias, [
+      ...periodo.novasPendencias,
+      ...pendenciasDePropostas(state.propostasRecebidas, state.rodadaAtual, dataRodada),
+    ]);
+
+    let jogadoresAtualizados = periodo.jogadores;
     const partidasAtualizadas = state.partidas.map(partida => {
       const jogo = jogosRodada.find(item => item.id === partida.id);
       if (!jogo) {
@@ -1519,7 +1621,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       formacaoPreLive: null,
       rodadaAtual: rodadaAposLive,
       ultimaPartidaUsuario: partidaUsuario,
-      dataAtual: partidaUsuario?.data ?? state.dataAtual,
+      dataAtual: periodo.dataFinal,
+      pendencias: pendenciasAposDias,
       treinouProximoJogo: false,
       conversouComGrupo: false,
       reputacaoTecnico: carreira.reputacaoTecnico,
@@ -1892,7 +1995,49 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     }
 
-    set({copa: copaAvancada, clubes, mensagens});
+    // DESGASTE DA COPA (Onda 3): titulares dos confrontos resolvidos AGORA
+    // que pertencem à liga ATIVA cansam e contam o jogo — antes, a copa não
+    // tocava os jogadores (auditoria). Lesões/cartões de copa entram com a
+    // partida completa na integração da Onda 6.
+    const titularesCopa = new Set<string>();
+    fase.confrontos.forEach((original, indice) => {
+      const resolvido = confrontosResolvidos[indice];
+      if (original.vencedor || !resolvido?.vencedor) {
+        return; // já estava resolvido antes (não desgasta duas vezes).
+      }
+      for (const clubeId of [resolvido.timeA, resolvido.timeB]) {
+        const clube = clubeAtivo.get(clubeId);
+        if (!clube) {
+          continue; // clube de outra divisão: sem estado vivo na liga ativa.
+        }
+        for (const id of idsTitularesDisponiveis(
+          clube,
+          jogadoresDoClube(state.jogadores, clubeId),
+        )) {
+          titularesCopa.add(id);
+        }
+      }
+    });
+    const jogadores =
+      titularesCopa.size === 0
+        ? state.jogadores
+        : state.jogadores.map(jogador =>
+            titularesCopa.has(jogador.id)
+              ? {
+                  ...jogador,
+                  condicaoFisica: aplicarCondicaoPosPartida(
+                    jogador.condicaoFisica,
+                    {ehTitular: true, participou: true},
+                  ),
+                  estatisticasTemporada: {
+                    ...jogador.estatisticasTemporada,
+                    jogos: jogador.estatisticasTemporada.jogos + 1,
+                  },
+                }
+              : jogador,
+          );
+
+    set({copa: copaAvancada, clubes, mensagens, jogadores});
   },
 
   renovarContrato: (jogadorId, anos, salario) => {

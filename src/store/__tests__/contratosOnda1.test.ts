@@ -24,7 +24,10 @@ describe('Onda 1 — contratos do épico Overall Dinâmico', () => {
 
     expect(estado().planoTreino).toBeNull();
     expect(estado().planoTreinoStatus).toBe('nao_configurado');
-    expect(estado().pendencias).toEqual([]);
+    // Onda 3: a carreira nasce com a pendência de treino na Central (mockup).
+    expect(estado().pendencias.map(p => p.tipo)).toEqual([
+      'definir_plano_treino',
+    ]);
   });
 
   it('save ANTIGO (sem os campos novos) carrega com defaults honestos', () => {
