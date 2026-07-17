@@ -104,3 +104,148 @@ export function aplicarTransferenciasNaLiga(args: {
     avisos,
   };
 }
+
+// ── Mercado UNIVERSAL (todas as ligas) ───────────────────────────────────────
+
+interface MundoStore {
+  /** Liga ATIVA (fonte viva: evolui em partidas/finanças durante a temporada). */
+  clubes: Clube[];
+  jogadores: Player[];
+  /** Mundo MESTRE (todas as ligas carregadas). */
+  todosClubes: Clube[];
+  todosJogadores: Player[];
+}
+
+/**
+ * Une a liga ATIVA (viva) ao mundo MESTRE num só conjunto — a liga ativa vence
+ * para os objetos compartilhados (o clube do usuário e seu elenco carregam a
+ * evolução da temporada). É o que deixa o mercado enxergar TODAS as ligas sem
+ * perder o estado vivo da lita jogada. Puro.
+ */
+export function combinarMundoStore(mundo: MundoStore): {
+  clubes: Clube[];
+  jogadores: Player[];
+} {
+  const clubMap = new Map(mundo.todosClubes.map(c => [c.id, c]));
+  for (const c of mundo.clubes) {
+    clubMap.set(c.id, c);
+  }
+  const jogMap = new Map(mundo.todosJogadores.map(j => [j.id, j]));
+  for (const j of mundo.jogadores) {
+    jogMap.set(j.id, j);
+  }
+  return {clubes: [...clubMap.values()], jogadores: [...jogMap.values()]};
+}
+
+export interface ResultadoNegocioGlobal {
+  ok: boolean;
+  erro?: string;
+  clubes: Clube[];
+  jogadores: Player[];
+  todosClubes: Clube[];
+  todosJogadores: Player[];
+  transferHistory: TransferRecord[];
+}
+
+/**
+ * Aplica UM negócio (compra/empréstimo do usuário) que pode CRUZAR ligas, pela
+ * porta atômica (applyTransfer) sobre o mundo combinado, e reflete o resultado
+ * de volta nos dois escopos da store:
+ *  - liga ATIVA: atualiza só os clubes tocados e injeta/atualiza o jogador se ele
+ *    passa a atuar na divisão jogada (para poder entrar em campo);
+ *  - mundo MESTRE: atualiza cirurgicamente o jogador e os dois clubes envolvidos.
+ * Retorna `ok:false` com o motivo se a transferência for inválida (sem mutar).
+ */
+export function aplicarNegocioGlobal(args: {
+  mundo: MundoStore;
+  transferHistory: TransferRecord[];
+  activeCompetitionId: string | null;
+  userClubId: string | null;
+  entrada: EntradaTransferencia;
+  date: string;
+}): ResultadoNegocioGlobal {
+  const {mundo} = args;
+  const base: Omit<ResultadoNegocioGlobal, 'ok' | 'erro'> = {
+    clubes: mundo.clubes,
+    jogadores: mundo.jogadores,
+    todosClubes: mundo.todosClubes,
+    todosJogadores: mundo.todosJogadores,
+    transferHistory: args.transferHistory,
+  };
+
+  const combinado = combinarMundoStore(mundo);
+  const world = criarWorld({
+    clubes: combinado.clubes,
+    jogadores: combinado.jogadores,
+    activeCompetitionId: args.activeCompetitionId,
+    userClubId: args.userClubId,
+    transferHistory: args.transferHistory,
+  });
+  const resultado = applyTransfer({
+    world,
+    playerId: args.entrada.playerId,
+    fromClubId: args.entrada.fromClubId,
+    toClubId: args.entrada.toClubId,
+    type: args.entrada.type,
+    fee: args.entrada.fee,
+    salary: args.entrada.salary,
+    date: args.date,
+    ignorarJanela: true,
+    source: args.entrada.source,
+    reasonCodes: args.entrada.reasonCodes,
+  });
+  if (!resultado.ok) {
+    return {ok: false, erro: resultado.errors.join('; '), ...base};
+  }
+
+  const w = resultado.world;
+  const jid = args.entrada.playerId;
+  const novoJogador = w.playersById[jid]!;
+  const idsLigaAtiva = new Set(mundo.clubes.map(c => c.id));
+  const tocados = new Set(
+    [args.entrada.fromClubId, args.entrada.toClubId].filter(
+      (id): id is string => id !== null,
+    ),
+  );
+
+  // Liga ATIVA: só os clubes tocados que pertencem a ela mudam.
+  const clubes = mundo.clubes.map(c =>
+    tocados.has(c.id) ? w.clubsById[c.id] ?? c : c,
+  );
+  // Liga ATIVA: o jogador entra em campo se agora atua num clube da divisão.
+  const atuaNaLiga =
+    novoJogador.clubeId !== null && idsLigaAtiva.has(novoJogador.clubeId);
+  const jaNaLiga = mundo.jogadores.some(j => j.id === jid);
+  let jogadores: Player[];
+  if (jaNaLiga) {
+    jogadores = atuaNaLiga
+      ? mundo.jogadores.map(j => (j.id === jid ? novoJogador : j))
+      : mundo.jogadores.filter(j => j.id !== jid); // saiu para outra liga
+  } else if (atuaNaLiga) {
+    jogadores = [...mundo.jogadores, novoJogador]; // veio de outra liga
+  } else {
+    jogadores = mundo.jogadores;
+  }
+
+  // Mundo MESTRE: atualização cirúrgica (jogador + os dois clubes do negócio).
+  const todosJogadores = mundo.todosJogadores.map(j =>
+    j.id === jid ? novoJogador : j,
+  );
+  const todosClubes = mundo.todosClubes.map(c =>
+    tocados.has(c.id) ? w.clubsById[c.id] ?? c : c,
+  );
+
+  const transferHistory =
+    w.transferHistory.length > MAX_HISTORICO_TRANSFERENCIAS
+      ? w.transferHistory.slice(-MAX_HISTORICO_TRANSFERENCIAS)
+      : w.transferHistory;
+
+  return {
+    ok: true,
+    clubes,
+    jogadores,
+    todosClubes,
+    todosJogadores,
+    transferHistory,
+  };
+}

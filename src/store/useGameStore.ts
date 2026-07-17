@@ -131,7 +131,11 @@ import {
   type EstadoPatrocinio,
 } from '../types/patrocinio';
 import type {TransferRecord} from '../types/world';
-import {aplicarTransferenciasNaLiga} from './transferenciaMundo';
+import {
+  aplicarNegocioGlobal,
+  aplicarTransferenciasNaLiga,
+  combinarMundoStore,
+} from './transferenciaMundo';
 import {competicaoPorDivisaoLegada} from '../engine/competitions/registry/competitionRegistry';
 import {
   aceitarPropostaPatrocinio,
@@ -2008,7 +2012,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!clubeUsuarioId) {
       return;
     }
-    const jogador = state.jogadores.find(item => item.id === jogadorId);
+    // Mercado UNIVERSAL: o alvo pode estar em QUALQUER liga (mundo combinado).
+    const {clubes: clubesMundo, jogadores: jogadoresMundo} =
+      combinarMundoStore(state);
+    const jogador = jogadoresMundo.find(item => item.id === jogadorId);
     if (
       !jogador ||
       !jogador.clubeId ||
@@ -2017,46 +2024,37 @@ export const useGameStore = create<GameState>((set, get) => ({
     ) {
       return;
     }
-    const donoId = jogador.clubeId;
     const custo = custoEmprestimo(jogador);
-    const usuario = state.clubes.find(clube => clube.id === clubeUsuarioId);
+    const usuario = clubesMundo.find(clube => clube.id === clubeUsuarioId);
     if (!usuario || usuario.financas.saldo < custo) {
       return;
     }
     const retorna = String(Number(temporadaAtual) + 1);
+    const resultado = aplicarNegocioGlobal({
+      mundo: state,
+      transferHistory: state.transferHistory,
+      activeCompetitionId:
+        competicaoPorDivisaoLegada(state.clubes[0]?.divisao)?.id ?? null,
+      userClubId: clubeUsuarioId,
+      entrada: {
+        playerId: jogadorId,
+        fromClubId: jogador.clubeId,
+        toClubId: clubeUsuarioId,
+        type: 'loan',
+        fee: custo,
+        source: 'user',
+      },
+      date: `${temporadaAtual}-06-01`,
+    });
+    if (!resultado.ok) {
+      return;
+    }
     set({
-      jogadores: state.jogadores.map(item =>
-        item.id === jogadorId
-          ? criarEmprestimo(item, clubeUsuarioId, retorna)
-          : item,
-      ),
-      clubes: state.clubes.map(clube => {
-        if (clube.id === clubeUsuarioId) {
-          return registrarTransacao(
-            {...clube, elenco: [...clube.elenco, jogadorId]},
-            {
-              data: `${temporadaAtual}-mercado`,
-              tipo: 'despesa',
-              categoria: 'emprestimo',
-              valor: custo,
-              descricao: `Empréstimo de ${jogador.nome}`,
-            },
-          );
-        }
-        if (clube.id === donoId) {
-          return registrarTransacao(
-            {...clube, elenco: clube.elenco.filter(id => id !== jogadorId)},
-            {
-              data: `${temporadaAtual}-mercado`,
-              tipo: 'receita',
-              categoria: 'emprestimo',
-              valor: custo,
-              descricao: `Cessão de ${jogador.nome}`,
-            },
-          );
-        }
-        return clube;
-      }),
+      clubes: resultado.clubes,
+      jogadores: resultado.jogadores,
+      todosClubes: resultado.todosClubes,
+      todosJogadores: resultado.todosJogadores,
+      transferHistory: resultado.transferHistory,
       mensagens: adicionarMensagem(
         state.mensagens,
         `${jogador.nome} contratado por empréstimo até ${retorna} (taxa R$ ${custo.toLocaleString('pt-BR')}).`,
@@ -2072,9 +2070,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (!usuarioId) {
       return {status: 'recusada', mensagem: 'Nenhuma carreira ativa.'};
     }
-    const jogador = state.jogadores.find(j => j.id === jogadorId);
-    const vendedor = state.clubes.find(c => c.id === jogador?.clubeId);
-    const usuario = state.clubes.find(c => c.id === usuarioId);
+    // Mercado UNIVERSAL: o alvo e o clube vendedor podem estar em QUALQUER liga
+    // carregada (não só a divisão jogada) — olha o mundo combinado.
+    const {clubes: clubesMundo, jogadores: jogadoresMundo} =
+      combinarMundoStore(state);
+    const jogador = jogadoresMundo.find(j => j.id === jogadorId);
+    const vendedor = clubesMundo.find(c => c.id === jogador?.clubeId);
+    const usuario = clubesMundo.find(c => c.id === usuarioId);
     if (!jogador || !vendedor || !usuario || jogador.clubeId === usuarioId) {
       return {status: 'recusada', mensagem: 'Jogador indisponível.'};
     }
@@ -2097,37 +2099,31 @@ export const useGameStore = create<GameState>((set, get) => ({
       return {status: 'recusada', mensagem: `${vendedor.nome} recusou a proposta.`};
     }
     if (resposta === 'aceita') {
+      const resultado = aplicarNegocioGlobal({
+        mundo: state,
+        transferHistory: state.transferHistory,
+        activeCompetitionId:
+          competicaoPorDivisaoLegada(state.clubes[0]?.divisao)?.id ?? null,
+        userClubId: usuarioId,
+        entrada: {
+          playerId: jogadorId,
+          fromClubId: vendedor.id,
+          toClubId: usuarioId,
+          type: 'permanent',
+          fee: valor,
+          source: 'user',
+        },
+        date: `${state.temporadaAtual}-06-01`,
+      });
+      if (!resultado.ok) {
+        return {status: 'recusada', mensagem: 'Transferência inválida.'};
+      }
       set(stateAtual => ({
-        jogadores: stateAtual.jogadores.map(item =>
-          item.id === jogadorId ? {...item, clubeId: usuarioId} : item,
-        ),
-        clubes: stateAtual.clubes.map(clube => {
-          if (clube.id === usuarioId) {
-            return registrarTransacao(
-              {...clube, elenco: [...clube.elenco, jogadorId]},
-              {
-                data: `${stateAtual.temporadaAtual}-mercado`,
-                tipo: 'despesa',
-                categoria: 'contratacoes',
-                valor,
-                descricao: `Compra de ${jogador.nome}`,
-              },
-            );
-          }
-          if (clube.id === vendedor.id) {
-            return registrarTransacao(
-              {...clube, elenco: clube.elenco.filter(id => id !== jogadorId)},
-              {
-                data: `${stateAtual.temporadaAtual}-mercado`,
-                tipo: 'receita',
-                categoria: 'vendaJogadores',
-                valor,
-                descricao: `Venda de ${jogador.nome}`,
-              },
-            );
-          }
-          return clube;
-        }),
+        clubes: resultado.clubes,
+        jogadores: resultado.jogadores,
+        todosClubes: resultado.todosClubes,
+        todosJogadores: resultado.todosJogadores,
+        transferHistory: resultado.transferHistory,
         mensagens: adicionarMensagem(
           stateAtual.mensagens,
           `${jogador.nome} contratado por R$ ${valor.toLocaleString('pt-BR')}.`,

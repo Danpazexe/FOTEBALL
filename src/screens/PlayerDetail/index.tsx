@@ -3,7 +3,7 @@
  * estatísticas, radar, atributos e ações. Migrado ao Design System v2.
  */
 
-import React from 'react';
+import React, {useMemo} from 'react';
 import {StyleSheet, View} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
@@ -89,11 +89,19 @@ function PlayerDetail(): React.JSX.Element {
   const route = useRoute<RouteProp<RootStackParamList, 'PlayerDetail'>>();
   const {jogadorId} = route.params;
 
-  const jogador = useGameStore(state =>
-    state.jogadores.find(item => item.id === jogadorId),
+  // Mercado universal: o jogador pode ser de outra liga (liga ativa vence).
+  const jogador = useGameStore(
+    state =>
+      state.jogadores.find(item => item.id === jogadorId) ??
+      state.todosJogadores.find(item => item.id === jogadorId),
   );
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
-  const clubes = useGameStore(state => state.clubes);
+  const clubesLiga = useGameStore(state => state.clubes);
+  const todosClubes = useGameStore(state => state.todosClubes);
+  const clubes = useMemo(
+    () => [...clubesLiga, ...todosClubes],
+    [clubesLiga, todosClubes],
+  );
   const venderJogador = useGameStore(state => state.venderJogador);
   const emprestarJogador = useGameStore(state => state.emprestarJogador);
   const definirCapitao = useGameStore(state => state.definirCapitao);
