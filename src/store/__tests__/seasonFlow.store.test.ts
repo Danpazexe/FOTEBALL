@@ -176,6 +176,29 @@ describe('finalizarTemporada — acesso e rebaixamento', () => {
     expect(estado().rodadaAtual).toBe(1);
   });
 
+  it('Championship (46 rodadas) passa da rodada 39: teto de avanço é dinâmico', () => {
+    const clubeChamp = estado().todosClubes.find(
+      clube => clube.divisao === 'Championship',
+    )!;
+    estado().iniciarNovaCarreira(clubeChamp.id);
+
+    // 24 clubes → 46 rodadas; o teto fixo antigo (39) travava a carreira aqui.
+    expect(Math.max(...estado().partidas.map(p => p.rodada))).toBe(46);
+
+    useGameStore.setState({rodadaAtual: 38});
+    estado().avancarRodada();
+    estado().avancarRodada();
+    // Sem o fix, rodadaAtual congelava em 39 e as rodadas 40-46 nunca rodavam.
+    expect(estado().rodadaAtual).toBe(40);
+
+    // Fim de temporada: avança além da última rodada e fecha normalmente.
+    useGameStore.setState({rodadaAtual: 46});
+    estado().avancarRodada();
+    expect(estado().rodadaAtual).toBe(47);
+    estado().finalizarTemporada();
+    expect(estado().rodadaAtual).toBe(1);
+  });
+
   it('liga com FOLGA joga fim-a-fim: rodadas em que o usuário descansa avançam', () => {
     const clubeArgentino = estado().todosClubes.find(
       clube => clube.divisao === 'Primera División',

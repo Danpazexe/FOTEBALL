@@ -16,6 +16,15 @@ import type {
 } from '../types';
 import {adicionarDias} from '../utils/datas';
 
+/**
+ * Última rodada da liga ATIVA (38 no Brasileirão de 20, 46 na Championship de
+ * 24, 6 na Primera de 3…). `rodadaAtual === ultima + 1` sinaliza temporada
+ * encerrada — o avanço deve usar ISTO como teto, nunca um 39 fixo.
+ */
+export function ultimaRodadaLiga(partidas: Partida[]): number {
+  return partidas.reduce((maior, partida) => Math.max(maior, partida.rodada), 0);
+}
+
 /** Quantos jogadores faltam por posição no elenco do usuário (alvo: 2 por posição). */
 export function necessidadesPorPosicao(
   jogadores: Player[],

@@ -103,6 +103,7 @@ import {
   ranquearDivisaoPorForca,
   resultadoDoUsuario,
   sortearDuracaoLesao,
+  ultimaRodadaLiga,
 } from './helpers';
 import {
   calcularDatasFasesCopa,
@@ -1295,13 +1296,19 @@ export const useGameStore = create<GameState>((set, get) => ({
             state.rodadaAtual,
           );
 
+    // Teto DINÂMICO: última rodada da liga ativa + 1 (38→39 no Brasileirão,
+    // 46→47 na Championship). Um 39 fixo travava ligas com mais de 38 rodadas.
+    const rodadaAposAvanco = Math.min(
+      ultimaRodadaLiga(state.partidas) + 1,
+      state.rodadaAtual + 1,
+    );
     set({
       jogadores: jogadoresFinais,
       partidas: partidasComPublico,
       tabela,
       clubes: clubesComPatrocinio,
       patrocinio: patrocinioRodada,
-      rodadaAtual: Math.min(39, state.rodadaAtual + 1),
+      rodadaAtual: rodadaAposAvanco,
       ultimaPartidaUsuario: partidaUsuarioCompleta,
       // Calendário: data passa a ser a do jogo disputado. O treino do ciclo já
       // foi aplicado automaticamente acima, então o próximo evento é o jogo.
@@ -1322,7 +1329,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       partidas: partidasComPublico,
       tabela,
       clubes: clubesComPatrocinio,
-      rodadaAtual: Math.min(39, state.rodadaAtual + 1),
+      rodadaAtual: rodadaAposAvanco,
     });
     get().processarPropostasIA();
     get().processarMercadoIA();
@@ -1475,6 +1482,11 @@ export const useGameStore = create<GameState>((set, get) => ({
             state.rodadaAtual,
           );
 
+    // Mesmo teto dinâmico do avancarRodada (liga pode ter mais de 38 rodadas).
+    const rodadaAposLive = Math.min(
+      ultimaRodadaLiga(state.partidas) + 1,
+      state.rodadaAtual + 1,
+    );
     set({
       jogadores: jogadoresFinais,
       partidas: partidasComPublico,
@@ -1482,7 +1494,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       clubes: clubesComPatrocinio,
       patrocinio: patrocinioRodada,
       formacaoPreLive: null,
-      rodadaAtual: Math.min(39, state.rodadaAtual + 1),
+      rodadaAtual: rodadaAposLive,
       ultimaPartidaUsuario: partidaUsuario,
       dataAtual: partidaUsuario?.data ?? state.dataAtual,
       treinouProximoJogo: false,
@@ -1501,7 +1513,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       partidas: partidasComPublico,
       tabela,
       clubes: clubesComPatrocinio,
-      rodadaAtual: Math.min(39, state.rodadaAtual + 1),
+      rodadaAtual: rodadaAposLive,
     });
     get().processarPropostasIA();
     get().processarMercadoIA();
