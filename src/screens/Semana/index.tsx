@@ -27,6 +27,11 @@ import type {IconeNome} from '../../components/Icone';
 import {useToast} from '../../components/feedback';
 import {calcularEfeitoTreino} from '../../engine/progression/treinoAtributos';
 import {
+  PRESETS_TREINO,
+  planoDePreset,
+  type PresetTreinoId,
+} from '../../engine/progression/planoTreinoEngine';
+import {
   INTENSIDADES,
   INTENSIDADES_ORDEM,
   buscarTreino,
@@ -90,9 +95,28 @@ function Semana(): React.JSX.Element {
   const aplicarTreino = useGameStore(state => state.aplicarTreino);
   const conversarComGrupo = useGameStore(state => state.conversarComGrupo);
   const jaConversou = useGameStore(state => state.conversouComGrupo);
+  // Plano de treino recorrente (Onda 4/7).
+  const planoTreino = useGameStore(state => state.planoTreino);
+  const planoStatus = useGameStore(state => state.planoTreinoStatus);
+  const aceitarPlanoRecomendado = useGameStore(
+    state => state.aceitarPlanoRecomendado,
+  );
+  const configurarPlanoTreino = useGameStore(
+    state => state.configurarPlanoTreino,
+  );
+  const alternarPausaPlanoTreino = useGameStore(
+    state => state.alternarPausaPlanoTreino,
+  );
+  const recomendarPlanoTreino = useGameStore(
+    state => state.recomendarPlanoTreino,
+  );
 
   const [focoId, setFocoId] = useState<string>(FOCOS[0].id);
   const [intensidade, setIntensidade] = useState<IntensidadeTreino>('normal');
+  const recomendacao = useMemo(
+    () => recomendarPlanoTreino(),
+    [recomendarPlanoTreino],
+  );
 
   const treino = buscarTreino(focoId);
   const nivelInfra = clube?.estadio.nivelInfraestrutura ?? 3;
@@ -165,10 +189,86 @@ function Semana(): React.JSX.Element {
     nav.goBack();
   };
 
+  const rotuloStatusPlano =
+    planoStatus === 'configurado_usuario'
+      ? 'Seu plano'
+      : planoStatus === 'padrao_assistente'
+        ? 'Plano do auxiliar'
+        : 'Não configurado';
+
+  const aoAtivarPreset = (presetId: PresetTreinoId) => {
+    if (!clube) {
+      return;
+    }
+    configurarPlanoTreino(
+      planoDePreset(presetId, clube.id, `${new Date().getFullYear()}`),
+    );
+    toast(`Plano "${PRESETS_TREINO[presetId].nome}" ativado.`, 'sucesso');
+  };
+
   return (
     <Screen
       scroll
       header={<AppHeader title="Treino" onBack={() => nav.goBack()} />}>
+      {/* Plano de treino recorrente (Onda 7) */}
+      <Card variante="outlined" style={styles.planoCard}>
+        <View style={styles.planoTopo}>
+          <View style={styles.flex}>
+            <Text variant="labelM" color="textSecondary">
+              Plano atual
+            </Text>
+            <Text variant="titleM">{planoTreino?.nome ?? 'Nenhum'}</Text>
+          </View>
+          <Badge
+            label={rotuloStatusPlano}
+            tom={planoStatus === 'configurado_usuario' ? 'success' : 'neutral'}
+          />
+        </View>
+        {planoTreino ? (
+          <View style={styles.planoAcoes}>
+            <Chip
+              label={planoTreino.status === 'ativo' ? 'Recorrente: ativo' : 'Pausado'}
+              tom={planoTreino.status === 'ativo' ? 'brand' : 'neutral'}
+              icone="relogio"
+              onPress={alternarPausaPlanoTreino}
+            />
+          </View>
+        ) : null}
+        {recomendacao ? (
+          <Card variante="status" status="info" padding={3} style={styles.recomCard}>
+            <Icon nome="estrela" size={18} color="info" />
+            <View style={styles.flex}>
+              <Text variant="labelL">Recomendação do staff</Text>
+              <Text variant="caption" color="textSecondary">
+                {recomendacao.motivos[0]}
+              </Text>
+            </View>
+            <Button
+              titulo="Usar"
+              variante="secondary"
+              tamanho="sm"
+              onPress={() => {
+                aceitarPlanoRecomendado();
+                toast('Plano recomendado ativado.', 'sucesso');
+              }}
+            />
+          </Card>
+        ) : null}
+        <Text variant="labelM" color="textSecondary" style={styles.caps}>
+          Trocar por um preset
+        </Text>
+        <View style={styles.presetLinha}>
+          {(Object.keys(PRESETS_TREINO) as PresetTreinoId[]).map(presetId => (
+            <Chip
+              key={presetId}
+              label={PRESETS_TREINO[presetId].nome}
+              selected={planoTreino?.nome === PRESETS_TREINO[presetId].nome}
+              onPress={() => aoAtivarPreset(presetId)}
+            />
+          ))}
+        </View>
+      </Card>
+
       {/* Prontidão do elenco */}
       <Card variante="outlined" style={styles.prontidaoCard}>
         <ProntidaoStat
@@ -348,6 +448,11 @@ export default Semana;
 
 const styles = StyleSheet.create({
   caps: {textTransform: 'uppercase', letterSpacing: 1},
+  planoCard: {gap: espacamento[3]},
+  planoTopo: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  planoAcoes: {flexDirection: 'row', gap: espacamento[2]},
+  recomCard: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  presetLinha: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
   prontidaoCard: {flexDirection: 'row', alignItems: 'center'},
   prontidaoStat: {flex: 1, alignItems: 'center', gap: 2},
   cargaCard: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},

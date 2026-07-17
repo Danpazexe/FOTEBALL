@@ -6,6 +6,8 @@ import PlayerDetail from '../../screens/PlayerDetail';
 import Semana from '../../screens/Semana';
 import Academia from '../../screens/Academia';
 import DepartamentoMedico from '../../screens/DepartamentoMedico';
+import Performance from '../../screens/Performance';
+import Desenvolvimento from '../../screens/Desenvolvimento';
 import type {ElencoStackParamList} from '../types';
 
 const Stack = createNativeStackNavigator<ElencoStackParamList>();
@@ -19,6 +21,8 @@ export function ElencoStack(): React.JSX.Element {
       <Stack.Screen name="Semana" component={Semana} />
       <Stack.Screen name="Academia" component={Academia} />
       <Stack.Screen name="DepartamentoMedico" component={DepartamentoMedico} />
+      <Stack.Screen name="Performance" component={Performance} />
+      <Stack.Screen name="Desenvolvimento" component={Desenvolvimento} />
     </Stack.Navigator>
   );
 }

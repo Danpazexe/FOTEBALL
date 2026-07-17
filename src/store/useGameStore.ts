@@ -24,7 +24,10 @@ import {
   jovemParaPlayer,
   type JovemTalento,
 } from '../engine/progression/academiaEngine';
-import {evoluirJogador} from '../engine/progression/playerProgression';
+import {
+  evoluirJogador,
+  evoluirJogadorDetalhado,
+} from '../engine/progression/playerProgression';
 import {
   calcularEfeitoTreino,
   aplicarEfeitoTreino,
@@ -177,6 +180,7 @@ import type {
   PlanoTreino,
   PlanoTreinoStatus,
   Player,
+  RegistroDesenvolvimento,
   SessaoPlanoTreino,
   TabelaClassificacao,
   Tatica,
@@ -349,6 +353,12 @@ export interface GameState {
   planoTreinoStatus: PlanoTreinoStatus;
   /** Central de Pendências do clube (o avanço consulta as bloqueantes). */
   pendencias: PendenciaCarreira[];
+  /**
+   * Ledger de desenvolvimento do elenco do usuário (tela Desenvolvimento):
+   * mudanças de atributo/overall por temporada, com reason codes. Teto para
+   * o save não crescer sem poda. Aditivo; vazio em saves antigos.
+   */
+  ledgerDesenvolvimento: RegistroDesenvolvimento[];
   /** (Re)gera as propostas de patrocínio do clube do usuário para a temporada. */
   gerarPropostasPatrocinioUsuario: () => void;
   /** Aceita uma proposta de patrocínio (cria contrato ativo). */
@@ -445,6 +455,23 @@ function adicionarMensagem(
 
 /** Teto da Central de Pendências (as mais novas primeiro; save enxuto). */
 const MAX_PENDENCIAS = 12;
+/** Teto do ledger de desenvolvimento (as mais recentes; poda o save). */
+const MAX_LEDGER_DESENVOLVIMENTO = 120;
+
+/** Delta INTEIRO por atributo entre dois estados (só os que mudaram). */
+function diffAtributos(
+  antes: Player['atributos'],
+  depois: Player['atributos'],
+): Partial<Player['atributos']> {
+  const delta: Partial<Player['atributos']> = {};
+  for (const chave of Object.keys(antes) as Array<keyof Player['atributos']>) {
+    const d = depois[chave] - antes[chave];
+    if (d !== 0) {
+      delta[chave] = d;
+    }
+  }
+  return delta;
+}
 
 /** Acumula pendências novas sem duplicar (por id) e com teto. */
 function acumularPendencias(
@@ -1124,6 +1151,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   planoTreino: null,
   planoTreinoStatus: 'nao_configurado',
   pendencias: [],
+  ledgerDesenvolvimento: [],
 
   gerarPropostasPatrocinioUsuario: () => {
     const state = get();
@@ -1198,6 +1226,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       planoTreino: null,
       planoTreinoStatus: 'nao_configurado',
       pendencias: [pendenciaPlanoTreino(liga.dataAtual)],
+      ledgerDesenvolvimento: [],
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -1266,6 +1295,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       planoTreino: null,
       planoTreinoStatus: 'nao_configurado',
       pendencias: [pendenciaPlanoTreino(liga.dataAtual)],
+      ledgerDesenvolvimento: [],
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -2832,11 +2862,48 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     // Evolui TODOS os jogadores (cada um pelo seu clube), +1 ano, zera
     // cartões/lesões da pré-temporada. Agentes livres só envelhecem/arquivam.
+    // Para o elenco do USUÁRIO, registra o detalhe (delta de atributos + reason
+    // codes) no ledger de desenvolvimento (tela Desenvolvimento, Onda 7).
     const clubePorId = new Map(clubesMaster.map(clube => [clube.id, clube]));
+    const registrosDesenvolvimento: RegistroDesenvolvimento[] = [];
     const evoluidos = jogadoresMaster.map(jogador => {
       const clube = jogador.clubeId
         ? clubePorId.get(jogador.clubeId)
         : undefined;
+      if (clube && jogador.clubeId === state.clubeUsuarioId) {
+        const {jogador: evoluidoUsuario, motivos} = evoluirJogadorDetalhado(
+          jogador,
+          clube,
+        );
+        const atributosDelta = diffAtributos(
+          jogador.atributos,
+          evoluidoUsuario.atributos,
+        );
+        if (
+          motivos.length > 0 ||
+          Object.keys(atributosDelta).length > 0 ||
+          evoluidoUsuario.overall !== jogador.overall
+        ) {
+          registrosDesenvolvimento.push({
+            id: `dev_${jogador.id}_${state.temporadaAtual}`,
+            playerId: jogador.id,
+            data: `${state.temporadaAtual}-fim`,
+            origem: 'curva_idade',
+            atributosDelta,
+            overallAntes: jogador.overall,
+            overallDepois: evoluidoUsuario.overall,
+            motivos,
+          });
+        }
+        return {
+          ...evoluidoUsuario,
+          suspenso: false,
+          jogosSuspensao: 0,
+          amarelosParaSuspensao: 0,
+          lesionado: false,
+          diasLesao: 0,
+        };
+      }
       const evoluido = clube
         ? evoluirJogador(jogador, clube)
         : {
@@ -3201,6 +3268,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       serieDCarreira: null,
       patrocinio: patrocinioEncerrado,
       jovensDisponiveis,
+      // Ledger de desenvolvimento: acrescenta os registros da virada (mais
+      // recentes primeiro), com teto para o save não crescer sem poda.
+      ledgerDesenvolvimento: [
+        ...registrosDesenvolvimento,
+        ...state.ledgerDesenvolvimento,
+      ].slice(0, MAX_LEDGER_DESENVOLVIMENTO),
       propostasRecebidas: [],
       copa:
         // Série D (grupo de 10 rodadas não comporta as fases) e carreiras fora
@@ -3380,6 +3453,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       planoTreino: null,
       planoTreinoStatus: 'nao_configurado',
       pendencias: [],
+  ledgerDesenvolvimento: [],
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

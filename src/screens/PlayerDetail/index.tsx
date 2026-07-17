@@ -9,6 +9,7 @@ import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import AttributeRadar from '../../components/AttributeRadar';
 import StatBar from '../../components/StatBar';
+import OverallBreakdown from '../../components/OverallBreakdown';
 import PlayerAvatar from '../../components/PlayerAvatar';
 import {
   AppHeader,
@@ -98,6 +99,8 @@ function PlayerDetail(): React.JSX.Element {
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
   const clubesLiga = useGameStore(state => state.clubes);
   const todosClubes = useGameStore(state => state.todosClubes);
+  // População das coortes de rating (por posição) — mundo mestre p/ estabilidade.
+  const elencoRating = useGameStore(state => state.todosJogadores);
   const clubes = useMemo(
     () => [...clubesLiga, ...todosClubes],
     [clubesLiga, todosClubes],
@@ -295,6 +298,10 @@ function PlayerDetail(): React.JSX.Element {
         <Text variant="caption" color="textSecondary">
           Contrato até {jogador.contratoAte} · Perna {jogador.pernaDominante}
         </Text>
+      </Secao>
+
+      <Secao titulo="Composição do overall">
+        <OverallBreakdown jogador={jogador} elenco={elencoRating} />
       </Secao>
 
       <Secao titulo="Radar de atributos">

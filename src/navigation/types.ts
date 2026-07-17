@@ -23,6 +23,8 @@ export type ElencoStackParamList = {
   Semana: undefined;
   Academia: undefined;
   DepartamentoMedico: undefined;
+  Performance: undefined;
+  Desenvolvimento: undefined;
 };
 
 export type PartidasStackParamList = {
@@ -69,6 +71,7 @@ export type RootStackParamList = {
   PlayerDetail: {jogadorId: string};
   /** Hub de atalhos/notificações — saiu da tab bar, agora é tela de stack. */
   Central: undefined;
+  PendenciasClube: undefined;
   /** `copa: true` joga o confronto da Copa do usuário (em vez do jogo da liga). */
   MatchSimulation: {copa?: boolean} | undefined;
   MatchResult: {partidaId: string};

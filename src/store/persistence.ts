@@ -21,6 +21,7 @@ import type {
   PlanoTreino,
   PlanoTreinoStatus,
   Player,
+  RegistroDesenvolvimento,
   TabelaClassificacao,
 } from '../types';
 import {REPUTACAO_INICIAL} from '../engine/carreira/carreiraEngine';
@@ -86,6 +87,8 @@ export interface SnapshotJogo {
   planoTreinoStatus?: PlanoTreinoStatus;
   /** Central de Pendências do clube. */
   pendencias?: PendenciaCarreira[];
+  /** Ledger de desenvolvimento do elenco do usuário (tela Desenvolvimento). */
+  ledgerDesenvolvimento?: RegistroDesenvolvimento[];
 }
 
 /**
@@ -128,6 +131,7 @@ export function montarSnapshot(
     planoTreino: state.planoTreino,
     planoTreinoStatus: state.planoTreinoStatus,
     pendencias: state.pendencias,
+    ledgerDesenvolvimento: state.ledgerDesenvolvimento,
   };
 }
 
@@ -185,6 +189,7 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     planoTreino: snapshot.planoTreino ?? null,
     planoTreinoStatus: snapshot.planoTreinoStatus ?? 'padrao_assistente',
     pendencias: snapshot.pendencias ?? [],
+    ledgerDesenvolvimento: snapshot.ledgerDesenvolvimento ?? [],
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
     // só a Série A). Aplica a migração de habilidades/tipo também aqui.
