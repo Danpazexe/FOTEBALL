@@ -160,6 +160,37 @@ describe('mercado no store', () => {
       expect(clubeMestre(vendedorId).elenco).not.toContain(alvo.id);
     });
 
+    it('venderJogador sincroniza o mundo MESTRE (não deixa o vendido stale p/ ressuscitar)', () => {
+      const usuario = estado().clubes[7];
+      estado().iniciarNovaCarreira(usuario.id);
+      const jogador = estado().jogadores.find(j => j.clubeId === usuario.id)!;
+
+      estado().venderJogador(jogador.id);
+
+      // No mestre (fonte de reconstrução da liga em assumirClube/virada) o
+      // jogador virou agente livre e saiu do elenco — senão ressuscitaria.
+      expect(
+        estado().todosJogadores.find(j => j.id === jogador.id)?.clubeId,
+      ).toBeNull();
+      expect(clubeMestre(usuario.id).elenco).not.toContain(jogador.id);
+    });
+
+    it('emprestarJogador sincroniza o mundo MESTRE (posse e elencos)', () => {
+      const usuario = estado().clubes[7];
+      estado().iniciarNovaCarreira(usuario.id);
+      const jogador = estado().jogadores.find(j => j.clubeId === usuario.id)!;
+      const destino = estado().clubes.find(c => c.id !== usuario.id)!;
+
+      estado().emprestarJogador(jogador.id, destino.id);
+
+      // Mestre reflete a cessão: jogador no destino, fora do elenco do usuário.
+      expect(
+        estado().todosJogadores.find(j => j.id === jogador.id)?.clubeId,
+      ).toBe(destino.id);
+      expect(clubeMestre(usuario.id).elenco).not.toContain(jogador.id);
+      expect(clubeMestre(destino.id).elenco).toContain(jogador.id);
+    });
+
     it('empréstimo de jogador de outra liga entra na liga ativa como cedido', () => {
       const usuario = estado().clubes[7];
       estado().iniciarNovaCarreira(usuario.id);

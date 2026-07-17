@@ -151,7 +151,10 @@ function PlayerDetail(): React.JSX.Element {
     }
   };
 
-  const destinoEmprestimo = clubes
+  // Empréstimo é DENTRO da divisão jogada: o destino sai da liga ativa
+  // (clubesLiga), não do mundo combinado — senão cairia num clube de outra
+  // liga que `emprestarJogador` recusaria (no-op silencioso fora da Série A).
+  const destinoEmprestimo = clubesLiga
     .filter(clube => clube.id !== clubeUsuarioId)
     .sort((a, b) => a.reputacao - b.reputacao)[0];
 

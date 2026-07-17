@@ -137,6 +137,36 @@ export function combinarMundoStore(mundo: MundoStore): {
   return {clubes: [...clubMap.values()], jogadores: [...jogMap.values()]};
 }
 
+/**
+ * Espelha no mundo MESTRE as mudanças que uma SAÍDA do usuário (venda, venda à
+ * IA, empréstimo a outro clube) fez na liga ATIVA. Essas ações mutam só a liga
+ * ativa; sem este espelhamento, o jogador/clube ficam "stale" no mestre e podem
+ * RESSURGIR quando a liga é reconstruída a partir dele (ex.: `assumirClube`
+ * após demissão regenera a liga do mestre no meio da temporada). Cirúrgico: só
+ * os ids afetados; os objetos vêm da liga ativa (já atualizada).
+ */
+export function espelharSaidaNoMestre(args: {
+  todosClubes: Clube[];
+  todosJogadores: Player[];
+  clubesLiga: Clube[];
+  jogadoresLiga: Player[];
+  clubeIds: string[];
+  jogadorIds: string[];
+}): {todosClubes: Clube[]; todosJogadores: Player[]} {
+  const cMap = new Map(args.clubesLiga.map(c => [c.id, c]));
+  const jMap = new Map(args.jogadoresLiga.map(j => [j.id, j]));
+  const idC = new Set(args.clubeIds);
+  const idJ = new Set(args.jogadorIds);
+  return {
+    todosClubes: args.todosClubes.map(c =>
+      idC.has(c.id) ? cMap.get(c.id) ?? c : c,
+    ),
+    todosJogadores: args.todosJogadores.map(j =>
+      idJ.has(j.id) ? jMap.get(j.id) ?? j : j,
+    ),
+  };
+}
+
 export interface ResultadoNegocioGlobal {
   ok: boolean;
   erro?: string;
