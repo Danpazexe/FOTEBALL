@@ -6,9 +6,16 @@
  * no que está se metendo ao assumir o clube.
  */
 
+import {competicaoPorDivisaoLegada} from '../competitions/registry/competitionRegistry';
+
 export interface Cenario {
   nome: string;
   descricao: string;
+}
+
+/** A divisão é a ELITE (tier 1) do seu país? Série A, Premier League, Primera… */
+function ehElite(divisao: string): boolean {
+  return divisao === 'Série A' || competicaoPorDivisaoLegada(divisao)?.tier === 1;
 }
 
 /** Classifica o desafio de assumir um clube pelo seu contexto atual. */
@@ -19,12 +26,12 @@ export function classificarCenario(args: {
 }): Cenario {
   const {reputacao, saldo, divisao} = args;
 
-  // Fora da Série A: o eixo é o tamanho do clube vs. a divisão.
-  if (divisao !== 'Série A') {
+  // Fora da elite do país: o eixo é o tamanho do clube vs. a divisão.
+  if (!ehElite(divisao)) {
     if (reputacao >= 62) {
       return {
         nome: 'Gigante fora da elite',
-        descricao: 'Um grande clube longe da Série A. Devolva-o ao topo.',
+        descricao: 'Um grande clube longe da elite. Devolva-o ao topo.',
       };
     }
     return {
@@ -68,6 +75,6 @@ export function classificarCenario(args: {
   }
   return {
     nome: 'Azarão da elite',
-    descricao: 'Recém-chegado ou clube pequeno na Série A: cada ponto vale ouro.',
+    descricao: 'Recém-chegado ou clube pequeno na elite: cada ponto vale ouro.',
   };
 }

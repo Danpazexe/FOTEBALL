@@ -111,4 +111,48 @@ describe('gerarCalendarioLiga', () => {
     expect(tabela.find(linha => linha.clubeId === clubeA.id)?.pontos).toBe(3);
     expect(tabela.find(linha => linha.clubeId === clubeB.id)?.pontos).toBe(0);
   });
+
+  it('nº ímpar de clubes: round-robin com FOLGA (cada rodada um descansa)', () => {
+    const ids = ['a', 'b', 'c'];
+    const partidas = gerarCalendarioLiga(ids, '2026', 'liga_impar');
+
+    // 3 clubes: turno = 3 jogos em 3 rodadas (1 por rodada) + returno = 6.
+    expect(partidas).toHaveLength(6);
+    expect(new Set(partidas.map(partida => partida.rodada)).size).toBe(6);
+
+    // Cada clube joga 4 vezes (2 no turno + 2 no returno) e folga 2 rodadas.
+    const contagem = new Map(ids.map(id => [id, 0]));
+    for (const partida of partidas) {
+      contagem.set(partida.timeCasa, (contagem.get(partida.timeCasa) ?? 0) + 1);
+      contagem.set(partida.timeFora, (contagem.get(partida.timeFora) ?? 0) + 1);
+    }
+    expect([...contagem.values()]).toEqual([4, 4, 4]);
+
+    // A folga é interna — nunca vaza como "clube" nas partidas.
+    expect(
+      partidas.every(
+        partida =>
+          ids.includes(partida.timeCasa) && ids.includes(partida.timeFora),
+      ),
+    ).toBe(true);
+
+    // Todo confronto do turno tem o mando invertido no returno.
+    const turno = partidas.filter(partida => partida.rodada <= 3);
+    const confrontosReturno = new Set(
+      partidas
+        .filter(partida => partida.rodada > 3)
+        .map(partida => `${partida.timeCasa}|${partida.timeFora}`),
+    );
+    expect(
+      turno.every(partida =>
+        confrontosReturno.has(`${partida.timeFora}|${partida.timeCasa}`),
+      ),
+    ).toBe(true);
+  });
+
+  it('nº par segue sem folga: 4 clubes → 12 jogos em 6 rodadas', () => {
+    const partidas = gerarCalendarioLiga(['a', 'b', 'c', 'd'], '2026', 'liga_par');
+    expect(partidas).toHaveLength(12);
+    expect(new Set(partidas.map(partida => partida.rodada)).size).toBe(6);
+  });
 });

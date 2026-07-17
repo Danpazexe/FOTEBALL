@@ -1,0 +1,191 @@
+[
+ {
+  "id": "club_boca_juniors",
+  "nome": "Boca Juniors",
+  "sigla": "BOC",
+  "cidade": "Buenos Aires",
+  "estado": "Buenos Aires",
+  "fundacao": 1905,
+  "elenco": [
+   "player_boca_juniors_0001",
+   "player_boca_juniors_0002",
+   "player_boca_juniors_0003",
+   "player_boca_juniors_0004",
+   "player_boca_juniors_0005",
+   "player_boca_juniors_0006",
+   "player_boca_juniors_0007",
+   "player_boca_juniors_0008",
+   "player_boca_juniors_0009",
+   "player_boca_juniors_0010",
+   "player_boca_juniors_0011",
+   "player_boca_juniors_0012",
+   "player_boca_juniors_0013",
+   "player_boca_juniors_0014",
+   "player_boca_juniors_0015",
+   "player_boca_juniors_0016",
+   "player_boca_juniors_0017",
+   "player_boca_juniors_0018",
+   "player_boca_juniors_0019",
+   "player_boca_juniors_0020",
+   "player_boca_juniors_0021",
+   "player_boca_juniors_0022",
+   "player_boca_juniors_0023"
+  ],
+  "formacaoAtual": null,
+  "taticaAtual": null,
+  "financas": {
+   "saldo": 8000000,
+   "receitaMensal": {
+    "bilheteria": 0,
+    "patrocinio": 0,
+    "premiacoes": 0,
+    "vendaJogadores": 0
+   },
+   "despesaMensal": {
+    "salarios": 0,
+    "manutencaoEstadio": 0,
+    "comissoes": 0,
+    "contratacoes": 0
+   },
+   "patrocinadores": [],
+   "historicoTransacoes": []
+  },
+  "estadio": {
+   "nome": "Estádio Boca Juniors",
+   "capacidade": 54000,
+   "precoMedioIngresso": 60,
+   "nivelInfraestrutura": 4
+  },
+  "reputacao": 76,
+  "controladoPorIA": true,
+  "pais": "Argentina",
+  "campeonato": "Primera División",
+  "divisao": "Primera División"
+ },
+ {
+  "id": "club_racing_club",
+  "nome": "Racing Club",
+  "sigla": "RAC",
+  "cidade": "Avellaneda",
+  "estado": "Buenos Aires",
+  "fundacao": 1903,
+  "elenco": [
+   "player_racing_club_0001",
+   "player_racing_club_0002",
+   "player_racing_club_0003",
+   "player_racing_club_0004",
+   "player_racing_club_0005",
+   "player_racing_club_0006",
+   "player_racing_club_0007",
+   "player_racing_club_0008",
+   "player_racing_club_0009",
+   "player_racing_club_0010",
+   "player_racing_club_0011",
+   "player_racing_club_0012",
+   "player_racing_club_0013",
+   "player_racing_club_0014",
+   "player_racing_club_0015",
+   "player_racing_club_0016",
+   "player_racing_club_0017",
+   "player_racing_club_0018",
+   "player_racing_club_0019",
+   "player_racing_club_0020",
+   "player_racing_club_0021",
+   "player_racing_club_0022",
+   "player_racing_club_0023"
+  ],
+  "formacaoAtual": null,
+  "taticaAtual": null,
+  "financas": {
+   "saldo": 6000000,
+   "receitaMensal": {
+    "bilheteria": 0,
+    "patrocinio": 0,
+    "premiacoes": 0,
+    "vendaJogadores": 0
+   },
+   "despesaMensal": {
+    "salarios": 0,
+    "manutencaoEstadio": 0,
+    "comissoes": 0,
+    "contratacoes": 0
+   },
+   "patrocinadores": [],
+   "historicoTransacoes": []
+  },
+  "estadio": {
+   "nome": "Estádio Racing Club",
+   "capacidade": 55000,
+   "precoMedioIngresso": 60,
+   "nivelInfraestrutura": 4
+  },
+  "reputacao": 72,
+  "controladoPorIA": true,
+  "pais": "Argentina",
+  "campeonato": "Primera División",
+  "divisao": "Primera División"
+ },
+ {
+  "id": "club_lanus",
+  "nome": "Lanús",
+  "sigla": "LAN",
+  "cidade": "Lanús",
+  "estado": "Buenos Aires",
+  "fundacao": 1915,
+  "elenco": [
+   "player_lanus_0001",
+   "player_lanus_0002",
+   "player_lanus_0003",
+   "player_lanus_0004",
+   "player_lanus_0005",
+   "player_lanus_0006",
+   "player_lanus_0007",
+   "player_lanus_0008",
+   "player_lanus_0009",
+   "player_lanus_0010",
+   "player_lanus_0011",
+   "player_lanus_0012",
+   "player_lanus_0013",
+   "player_lanus_0014",
+   "player_lanus_0015",
+   "player_lanus_0016",
+   "player_lanus_0017",
+   "player_lanus_0018",
+   "player_lanus_0019",
+   "player_lanus_0020",
+   "player_lanus_0021",
+   "player_lanus_0022",
+   "player_lanus_0023"
+  ],
+  "formacaoAtual": null,
+  "taticaAtual": null,
+  "financas": {
+   "saldo": 3500000,
+   "receitaMensal": {
+    "bilheteria": 0,
+    "patrocinio": 0,
+    "premiacoes": 0,
+    "vendaJogadores": 0
+   },
+   "despesaMensal": {
+    "salarios": 0,
+    "manutencaoEstadio": 0,
+    "comissoes": 0,
+    "contratacoes": 0
+   },
+   "patrocinadores": [],
+   "historicoTransacoes": []
+  },
+  "estadio": {
+   "nome": "Estádio Lanús",
+   "capacidade": 47000,
+   "precoMedioIngresso": 60,
+   "nivelInfraestrutura": 4
+  },
+  "reputacao": 66,
+  "controladoPorIA": true,
+  "pais": "Argentina",
+  "campeonato": "Primera División",
+  "divisao": "Primera División"
+ }
+]

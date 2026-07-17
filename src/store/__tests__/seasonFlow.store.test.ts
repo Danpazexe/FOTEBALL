@@ -109,6 +109,95 @@ describe('finalizarTemporada — acesso e rebaixamento', () => {
     expect(estado().demissao).toBe('REBAIXAMENTO');
   });
 
+  it('Premier↔Championship: virada move exatamente 3 em cada sentido (pirâmide inglesa)', () => {
+    const clubeIngles = estado().todosClubes.find(
+      clube => clube.divisao === 'Premier League',
+    )!;
+    estado().iniciarNovaCarreira(clubeIngles.id);
+    const divisaoAntes = new Map(
+      estado().todosClubes.map(clube => [clube.id, clube.divisao]),
+    );
+
+    // Premier: 20 clubes → 38 rodadas; o gate de fim de temporada é DINÂMICO.
+    expect(Math.max(...estado().partidas.map(p => p.rodada))).toBe(38);
+    useGameStore.setState({
+      rodadaAtual: 39,
+      tabela: tabelaCom(clubeIngles.id, 'topo'),
+    });
+    estado().finalizarTemporada();
+
+    const depois = estado().todosClubes;
+    const desceram = depois.filter(
+      clube =>
+        divisaoAntes.get(clube.id) === 'Premier League' &&
+        clube.divisao === 'Championship',
+    );
+    const subiram = depois.filter(
+      clube =>
+        divisaoAntes.get(clube.id) === 'Championship' &&
+        clube.divisao === 'Premier League',
+    );
+    expect(desceram).toHaveLength(3);
+    expect(subiram).toHaveLength(3);
+
+    // A pirâmide brasileira segue girando em paralelo (4 A↔B), sem interferência.
+    const desceramBR = depois.filter(
+      clube =>
+        divisaoAntes.get(clube.id) === 'Série A' && clube.divisao === 'Série B',
+    );
+    expect(desceramBR).toHaveLength(4);
+
+    // Campeão da Premier segue na Premier, e a nova temporada nasce coerente.
+    expect(depois.find(clube => clube.id === clubeIngles.id)?.divisao).toBe(
+      'Premier League',
+    );
+    expect(estado().clubes).toHaveLength(20);
+    expect(estado().copa).toBeNull();
+  });
+
+  it('Primera División (divisão única, 3 clubes): temporada fecha sem mover ninguém', () => {
+    const clubeArgentino = estado().todosClubes.find(
+      clube => clube.divisao === 'Primera División',
+    )!;
+    estado().iniciarNovaCarreira(clubeArgentino.id);
+
+    // 3 clubes → round-robin com folga: 6 rodadas.
+    expect(Math.max(...estado().partidas.map(p => p.rodada))).toBe(6);
+    useGameStore.setState({rodadaAtual: 7});
+    estado().finalizarTemporada();
+
+    // Divisão única: ninguém muda de divisão na Argentina.
+    expect(
+      estado().todosClubes.filter(
+        clube => clube.divisao === 'Primera División',
+      ),
+    ).toHaveLength(3);
+    expect(estado().clubes).toHaveLength(3);
+    expect(estado().rodadaAtual).toBe(1);
+  });
+
+  it('liga com FOLGA joga fim-a-fim: rodadas em que o usuário descansa avançam', () => {
+    const clubeArgentino = estado().todosClubes.find(
+      clube => clube.divisao === 'Primera División',
+    )!;
+    estado().iniciarNovaCarreira(clubeArgentino.id);
+
+    let guarda = 0;
+    while (estado().rodadaAtual <= 6 && guarda < 12) {
+      guarda += 1;
+      estado().avancarRodada();
+    }
+
+    // Todas as 6 rodadas disputadas (1 jogo por rodada — inclusive as 2 em que
+    // o clube do usuário folgou) e cada clube jogou 4 vezes.
+    expect(estado().rodadaAtual).toBe(7);
+    const jogadas = estado().partidas.filter(partida => partida.jogada);
+    expect(jogadas).toHaveLength(6);
+    expect(
+      estado().tabela.every(linha => linha.jogos === 4),
+    ).toBe(true);
+  });
+
   it('credita cota de TV (transação cota_tv) ao clube do usuário na virada', () => {
     const usuario = estado().clubes[7];
     estado().iniciarNovaCarreira(usuario.id);

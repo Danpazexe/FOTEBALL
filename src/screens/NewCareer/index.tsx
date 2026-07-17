@@ -26,7 +26,23 @@ import {useGameStore} from '../../store/useGameStore';
 import {classificarCenario} from '../../engine/carreira/cenarios';
 import type {Clube} from '../../types';
 
-const ORDEM_DIVISOES = ['Série A', 'Série B', 'Série C', 'Série D'];
+const ORDEM_DIVISOES = [
+  'Série A',
+  'Série B',
+  'Série C',
+  'Série D',
+  'Primera División',
+  'Premier League',
+  'Championship',
+];
+
+/** Título do cabeçalho: "Brasileirão Série A" ou o nome da liga internacional. */
+function tituloDaDivisao(divisao?: string): string {
+  if (!divisao) {
+    return 'Nova carreira';
+  }
+  return divisao.startsWith('Série') ? `Brasileirão ${divisao}` : divisao;
+}
 
 /** Desafio de carreira do clube (reputação + caixa + divisão). */
 function cenarioDoClube(clube: Clube) {
@@ -76,12 +92,14 @@ function NewCareer(): React.JSX.Element {
   async function selecionar(clube: Clube): Promise<void> {
     const divisao = clube.divisao ?? 'Série A';
     const cenario = cenarioDoClube(clube);
+    const rivais =
+      todosClubes.filter(c => (c.divisao ?? 'Série A') === divisao).length - 1;
     const ok = await confirm({
       titulo: `Comandar o ${clube.nome}?`,
       mensagem: `${cenario.descricao} ${
         divisao === 'Série D'
           ? 'Você disputa o grupo de 6 do clube e, avançando, o mata-mata nacional. Os demais clubes são controlados pela IA.'
-          : 'Os outros 19 clubes são controlados pela IA.'
+          : `Os outros ${rivais} clubes são controlados pela IA.`
       }`,
       detalhes: [
         {rotulo: 'Desafio', valor: cenario.nome},
@@ -103,7 +121,7 @@ function NewCareer(): React.JSX.Element {
       scroll
       header={
         <AppBar
-          title={divisaoFiltro ? `Brasileirão ${divisaoFiltro}` : 'Brasileirão'}
+          title={tituloDaDivisao(divisaoFiltro)}
           subtitle="Escolha o clube"
           onBack={nav.goBack}
           right={

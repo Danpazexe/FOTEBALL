@@ -1,12 +1,16 @@
 /**
- * Seleção de liga/competição para iniciar a carreira, por país e divisão. As
- * Séries A–D estão ativas; as demais aparecem como "Em breve". Migrada ao DS v2.
+ * Seleção de liga/competição para iniciar a carreira, por país e divisão.
+ * Ativas: Séries A–D (Brasil), Primera División (Argentina), Premier League e
+ * Championship (Inglaterra). As demais aparecem como "Em breve". DS v2.
  */
 
 import React from 'react';
 import {Image, StyleSheet, View, type ImageSourcePropType} from 'react-native';
 
 import {
+  LOGO_CHAMPIONSHIP,
+  LOGO_PREMIER,
+  LOGO_PRIMERA,
   LOGO_SERIE_A,
   LOGO_SERIE_B,
   LOGO_SERIE_C,
@@ -86,13 +90,38 @@ const COMPETICOES: Pais[] = [
   {
     pais: 'Argentina',
     ligas: [
-      {id: 'ar_primera', nome: 'Liga Profesional', divisao: '1ª Divisão', ativa: false},
+      {
+        id: 'ar_primera',
+        nome: 'Primera División',
+        divisao: '1ª Divisão',
+        clubes: 3,
+        ativa: true,
+        logo: LOGO_PRIMERA,
+        divisaoSeed: 'Primera División',
+      },
     ],
   },
   {
     pais: 'Inglaterra',
     ligas: [
-      {id: 'eng_premier', nome: 'Premier League', divisao: '1ª Divisão', ativa: false},
+      {
+        id: 'eng_premier',
+        nome: 'Premier League',
+        divisao: '1ª Divisão',
+        clubes: 20,
+        ativa: true,
+        logo: LOGO_PREMIER,
+        divisaoSeed: 'Premier League',
+      },
+      {
+        id: 'eng_championship',
+        nome: 'Championship',
+        divisao: '2ª Divisão',
+        clubes: 24,
+        ativa: true,
+        logo: LOGO_CHAMPIONSHIP,
+        divisaoSeed: 'Championship',
+      },
     ],
   },
   {

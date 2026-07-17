@@ -55,4 +55,24 @@ describe('classificarCenario', () => {
     const args = {reputacao: 60, saldo: 0, divisao: 'Série A'};
     expect(classificarCenario(args)).toEqual(classificarCenario(args));
   });
+
+  it('elite INTERNACIONAL (tier 1 no registry) é tratada como a Série A', () => {
+    // Man City na Premier: favorito ao título, não "gigante fora da elite".
+    expect(
+      classificarCenario({
+        reputacao: 90,
+        saldo: 50_000_000,
+        divisao: 'Premier League',
+      }).nome,
+    ).toBe('Favorito ao título');
+    expect(
+      classificarCenario({reputacao: 80, saldo: 0, divisao: 'Primera División'})
+        .nome,
+    ).toBe('Favorito ao título');
+    // Championship (tier 2) segue como divisão de acesso.
+    expect(
+      classificarCenario({reputacao: 70, saldo: 0, divisao: 'Championship'})
+        .nome,
+    ).toBe('Gigante fora da elite');
+  });
 });

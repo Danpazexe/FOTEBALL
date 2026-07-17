@@ -72,7 +72,6 @@ export const ESCUDOS: Record<string, ImageSourcePropType> = {
   club_serie_c_volta_redonda: require('./serie-c/club_serie_c_volta_redonda.png'),
   club_serie_c_ypiranga: require('./serie-c/club_serie_c_ypiranga.png'),
   // Série D
-  // Série D
   club_serie_d_tocantinopolis: require('./serie-d/club_serie_d_tocantinopolis.png'),
   club_serie_d_araguaina: require('./serie-d/club_serie_d_araguaina.png'),
   club_serie_d_trem: require('./serie-d/club_serie_d_trem.png'),
@@ -169,6 +168,56 @@ export const ESCUDOS: Record<string, ImageSourcePropType> = {
   club_serie_d_fc_cascavel: require('./serie-d/club_serie_d_fc_cascavel.png'),
   club_serie_d_azuriz: require('./serie-d/club_serie_d_azuriz.png'),
   club_serie_d_santa_catarina: require('./serie-d/club_serie_d_santa_catarina.png'),
+  // Argentina — Primera División (football-logos.cc)
+  club_boca_juniors: require('./argentina/club_boca_juniors.png'),
+  club_racing_club: require('./argentina/club_racing_club.png'),
+  club_lanus: require('./argentina/club_lanus.png'),
+  // Inglaterra — Premier League (football-logos.cc)
+  club_man_city: require('./inglaterra/club_man_city.png'),
+  club_liverpool: require('./inglaterra/club_liverpool.png'),
+  club_chelsea: require('./inglaterra/club_chelsea.png'),
+  club_arsenal: require('./inglaterra/club_arsenal.png'),
+  club_man_united: require('./inglaterra/club_man_united.png'),
+  club_tottenham: require('./inglaterra/club_tottenham.png'),
+  club_newcastle: require('./inglaterra/club_newcastle.png'),
+  club_aston_villa: require('./inglaterra/club_aston_villa.png'),
+  club_brighton: require('./inglaterra/club_brighton.png'),
+  club_nottingham_forest: require('./inglaterra/club_nottingham_forest.png'),
+  club_crystal_palace: require('./inglaterra/club_crystal_palace.png'),
+  club_fulham: require('./inglaterra/club_fulham.png'),
+  club_bournemouth: require('./inglaterra/club_bournemouth.png'),
+  club_everton: require('./inglaterra/club_everton.png'),
+  club_west_ham: require('./inglaterra/club_west_ham.png'),
+  club_burnley: require('./inglaterra/club_burnley.png'),
+  club_brentford: require('./inglaterra/club_brentford.png'),
+  club_wolves: require('./inglaterra/club_wolves.png'),
+  club_leeds: require('./inglaterra/club_leeds.png'),
+  club_sunderland: require('./inglaterra/club_sunderland.png'),
+  // Inglaterra — Championship (football-logos.cc)
+  club_leicester: require('./inglaterra/club_leicester.png'),
+  club_southampton: require('./inglaterra/club_southampton.png'),
+  club_ipswich: require('./inglaterra/club_ipswich.png'),
+  club_sheffield_united: require('./inglaterra/club_sheffield_united.png'),
+  club_coventry: require('./inglaterra/club_coventry.png'),
+  club_stoke: require('./inglaterra/club_stoke.png'),
+  club_norwich: require('./inglaterra/club_norwich.png'),
+  club_middlesbrough: require('./inglaterra/club_middlesbrough.png'),
+  club_watford: require('./inglaterra/club_watford.png'),
+  club_derby: require('./inglaterra/club_derby.png'),
+  club_swansea: require('./inglaterra/club_swansea.png'),
+  club_blackburn: require('./inglaterra/club_blackburn.png'),
+  club_millwall: require('./inglaterra/club_millwall.png'),
+  club_wrexham: require('./inglaterra/club_wrexham.png'),
+  club_qpr: require('./inglaterra/club_qpr.png'),
+  club_bristol_city: require('./inglaterra/club_bristol_city.png'),
+  club_portsmouth: require('./inglaterra/club_portsmouth.png'),
+  club_oxford: require('./inglaterra/club_oxford.png'),
+  club_west_brom: require('./inglaterra/club_west_brom.png'),
+  club_hull: require('./inglaterra/club_hull.png'),
+  club_preston: require('./inglaterra/club_preston.png'),
+  club_birmingham: require('./inglaterra/club_birmingham.png'),
+  club_sheffield_wednesday: require('./inglaterra/club_sheffield_wednesday.png'),
+  club_charlton: require('./inglaterra/club_charlton.png'),
 };
 
 // Logo por divisão (cada série tem o seu emblema).
@@ -179,11 +228,19 @@ export const LOGO_SERIE_D: ImageSourcePropType = require('../brasileiraoD.png');
 /** Logo oficial da Copa do Brasil. */
 export const LOGO_COPA: ImageSourcePropType = require('../copaDoBrasil.png');
 
+// Emblemas das ligas internacionais (football-logos.cc).
+export const LOGO_PREMIER: ImageSourcePropType = require('../premierLeague.png');
+export const LOGO_CHAMPIONSHIP: ImageSourcePropType = require('../championship.png');
+export const LOGO_PRIMERA: ImageSourcePropType = require('../primeraArgentina.png');
+
 const LOGO_POR_DIVISAO: Record<string, ImageSourcePropType> = {
   'Série A': LOGO_SERIE_A,
   'Série B': LOGO_SERIE_B,
   'Série C': LOGO_SERIE_C,
   'Série D': LOGO_SERIE_D,
+  'Premier League': LOGO_PREMIER,
+  Championship: LOGO_CHAMPIONSHIP,
+  'Primera División': LOGO_PRIMERA,
 };
 
 /** Emblema da divisão (cai para a logo da Série A se desconhecida). */

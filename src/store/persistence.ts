@@ -30,6 +30,7 @@ import {
   criarEstadoPatrocinioVazio,
   type EstadoPatrocinio,
 } from '../types/patrocinio';
+import type {TransferRecord} from '../types/world';
 import {CONFIG_PADRAO, type ConfigJogo, type GameState} from './useGameStore';
 import {migrarSnapshot, VERSAO_SAVE} from './saveMigrations';
 
@@ -71,6 +72,8 @@ export interface SnapshotJogo {
   serieDCarreira?: EstadoSerieDCarreira | null;
   /** Patrocínios do clube do usuário (propostas/contrato/histórico). Aditivo. */
   patrocinio?: EstadoPatrocinio;
+  /** Histórico mundial de transferências (AD-09). Aditivo; vazio em saves antigos. */
+  transferHistory?: TransferRecord[];
 }
 
 /**
@@ -109,6 +112,7 @@ export function montarSnapshot(
     historicoSerieD: state.historicoSerieD,
     serieDCarreira: state.serieDCarreira,
     patrocinio: state.patrocinio,
+    transferHistory: state.transferHistory,
   };
 }
 
@@ -155,6 +159,7 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     serieDCarreira: snapshot.serieDCarreira ?? null,
     // Patrocínios: ausente em saves anteriores → estado vazio (nada fabricado).
     patrocinio: snapshot.patrocinio ?? criarEstadoPatrocinioVazio(),
+    transferHistory: snapshot.transferHistory ?? [],
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
     // só a Série A). Aplica a migração de habilidades/tipo também aqui.
