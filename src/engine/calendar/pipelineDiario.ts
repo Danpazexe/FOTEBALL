@@ -16,6 +16,10 @@
  * como novos passos — a ordem é o contrato.
  */
 import type {PendenciaCarreira, Player} from '../../types';
+import {
+  aoRetornarDeLesao,
+  recuperarDiaFisico,
+} from '../physical/fisicoEngine';
 import {adicionarDias, diferencaEmDias} from '../../utils/datas';
 
 export interface ResultadoDia {
@@ -38,28 +42,34 @@ export function processarDia(
 ): ResultadoDia {
   const novasPendencias: PendenciaCarreira[] = [];
   const atualizados = jogadores.map(jogador => {
-    if (!jogador.lesionado || jogador.diasLesao <= 0) {
-      return jogador;
+    // Recuperação física do dia (carga aguda dissipa, ritmo cai devagar) —
+    // vale para TODO jogador, todo dia (auditoria: recuperação por dia real).
+    const comFisico = jogador.fisico
+      ? {...jogador, fisico: recuperarDiaFisico(jogador.fisico)}
+      : jogador;
+
+    if (!comFisico.lesionado || comFisico.diasLesao <= 0) {
+      return comFisico;
     }
-    const diasRestantes = jogador.diasLesao - 1;
+    const diasRestantes = comFisico.diasLesao - 1;
     if (diasRestantes > 0) {
-      return {...jogador, diasLesao: diasRestantes};
+      return {...comFisico, diasLesao: diasRestantes};
     }
-    // Recuperou HOJE: volta disponível; se é do clube do usuário, avisa a
-    // Central (informativa — retorno GRADUAL vem com a engine física, Onda 5).
-    if (jogador.clubeId !== null && jogador.clubeId === clubeUsuarioId) {
+    // Recuperou HOJE: RETORNO PROGRESSIVO (Onda 5) — volta com condição/ritmo
+    // parciais, não a 100%. Se é do clube do usuário, avisa a Central.
+    if (comFisico.clubeId !== null && comFisico.clubeId === clubeUsuarioId) {
       novasPendencias.push({
-        id: `pend_retorno_${jogador.id}_${data}`,
+        id: `pend_retorno_${comFisico.id}_${data}`,
         tipo: 'retorno_lesao',
         prioridade: 'media',
-        titulo: `${jogador.nome} está recuperado`,
-        descricao: 'Voltou de lesão e já pode ser relacionado.',
-        entidadeId: jogador.id,
+        titulo: `${comFisico.nome} está recuperado`,
+        descricao: 'Voltou de lesão, com ritmo baixo — cuide dos minutos.',
+        entidadeId: comFisico.id,
         criadaEm: data,
         bloqueante: false,
       });
     }
-    return {...jogador, lesionado: false, diasLesao: 0};
+    return aoRetornarDeLesao(comFisico);
   });
   return {jogadores: atualizados, novasPendencias};
 }

@@ -25,6 +25,7 @@ import type {
 } from '../types';
 import {REPUTACAO_INICIAL} from '../engine/carreira/carreiraEngine';
 import {sugerirCapitao} from '../engine/carreira/capitao';
+import {comEstadoFisico} from '../engine/physical/fisicoEngine';
 import {comAtributosCalibrados} from '../engine/progression/calibracaoAtributos';
 import {comHabilidades} from '../engine/progression/habilidades';
 import {comTipo} from '../engine/progression/tipoJogador';
@@ -160,7 +161,8 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     jogadores: snapshot.jogadores
       .map(comAtributosCalibrados)
       .map(comHabilidades)
-      .map(comTipo),
+      .map(comTipo)
+      .map(comEstadoFisico),
     partidas: snapshot.partidas,
     tabela: snapshot.tabela,
     jovensDisponiveis: snapshot.jovensDisponiveis ?? [],
@@ -199,7 +201,8 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
           todosJogadores: snapshot.todosJogadores
             .map(comAtributosCalibrados)
             .map(comHabilidades)
-            .map(comTipo),
+            .map(comTipo)
+            .map(comEstadoFisico),
         }
       : {}),
   };

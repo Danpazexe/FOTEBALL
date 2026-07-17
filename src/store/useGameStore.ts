@@ -43,6 +43,11 @@ import {
 } from '../engine/progression/planoTreinoEngine';
 import {aplicarCondicaoPosPartida} from '../engine/progression/condicao';
 import {
+  aplicarCargaPosPartida,
+  descansarJogador,
+  fadiga,
+} from '../engine/physical/fisicoEngine';
+import {
   atualizarDerrotasConsecutivas,
   atualizarReputacao,
   atualizarRodadasNoVermelho,
@@ -387,6 +392,12 @@ export interface GameState {
   /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
   restaurarFormacaoPreLive: () => void;
   aplicarTreino: (treinoId: string, intensidade: IntensidadeTreino) => void;
+  /**
+   * Recuperação ativa do elenco (mockup "Ajustar recuperação"): dissipa carga
+   * aguda e recupera condição dos cansados. Conta como a atividade do ciclo
+   * (mesmo anti-exploit do treino manual). Retorna quantos foram poupados.
+   */
+  descansarElencoUsuario: () => number;
   /** Define (ou limpa, com null) o atributo em foco no treino individual de um jogador. */
   definirFocoTreino: (jogadorId: string, foco: AtributoChave | null) => void;
   /** Recomendação do staff para o plano de treino (mockup) — não muta o estado. */
@@ -882,6 +893,9 @@ function aplicarResultadoNosJogadores(
       diasLesao,
       amarelosParaSuspensao,
       condicaoFisica,
+      // Carga aguda/crônica e ritmo (Onda 5): jogar cansa e dá ritmo; ficar de
+      // fora perde ritmo de leve. Separado da condição.
+      fisico: aplicarCargaPosPartida(jogador, {ehTitular, participou}),
       moral: aplicarMoral(jogador.moral, mapaMoral.get(jogador.id) ?? 0),
     };
 
@@ -1922,6 +1936,55 @@ export const useGameStore = create<GameState>((set, get) => ({
         mensagens: adicionarMensagem(state.mensagens, partes.join(' ')),
       };
     });
+  },
+
+  descansarElencoUsuario: () => {
+    const state = get();
+    const {clubeUsuarioId} = state;
+    if (!clubeUsuarioId) {
+      return 0;
+    }
+    if (state.treinouProximoJogo) {
+      set(stateAtual => ({
+        mensagens: adicionarMensagem(
+          stateAtual.mensagens,
+          'O elenco já teve a atividade deste ciclo.',
+        ),
+      }));
+      return 0;
+    }
+    // Poupa quem precisa: cansados (condição < 75) ou fadigados. Recuperação
+    // ativa (engine física) — dissipa carga aguda e recupera condição.
+    let poupados = 0;
+    const jogadores = state.jogadores.map(jogador => {
+      if (
+        jogador.clubeId !== clubeUsuarioId ||
+        jogador.lesionado ||
+        (jogador.condicaoFisica >= 75 && fadiga(jogador) < 40)
+      ) {
+        return jogador;
+      }
+      poupados += 1;
+      return descansarJogador(jogador);
+    });
+    if (poupados === 0) {
+      set(stateAtual => ({
+        mensagens: adicionarMensagem(
+          stateAtual.mensagens,
+          'Elenco descansado — ninguém precisa ser poupado.',
+        ),
+      }));
+      return 0;
+    }
+    set(stateAtual => ({
+      jogadores,
+      treinouProximoJogo: true,
+      mensagens: adicionarMensagem(
+        stateAtual.mensagens,
+        `Recuperação ativa: ${poupados} jogador(es) poupado(s).`,
+      ),
+    }));
+    return poupados;
   },
 
   definirFocoTreino: (jogadorId, foco) => {
