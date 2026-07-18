@@ -1,20 +1,24 @@
 import type {Clube} from '../types';
 
-/** Formata um valor em reais (sem centavos). Ex.: R$ 8.829.546 */
-export function moeda(valor: number): string {
-  return `R$ ${Math.round(valor).toLocaleString('pt-BR')}`;
+/**
+ * Formata um valor monetário (sem centavos). O símbolo é rótulo de EXIBIÇÃO —
+ * não há câmbio (£ 900.000 é o valor no clube inglês, não convertido). Ex.:
+ * R$ 8.829.546 / £ 900.000. Padrão R$ para preservar as chamadas existentes.
+ */
+export function moeda(valor: number, simbolo = 'R$'): string {
+  return `${simbolo} ${Math.round(valor).toLocaleString('pt-BR')}`;
 }
 
-/** Formata valores grandes de forma compacta. Ex.: R$ 8,8 mi / R$ 350 mil */
-export function moedaCompacta(valor: number): string {
+/** Formata valores grandes de forma compacta. Ex.: R$ 8,8 mi / £ 350 mil */
+export function moedaCompacta(valor: number, simbolo = 'R$'): string {
   const abs = Math.abs(valor);
   if (abs >= 1_000_000) {
-    return `R$ ${(valor / 1_000_000).toFixed(1).replace('.', ',')} mi`;
+    return `${simbolo} ${(valor / 1_000_000).toFixed(1).replace('.', ',')} mi`;
   }
   if (abs >= 1_000) {
-    return `R$ ${Math.round(valor / 1_000)} mil`;
+    return `${simbolo} ${Math.round(valor / 1_000)} mil`;
   }
-  return moeda(valor);
+  return moeda(valor, simbolo);
 }
 
 /** Resolve o nome de um clube a partir do id (fallback: o próprio id). */

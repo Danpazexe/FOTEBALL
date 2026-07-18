@@ -31,7 +31,7 @@ describe('mundo multi-país (Brasil + Argentina + Inglaterra)', () => {
     expect(ids).toEqual(expect.arrayContaining(['brasil', 'argentina', 'inglaterra']));
   });
 
-  it('o seed carrega as ligas: AR Primera (3), Premier (20) e Championship (24)', () => {
+  it('o seed carrega as ligas: AR Primera (20), Premier (20) e Championship (24)', () => {
     const ar = selectClubesCompeticao(world, 'ar-primera').map(c => c.id);
     const premier = selectClubesCompeticao(world, 'en-premier').map(c => c.id);
     const championship = selectClubesCompeticao(world, 'en-championship').map(c => c.id);
@@ -39,7 +39,8 @@ describe('mundo multi-país (Brasil + Argentina + Inglaterra)', () => {
     expect(ar).toEqual(
       expect.arrayContaining(['club_boca_juniors', 'club_racing_club', 'club_lanus']),
     );
-    expect(ar).toHaveLength(3);
+    // Primera expandida para uma liga jogável de 20 clubes reais.
+    expect(ar).toHaveLength(20);
     expect(premier).toEqual(
       expect.arrayContaining([
         'club_man_city', 'club_liverpool', 'club_chelsea', 'club_arsenal',
@@ -69,6 +70,7 @@ describe('mundo multi-país (Brasil + Argentina + Inglaterra)', () => {
 
   it('mercado GLOBAL enxerga jogadores dos três países', () => {
     const brasil = selectJogadoresMercadoGlobal(world, {countryId: 'brasil'});
+    // 20 clubes × ~23 jogadores.
     const argentina = selectJogadoresMercadoGlobal(world, {countryId: 'argentina'});
     const inglaterra = selectJogadoresMercadoGlobal(world, {countryId: 'inglaterra'});
     expect(brasil.length).toBeGreaterThan(100);

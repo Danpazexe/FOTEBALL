@@ -1171,6 +1171,10 @@ function MatchSimulation(): React.JSX.Element | null {
     .map(e => e.minuto);
   const finCasa = condicoes?.casa.finalizacoes ?? 0;
   const alvoCasa = condicoes?.casa.finalizacoesNoAlvo ?? 0;
+  // Lado visitante (mesmo shape) — a faixa mostra os DOIS times, estilo Sofascore.
+  const posseFora = 100 - posseCasa;
+  const finFora = condicoes?.fora.finalizacoes ?? 0;
+  const alvoFora = condicoes?.fora.finalizacoesNoAlvo ?? 0;
   const estadoRotulo = terminou
     ? 'Fim'
     : intervalo
@@ -1253,16 +1257,22 @@ function MatchSimulation(): React.JSX.Element | null {
               minutosGolFora={minutosGolFora}
             />
 
-            <View style={styles.statsRow}>
-              <CelulaStat valor={`${posseCasa}%`} rotulo="Posse de bola" />
-              <View
-                style={[styles.statDiv, {backgroundColor: cores.onScoreboard}]}
+            <View style={styles.statsCol}>
+              <LinhaStatDupla
+                casa={`${posseCasa}%`}
+                rotulo="Posse de bola"
+                fora={`${posseFora}%`}
               />
-              <CelulaStat valor={String(finCasa)} rotulo="Finalizações" />
-              <View
-                style={[styles.statDiv, {backgroundColor: cores.onScoreboard}]}
+              <LinhaStatDupla
+                casa={String(finCasa)}
+                rotulo="Finalizações"
+                fora={String(finFora)}
               />
-              <CelulaStat valor={String(alvoCasa)} rotulo="No alvo" />
+              <LinhaStatDupla
+                casa={String(alvoCasa)}
+                rotulo="No alvo"
+                fora={String(alvoFora)}
+              />
             </View>
           </Box>
         </Animated.View>
@@ -1747,25 +1757,38 @@ function LinhaTabela({
   );
 }
 
-/** Célula de estatística sobre o scoreboard (número + rótulo). */
-function CelulaStat({
-  valor,
+/** Linha de estatística comparada sobre o scoreboard: casa · rótulo · fora. */
+function LinhaStatDupla({
+  casa,
   rotulo,
+  fora,
 }: {
-  valor: string;
+  casa: string;
   rotulo: string;
+  fora: string;
 }): React.JSX.Element {
   return (
-    <View style={styles.statCel}>
-      <Text variant="titleL" color="onScoreboard" tabular>
-        {valor}
+    <View style={styles.statDuplaRow}>
+      <Text
+        variant="titleM"
+        color="onScoreboard"
+        tabular
+        style={styles.statDuplaCasa}>
+        {casa}
       </Text>
       <Text
         variant="caption"
         color="onScoreboard"
         align="center"
-        style={styles.statRot}>
+        style={styles.statDuplaRot}>
         {rotulo}
+      </Text>
+      <Text
+        variant="titleM"
+        color="onScoreboard"
+        tabular
+        style={styles.statDuplaFora}>
+        {fora}
       </Text>
     </View>
   );
@@ -1881,13 +1904,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: espacamento[2],
     paddingVertical: 2,
   },
-  statsRow: {flexDirection: 'row', alignItems: 'stretch'},
-  statCel: {flex: 1, alignItems: 'center', gap: 2},
-  statRot: {opacity: 0.65, textTransform: 'uppercase', letterSpacing: 0.4},
-  statDiv: {
-    width: StyleSheet.hairlineWidth,
-    opacity: 0.2,
-    marginHorizontal: espacamento[2],
+  statsCol: {gap: espacamento[1]},
+  statDuplaRow: {flexDirection: 'row', alignItems: 'center'},
+  statDuplaCasa: {width: 44, textAlign: 'left'},
+  statDuplaFora: {width: 44, textAlign: 'right'},
+  statDuplaRot: {
+    flex: 1,
+    opacity: 0.65,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 
   // Momento da partida

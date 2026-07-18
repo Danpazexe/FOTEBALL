@@ -16,6 +16,15 @@ import type {
 } from '../types';
 import {adicionarDias} from '../utils/datas';
 
+/**
+ * Última rodada da liga ATIVA (38 no Brasileirão de 20, 46 na Championship de
+ * 24, 6 na Primera de 3…). `rodadaAtual === ultima + 1` sinaliza temporada
+ * encerrada — o avanço deve usar ISTO como teto, nunca um 39 fixo.
+ */
+export function ultimaRodadaLiga(partidas: Partida[]): number {
+  return partidas.reduce((maior, partida) => Math.max(maior, partida.rodada), 0);
+}
+
 /** Quantos jogadores faltam por posição no elenco do usuário (alvo: 2 por posição). */
 export function necessidadesPorPosicao(
   jogadores: Player[],
@@ -97,15 +106,20 @@ export function posicaoClube(
  * Dias de afastamento por gravidade da lesão (7 dias ≈ 1 jogo/rodada).
  * Determinístico: usa o RNG derivado da partida (mesma partida => mesma lesão).
  */
+/**
+ * Duração da lesão em DIAS REAIS de calendário (Onda 3: o pipeline diário
+ * decrementa 1/dia e as rodadas distam 3-4 dias — antes a escala era "7 dias
+ * = 1 rodada"). Faixas reescalonadas para preservar o impacto em JOGOS.
+ */
 export function sortearDuracaoLesao(rng: RandomGenerator): number {
   const r = rng();
   if (r < 0.5) {
-    return inteiroEntre(rng, 7, 14); // leve: 1-2 jogos
+    return inteiroEntre(rng, 4, 8); // leve: 1-2 jogos
   }
   if (r < 0.85) {
-    return inteiroEntre(rng, 21, 35); // média: 3-5 jogos
+    return inteiroEntre(rng, 10, 18); // média: 3-5 jogos
   }
-  return inteiroEntre(rng, 42, 70); // grave: 6-10 jogos
+  return inteiroEntre(rng, 21, 35); // grave: 6-10 jogos
 }
 
 export function limiteDerrotasPorDivisao(divisao: string): number {

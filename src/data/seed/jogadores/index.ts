@@ -11,6 +11,23 @@ import type {Player} from '../../../types';
 import bocaJuniors from './argentina/boca_juniors.json';
 import lanus from './argentina/lanus.json';
 import racingClub from './argentina/racing_club.json';
+import riverPlate from './argentina/river_plate.json';
+import independiente from './argentina/independiente.json';
+import sanLorenzo from './argentina/san_lorenzo.json';
+import estudiantes from './argentina/estudiantes.json';
+import velezSarsfield from './argentina/velez_sarsfield.json';
+import rosarioCentral from './argentina/rosario_central.json';
+import newellsOldBoys from './argentina/newells_old_boys.json';
+import talleres from './argentina/talleres.json';
+import argentinosJuniors from './argentina/argentinos_juniors.json';
+import defensaYJusticia from './argentina/defensa_y_justicia.json';
+import huracan from './argentina/huracan.json';
+import gimnasiaLp from './argentina/gimnasia_lp.json';
+import banfield from './argentina/banfield.json';
+import tigre from './argentina/tigre.json';
+import centralCordoba from './argentina/central_cordoba.json';
+import platense from './argentina/platense.json';
+import godoyCruz from './argentina/godoy_cruz.json';
 // Inglaterra
 import arsenal from './inglaterra/arsenal.json';
 import astonVilla from './inglaterra/aston_villa.json';
@@ -388,6 +405,23 @@ export const jogadoresSeed: Player[] = [
   ...(bocaJuniors as Player[]),
   ...(lanus as Player[]),
   ...(racingClub as Player[]),
+  ...(riverPlate as Player[]),
+  ...(independiente as Player[]),
+  ...(sanLorenzo as Player[]),
+  ...(estudiantes as Player[]),
+  ...(velezSarsfield as Player[]),
+  ...(rosarioCentral as Player[]),
+  ...(newellsOldBoys as Player[]),
+  ...(talleres as Player[]),
+  ...(argentinosJuniors as Player[]),
+  ...(defensaYJusticia as Player[]),
+  ...(huracan as Player[]),
+  ...(gimnasiaLp as Player[]),
+  ...(banfield as Player[]),
+  ...(tigre as Player[]),
+  ...(centralCordoba as Player[]),
+  ...(platense as Player[]),
+  ...(godoyCruz as Player[]),
   ...(arsenal as Player[]),
   ...(astonVilla as Player[]),
   ...(birmingham as Player[]),

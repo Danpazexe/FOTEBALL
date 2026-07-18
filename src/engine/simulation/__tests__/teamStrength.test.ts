@@ -1,6 +1,7 @@
 import type {Formacao, Player, Position, Tatica} from '../../../types';
 import {criarPlayer} from '../../../testing/fixtures';
 
+import {comAtributosCalibrados} from '../../progression/calibracaoAtributos';
 import {calcularForcaTime} from '../teamStrength';
 
 const POSICOES: Position[] = [
@@ -14,9 +15,13 @@ const TATICA: Tatica = {
   ritmo: 'Normal',
 };
 
+// Jogadores CALIBRADOS (como no load do jogo): atributos ↔ overall coerentes,
+// para que o Overall de Partida (derivado dos atributos) reflita a realidade.
 function elenco(overrideGoleiro?: Partial<Player['atributos']>): Player[] {
   return POSICOES.map((posicao, index) => {
-    const jogador = criarPlayer({id: `j${index}`, posicaoPrincipal: posicao});
+    const jogador = comAtributosCalibrados(
+      criarPlayer({id: `j${index}`, posicaoPrincipal: posicao}),
+    );
     if (posicao === 'GOL' && overrideGoleiro) {
       return {...jogador, atributos: {...jogador.atributos, ...overrideGoleiro}};
     }
@@ -66,10 +71,10 @@ describe('calcularForcaTime', () => {
   it('o estilo neutro (Equilibrado/Zona/Normal) não altera as linhas-base', () => {
     const jogadores = elenco();
     const forca = calcularForcaTime(formacao(jogadores), jogadores, TATICA);
-    // jogadores overall 75, moral 60, forma 0, condição 100:
-    // fator = 75 * fatorPreparo(100)=1.0 * (0.90 + 0.6*0.2 => 1.02) * forma 1.0 ≈ 76.5
-    expect(forca.ataque).toBeGreaterThan(70);
-    expect(forca.ataque).toBeLessThan(85);
+    // Jogadores calibrados (overall 75); condição 100/moral 60/forma 0 ≈ neutro,
+    // então o Overall de Partida ≈ overall base e a força fica em torno de 75.
+    expect(forca.ataque).toBeGreaterThan(68);
+    expect(forca.ataque).toBeLessThan(82);
     expect(forca.meio).toBeCloseTo(forca.defesa, 5);
   });
 

@@ -48,6 +48,43 @@ const DESTAQUES: Atalho[] = [
 
 const GRUPOS: {titulo: string; itens: Atalho[]}[] = [
   {
+    titulo: 'Elenco & desempenho',
+    itens: [
+      {
+        rotulo: 'Pendências',
+        icone: 'ficha',
+        ir: nav => nav.navigate('PendenciasClube'),
+      },
+      {
+        rotulo: 'Performance',
+        icone: 'tendencia',
+        ir: nav =>
+          nav.navigate('MainTabs', {
+            screen: 'Elenco',
+            params: {screen: 'Performance'},
+          }),
+      },
+      {
+        rotulo: 'Desenvolvimento',
+        icone: 'estrela',
+        ir: nav =>
+          nav.navigate('MainTabs', {
+            screen: 'Elenco',
+            params: {screen: 'Desenvolvimento'},
+          }),
+      },
+      {
+        rotulo: 'Médico',
+        icone: 'lesao',
+        ir: nav =>
+          nav.navigate('MainTabs', {
+            screen: 'Elenco',
+            params: {screen: 'DepartamentoMedico'},
+          }),
+      },
+    ],
+  },
+  {
     titulo: 'Gestão',
     itens: [
       {rotulo: 'Mercado', icone: 'mercado', ir: nav => nav.navigate('MainTabs', {screen: 'TransferMarket'})},

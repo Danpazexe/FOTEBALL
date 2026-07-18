@@ -240,8 +240,9 @@ export function calcularEfeitoTreino(
     (jogador.idade >= 32 ? 1.3 : 1.0);
 
   if (rng() < risco) {
-    // Treino interrompido: sem ganho, e desgaste físico extra.
-    const diasLesao = inteiroEntre(rng, 5, 20);
+    // Treino interrompido: sem ganho, e desgaste físico extra. Dias REAIS de
+    // calendário (Onda 3: rodadas distam 3-4 dias) — ~1 a 3 jogos fora.
+    const diasLesao = inteiroEntre(rng, 3, 10);
     const condicaoBruta =
       intensidade === 'leve' || intensidade === 'normal'
         ? -5

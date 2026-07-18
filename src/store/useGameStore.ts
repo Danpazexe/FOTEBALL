@@ -24,18 +24,34 @@ import {
   jovemParaPlayer,
   type JovemTalento,
 } from '../engine/progression/academiaEngine';
-import {evoluirJogador} from '../engine/progression/playerProgression';
+import {
+  evoluirJogador,
+  evoluirJogadorDetalhado,
+} from '../engine/progression/playerProgression';
 import {
   calcularEfeitoTreino,
   aplicarEfeitoTreino,
 } from '../engine/progression/treinoAtributos';
+import {atualizarFormaPorNota} from '../engine/progression/formaEngine';
+import {instantaneoDoElenco} from '../engine/progression/instantaneoDesenvolvimento';
 import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
   INTENSIDADES,
   type IntensidadeTreino,
 } from '../engine/progression/treinoTipos';
+import {
+  recomendarPlano,
+  sessaoDoCiclo,
+  type ContextoAssistente,
+  type RecomendacaoTreino,
+} from '../engine/progression/planoTreinoEngine';
 import {aplicarCondicaoPosPartida} from '../engine/progression/condicao';
+import {
+  aplicarCargaPosPartida,
+  descansarJogador,
+  fadiga,
+} from '../engine/physical/fisicoEngine';
 import {
   atualizarDerrotasConsecutivas,
   atualizarReputacao,
@@ -93,6 +109,8 @@ import {
   processarRetornosEmprestimo,
 } from '../engine/transfers/emprestimoEngine';
 import {gerarTransferenciasIA} from '../engine/transfers/mercadoIA';
+import {processarDiasAte} from '../engine/calendar/pipelineDiario';
+import {adicionarDias} from '../utils/datas';
 import {useAchievementsStore} from './useAchievementsStore';
 import {
   jogadoresDoClube,
@@ -103,6 +121,7 @@ import {
   ranquearDivisaoPorForca,
   resultadoDoUsuario,
   sortearDuracaoLesao,
+  ultimaRodadaLiga,
 } from './helpers';
 import {
   calcularDatasFasesCopa,
@@ -158,7 +177,13 @@ import type {
   Formacao,
   MotivoDemissao,
   Partida,
+  PendenciaCarreira,
+  InstantaneoDesenvolvimento,
+  PlanoTreino,
+  PlanoTreinoStatus,
   Player,
+  RegistroDesenvolvimento,
+  SessaoPlanoTreino,
   TabelaClassificacao,
   Tatica,
 } from '../types';
@@ -321,6 +346,27 @@ export interface GameState {
   patrocinio: EstadoPatrocinio;
   /** Histórico mundial de transferências (AD-09) — fonte de notícias/perfil. */
   transferHistory: TransferRecord[];
+  /**
+   * Plano de treino recorrente do clube do usuário (épico Overall Dinâmico).
+   * null até a Onda 4 ligar o executor; o CONTRATO já persiste no save.
+   */
+  planoTreino: PlanoTreino | null;
+  /** Situação da configuração de treino (nunca fingir escolha do usuário). */
+  planoTreinoStatus: PlanoTreinoStatus;
+  /** Central de Pendências do clube (o avanço consulta as bloqueantes). */
+  pendencias: PendenciaCarreira[];
+  /**
+   * Ledger de desenvolvimento do elenco do usuário (tela Desenvolvimento):
+   * mudanças de atributo/overall por temporada, com reason codes. Teto para
+   * o save não crescer sem poda. Aditivo; vazio em saves antigos.
+   */
+  ledgerDesenvolvimento: RegistroDesenvolvimento[];
+  /**
+   * Série temporal da MÉDIA do elenco do usuário (físico/técnico/mental/overall),
+   * capturada no início da carreira e a cada virada. Alimenta o gráfico de
+   * evolução (Desenvolvimento). Aditivo; vazio em saves antigos.
+   */
+  historicoDesenvolvimento: InstantaneoDesenvolvimento[];
   /** (Re)gera as propostas de patrocínio do clube do usuário para a temporada. */
   gerarPropostasPatrocinioUsuario: () => void;
   /** Aceita uma proposta de patrocínio (cria contrato ativo). */
@@ -365,8 +411,22 @@ export interface GameState {
   /** Desfaz mudanças in-game se a partida foi abandonada sem concluir. */
   restaurarFormacaoPreLive: () => void;
   aplicarTreino: (treinoId: string, intensidade: IntensidadeTreino) => void;
+  /**
+   * Recuperação ativa do elenco (mockup "Ajustar recuperação"): dissipa carga
+   * aguda e recupera condição dos cansados. Conta como a atividade do ciclo
+   * (mesmo anti-exploit do treino manual). Retorna quantos foram poupados.
+   */
+  descansarElencoUsuario: () => number;
   /** Define (ou limpa, com null) o atributo em foco no treino individual de um jogador. */
   definirFocoTreino: (jogadorId: string, foco: AtributoChave | null) => void;
+  /** Recomendação do staff para o plano de treino (mockup) — não muta o estado. */
+  recomendarPlanoTreino: () => RecomendacaoTreino | null;
+  /** Ativa um plano de treino recorrente do usuário (resolve a pendência). */
+  configurarPlanoTreino: (plano: PlanoTreino) => void;
+  /** Aceita o plano recomendado pelo staff (resolve a pendência de treino). */
+  aceitarPlanoRecomendado: () => void;
+  /** Pausa/retoma o plano de treino ativo (cai no provisório enquanto pausado). */
+  alternarPausaPlanoTreino: () => void;
   /** Define o capitão do time do usuário (id do jogador). */
   definirCapitao: (jogadorId: string) => void;
   renovarContrato: (jogadorId: string, anos: number, salario: number) => boolean;
@@ -399,6 +459,123 @@ function adicionarMensagem(
     0,
     8,
   );
+}
+
+/** Teto da Central de Pendências (as mais novas primeiro; save enxuto). */
+const MAX_PENDENCIAS = 12;
+/** Teto do ledger de desenvolvimento (as mais recentes; poda o save). */
+const MAX_LEDGER_DESENVOLVIMENTO = 120;
+/** Teto da série de evolução do elenco (1 ponto por temporada; ~40 anos). */
+const MAX_HISTORICO_DESENVOLVIMENTO = 40;
+
+/** Delta INTEIRO por atributo entre dois estados (só os que mudaram). */
+function diffAtributos(
+  antes: Player['atributos'],
+  depois: Player['atributos'],
+): Partial<Player['atributos']> {
+  const delta: Partial<Player['atributos']> = {};
+  for (const chave of Object.keys(antes) as Array<keyof Player['atributos']>) {
+    const d = depois[chave] - antes[chave];
+    if (d !== 0) {
+      delta[chave] = d;
+    }
+  }
+  return delta;
+}
+
+/** Acumula pendências novas sem duplicar (por id) e com teto. */
+function acumularPendencias(
+  atuais: PendenciaCarreira[],
+  novas: PendenciaCarreira[],
+): PendenciaCarreira[] {
+  if (novas.length === 0) {
+    return atuais;
+  }
+  const vistos = new Set(atuais.map(pendencia => pendencia.id));
+  const ineditas = novas.filter(pendencia => !vistos.has(pendencia.id));
+  if (ineditas.length === 0) {
+    return atuais;
+  }
+  return [...ineditas, ...atuais].slice(0, MAX_PENDENCIAS);
+}
+
+/** Monta o contexto do assistente de treino a partir do estado (puro). */
+function montarContextoAssistente(state: GameState): ContextoAssistente {
+  const elenco = state.jogadores.filter(
+    jogador => jogador.clubeId === state.clubeUsuarioId,
+  );
+  const desgastados = elenco.filter(
+    jogador => jogador.lesionado || jogador.condicaoFisica < 65,
+  ).length;
+  const idadeMedia =
+    elenco.length > 0
+      ? elenco.reduce((soma, jogador) => soma + jogador.idade, 0) / elenco.length
+      : 25;
+  // Jogos do usuário nos próximos ~10 dias (congestionamento).
+  const limite = adicionarDias(state.dataAtual, 10);
+  const jogosProximos = state.partidas.filter(
+    partida =>
+      !partida.jogada &&
+      partida.data > state.dataAtual &&
+      partida.data <= limite &&
+      (partida.timeCasa === state.clubeUsuarioId ||
+        partida.timeFora === state.clubeUsuarioId),
+  ).length;
+  return {
+    clubeId: state.clubeUsuarioId ?? '',
+    criadoEm: state.dataAtual,
+    fracaoDesgastada: elenco.length > 0 ? desgastados / elenco.length : 0,
+    idadeMedia,
+    jogosProximos,
+    preTemporada: state.rodadaAtual <= 1,
+  };
+}
+
+/** Pendência-padrão de carreira sem plano de treino configurado (mockup). */
+function pendenciaPlanoTreino(data: string): PendenciaCarreira {
+  return {
+    id: 'pend_plano_treino',
+    tipo: 'definir_plano_treino',
+    prioridade: 'alta',
+    titulo: 'Definir plano de treino',
+    descricao: 'Seu elenco não possui plano de treino definido.',
+    criadaEm: data,
+    bloqueante: false,
+  };
+}
+
+/**
+ * Ponto inicial da série de desenvolvimento: a média do elenco no começo (0 ou
+ * 1 instantâneo). Cada virada de temporada acrescenta mais um ponto real.
+ */
+function instantaneoInicial(
+  jogadores: Player[],
+  clubeId: string,
+  data: string,
+  temporada: string,
+): InstantaneoDesenvolvimento[] {
+  const snap = instantaneoDoElenco(jogadores, clubeId, data, temporada);
+  return snap ? [snap] : [];
+}
+
+/** Propostas da IA que EXPIRAM na próxima rodada viram pendência (Central). */
+function pendenciasDePropostas(
+  propostas: PropostaTransferencia[],
+  rodadaAtual: number,
+  data: string,
+): PendenciaCarreira[] {
+  return propostas
+    .filter(proposta => proposta.expiracaoRodada === rodadaAtual + 1)
+    .map(proposta => ({
+      id: `pend_proposta_${proposta.id}`,
+      tipo: 'proposta_expirando' as const,
+      prioridade: 'alta' as const,
+      titulo: 'Responder proposta',
+      descricao: 'Uma proposta por um jogador seu expira na próxima rodada.',
+      entidadeId: proposta.jogadorId,
+      criadaEm: data,
+      bloqueante: false,
+    }));
 }
 
 /**
@@ -533,42 +710,87 @@ function estamparPublicoRodada(
   });
 }
 
-/** Treino-base aplicado automaticamente entre as rodadas (estilo Brasfoot). */
-const TREINO_AUTO_ID = 'hab_fisico';
+/** Treino leve de RECUPERAÇÃO usado pela IA e como sessão provisória segura. */
 const INTENSIDADE_AUTO: IntensidadeTreino = 'leve';
+/** Nível de infra assumido para clubes da IA no treino resumido. */
+const INFRA_PADRAO_IA = 3;
 
-/**
- * Treino automático: aplica uma sessão LEVE (recupera condição, ganho lento,
- * baixo risco de lesão) ao elenco do usuário entre as rodadas, mantendo a
- * progressão sem ação manual. Determinístico (seed por temporada/rodada) e sem
- * custo (é o treino-base do clube). Pulado quando o usuário treinou na mão.
- */
-function treinarElencoAutomatico(
+/** Aplica UMA sessão de treino ao elenco de um clube (determinístico). */
+function aplicarSessaoAoClube(
   jogadores: Player[],
-  clubeUsuarioId: string,
+  clubeId: string,
   nivelInfra: number,
-  temporada: string,
-  rodada: number,
+  sessao: SessaoPlanoTreino,
+  baseSeed: number,
 ): Player[] {
-  const treino = buscarTreino(TREINO_AUTO_ID);
+  const treino = buscarTreino(sessao.treinoId);
   if (!treino) {
     return jogadores;
   }
-  const baseSeed = hashString(`${temporada}_${rodada}_auto_${INTENSIDADE_AUTO}`);
   return jogadores.map(jogador => {
-    if (jogador.clubeId !== clubeUsuarioId) {
+    if (jogador.clubeId !== clubeId) {
       return jogador;
     }
     const rng = criarRNGComSeed(baseSeed + hashString(jogador.id));
     const efeito = calcularEfeitoTreino(
       jogador,
       treino,
-      INTENSIDADE_AUTO,
+      sessao.intensidade,
       {nivelInfra, jogosNaTemporada: jogador.estatisticasTemporada.jogos},
       rng,
     );
     return aplicarEfeitoTreino(jogador, efeito);
   });
+}
+
+/**
+ * Treino automático do CICLO (Onda 4): entre as rodadas,
+ *  - o clube do USUÁRIO treina a sessão do seu PLANO recorrente (ou a sessão
+ *    provisória leve, se não configurou) — pulado quando treinou na mão;
+ *  - os clubes da IA da LIGA ATIVA treinam leve (RF-15): recuperam condição e
+ *    evoluem devagar, pelas MESMAS regras — fim da drenagem estrutural em que
+ *    os titulares da IA caíam ao piso ao longo da temporada (auditoria H9).
+ * Determinístico (seed por temporada/rodada/clube).
+ */
+function treinarCicloAutomatico(args: {
+  jogadores: Player[];
+  clubes: Clube[];
+  clubeUsuarioId: string | null;
+  plano: PlanoTreino | null;
+  usuarioTreinouNaMao: boolean;
+  temporada: string;
+  rodada: number;
+}): Player[] {
+  let jogadores = args.jogadores;
+
+  // Usuário: sessão do plano (ou provisória), salvo se já treinou na mão.
+  if (args.clubeUsuarioId && !args.usuarioTreinouNaMao) {
+    const clubeUsuario = args.clubes.find(c => c.id === args.clubeUsuarioId);
+    const sessao = sessaoDoCiclo(args.plano, args.rodada);
+    jogadores = aplicarSessaoAoClube(
+      jogadores,
+      args.clubeUsuarioId,
+      clubeUsuario?.estadio.nivelInfraestrutura ?? INFRA_PADRAO_IA,
+      sessao,
+      hashString(`${args.temporada}_${args.rodada}_plano_${args.clubeUsuarioId}`),
+    );
+  }
+
+  // IA da liga ativa: treino leve de recuperação (resumido, sem custo).
+  for (const clube of args.clubes) {
+    if (clube.id === args.clubeUsuarioId) {
+      continue;
+    }
+    jogadores = aplicarSessaoAoClube(
+      jogadores,
+      clube.id,
+      clube.estadio.nivelInfraestrutura,
+      {treinoId: 'hab_fisico', intensidade: INTENSIDADE_AUTO},
+      hashString(`${args.temporada}_${args.rodada}_ia_${clube.id}`),
+    );
+  }
+
+  return jogadores;
 }
 
 /**
@@ -669,14 +891,10 @@ function aplicarResultadoNosJogadores(
         jogosSuspensao = 0;
       }
     }
+    // Lesão anda em DIAS REAIS pelo pipeline diário do calendário (Onda 3) —
+    // aqui só entram punições/lesões NOVAS desta partida.
     let lesionado = jogador.lesionado;
     let diasLesao = jogador.diasLesao;
-    if (lesionado && diasLesao > 0) {
-      diasLesao = Math.max(0, diasLesao - 7);
-      if (diasLesao === 0) {
-        lesionado = false;
-      }
-    }
 
     // 2) Novas punições a partir dos eventos deste jogo.
     const eventosDoJogador = partida.eventos.filter(
@@ -727,6 +945,9 @@ function aplicarResultadoNosJogadores(
       diasLesao,
       amarelosParaSuspensao,
       condicaoFisica,
+      // Carga aguda/crônica e ritmo (Onda 5): jogar cansa e dá ritmo; ficar de
+      // fora perde ritmo de leve. Separado da condição.
+      fisico: aplicarCargaPosPartida(jogador, {ehTitular, participou}),
       moral: aplicarMoral(jogador.moral, mapaMoral.get(jogador.id) ?? 0),
     };
 
@@ -754,6 +975,9 @@ function aplicarResultadoNosJogadores(
 
     return {
       ...base,
+      // Forma reage ao DESEMPENHO (Onda 6): a nota do jogo empurra a fase
+      // técnica — antes a forma só mudava por treino (stub).
+      forma: atualizarFormaPorNota(base.forma, nota),
       estatisticasTemporada: {
         ...stats,
         jogos: stats.jogos + 1,
@@ -948,6 +1172,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   serieDCarreira: null,
   patrocinio: criarEstadoPatrocinioVazio(),
   transferHistory: [],
+  planoTreino: null,
+  planoTreinoStatus: 'nao_configurado',
+  pendencias: [],
+  ledgerDesenvolvimento: [],
+  historicoDesenvolvimento: [],
 
   gerarPropostasPatrocinioUsuario: () => {
     const state = get();
@@ -1017,6 +1246,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       serieDCarreira: null,
       patrocinio: criarEstadoPatrocinioVazio(),
       transferHistory: [],
+      // Carreira nova NUNCA finge treino escolhido: começa não configurado,
+      // com a pendência correspondente já na Central (mockup Pendências).
+      planoTreino: null,
+      planoTreinoStatus: 'nao_configurado',
+      pendencias: [pendenciaPlanoTreino(liga.dataAtual)],
+      ledgerDesenvolvimento: [],
+      historicoDesenvolvimento: instantaneoInicial(
+        liga.jogadores,
+        clubeId,
+        liga.dataAtual,
+        TEMPORADA_INICIAL,
+      ),
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -1081,6 +1322,17 @@ export const useGameStore = create<GameState>((set, get) => ({
       // Novo clube = novo contrato de patrocínio (o anterior era do outro clube).
       patrocinio: criarEstadoPatrocinioVazio(),
       transferHistory: [],
+      // O plano de treino era do clube anterior — recomeça não configurado.
+      planoTreino: null,
+      planoTreinoStatus: 'nao_configurado',
+      pendencias: [pendenciaPlanoTreino(liga.dataAtual)],
+      ledgerDesenvolvimento: [],
+      historicoDesenvolvimento: instantaneoInicial(
+        liga.jogadores,
+        clubeId,
+        liga.dataAtual,
+        state.temporadaAtual,
+      ),
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -1162,7 +1414,23 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   avancarParaData: data => {
-    set({dataAtual: data});
+    // Relógio canônico (Onda 3): mover a data PROCESSA os dias no pipeline
+    // (lesões andam por dia real; pendências nascem). Nunca anda para trás.
+    const state = get();
+    const periodo = processarDiasAte(
+      state.jogadores,
+      state.dataAtual,
+      data,
+      state.clubeUsuarioId,
+    );
+    if (periodo.diasProcessados === 0) {
+      return;
+    }
+    set({
+      jogadores: periodo.jogadores,
+      dataAtual: periodo.dataFinal,
+      pendencias: acumularPendencias(state.pendencias, periodo.novasPendencias),
+    });
   },
 
   avancarRodada: () => {
@@ -1175,7 +1443,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
 
-    let jogadoresAtualizados = state.jogadores;
+    // Relógio canônico (Onda 3): antes da bola rolar, os DIAS até a data da
+    // rodada passam pelo pipeline diário (lesões em dias reais, pendências).
+    // Também corrige o relógio nas rodadas de FOLGA do usuário (a data anda
+    // mesmo sem jogo dele).
+    const dataRodada = jogosRodada[0]?.data ?? state.dataAtual;
+    const periodo = processarDiasAte(
+      state.jogadores,
+      state.dataAtual,
+      dataRodada,
+      state.clubeUsuarioId,
+    );
+    const pendenciasAposDias = acumularPendencias(
+      state.pendencias,
+      [
+        ...periodo.novasPendencias,
+        ...pendenciasDePropostas(state.propostasRecebidas, state.rodadaAtual, dataRodada),
+      ],
+    );
+
+    let jogadoresAtualizados = periodo.jogadores;
     const partidasAtualizadas = state.partidas.map(partida => {
       const jogo = jogosRodada.find(item => item.id === partida.id);
 
@@ -1280,32 +1567,37 @@ export const useGameStore = create<GameState>((set, get) => ({
       adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} simulada.`),
     );
 
-    // Treino automático do ciclo (pulado se o usuário treinou na mão).
-    const clubeUsuario = clubesComPatrocinio.find(
-      clube => clube.id === state.clubeUsuarioId,
-    );
-    const jogadoresFinais =
-      state.treinouProximoJogo || !state.clubeUsuarioId || !clubeUsuario
-        ? carreira.jogadores
-        : treinarElencoAutomatico(
-            carreira.jogadores,
-            state.clubeUsuarioId,
-            clubeUsuario.estadio.nivelInfraestrutura,
-            state.temporadaAtual,
-            state.rodadaAtual,
-          );
+    // Treino automático do ciclo (Onda 4): usuário treina a sessão do seu
+    // PLANO (pulado se treinou na mão); a IA da liga treina leve.
+    const jogadoresFinais = treinarCicloAutomatico({
+      jogadores: carreira.jogadores,
+      clubes: clubesComPatrocinio,
+      clubeUsuarioId: state.clubeUsuarioId,
+      plano: state.planoTreino,
+      usuarioTreinouNaMao: state.treinouProximoJogo,
+      temporada: state.temporadaAtual,
+      rodada: state.rodadaAtual,
+    });
 
+    // Teto DINÂMICO: última rodada da liga ativa + 1 (38→39 no Brasileirão,
+    // 46→47 na Championship). Um 39 fixo travava ligas com mais de 38 rodadas.
+    const rodadaAposAvanco = Math.min(
+      ultimaRodadaLiga(state.partidas) + 1,
+      state.rodadaAtual + 1,
+    );
     set({
       jogadores: jogadoresFinais,
       partidas: partidasComPublico,
       tabela,
       clubes: clubesComPatrocinio,
       patrocinio: patrocinioRodada,
-      rodadaAtual: Math.min(39, state.rodadaAtual + 1),
+      rodadaAtual: rodadaAposAvanco,
       ultimaPartidaUsuario: partidaUsuarioCompleta,
-      // Calendário: data passa a ser a do jogo disputado. O treino do ciclo já
-      // foi aplicado automaticamente acima, então o próximo evento é o jogo.
-      dataAtual: partidaUsuarioCompleta?.data ?? state.dataAtual,
+      // Relógio canônico: a data anda pelo pipeline até a data da RODADA
+      // (inclusive nas rodadas de folga do usuário). O treino do ciclo já foi
+      // aplicado automaticamente acima, então o próximo evento é o jogo.
+      dataAtual: periodo.dataFinal,
+      pendencias: pendenciasAposDias,
       treinouProximoJogo: false,
       conversouComGrupo: false,
       reputacaoTecnico: carreira.reputacaoTecnico,
@@ -1322,7 +1614,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       partidas: partidasComPublico,
       tabela,
       clubes: clubesComPatrocinio,
-      rodadaAtual: Math.min(39, state.rodadaAtual + 1),
+      rodadaAtual: rodadaAposAvanco,
     });
     get().processarPropostasIA();
     get().processarMercadoIA();
@@ -1360,7 +1652,22 @@ export const useGameStore = create<GameState>((set, get) => ({
         )
       : state.clubes;
 
-    let jogadoresAtualizados = state.jogadores;
+    // Relógio canônico (Onda 3): dias até a data da rodada passam pelo
+    // pipeline. Normalmente é no-op aqui (o pré-jogo já avançou a data via
+    // avancarParaData), mas garante o invariante em qualquer caminho.
+    const dataRodada = jogosRodada[0]?.data ?? state.dataAtual;
+    const periodo = processarDiasAte(
+      state.jogadores,
+      state.dataAtual,
+      dataRodada,
+      state.clubeUsuarioId,
+    );
+    const pendenciasAposDias = acumularPendencias(state.pendencias, [
+      ...periodo.novasPendencias,
+      ...pendenciasDePropostas(state.propostasRecebidas, state.rodadaAtual, dataRodada),
+    ]);
+
+    let jogadoresAtualizados = periodo.jogadores;
     const partidasAtualizadas = state.partidas.map(partida => {
       const jogo = jogosRodada.find(item => item.id === partida.id);
       if (!jogo) {
@@ -1460,21 +1767,23 @@ export const useGameStore = create<GameState>((set, get) => ({
       adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} disputada.`),
     );
 
-    // Treino automático do ciclo (pulado se o usuário treinou na mão).
-    const clubeUsuario = clubesComPatrocinio.find(
-      clube => clube.id === state.clubeUsuarioId,
-    );
-    const jogadoresFinais =
-      state.treinouProximoJogo || !state.clubeUsuarioId || !clubeUsuario
-        ? carreira.jogadores
-        : treinarElencoAutomatico(
-            carreira.jogadores,
-            state.clubeUsuarioId,
-            clubeUsuario.estadio.nivelInfraestrutura,
-            state.temporadaAtual,
-            state.rodadaAtual,
-          );
+    // Treino automático do ciclo (Onda 4): usuário treina a sessão do seu
+    // PLANO (pulado se treinou na mão); a IA da liga treina leve.
+    const jogadoresFinais = treinarCicloAutomatico({
+      jogadores: carreira.jogadores,
+      clubes: clubesComPatrocinio,
+      clubeUsuarioId: state.clubeUsuarioId,
+      plano: state.planoTreino,
+      usuarioTreinouNaMao: state.treinouProximoJogo,
+      temporada: state.temporadaAtual,
+      rodada: state.rodadaAtual,
+    });
 
+    // Mesmo teto dinâmico do avancarRodada (liga pode ter mais de 38 rodadas).
+    const rodadaAposLive = Math.min(
+      ultimaRodadaLiga(state.partidas) + 1,
+      state.rodadaAtual + 1,
+    );
     set({
       jogadores: jogadoresFinais,
       partidas: partidasComPublico,
@@ -1482,9 +1791,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       clubes: clubesComPatrocinio,
       patrocinio: patrocinioRodada,
       formacaoPreLive: null,
-      rodadaAtual: Math.min(39, state.rodadaAtual + 1),
+      rodadaAtual: rodadaAposLive,
       ultimaPartidaUsuario: partidaUsuario,
-      dataAtual: partidaUsuario?.data ?? state.dataAtual,
+      dataAtual: periodo.dataFinal,
+      pendencias: pendenciasAposDias,
       treinouProximoJogo: false,
       conversouComGrupo: false,
       reputacaoTecnico: carreira.reputacaoTecnico,
@@ -1501,7 +1811,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       partidas: partidasComPublico,
       tabela,
       clubes: clubesComPatrocinio,
-      rodadaAtual: Math.min(39, state.rodadaAtual + 1),
+      rodadaAtual: rodadaAposLive,
     });
     get().processarPropostasIA();
     get().processarMercadoIA();
@@ -1603,8 +1913,20 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   aplicarTreino: (treinoId, intensidade) => {
-    const {clubeUsuarioId} = get();
+    const state0 = get();
+    const {clubeUsuarioId} = state0;
     if (!clubeUsuarioId) {
+      return;
+    }
+    // Uma sessão manual por ciclo (Onda 4): sem isto, treinar de novo variando
+    // foco/intensidade gerava seeds diferentes e acumulava ganhos (exploit).
+    if (state0.treinouProximoJogo) {
+      set(stateAtual => ({
+        mensagens: adicionarMensagem(
+          stateAtual.mensagens,
+          'O elenco já treinou neste ciclo. Avance para o próximo jogo.',
+        ),
+      }));
       return;
     }
     set(state => {
@@ -1687,6 +2009,55 @@ export const useGameStore = create<GameState>((set, get) => ({
     });
   },
 
+  descansarElencoUsuario: () => {
+    const state = get();
+    const {clubeUsuarioId} = state;
+    if (!clubeUsuarioId) {
+      return 0;
+    }
+    if (state.treinouProximoJogo) {
+      set(stateAtual => ({
+        mensagens: adicionarMensagem(
+          stateAtual.mensagens,
+          'O elenco já teve a atividade deste ciclo.',
+        ),
+      }));
+      return 0;
+    }
+    // Poupa quem precisa: cansados (condição < 75) ou fadigados. Recuperação
+    // ativa (engine física) — dissipa carga aguda e recupera condição.
+    let poupados = 0;
+    const jogadores = state.jogadores.map(jogador => {
+      if (
+        jogador.clubeId !== clubeUsuarioId ||
+        jogador.lesionado ||
+        (jogador.condicaoFisica >= 75 && fadiga(jogador) < 40)
+      ) {
+        return jogador;
+      }
+      poupados += 1;
+      return descansarJogador(jogador);
+    });
+    if (poupados === 0) {
+      set(stateAtual => ({
+        mensagens: adicionarMensagem(
+          stateAtual.mensagens,
+          'Elenco descansado — ninguém precisa ser poupado.',
+        ),
+      }));
+      return 0;
+    }
+    set(stateAtual => ({
+      jogadores,
+      treinouProximoJogo: true,
+      mensagens: adicionarMensagem(
+        stateAtual.mensagens,
+        `Recuperação ativa: ${poupados} jogador(es) poupado(s).`,
+      ),
+    }));
+    return poupados;
+  },
+
   definirFocoTreino: (jogadorId, foco) => {
     set(state => ({
       jogadores: state.jogadores.map(jogador =>
@@ -1695,6 +2066,66 @@ export const useGameStore = create<GameState>((set, get) => ({
           : jogador,
       ),
     }));
+  },
+
+  recomendarPlanoTreino: () => {
+    const state = get();
+    if (!state.clubeUsuarioId) {
+      return null;
+    }
+    return recomendarPlano(montarContextoAssistente(state));
+  },
+
+  configurarPlanoTreino: plano => {
+    const {clubeUsuarioId} = get();
+    if (!clubeUsuarioId) {
+      return;
+    }
+    set(state => ({
+      planoTreino: {...plano, clubeId: clubeUsuarioId, status: 'ativo'},
+      planoTreinoStatus: 'configurado_usuario',
+      // Configurar resolve a pendência da Central (mockup).
+      pendencias: state.pendencias.filter(
+        p => p.tipo !== 'definir_plano_treino',
+      ),
+      mensagens: adicionarMensagem(
+        state.mensagens,
+        `Plano de treino "${plano.nome}" ativado.`,
+      ),
+    }));
+  },
+
+  aceitarPlanoRecomendado: () => {
+    const state = get();
+    if (!state.clubeUsuarioId) {
+      return;
+    }
+    const recomendacao = recomendarPlano(montarContextoAssistente(state));
+    set(stateAtual => ({
+      planoTreino: recomendacao.plano,
+      // Aceitar a sugestão É uma escolha do usuário.
+      planoTreinoStatus: 'configurado_usuario',
+      pendencias: stateAtual.pendencias.filter(
+        p => p.tipo !== 'definir_plano_treino',
+      ),
+      mensagens: adicionarMensagem(
+        stateAtual.mensagens,
+        `Plano recomendado pelo staff ativado: "${recomendacao.plano.nome}".`,
+      ),
+    }));
+  },
+
+  alternarPausaPlanoTreino: () => {
+    set(state =>
+      state.planoTreino
+        ? {
+            planoTreino: {
+              ...state.planoTreino,
+              status: state.planoTreino.status === 'ativo' ? 'pausado' : 'ativo',
+            },
+          }
+        : {},
+    );
   },
 
   definirCapitao: jogadorId => {
@@ -1857,7 +2288,49 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     }
 
-    set({copa: copaAvancada, clubes, mensagens});
+    // DESGASTE DA COPA (Onda 3): titulares dos confrontos resolvidos AGORA
+    // que pertencem à liga ATIVA cansam e contam o jogo — antes, a copa não
+    // tocava os jogadores (auditoria). Lesões/cartões de copa entram com a
+    // partida completa na integração da Onda 6.
+    const titularesCopa = new Set<string>();
+    fase.confrontos.forEach((original, indice) => {
+      const resolvido = confrontosResolvidos[indice];
+      if (original.vencedor || !resolvido?.vencedor) {
+        return; // já estava resolvido antes (não desgasta duas vezes).
+      }
+      for (const clubeId of [resolvido.timeA, resolvido.timeB]) {
+        const clube = clubeAtivo.get(clubeId);
+        if (!clube) {
+          continue; // clube de outra divisão: sem estado vivo na liga ativa.
+        }
+        for (const id of idsTitularesDisponiveis(
+          clube,
+          jogadoresDoClube(state.jogadores, clubeId),
+        )) {
+          titularesCopa.add(id);
+        }
+      }
+    });
+    const jogadores =
+      titularesCopa.size === 0
+        ? state.jogadores
+        : state.jogadores.map(jogador =>
+            titularesCopa.has(jogador.id)
+              ? {
+                  ...jogador,
+                  condicaoFisica: aplicarCondicaoPosPartida(
+                    jogador.condicaoFisica,
+                    {ehTitular: true, participou: true},
+                  ),
+                  estatisticasTemporada: {
+                    ...jogador.estatisticasTemporada,
+                    jogos: jogador.estatisticasTemporada.jogos + 1,
+                  },
+                }
+              : jogador,
+          );
+
+    set({copa: copaAvancada, clubes, mensagens, jogadores});
   },
 
   renovarContrato: (jogadorId, anos, salario) => {
@@ -2426,11 +2899,48 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     // Evolui TODOS os jogadores (cada um pelo seu clube), +1 ano, zera
     // cartões/lesões da pré-temporada. Agentes livres só envelhecem/arquivam.
+    // Para o elenco do USUÁRIO, registra o detalhe (delta de atributos + reason
+    // codes) no ledger de desenvolvimento (tela Desenvolvimento, Onda 7).
     const clubePorId = new Map(clubesMaster.map(clube => [clube.id, clube]));
+    const registrosDesenvolvimento: RegistroDesenvolvimento[] = [];
     const evoluidos = jogadoresMaster.map(jogador => {
       const clube = jogador.clubeId
         ? clubePorId.get(jogador.clubeId)
         : undefined;
+      if (clube && jogador.clubeId === state.clubeUsuarioId) {
+        const {jogador: evoluidoUsuario, motivos} = evoluirJogadorDetalhado(
+          jogador,
+          clube,
+        );
+        const atributosDelta = diffAtributos(
+          jogador.atributos,
+          evoluidoUsuario.atributos,
+        );
+        if (
+          motivos.length > 0 ||
+          Object.keys(atributosDelta).length > 0 ||
+          evoluidoUsuario.overall !== jogador.overall
+        ) {
+          registrosDesenvolvimento.push({
+            id: `dev_${jogador.id}_${state.temporadaAtual}`,
+            playerId: jogador.id,
+            data: `${state.temporadaAtual}-fim`,
+            origem: 'curva_idade',
+            atributosDelta,
+            overallAntes: jogador.overall,
+            overallDepois: evoluidoUsuario.overall,
+            motivos,
+          });
+        }
+        return {
+          ...evoluidoUsuario,
+          suspenso: false,
+          jogosSuspensao: 0,
+          amarelosParaSuspensao: 0,
+          lesionado: false,
+          diasLesao: 0,
+        };
+      }
       const evoluido = clube
         ? evoluirJogador(jogador, clube)
         : {
@@ -2795,6 +3305,23 @@ export const useGameStore = create<GameState>((set, get) => ({
       serieDCarreira: null,
       patrocinio: patrocinioEncerrado,
       jovensDisponiveis,
+      // Ledger de desenvolvimento: acrescenta os registros da virada (mais
+      // recentes primeiro), com teto para o save não crescer sem poda.
+      ledgerDesenvolvimento: [
+        ...registrosDesenvolvimento,
+        ...state.ledgerDesenvolvimento,
+      ].slice(0, MAX_LEDGER_DESENVOLVIMENTO),
+      // Série de evolução: acrescenta o instantâneo do elenco JÁ evoluído para a
+      // nova temporada (um ponto real por virada), com teto.
+      historicoDesenvolvimento: [
+        ...state.historicoDesenvolvimento,
+        ...instantaneoInicial(
+          jogadoresEvoluidos,
+          state.clubeUsuarioId ?? '',
+          liga.dataAtual,
+          proximaTemporada,
+        ),
+      ].slice(-MAX_HISTORICO_DESENVOLVIMENTO),
       propostasRecebidas: [],
       copa:
         // Série D (grupo de 10 rodadas não comporta as fases) e carreiras fora
@@ -2971,6 +3498,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       serieDCarreira: null,
       patrocinio: criarEstadoPatrocinioVazio(),
       transferHistory: [],
+      planoTreino: null,
+      planoTreinoStatus: 'nao_configurado',
+      pendencias: [],
+      ledgerDesenvolvimento: [],
+      historicoDesenvolvimento: [],
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

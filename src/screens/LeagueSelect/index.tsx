@@ -84,7 +84,9 @@ const COMPETICOES: Pais[] = [
         logo: LOGO_SERIE_D,
         divisaoSeed: 'Série D',
       },
-      {id: 'br_copa', nome: 'Copa do Brasil', divisao: 'Mata-mata', ativa: false},
+      // A Copa do Brasil NÃO é ponto de entrada de carreira — ela roda junto do
+      // Brasileirão (Série A/B) e é jogada dentro da temporada. Por isso não
+      // aparece aqui como "liga a escolher".
     ],
   },
   {
@@ -94,7 +96,7 @@ const COMPETICOES: Pais[] = [
         id: 'ar_primera',
         nome: 'Primera División',
         divisao: '1ª Divisão',
-        clubes: 3,
+        clubes: 20,
         ativa: true,
         logo: LOGO_PRIMERA,
         divisaoSeed: 'Primera División',

@@ -199,6 +199,23 @@ function MatchResult(): React.JSX.Element {
     [jogadores],
   );
 
+  // Notas de quem atuou pelo TIME DO USUÁRIO (a assinatura do Sofascore no
+  // pós-jogo), ordenadas da melhor para a pior. Só quando o clube dele jogou.
+  const notasUsuario = useMemo<LinhaJogador[]>(() => {
+    if (!partida || !clubeUsuarioId) {
+      return [];
+    }
+    const ehCasa = partida.timeCasa === clubeUsuarioId;
+    const ehFora = partida.timeFora === clubeUsuarioId;
+    if (!ehCasa && !ehFora) {
+      return [];
+    }
+    const clube = clubes.find(c => c.id === clubeUsuarioId);
+    return linhasDoTime(clube, jogadores, partida, ehCasa).sort(
+      (a, b) => b.nota - a.nota,
+    );
+  }, [partida, clubeUsuarioId, clubes, jogadores]);
+
   // Mapa de chutes: partidas da engine V2 usam os chutes FACTUAIS persistidos
   // (posição/xG reais do lance); partidas legacy caem na reconstrução
   // determinística e recebem o selo de estimativa (RF-11 — legacy honesto).
@@ -506,6 +523,46 @@ function MatchResult(): React.JSX.Element {
         </Card>
       ) : null}
 
+      {/* Notas do time do usuário (assinatura Sofascore no pós-jogo) */}
+      {notasUsuario.length > 0 ? (
+        <Card>
+          <View style={estilos.cardInner}>
+            <SectionHeader titulo="Notas do seu time" />
+            {notasUsuario.map(linha => (
+              <View key={linha.jogador.id} style={estilos.notaRow}>
+                <PositionBadge
+                  posicao={linha.jogador.posicaoPrincipal}
+                  tamanho="sm"
+                />
+                <Text
+                  variant="bodyM"
+                  numberOfLines={1}
+                  style={estilos.notaNome}>
+                  {nomeCurto(linha.jogador)}
+                </Text>
+                {linha.gols > 0 ? (
+                  <Text variant="caption" color="textSecondary" tabular>
+                    {linha.gols}G
+                  </Text>
+                ) : null}
+                {linha.assistencias > 0 ? (
+                  <Text variant="caption" color="textSecondary" tabular>
+                    {linha.assistencias}A
+                  </Text>
+                ) : null}
+                <Text
+                  variant="labelL"
+                  color={corNota(linha.nota)}
+                  tabular
+                  style={estilos.notaValor}>
+                  {linha.nota.toFixed(1)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
+
       {/* Estatísticas relevantes */}
       {linhasEstat.length > 0 ? (
         <Card>
@@ -699,6 +756,13 @@ const estilos = StyleSheet.create({
   cardInner: {
     gap: espacamento[3],
   },
+  notaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[2],
+  },
+  notaNome: {flex: 1},
+  notaValor: {width: 32, textAlign: 'right'},
   golsRow: {
     flexDirection: 'row',
     gap: espacamento[3],

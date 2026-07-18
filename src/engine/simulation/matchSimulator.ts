@@ -8,6 +8,7 @@ import type {
   Player,
 } from '../../types';
 
+import {pesoLesaoPartida} from '../physical/fisicoEngine';
 import {temHabilidade} from '../progression/habilidades';
 import {
   criarChuteFaltaDireta,
@@ -315,11 +316,9 @@ function simularLesao(
   jogadores: Player[],
   rng: RandomGenerator,
 ): EventoPartida {
-  const jogador = escolherJogadorPonderado(
-    jogadores,
-    rng,
-    atleta => 110 - atleta.condicaoFisica,
-  );
+  // Quem se lesiona é ponderado pelo RISCO físico real (fadiga+carga+condição+
+  // idade+retorno recente) da engine física — não só pela condição (Onda 5).
+  const jogador = escolherJogadorPonderado(jogadores, rng, pesoLesaoPartida);
 
   return criarEvento(
     minuto,

@@ -114,6 +114,17 @@ export function competicaoPorDivisaoLegada(
   return divisao ? COMPETICAO_POR_DIVISAO_LEGADA.get(divisao) : undefined;
 }
 
+/**
+ * Símbolo da moeda (rótulo de exibição) do país de uma divisão — ex.: 'Série A'
+ * → 'R$', 'Premier League' → '£', 'Primera División' → 'AR$'. Fallback 'R$'
+ * quando a divisão é desconhecida (mundo brasileiro por padrão).
+ */
+export function simboloMoeda(divisao: string | undefined): string {
+  const comp = competicaoPorDivisaoLegada(divisao);
+  const pais = comp ? PAISES.get(comp.countryId) : undefined;
+  return pais?.moeda ?? 'R$';
+}
+
 /** Ligas (tipo 'liga') de um país, ordenadas do topo para a base (tier crescente). */
 export function ligasDoPais(countryId: string): CompetitionDefinition[] {
   return [...COMPETICOES.values()]

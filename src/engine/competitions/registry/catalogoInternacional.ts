@@ -52,7 +52,7 @@ export const COMPETICAO_ARGENTINA: CompetitionDefinition = {
   nomeCurto: 'Primera',
   tier: 1,
   tipo: 'liga',
-  numeroClubes: 3, // prova (Boca, Racing, Lanús); expandir
+  numeroClubes: 20, // Primera División expandida para liga jogável completa
   turnos: 2,
   pontosVitoria: 3,
   pontosEmpate: 1,

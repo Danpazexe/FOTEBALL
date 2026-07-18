@@ -17,11 +17,18 @@ import type {
   EstadoFinanceiro,
   MotivoDemissao,
   Partida,
+  InstantaneoDesenvolvimento,
+  PendenciaCarreira,
+  PlanoTreino,
+  PlanoTreinoStatus,
   Player,
+  RegistroDesenvolvimento,
   TabelaClassificacao,
 } from '../types';
 import {REPUTACAO_INICIAL} from '../engine/carreira/carreiraEngine';
 import {sugerirCapitao} from '../engine/carreira/capitao';
+import {comEstadoFisico} from '../engine/physical/fisicoEngine';
+import {comAtributosCalibrados} from '../engine/progression/calibracaoAtributos';
 import {comHabilidades} from '../engine/progression/habilidades';
 import {comTipo} from '../engine/progression/tipoJogador';
 import type {EstadoSerieDCarreira} from './serieDCarreira';
@@ -74,6 +81,17 @@ export interface SnapshotJogo {
   patrocinio?: EstadoPatrocinio;
   /** Histórico mundial de transferências (AD-09). Aditivo; vazio em saves antigos. */
   transferHistory?: TransferRecord[];
+  // Épico Overall Dinâmico (Onda 1) — aditivos, sem bump de versão:
+  /** Plano de treino recorrente do clube do usuário. */
+  planoTreino?: PlanoTreino | null;
+  /** Situação da configuração de treino (saves antigos → 'padrao_assistente'). */
+  planoTreinoStatus?: PlanoTreinoStatus;
+  /** Central de Pendências do clube. */
+  pendencias?: PendenciaCarreira[];
+  /** Ledger de desenvolvimento do elenco do usuário (tela Desenvolvimento). */
+  ledgerDesenvolvimento?: RegistroDesenvolvimento[];
+  /** Série de evolução da média do elenco (gráfico de Desenvolvimento). */
+  historicoDesenvolvimento?: InstantaneoDesenvolvimento[];
 }
 
 /**
@@ -113,6 +131,11 @@ export function montarSnapshot(
     serieDCarreira: state.serieDCarreira,
     patrocinio: state.patrocinio,
     transferHistory: state.transferHistory,
+    planoTreino: state.planoTreino,
+    planoTreinoStatus: state.planoTreinoStatus,
+    pendencias: state.pendencias,
+    ledgerDesenvolvimento: state.ledgerDesenvolvimento,
+    historicoDesenvolvimento: state.historicoDesenvolvimento,
   };
 }
 
@@ -141,9 +164,13 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     treinouProximoJogo: snapshot.treinouProximoJogo ?? false,
     conversouComGrupo: snapshot.conversouComGrupo ?? false,
     clubes: comCapitaoPadrao(snapshot.clubes, snapshot.jogadores),
-    // Migração: saves anteriores ao sistema de habilidades/tipo não têm esses
-    // campos — deriva no load (no-op para quem já tem).
-    jogadores: snapshot.jogadores.map(comHabilidades).map(comTipo),
+    // Migração: calibra atributos ↔ overall (drift do épico Overall Dinâmico)
+    // e deriva habilidades/tipo — tudo idempotente (no-op para quem já tem).
+    jogadores: snapshot.jogadores
+      .map(comAtributosCalibrados)
+      .map(comHabilidades)
+      .map(comTipo)
+      .map(comEstadoFisico),
     partidas: snapshot.partidas,
     tabela: snapshot.tabela,
     jovensDisponiveis: snapshot.jovensDisponiveis ?? [],
@@ -160,6 +187,14 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     // Patrocínios: ausente em saves anteriores → estado vazio (nada fabricado).
     patrocinio: snapshot.patrocinio ?? criarEstadoPatrocinioVazio(),
     transferHistory: snapshot.transferHistory ?? [],
+    // Treino (épico Overall Dinâmico): save antigo já treinava no automático,
+    // então o default honesto é 'padrao_assistente' — nunca fingir escolha do
+    // usuário ('configurado_usuario' só quando ele configurar de fato).
+    planoTreino: snapshot.planoTreino ?? null,
+    planoTreinoStatus: snapshot.planoTreinoStatus ?? 'padrao_assistente',
+    pendencias: snapshot.pendencias ?? [],
+    ledgerDesenvolvimento: snapshot.ledgerDesenvolvimento ?? [],
+    historicoDesenvolvimento: snapshot.historicoDesenvolvimento ?? [],
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
     // só a Série A). Aplica a migração de habilidades/tipo também aqui.
@@ -174,8 +209,10 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     ...(snapshot.todosJogadores
       ? {
           todosJogadores: snapshot.todosJogadores
+            .map(comAtributosCalibrados)
             .map(comHabilidades)
-            .map(comTipo),
+            .map(comTipo)
+            .map(comEstadoFisico),
         }
       : {}),
   };
