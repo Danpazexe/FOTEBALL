@@ -31,6 +31,7 @@ import {comEstadoFisico} from '../engine/physical/fisicoEngine';
 import {comAtributosCalibrados} from '../engine/progression/calibracaoAtributos';
 import {comHabilidades} from '../engine/progression/habilidades';
 import {comTipo} from '../engine/progression/tipoJogador';
+import {loadSeedData} from '../api/database/seed/loadSeed';
 import type {EstadoSerieDCarreira} from './serieDCarreira';
 import type {ResumoSerieD} from './serieDSeason';
 import {
@@ -154,6 +155,32 @@ function comCapitaoPadrao(clubes: Clube[], jogadores: Player[]): Clube[] {
   );
 }
 
+/**
+ * Migração de CONTEÚDO: o save guarda o mundo de QUANDO foi criado. Se o seed
+ * atual tem clubes/jogadores que o save não tem (ex.: a Primera Divisão passou de
+ * 3 → 20 clubes), injeta apenas os FALTANTES no mundo-mestre — sem tocar nos
+ * existentes (evoluídos). Os novos já vêm calibrados de `loadSeedData`. A liga
+ * ATIVA da temporada corrente não muda (o calendário já rodou); os novos entram
+ * no mercado universal e valem na próxima virada. Idempotente: save já completo
+ * (criado depois da mudança) não ganha nada.
+ */
+function mesclarConteudoNovoDoSeed(
+  clubesMundo: Clube[],
+  jogadoresMundo: Player[],
+): {clubes: Clube[]; jogadores: Player[]} {
+  const seed = loadSeedData();
+  const idsClubes = new Set(clubesMundo.map(clube => clube.id));
+  const idsJogadores = new Set(jogadoresMundo.map(jogador => jogador.id));
+  const clubesFaltantes = seed.clubes.filter(clube => !idsClubes.has(clube.id));
+  const jogadoresFaltantes = seed.jogadores.filter(
+    jogador => !idsJogadores.has(jogador.id),
+  );
+  return {
+    clubes: [...clubesMundo, ...clubesFaltantes],
+    jogadores: [...jogadoresMundo, ...jogadoresFaltantes],
+  };
+}
+
 /** Reconstrói a fatia de estado a aplicar via `useGameStore.setState`. */
 export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
   return {
@@ -197,25 +224,37 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     historicoDesenvolvimento: snapshot.historicoDesenvolvimento ?? [],
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
-    // só a Série A). Aplica a migração de habilidades/tipo também aqui.
-    ...(snapshot.todosClubes
-      ? {
-          todosClubes: comCapitaoPadrao(
-            snapshot.todosClubes,
-            snapshot.todosJogadores ?? snapshot.jogadores,
-          ),
-        }
-      : {}),
-    ...(snapshot.todosJogadores
-      ? {
-          todosJogadores: snapshot.todosJogadores
-            .map(comAtributosCalibrados)
-            .map(comHabilidades)
-            .map(comTipo)
-            .map(comEstadoFisico),
-        }
-      : {}),
+    // só a Série A). Aplica calibração/habilidades/tipo e, por fim, a migração de
+    // CONTEÚDO (injeta clubes/jogadores novos do seed que faltam no save).
+    ...mundoMestreRestaurado(snapshot),
   };
+}
+
+/**
+ * Restaura o mundo-mestre do save (calibrado) e mescla o conteúdo novo do seed.
+ * Retorna `{}` para saves antigos sem `todosClubes` — nesse caso o estado inicial
+ * já traz o seed completo (20 clubes na Primera).
+ */
+function mundoMestreRestaurado(
+  snapshot: SnapshotJogo,
+): Partial<GameState> {
+  if (!snapshot.todosClubes) {
+    return {};
+  }
+  const clubesMundo = comCapitaoPadrao(
+    snapshot.todosClubes,
+    snapshot.todosJogadores ?? snapshot.jogadores,
+  );
+  const jogadoresMundo = (snapshot.todosJogadores ?? snapshot.jogadores)
+    .map(comAtributosCalibrados)
+    .map(comHabilidades)
+    .map(comTipo)
+    .map(comEstadoFisico);
+  const {clubes, jogadores} = mesclarConteudoNovoDoSeed(
+    clubesMundo,
+    jogadoresMundo,
+  );
+  return {todosClubes: clubes, todosJogadores: jogadores};
 }
 
 export interface ArmazenamentoSave {
