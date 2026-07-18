@@ -14,6 +14,7 @@ import {
   Button,
   Card,
   Chip,
+  Divider,
   Icon,
   Pressable,
   Screen,
@@ -31,6 +32,7 @@ import {
   planoDePreset,
   type PresetTreinoId,
 } from '../../engine/progression/planoTreinoEngine';
+import type {SessaoPlanoTreino} from '../../types';
 import {
   INTENSIDADES,
   INTENSIDADES_ORDEM,
@@ -57,6 +59,35 @@ const FOCOS: Array<{
   {id: 'hab_passe', nome: 'Criação', descricao: 'Passe e visão de jogo', icone: 'tatica'},
   {id: 'hab_finalizacao', nome: 'Ataque', descricao: 'Finalização', icone: 'bola'},
 ];
+
+/** Rótulos dos 7 dias do ciclo (0 = segunda … 6 = domingo). */
+const DIAS_CICLO = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
+
+/** Peso 1–4 de uma intensidade (leve→muito forte) para agregar a carga. */
+function pesoIntensidade(i: IntensidadeTreino): number {
+  return INTENSIDADES_ORDEM.indexOf(i) + 1;
+}
+
+/** Carga agregada da semana a partir das sessões (Leve/Média/Alta). */
+function cargaDaSemana(dias: (SessaoPlanoTreino | null)[]): {
+  texto: string;
+  tom: CorTexto;
+} {
+  const pesos = dias
+    .filter((d): d is SessaoPlanoTreino => d !== null)
+    .map(d => pesoIntensidade(d.intensidade));
+  if (pesos.length === 0) {
+    return {texto: 'Folga', tom: 'success'};
+  }
+  const medio = pesos.reduce((s, v) => s + v, 0) / pesos.length;
+  if (medio <= 1.4) {
+    return {texto: 'Leve', tom: 'success'};
+  }
+  if (medio <= 2.4) {
+    return {texto: 'Média', tom: 'warning'};
+  }
+  return {texto: 'Alta', tom: 'danger'};
+}
 
 /** Tom (token) de risco de lesão a partir do risco-base da intensidade. */
 function rotuloRisco(risco: number): {texto: string; tom: CorTexto} {
@@ -95,9 +126,13 @@ function Semana(): React.JSX.Element {
   const aplicarTreino = useGameStore(state => state.aplicarTreino);
   const conversarComGrupo = useGameStore(state => state.conversarComGrupo);
   const jaConversou = useGameStore(state => state.conversouComGrupo);
+  const descansarElencoUsuario = useGameStore(
+    state => state.descansarElencoUsuario,
+  );
   // Plano de treino recorrente (Onda 4/7).
   const planoTreino = useGameStore(state => state.planoTreino);
   const planoStatus = useGameStore(state => state.planoTreinoStatus);
+  const rodadaAtual = useGameStore(state => state.rodadaAtual);
   const aceitarPlanoRecomendado = useGameStore(
     state => state.aceitarPlanoRecomendado,
   );
@@ -170,6 +205,29 @@ function Semana(): React.JSX.Element {
 
   const risco = rotuloRisco(INTENSIDADES[intensidade].riscoLesaoBase);
 
+  // Cronograma da semana do plano ATIVO (7 dias do ciclo corrente) + resumo.
+  const semanaPlano = useMemo(() => {
+    if (!planoTreino || planoTreino.semanas.length === 0) {
+      return null;
+    }
+    const semana =
+      planoTreino.semanas[rodadaAtual % planoTreino.semanas.length];
+    const dias = semana?.dias ?? [];
+    const carga = cargaDaSemana(dias);
+    const riscoBaseMax = dias
+      .filter((d): d is SessaoPlanoTreino => d !== null)
+      .reduce((m, d) => Math.max(m, INTENSIDADES[d.intensidade].riscoLesaoBase), 0);
+    const prontidaoPct = Math.round(
+      media(elenco.map(j => j.condicaoFisica)),
+    );
+    return {
+      dias,
+      carga,
+      risco: rotuloRisco(riscoBaseMax),
+      prontidaoPct,
+    };
+  }, [planoTreino, rodadaAtual, elenco]);
+
   const aoConversar = () => {
     const ok = conversarComGrupo();
     toast(
@@ -177,6 +235,16 @@ function Semana(): React.JSX.Element {
         ? 'Discurso motivacional feito. Moral em alta!'
         : 'Grupo já reunido esta semana.',
       ok ? 'sucesso' : 'erro',
+    );
+  };
+
+  const aoDescansar = () => {
+    const n = descansarElencoUsuario();
+    toast(
+      n > 0
+        ? `Descanso ativo: ${n} jogador${n > 1 ? 'es' : ''} recuperando carga.`
+        : 'Elenco já está descansado.',
+      n > 0 ? 'sucesso' : 'erro',
     );
   };
 
@@ -269,6 +337,73 @@ function Semana(): React.JSX.Element {
         </View>
       </Card>
 
+      {/* Cronograma da semana (plano ativo) — dia a dia do ciclo */}
+      {semanaPlano ? (
+        <View style={styles.section}>
+          <Text variant="labelM" color="textSecondary" style={styles.caps}>
+            Cronograma da semana
+          </Text>
+          <Card variante="outlined" padding={0}>
+            {semanaPlano.dias.map((dia, i) => {
+              const treinoDia = dia ? buscarTreino(dia.treinoId) : null;
+              return (
+                <View key={DIAS_CICLO[i]}>
+                  {i > 0 ? <Divider /> : null}
+                  <View style={styles.cronoLinha}>
+                    <Text
+                      variant="labelL"
+                      color="textSecondary"
+                      tabular
+                      style={styles.cronoDia}>
+                      {DIAS_CICLO[i]}
+                    </Text>
+                    <View style={styles.flex}>
+                      <Text variant="titleM">
+                        {dia ? treinoDia?.nome ?? 'Treino' : 'Descanso'}
+                      </Text>
+                      <Text variant="caption" color="textSecondary">
+                        {dia
+                          ? INTENSIDADES[dia.intensidade].rotulo
+                          : 'Recuperação ativa'}
+                      </Text>
+                    </View>
+                    <Icon
+                      nome={dia ? 'tendencia' : 'relogio'}
+                      size={16}
+                      color="textSecondary"
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </Card>
+        </View>
+      ) : null}
+
+      {/* Resumo da semana — carga agregada / prontidão / risco */}
+      {semanaPlano ? (
+        <Card variante="outlined" style={styles.resumoSemanaCard}>
+          <Text variant="titleM">Resumo da semana</Text>
+          <View style={styles.resumoGrid}>
+            <ResumoStat
+              rotulo="Carga"
+              texto={semanaPlano.carga.texto}
+              tom={semanaPlano.carga.tom}
+            />
+            <ResumoStat
+              rotulo="Prontidão"
+              texto={`${semanaPlano.prontidaoPct}%`}
+              tom={corCondicaoTom(semanaPlano.prontidaoPct)}
+            />
+            <ResumoStat
+              rotulo="Risco de lesão"
+              texto={semanaPlano.risco.texto}
+              tom={semanaPlano.risco.tom}
+            />
+          </View>
+        </Card>
+      ) : null}
+
       {/* Prontidão do elenco */}
       <Card variante="outlined" style={styles.prontidaoCard}>
         <ProntidaoStat
@@ -292,6 +427,14 @@ function Semana(): React.JSX.Element {
           </Text>
         </Card>
       ) : null}
+      {/* Descanso ativo: recupera carga/condição de quem está mais desgastado */}
+      <Button
+        titulo="Dar descanso ao elenco"
+        variante="secondary"
+        icone="relogio"
+        onPress={aoDescansar}
+        fullWidth
+      />
 
       {/* Foco da semana — 4 opções claras */}
       <View style={styles.section}>
@@ -444,10 +587,43 @@ function ProntidaoStat({
   );
 }
 
+/** Célula do "Resumo da semana": rótulo em cima, valor colorido embaixo. */
+function ResumoStat({
+  rotulo,
+  texto,
+  tom,
+}: {
+  rotulo: string;
+  texto: string;
+  tom: CorTexto;
+}): React.JSX.Element {
+  return (
+    <View style={styles.resumoStat}>
+      <Text variant="caption" color="textSecondary" align="center">
+        {rotulo}
+      </Text>
+      <Text variant="titleM" color={tom} align="center">
+        {texto}
+      </Text>
+    </View>
+  );
+}
+
 export default Semana;
 
 const styles = StyleSheet.create({
   caps: {textTransform: 'uppercase', letterSpacing: 1},
+  cronoLinha: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[3],
+    paddingHorizontal: espacamento[3],
+    paddingVertical: espacamento[2],
+  },
+  cronoDia: {width: 40},
+  resumoSemanaCard: {gap: espacamento[3]},
+  resumoGrid: {flexDirection: 'row', alignItems: 'center'},
+  resumoStat: {flex: 1, alignItems: 'center', gap: 2},
   planoCard: {gap: espacamento[3]},
   planoTopo: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
   planoAcoes: {flexDirection: 'row', gap: espacamento[2]},

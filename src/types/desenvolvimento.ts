@@ -99,3 +99,24 @@ export interface RegistroDesenvolvimento {
   overallDepois: number;
   motivos: MotivoDesenvolvimento[];
 }
+
+/**
+ * Instantâneo longitudinal da MÉDIA do elenco do usuário num ponto do tempo —
+ * capturado no início da carreira e a cada virada de temporada. Alimenta o
+ * gráfico de "Evolução média dos atributos" (Desenvolvimento) com dado REAL
+ * (nada projetado). Cresce um ponto por temporada.
+ */
+export interface InstantaneoDesenvolvimento {
+  /** Data ISO da captura. */
+  data: string;
+  /** Ano-temporada de referência (ex.: "2026"). */
+  temporada: string;
+  /** Média (0-100) dos atributos FÍSICOS do elenco. */
+  fisico: number;
+  /** Média (0-100) dos atributos TÉCNICOS do elenco. */
+  tecnico: number;
+  /** Média (0-100) dos atributos MENTAIS do elenco. */
+  mental: number;
+  /** Média do overall do elenco. */
+  overall: number;
+}

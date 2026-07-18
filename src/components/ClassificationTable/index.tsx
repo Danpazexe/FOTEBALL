@@ -2,7 +2,7 @@ import React from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import Escudo from '../Escudo';
-import {Text, espacamento, raios, useTheme, type CorTexto} from '../../design-system';
+import {Pressable, Text, espacamento, raios, useTheme, type CorTexto} from '../../design-system';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import type {Clube, TabelaClassificacao} from '../../types';
 
@@ -34,6 +34,7 @@ export function ClassificationTable({
   clubeDestaqueId,
   zonaAcesso = 4,
   zonaQueda = 17,
+  onSelecionarClube,
 }: {
   tabela: TabelaClassificacao[];
   clubes: Clube[];
@@ -42,6 +43,8 @@ export function ClassificationTable({
   zonaAcesso?: number;
   /** Posição a partir da qual é rebaixamento; `null` desliga. */
   zonaQueda?: number | null;
+  /** Toque numa linha → abre a ficha do clube. Quando ausente, linhas inertes. */
+  onSelecionarClube?: (clubeId: string) => void;
 }) {
   const {cores} = useTheme();
   return (
@@ -90,17 +93,16 @@ export function ClassificationTable({
           : zona === 'queda'
           ? 'danger'
           : 'textSecondary';
-        return (
-          <View
-            key={linha.clubeId}
-            style={[
-              styles.row,
-              {
-                borderBottomColor: cores.border,
-                borderLeftColor: fileteCor,
-              },
-              destaque ? {backgroundColor: cores.accentSoft} : null,
-            ]}>
+        const estiloLinha = [
+          styles.row,
+          {
+            borderBottomColor: cores.border,
+            borderLeftColor: fileteCor,
+          },
+          destaque ? {backgroundColor: cores.accentSoft} : null,
+        ];
+        const conteudo = (
+          <>
             <Text
               variant="labelL"
               weight="800"
@@ -129,6 +131,19 @@ export function ClassificationTable({
               {linha.saldoGols > 0 ? '+' : ''}
               {linha.saldoGols}
             </Text>
+          </>
+        );
+        return onSelecionarClube ? (
+          <Pressable
+            key={linha.clubeId}
+            style={estiloLinha}
+            onPress={() => onSelecionarClube(linha.clubeId)}
+            accessibilityLabel={`Ver elenco de ${nomeClube(clubes, linha.clubeId)}`}>
+            {conteudo}
+          </Pressable>
+        ) : (
+          <View key={linha.clubeId} style={estiloLinha}>
+            {conteudo}
           </View>
         );
       })}

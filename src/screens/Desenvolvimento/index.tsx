@@ -22,6 +22,7 @@ import {
   useTheme,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
+import GraficoEvolucao from '../../components/GraficoEvolucao';
 import {useElencoNavigation} from '../../navigation/types';
 import {useGameStore, useJogadoresUsuario} from '../../store/useGameStore';
 import type {AtributoChave, Player, RegistroDesenvolvimento} from '../../types';
@@ -136,6 +137,7 @@ export default function Desenvolvimento(): React.JSX.Element {
   const nav = useElencoNavigation();
   const elenco = useJogadoresUsuario();
   const ledger = useGameStore(s => s.ledgerDesenvolvimento);
+  const historico = useGameStore(s => s.historicoDesenvolvimento);
 
   // Jovens (≤21) com maior margem de potencial ainda por explorar.
   const jovens = useMemo(
@@ -218,6 +220,16 @@ export default function Desenvolvimento(): React.JSX.Element {
           title="Sem histórico de evolução"
           description="A evolução aparece ao virar a temporada. Por enquanto, veja o potencial do elenco atual."
         />
+      ) : null}
+
+      {/* Evolução média dos atributos — gráfico com dado real (≥2 viradas) */}
+      {historico.length >= 2 ? (
+        <View style={styles.secao}>
+          <SectionHeader titulo="Evolução média dos atributos" />
+          <Card variante="outlined">
+            <GraficoEvolucao dados={historico} />
+          </Card>
+        </View>
       ) : null}
 
       {/* Em regressão (depende do ledger) */}

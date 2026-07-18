@@ -17,6 +17,7 @@ import type {
   EstadoFinanceiro,
   MotivoDemissao,
   Partida,
+  InstantaneoDesenvolvimento,
   PendenciaCarreira,
   PlanoTreino,
   PlanoTreinoStatus,
@@ -89,6 +90,8 @@ export interface SnapshotJogo {
   pendencias?: PendenciaCarreira[];
   /** Ledger de desenvolvimento do elenco do usuário (tela Desenvolvimento). */
   ledgerDesenvolvimento?: RegistroDesenvolvimento[];
+  /** Série de evolução da média do elenco (gráfico de Desenvolvimento). */
+  historicoDesenvolvimento?: InstantaneoDesenvolvimento[];
 }
 
 /**
@@ -132,6 +135,7 @@ export function montarSnapshot(
     planoTreinoStatus: state.planoTreinoStatus,
     pendencias: state.pendencias,
     ledgerDesenvolvimento: state.ledgerDesenvolvimento,
+    historicoDesenvolvimento: state.historicoDesenvolvimento,
   };
 }
 
@@ -190,6 +194,7 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     planoTreinoStatus: snapshot.planoTreinoStatus ?? 'padrao_assistente',
     pendencias: snapshot.pendencias ?? [],
     ledgerDesenvolvimento: snapshot.ledgerDesenvolvimento ?? [],
+    historicoDesenvolvimento: snapshot.historicoDesenvolvimento ?? [],
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
     // só a Série A). Aplica a migração de habilidades/tipo também aqui.

@@ -33,6 +33,7 @@ import {
   aplicarEfeitoTreino,
 } from '../engine/progression/treinoAtributos';
 import {atualizarFormaPorNota} from '../engine/progression/formaEngine';
+import {instantaneoDoElenco} from '../engine/progression/instantaneoDesenvolvimento';
 import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
@@ -177,6 +178,7 @@ import type {
   MotivoDemissao,
   Partida,
   PendenciaCarreira,
+  InstantaneoDesenvolvimento,
   PlanoTreino,
   PlanoTreinoStatus,
   Player,
@@ -359,6 +361,12 @@ export interface GameState {
    * o save não crescer sem poda. Aditivo; vazio em saves antigos.
    */
   ledgerDesenvolvimento: RegistroDesenvolvimento[];
+  /**
+   * Série temporal da MÉDIA do elenco do usuário (físico/técnico/mental/overall),
+   * capturada no início da carreira e a cada virada. Alimenta o gráfico de
+   * evolução (Desenvolvimento). Aditivo; vazio em saves antigos.
+   */
+  historicoDesenvolvimento: InstantaneoDesenvolvimento[];
   /** (Re)gera as propostas de patrocínio do clube do usuário para a temporada. */
   gerarPropostasPatrocinioUsuario: () => void;
   /** Aceita uma proposta de patrocínio (cria contrato ativo). */
@@ -457,6 +465,8 @@ function adicionarMensagem(
 const MAX_PENDENCIAS = 12;
 /** Teto do ledger de desenvolvimento (as mais recentes; poda o save). */
 const MAX_LEDGER_DESENVOLVIMENTO = 120;
+/** Teto da série de evolução do elenco (1 ponto por temporada; ~40 anos). */
+const MAX_HISTORICO_DESENVOLVIMENTO = 40;
 
 /** Delta INTEIRO por atributo entre dois estados (só os que mudaram). */
 function diffAtributos(
@@ -532,6 +542,20 @@ function pendenciaPlanoTreino(data: string): PendenciaCarreira {
     criadaEm: data,
     bloqueante: false,
   };
+}
+
+/**
+ * Ponto inicial da série de desenvolvimento: a média do elenco no começo (0 ou
+ * 1 instantâneo). Cada virada de temporada acrescenta mais um ponto real.
+ */
+function instantaneoInicial(
+  jogadores: Player[],
+  clubeId: string,
+  data: string,
+  temporada: string,
+): InstantaneoDesenvolvimento[] {
+  const snap = instantaneoDoElenco(jogadores, clubeId, data, temporada);
+  return snap ? [snap] : [];
 }
 
 /** Propostas da IA que EXPIRAM na próxima rodada viram pendência (Central). */
@@ -1152,6 +1176,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   planoTreinoStatus: 'nao_configurado',
   pendencias: [],
   ledgerDesenvolvimento: [],
+  historicoDesenvolvimento: [],
 
   gerarPropostasPatrocinioUsuario: () => {
     const state = get();
@@ -1227,6 +1252,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       planoTreinoStatus: 'nao_configurado',
       pendencias: [pendenciaPlanoTreino(liga.dataAtual)],
       ledgerDesenvolvimento: [],
+      historicoDesenvolvimento: instantaneoInicial(
+        liga.jogadores,
+        clubeId,
+        liga.dataAtual,
+        TEMPORADA_INICIAL,
+      ),
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -1296,6 +1327,12 @@ export const useGameStore = create<GameState>((set, get) => ({
       planoTreinoStatus: 'nao_configurado',
       pendencias: [pendenciaPlanoTreino(liga.dataAtual)],
       ledgerDesenvolvimento: [],
+      historicoDesenvolvimento: instantaneoInicial(
+        liga.jogadores,
+        clubeId,
+        liga.dataAtual,
+        state.temporadaAtual,
+      ),
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -3274,6 +3311,17 @@ export const useGameStore = create<GameState>((set, get) => ({
         ...registrosDesenvolvimento,
         ...state.ledgerDesenvolvimento,
       ].slice(0, MAX_LEDGER_DESENVOLVIMENTO),
+      // Série de evolução: acrescenta o instantâneo do elenco JÁ evoluído para a
+      // nova temporada (um ponto real por virada), com teto.
+      historicoDesenvolvimento: [
+        ...state.historicoDesenvolvimento,
+        ...instantaneoInicial(
+          jogadoresEvoluidos,
+          state.clubeUsuarioId ?? '',
+          liga.dataAtual,
+          proximaTemporada,
+        ),
+      ].slice(-MAX_HISTORICO_DESENVOLVIMENTO),
       propostasRecebidas: [],
       copa:
         // Série D (grupo de 10 rodadas não comporta as fases) e carreiras fora
@@ -3453,7 +3501,8 @@ export const useGameStore = create<GameState>((set, get) => ({
       planoTreino: null,
       planoTreinoStatus: 'nao_configurado',
       pendencias: [],
-  ledgerDesenvolvimento: [],
+      ledgerDesenvolvimento: [],
+      historicoDesenvolvimento: [],
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

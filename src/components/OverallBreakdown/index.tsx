@@ -19,7 +19,11 @@ import {
   useTheme,
   type CorTexto,
 } from '../../design-system';
-import {overallDePartida} from '../../engine/progression/overallPartida';
+import {
+  atributosEfetivos,
+  overallDePartida,
+} from '../../engine/progression/overallPartida';
+import {calcularOverall} from '../../engine/progression/overall';
 import {calcularRating, montarCoortes} from '../../engine/progression/ratings';
 import type {Player} from '../../types';
 
@@ -60,10 +64,22 @@ export default function OverallBreakdown({
   const partida = useMemo(() => overallDePartida(jogador), [jogador]);
 
   const {fatores} = partida;
-  // Fatores por categoria vêm como multiplicador (1.0 = neutro) → delta em pts.
-  const deltaForma = Math.round((fatores.tecnico - 1) * 100);
-  const deltaMoral = Math.round((fatores.mental - 1) * 100);
-  const deltaCondicao = Math.round((fatores.fisico - 1) * 100);
+  // Contribuição de CADA fator em PONTOS de overall (não % do multiplicador):
+  // isola o fator (demais neutros = 1) e mede o quanto o overall se move em
+  // relação ao base. Assim os números reconciliam com "Em partida" (Base±8), em
+  // vez de mostrarem o −20% do multiplicador que não bate com o overall.
+  const pontosFator = (chave: 'fisico' | 'tecnico' | 'mental'): number => {
+    const fs = {fisico: 1, tecnico: 1, mental: 1, goleiro: 1};
+    fs[chave] = fatores[chave];
+    fs.goleiro = (fs.fisico + fs.mental) / 2;
+    const efetivos = atributosEfetivos(jogador, fs);
+    return Math.round(
+      calcularOverall(efetivos, jogador.posicaoPrincipal) - jogador.overall,
+    );
+  };
+  const deltaForma = pontosFator('tecnico');
+  const deltaMoral = pontosFator('mental');
+  const deltaCondicao = pontosFator('fisico');
 
   const pilares: Array<{rotulo: string; valor: number; cor: string}> = [
     {rotulo: 'Técnica', valor: rating.pilares.tecnica, cor: cores.brand},

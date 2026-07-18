@@ -139,7 +139,11 @@ export default function PendenciasClube(): React.JSX.Element {
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={estilos.filtros}>
-          {CHIPS.map(c => (
+          {/* Só mostra um filtro de prioridade se houver pendências nele; "Todas"
+              é sempre visível. Evita o beco sem saída do chip "Baixa 0". */}
+          {CHIPS.filter(
+            c => c.chave === 'todas' || contagem[c.chave] > 0,
+          ).map(c => (
             <Chip
               key={c.chave}
               label={`${c.rotulo} ${contagem[c.chave]}`}

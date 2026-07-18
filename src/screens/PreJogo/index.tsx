@@ -554,6 +554,21 @@ function PreJogo(): React.JSX.Element {
         </View>
       ) : null}
 
+      {/* AVISOS da escalação — o que corrigir antes do jogo (erros em vermelho
+          desabilitam Simular/Jogar; avisos em amarelo são só alerta) */}
+      {avisos.length > 0 ? (
+        <Card variante="outlined">
+          {avisos.map((aviso, i) => (
+            <View key={`${aviso.texto}-${i}`} style={styles.avisoRow}>
+              <Icon nome={aviso.icone} size="sm" color={aviso.cor} />
+              <Text variant="bodyM" color={aviso.cor} style={styles.avisoTexto}>
+                {aviso.texto}
+              </Text>
+            </View>
+          ))}
+        </Card>
+      ) : null}
+
       {/* AÇÕES — iniciar a partida (simular ou ao vivo) + ajustar escalação */}
       {(() => {
         const podeJogar = !avisos.some(a => a.cor === 'danger');

@@ -55,6 +55,7 @@ export type {
 export type {
   CategoriaAtributo,
   EstadoFisicoJogador,
+  InstantaneoDesenvolvimento,
   MotivoDesenvolvimento,
   PilaresRating,
   RatingJogador,

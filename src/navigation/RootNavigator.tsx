@@ -5,6 +5,7 @@ import MainMenu from '../screens/MainMenu';
 import LeagueSelect from '../screens/LeagueSelect';
 import NewCareer from '../screens/NewCareer';
 import PlayerDetail from '../screens/PlayerDetail';
+import ElencoClube from '../screens/ElencoClube';
 import Central from '../screens/Central';
 import PendenciasClube from '../screens/PendenciasClube';
 import MatchSimulation from '../screens/MatchSimulation';
@@ -39,6 +40,7 @@ export function RootNavigator() {
         component={PlayerDetail}
         options={{presentation: 'modal'}}
       />
+      <Stack.Screen name="ElencoClube" component={ElencoClube} />
       <Stack.Screen name="Central" component={Central} />
       <Stack.Screen name="PendenciasClube" component={PendenciasClube} />
       <Stack.Screen

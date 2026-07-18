@@ -33,6 +33,7 @@ import {
   type MercadoStackParamList,
 } from '../../navigation/types';
 import {moeda, moedaCompacta, nomeClube} from '../../utils/formatters';
+import {simboloMoeda} from '../../engine/competitions/registry/competitionRegistry';
 
 function Negociacao(): React.JSX.Element {
   const nav = useMercadoNavigation();
@@ -55,6 +56,10 @@ function Negociacao(): React.JSX.Element {
   );
   const clube = useGameStore(selecionarClubeUsuario);
   const fazerPropostaCompra = useGameStore(state => state.fazerPropostaCompra);
+  // Valor/salário do ALVO na moeda do país dele (rótulo, sem câmbio).
+  const simboloAlvo = simboloMoeda(
+    clubes.find(c => c.id === jogador?.clubeId)?.divisao,
+  );
 
   const [valorInput, setValorInput] = useState(
     jogador ? String(precoCompra(jogador)) : '',
@@ -128,9 +133,15 @@ function Negociacao(): React.JSX.Element {
           valor={nomeClube(clubes, jogador.clubeId ?? '')}
         />
         <Divider />
-        <Linha label="Valor de mercado" valor={moeda(jogador.valorMercado)} />
+        <Linha
+          label="Valor de mercado"
+          valor={moeda(jogador.valorMercado, simboloAlvo)}
+        />
         <Divider />
-        <Linha label="Salário estimado" valor={`${moeda(jogador.salario)}/mês`} />
+        <Linha
+          label="Salário estimado"
+          valor={`${moeda(jogador.salario, simboloAlvo)}/mês`}
+        />
       </Card>
 
       {/* Proposta */}

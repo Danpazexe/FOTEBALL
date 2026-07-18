@@ -19,6 +19,7 @@ import {
   Icon,
   OverallRing,
   PositionBadge,
+  Pressable,
   Screen,
   StatValue,
   Text,
@@ -31,10 +32,16 @@ import type {IconeNome} from '../../components/Icone';
 import {useConfirm, useToast} from '../../components/feedback';
 import {corOverall} from '../../theme';
 import {moeda, nomeClube} from '../../utils/formatters';
+import {simboloMoeda} from '../../engine/competitions/registry/competitionRegistry';
 import {HABILIDADES} from '../../engine/progression/habilidades';
 import {precoVenda, useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
-import type {Player, PlayerAttributes, TipoJogador} from '../../types';
+import type {
+  AtributoChave,
+  Player,
+  PlayerAttributes,
+  TipoJogador,
+} from '../../types';
 
 type Tom = 'brand' | 'accent' | 'neutral' | 'success' | 'danger';
 
@@ -108,6 +115,7 @@ function PlayerDetail(): React.JSX.Element {
   const venderJogador = useGameStore(state => state.venderJogador);
   const emprestarJogador = useGameStore(state => state.emprestarJogador);
   const definirCapitao = useGameStore(state => state.definirCapitao);
+  const definirFocoTreino = useGameStore(state => state.definirFocoTreino);
   const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
   const confirm = useConfirm();
   const toast = useToast();
@@ -133,6 +141,22 @@ function PlayerDetail(): React.JSX.Element {
     clubeUsuarioId !== null && jogador.clubeId === clubeUsuarioId;
   const clubeDoUsuario = clubes.find(clube => clube.id === clubeUsuarioId);
   const ehCapitao = clubeDoUsuario?.capitaoId === jogador.id;
+  // Moeda pelo país do clube do jogador (£ inglês, AR$ argentino, R$ padrão).
+  const simbolo = simboloMoeda(
+    clubes.find(clube => clube.id === jogador.clubeId)?.divisao,
+  );
+
+  // Foco de treino individual: tocar num atributo o coloca (ou tira) em foco —
+  // ele desenvolve mais rápido no treino. Só faz sentido no elenco do usuário.
+  const alternarFoco = (chave: AtributoChave) => {
+    const novo = jogador.focoTreino === chave ? null : chave;
+    definirFocoTreino(jogador.id, novo);
+    const label = ATRIBUTOS.find(a => a.chave === chave)?.label ?? chave;
+    toast(
+      novo ? `Foco de treino: ${label}.` : 'Foco de treino removido.',
+      'sucesso',
+    );
+  };
 
   const handleVender = async () => {
     const ok = !confirmarAcoes
@@ -140,7 +164,9 @@ function PlayerDetail(): React.JSX.Element {
       : await confirm({
           titulo: `Vender ${jogador.nome}?`,
           mensagem: `${jogador.posicaoPrincipal} · ${jogador.idade} anos · Overall ${jogador.overall}`,
-          detalhes: [{rotulo: 'Clube recebe', valor: moeda(precoVenda(jogador))}],
+          detalhes: [
+            {rotulo: 'Clube recebe', valor: moeda(precoVenda(jogador), simbolo)},
+          ],
           confirmarLabel: 'Vender',
           perigo: true,
         });
@@ -202,6 +228,11 @@ function PlayerDetail(): React.JSX.Element {
               {jogador.idade} anos · {jogador.nacionalidade}
             </Text>
           </View>
+          {jogador.clubeId ? (
+            <Text variant="caption" color="textMuted" numberOfLines={1}>
+              {nomeClube(clubes, jogador.clubeId)}
+            </Text>
+          ) : null}
         </View>
         <OverallRing valor={jogador.overall} tamanho={56} />
       </Card>
@@ -269,11 +300,16 @@ function PlayerDetail(): React.JSX.Element {
       ) : null}
 
       <View style={styles.metricsRow}>
-        <StatValue label="Valor" value={moeda(jogador.valorMercado)} style={styles.flex} />
-        <StatValue label="Salário" value={moeda(jogador.salario)} style={styles.flex} />
+        <StatValue label="Valor" value={moeda(jogador.valorMercado, simbolo)} style={styles.flex} />
+        <StatValue label="Salário" value={moeda(jogador.salario, simbolo)} style={styles.flex} />
       </View>
       <View style={styles.metricsRow}>
         <StatValue label="Condição" value={`${Math.round(jogador.condicaoFisica)}%`} style={styles.flex} />
+        <StatValue
+          label="Ritmo"
+          value={jogador.fisico ? `${Math.round(jogador.fisico.ritmo)}` : '—'}
+          style={styles.flex}
+        />
         <StatValue label="Moral" value={`${Math.round(jogador.moral)}`} style={styles.flex} />
         <StatValue label="Forma" value={jogador.forma.toFixed(1)} style={styles.flex} />
       </View>
@@ -319,11 +355,19 @@ function PlayerDetail(): React.JSX.Element {
                 label={attr.label}
                 valor={jogador.atributos[attr.chave]}
                 progresso={jogador.progressoAtributos?.[attr.chave] ?? 0}
+                emFoco={jogador.focoTreino === attr.chave}
+                onPress={
+                  doClubeUsuario
+                    ? () => alternarFoco(attr.chave as AtributoChave)
+                    : undefined
+                }
               />
             ))}
           </View>
           <Text variant="caption" color="textSecondary" style={styles.nota}>
-            A barra fina mostra o progresso no treino rumo ao próximo ponto.
+            {doClubeUsuario
+              ? 'Toque num atributo para colocá-lo em FOCO — ele evolui mais rápido no treino. A barra fina mostra o progresso rumo ao próximo ponto.'
+              : 'A barra fina mostra o progresso no treino rumo ao próximo ponto.'}
           </Text>
         </Card>
       </Secao>
@@ -418,20 +462,35 @@ function AtributoLinha({
   label,
   valor,
   progresso,
+  emFoco = false,
+  onPress,
 }: {
   label: string;
   valor: number;
   progresso: number;
+  emFoco?: boolean;
+  onPress?: () => void;
 }): React.JSX.Element {
   const {cores} = useTheme();
   const cor = corOverall(valor);
   const pctProgresso = Math.max(0, Math.min(100, progresso));
+  const Container = onPress ? Pressable : View;
   return (
-    <View style={styles.atributoItem}>
+    <Container
+      style={styles.atributoItem}
+      onPress={onPress}
+      accessibilityLabel={onPress ? `Focar treino em ${label}` : undefined}>
       <View style={styles.atributoTopo}>
-        <Text variant="bodyM" color="textSecondary" numberOfLines={1} style={styles.flex}>
-          {label}
-        </Text>
+        <View style={styles.atributoLabelWrap}>
+          {emFoco ? <Icon nome="estrela" size={13} color="brand" /> : null}
+          <Text
+            variant="bodyM"
+            color={emFoco ? 'brand' : 'textSecondary'}
+            numberOfLines={1}
+            style={styles.flex}>
+            {label}
+          </Text>
+        </View>
         <View style={styles.atributoValorWrap}>
           {pctProgresso > 0 ? (
             <Text variant="caption" color="textSecondary">
@@ -460,7 +519,7 @@ function AtributoLinha({
           ]}
         />
       </View>
-    </View>
+    </Container>
   );
 }
 
@@ -502,6 +561,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   atributoItem: {width: '48%', gap: espacamento[1], marginBottom: espacamento[2]},
+  atributoLabelWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[1],
+  },
   atributoTopo: {
     flexDirection: 'row',
     alignItems: 'center',

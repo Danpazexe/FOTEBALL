@@ -69,6 +69,8 @@ export type RootStackParamList = {
   NewCareer: {divisao?: string} | undefined;
   MainTabs: NavigatorScreenParams<MainTabsParamList> | undefined;
   PlayerDetail: {jogadorId: string};
+  /** Ficha de elenco de um clube qualquer (ex.: tocar um time na Classificação). */
+  ElencoClube: {clubeId: string};
   /** Hub de atalhos/notificações — saiu da tab bar, agora é tela de stack. */
   Central: undefined;
   PendenciasClube: undefined;

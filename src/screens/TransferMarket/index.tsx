@@ -40,6 +40,7 @@ import {combinarMundoStore} from '../../store/transferenciaMundo';
 import {
   competicaoPorDivisaoLegada,
   listarPaises,
+  simboloMoeda,
 } from '../../engine/competitions/registry/competitionRegistry';
 import {moeda, moedaCompacta, nomeClube, siglaClube} from '../../utils/formatters';
 import type {Player, Position} from '../../types';
@@ -135,6 +136,17 @@ function TransferMarket(): React.JSX.Element {
     }
     return mapa;
   }, [clubesMundo]);
+  // Moeda de cada clube (£/AR$/R$) — o valor do jogador aparece na moeda do país
+  // dele (rótulo, sem câmbio), casando com a ficha do jogador.
+  const simboloPorClube = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const c of clubesMundo) {
+      mapa.set(c.id, simboloMoeda(c.divisao));
+    }
+    return mapa;
+  }, [clubesMundo]);
+  const simboloDe = (clubeId: string | null): string =>
+    simboloPorClube.get(clubeId ?? '') ?? 'R$';
   const paises = useMemo(
     () => [{id: 'Todos', nome: 'Todos'}, ...listarPaises()],
     [],
@@ -338,7 +350,10 @@ function TransferMarket(): React.JSX.Element {
                     jogador={jogador}
                     clubeId={jogador.clubeId ?? ''}
                     sigla={siglaClube(clubesMundo, jogador.clubeId ?? '')}
-                    valorTexto={moedaCompacta(jogador.valorMercado)}
+                    valorTexto={moedaCompacta(
+                      jogador.valorMercado,
+                      simboloDe(jogador.clubeId),
+                    )}
                     acaoLabel="Propor"
                     onAcao={() => abrirProposta(jogador)}
                     onPress={() => abrirDetalhe(jogador.id)}
@@ -364,8 +379,11 @@ function TransferMarket(): React.JSX.Element {
                   jogador={jogador}
                   clubeId={jogador.clubeId ?? ''}
                   sigla={siglaClube(clubesMundo, jogador.clubeId ?? '')}
-                  extra={`taxa ${moeda(custoEmprestimo(jogador))}`}
-                  valorTexto={moedaCompacta(jogador.valorMercado)}
+                  extra={`taxa ${moeda(custoEmprestimo(jogador), simboloDe(jogador.clubeId))}`}
+                  valorTexto={moedaCompacta(
+                    jogador.valorMercado,
+                    simboloDe(jogador.clubeId),
+                  )}
                   acaoLabel="Pegar"
                   onAcao={() => aoEmprestar(jogador)}
                   onPress={() => abrirDetalhe(jogador.id)}

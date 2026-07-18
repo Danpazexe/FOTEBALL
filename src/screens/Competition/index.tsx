@@ -9,6 +9,7 @@ import {StyleSheet, View} from 'react-native';
 import {ClassificationTable} from '../../components/ClassificationTable';
 import {
   AppHeader,
+  Pressable,
   Screen,
   Text,
   espacamento,
@@ -60,6 +61,7 @@ function Competition(): React.JSX.Element {
         clubes={clubes}
         clubeDestaqueId={clubeUsuarioId}
         zonaQueda={zonaQueda}
+        onSelecionarClube={id => nav.navigate('ElencoClube', {clubeId: id})}
       />
 
       <View style={styles.legenda}>
@@ -93,8 +95,12 @@ function Competition(): React.JSX.Element {
           artilheiros.map((linha, indice) => {
             const ehUsuario = linha.clubeId === clubeUsuarioId;
             return (
-              <View
+              <Pressable
                 key={linha.jogadorId}
+                onPress={() =>
+                  nav.navigate('PlayerDetail', {jogadorId: linha.jogadorId})
+                }
+                accessibilityLabel={`Ver ${linha.nome}`}
                 style={[
                   styles.artLinha,
                   ehUsuario ? {backgroundColor: cores.brandSoft} : null,
@@ -120,7 +126,7 @@ function Competition(): React.JSX.Element {
                 <Text variant="titleM" color="brand" tabular>
                   {linha.gols}
                 </Text>
-              </View>
+              </Pressable>
             );
           })
         )}

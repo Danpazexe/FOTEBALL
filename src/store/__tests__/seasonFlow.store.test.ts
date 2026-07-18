@@ -8,6 +8,7 @@
  * que ele não cobre: acesso/rebaixamento REAL e os eventos de carreira da virada.
  * Controlamos a tabela final e a rodada via setState (padrão dos testes de store).
  */
+import {gerarLiga} from '../setup';
 import {useGameStore} from '../useGameStore';
 
 const estado = () => useGameStore.getState();
@@ -155,15 +156,15 @@ describe('finalizarTemporada — acesso e rebaixamento', () => {
     expect(estado().copa).toBeNull();
   });
 
-  it('Primera División (divisão única, 3 clubes): temporada fecha sem mover ninguém', () => {
+  it('Primera División (divisão única, 20 clubes): temporada fecha sem mover ninguém', () => {
     const clubeArgentino = estado().todosClubes.find(
       clube => clube.divisao === 'Primera División',
     )!;
     estado().iniciarNovaCarreira(clubeArgentino.id);
 
-    // 3 clubes → round-robin com folga: 6 rodadas.
-    expect(Math.max(...estado().partidas.map(p => p.rodada))).toBe(6);
-    useGameStore.setState({rodadaAtual: 7});
+    // 20 clubes → returno completo: 38 rodadas.
+    expect(Math.max(...estado().partidas.map(p => p.rodada))).toBe(38);
+    useGameStore.setState({rodadaAtual: 39});
     estado().finalizarTemporada();
 
     // Divisão única: ninguém muda de divisão na Argentina.
@@ -171,8 +172,8 @@ describe('finalizarTemporada — acesso e rebaixamento', () => {
       estado().todosClubes.filter(
         clube => clube.divisao === 'Primera División',
       ),
-    ).toHaveLength(3);
-    expect(estado().clubes).toHaveLength(3);
+    ).toHaveLength(20);
+    expect(estado().clubes).toHaveLength(20);
     expect(estado().rodadaAtual).toBe(1);
   });
 
@@ -200,10 +201,30 @@ describe('finalizarTemporada — acesso e rebaixamento', () => {
   });
 
   it('liga com FOLGA joga fim-a-fim: rodadas em que o usuário descansa avançam', () => {
-    const clubeArgentino = estado().todosClubes.find(
-      clube => clube.divisao === 'Primera División',
-    )!;
-    estado().iniciarNovaCarreira(clubeArgentino.id);
+    // Nenhuma liga do seed é ímpar (o mecanismo de FOLGA em si é coberto por
+    // calendarGenerator.test). Aqui provamos o comportamento no STORE: montamos
+    // uma liga ativa ÍMPAR de 3 clubes (round-robin com folga) sobre um estado
+    // válido e verificamos que avancarRodada avança inclusive nas rodadas em que
+    // o clube do usuário descansa.
+    const tres = estado()
+      .todosClubes.filter(clube => clube.divisao === 'Primera División')
+      .slice(0, 3);
+    estado().iniciarNovaCarreira(tres[0].id);
+    const liga3 = gerarLiga(
+      estado().todosClubes,
+      estado().todosJogadores,
+      'Primera División',
+      estado().temporadaAtual,
+      {clubeIds: tres.map(c => c.id)},
+    );
+    useGameStore.setState({
+      clubes: liga3.clubes,
+      jogadores: liga3.jogadores,
+      partidas: liga3.partidas,
+      tabela: liga3.tabela,
+      dataAtual: liga3.dataAtual,
+      rodadaAtual: 1,
+    });
 
     let guarda = 0;
     while (estado().rodadaAtual <= 6 && guarda < 12) {
@@ -216,9 +237,7 @@ describe('finalizarTemporada — acesso e rebaixamento', () => {
     expect(estado().rodadaAtual).toBe(7);
     const jogadas = estado().partidas.filter(partida => partida.jogada);
     expect(jogadas).toHaveLength(6);
-    expect(
-      estado().tabela.every(linha => linha.jogos === 4),
-    ).toBe(true);
+    expect(estado().tabela.every(linha => linha.jogos === 4)).toBe(true);
   });
 
   it('credita cota de TV (transação cota_tv) ao clube do usuário na virada', () => {
