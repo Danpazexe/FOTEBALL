@@ -21,16 +21,11 @@
  * formação e devolve a nova via `onAtualizarFormacao` (que valida na store).
  */
 
-import React, {useCallback, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
-import Animated, {
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  type SharedValue,
-} from 'react-native-reanimated';
-import Svg, {Ellipse, Line, Rect} from 'react-native-svg';
+import {runOnJS} from 'react-native-reanimated';
+import Svg, {Ellipse, Line, Path, Rect} from 'react-native-svg';
 
 import {trocarTitular} from '../../api/database/seed/defaults';
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
@@ -41,6 +36,11 @@ import {
 } from '../../engine/tactics/geometria';
 import {validarEscalacao} from '../../engine/tactics/validacao';
 import {
+  TAMANHO_BANCO,
+  alternarBanco,
+} from '../../engine/tactics/formacaoOps';
+import {
+  SelectRow,
   espacamento,
   raios,
   useEstilosDS,
@@ -48,9 +48,17 @@ import {
   type CorTexto,
   type TemaDS,
 } from '../../design-system';
-import type {Clube, Formacao, Player, Position, Tatica} from '../../types';
+import type {
+  Clube,
+  Formacao,
+  Player,
+  Position,
+  Tatica,
+  TitularFormacao,
+} from '../../types';
 import Escudo from '../Escudo';
 import Icone from '../Icone';
+import PlayerAvatar from '../PlayerAvatar';
 
 /**
  * Nome curto para caber sob a ficha (estilo Sofascore): apelido de uma palavra
@@ -61,6 +69,171 @@ function nomeCampo(jogador: Player): string {
   const base = (jogador.apelido ?? jogador.nome).trim();
   const partes = base.split(/\s+/);
   return partes.length <= 1 ? base : partes[partes.length - 1];
+}
+
+/**
+ * Posição → ÁREA de função (goleiro/defesa/meio/ataque). Mesma família do
+ * PositionBadge, para o círculo da ficha usar a MESMA cor do selo (goleiro roxo,
+ * defesa azul, meio verde, ataque vermelho) — cor vem do token `esporte.posicao`.
+ */
+function areaDaPosicao(
+  pos: Position,
+): 'goleiro' | 'defesa' | 'meio' | 'ataque' {
+  switch (pos) {
+    case 'GOL':
+      return 'goleiro';
+    case 'ZAG':
+    case 'LD':
+    case 'LE':
+      return 'defesa';
+    case 'VOL':
+    case 'MC':
+    case 'MEI':
+      return 'meio';
+    default:
+      return 'ataque';
+  }
+}
+
+/**
+ * Traduz a TÁTICA num vetor de movimento por jogador (puro, determinístico):
+ * `dy < 0` = pra frente (ataque, topo) · `dx > 0` = pra direita. A magnitude
+ * escala com o Ritmo. Cobre Mentalidade, Linha, Marcação, Amplidão e Lado — as
+ * MESMAS opções que já pesam no motor (teamStrength/probabilityCalc). Goleiro
+ * não recebe seta. Retorna `null` quando o vetor é curto demais pra desenhar.
+ */
+function vetorSeta(pos: Position, t: Tatica): {dx: number; dy: number} | null {
+  const area = areaDaPosicao(pos);
+  if (area === 'goleiro') {
+    return null;
+  }
+  // Tendência base pra frente por linha (negativo = ataque).
+  const frenteBase = area === 'ataque' ? -1 : area === 'meio' ? -0.6 : -0.2;
+
+  // Mentalidade (estilo ofensivo).
+  let dy: number;
+  if (t.estiloOfensivo === 'Ataque direto') {
+    dy = frenteBase * 1.2;
+  } else if (t.estiloOfensivo === 'Contra-ataque') {
+    // Atacantes disparam; defesa segura (recua leve); meio contido.
+    dy = area === 'ataque' ? -1.1 : area === 'defesa' ? 0.3 : -0.3;
+  } else if (t.estiloOfensivo === 'Posse de bola') {
+    dy = frenteBase * 0.5; // circulação: passos curtos
+  } else {
+    dy = frenteBase; // Equilibrado
+  }
+
+  // Linha defensiva: mexe sobretudo na defesa, e um pouco no bloco todo.
+  if (t.linhaDefensiva === 'Adiantada') {
+    dy += area === 'defesa' ? -0.7 : -0.15;
+  } else if (t.linhaDefensiva === 'Recuada') {
+    dy += area === 'defesa' ? 0.7 : 0.2;
+  }
+
+  // Marcação pressão alta: todos sobem pra pressionar.
+  if (t.marcacao === 'Pressão alta') {
+    dy += -0.2;
+  }
+
+  // Horizontal: Amplidão (abre/fecha os flancos) + Lado de ataque.
+  let dx = 0;
+  const ladoDir = pos === 'LD' || pos === 'PD';
+  const ladoEsq = pos === 'LE' || pos === 'PE';
+  if (t.amplidao === 'Amplo') {
+    dx += ladoDir ? 0.6 : ladoEsq ? -0.6 : 0;
+  } else if (t.amplidao === 'Estreito') {
+    dx += ladoDir ? -0.5 : ladoEsq ? 0.5 : 0;
+  }
+  if (t.ladoAtaque === 'Direita') {
+    dx += 0.4;
+  } else if (t.ladoAtaque === 'Esquerda') {
+    dx -= 0.4;
+  } else if (t.ladoAtaque === 'Centro') {
+    dx += ladoDir ? -0.3 : ladoEsq ? 0.3 : 0;
+  }
+
+  // Ritmo escala a intensidade do movimento.
+  const escala =
+    t.ritmo === 'Intenso' ? 1.3 : t.ritmo === 'Lento' ? 0.65 : 1;
+  dy *= escala;
+  dx *= escala;
+
+  if (Math.hypot(dx, dy) < 0.2) {
+    return null; // vetor irrelevante — sem seta
+  }
+  return {dx, dy};
+}
+
+// Pivô vertical em torno do qual o bloco COMPRIME/ESTICA (0=nosso gol, 1=ataque).
+const PIVO_Y = 0.46;
+
+function limitar(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+/**
+ * Reposiciona o jogador (coord. normalizada) conforme a TÁTICA — a FORMA do time
+ * morfa de verdade, não só as linhas. `sY/sX` deslocam o bloco (frente/trás,
+ * flanco); `kY/kX` comprimem/esticam em torno do centro (bloco "mais junto" na
+ * postura defensiva; espalhado no ataque). Goleiro fica fixo. Visual apenas — a
+ * formação salva não muda.
+ */
+function ajustePosicaoTatica(
+  x: number,
+  y: number,
+  pos: Position,
+  t: Tatica,
+): {x: number; y: number} {
+  if (areaDaPosicao(pos) === 'goleiro') {
+    return {x, y};
+  }
+  let kY = 1;
+  let sY = 0;
+  let kX = 1;
+  let sX = 0;
+
+  if (t.estiloOfensivo === 'Contra-ataque') {
+    kY -= 0.12; // bloco compacto
+    sY -= 0.02; // senta um pouco
+  } else if (t.estiloOfensivo === 'Ataque direto') {
+    kY += 0.1; // estica pro ataque
+    sY += 0.03;
+  } else if (t.estiloOfensivo === 'Posse de bola') {
+    kY -= 0.05;
+  }
+
+  if (t.linhaDefensiva === 'Adiantada') {
+    sY += 0.05; // sobe o bloco
+    kY += 0.03;
+  } else if (t.linhaDefensiva === 'Recuada') {
+    sY -= 0.05; // recua o bloco
+    kY -= 0.06; // e junta
+  }
+
+  if (t.amplidao === 'Estreito') {
+    kX -= 0.16; // fecha pro miolo
+  } else if (t.amplidao === 'Amplo') {
+    kX += 0.16; // abre nos flancos
+  }
+
+  if (t.ladoAtaque === 'Direita') {
+    sX += 0.04;
+  } else if (t.ladoAtaque === 'Esquerda') {
+    sX -= 0.04;
+  } else if (t.ladoAtaque === 'Centro') {
+    kX -= 0.06; // concentra no centro
+  }
+
+  if (t.ritmo === 'Intenso') {
+    kY += 0.03;
+  } else if (t.ritmo === 'Lento') {
+    kY -= 0.03;
+  }
+
+  return {
+    x: limitar(0.5 + (x - 0.5) * kX + sX, 0.06, 0.94),
+    y: limitar(PIVO_Y + (y - PIVO_Y) * kY + sY, 0.05, 0.97),
+  };
 }
 
 /** Faixa de cor do overall — mesma régua do OverallBadge (DS). */
@@ -86,6 +259,14 @@ type CampoFUTProps = {
   /** Avisa a tela quando um arraste começa/termina (trava o scroll externo). */
   onArrastandoChange?: (ativo: boolean) => void;
   largura: number;
+  /** Seletor de formação embutido (no lugar do banner). Sem estes, não aparece. */
+  formacaoTipo?: string;
+  formacoesDisponiveis?: readonly string[];
+  onTrocarFormacao?: (tipo: string) => void;
+  /** Ação "escalar os 11 melhores" — botão estrela dourada no campo (se definida). */
+  onEscalarMelhores?: () => void;
+  /** Mostra o card de cabeçalho (escudo/nome/OVR/técnico). Default: true. */
+  mostrarCabecalho?: boolean;
 };
 
 type Descritor = {tipo: 'titular' | 'reserva'; valor: string};
@@ -98,13 +279,6 @@ type SlotTela = {
   escala: number;
 };
 
-type SharedNum = SharedValue<number>;
-
-// O card-fantasma é "levantado" acima do dedo: seu TOPO fica a ghostH*LEVANTA
-// acima do toque, então o CENTRO visual fica a ghostH*(LEVANTA-0.5) acima. O
-// hit-test do drop compensa esse offset para capturar o slot SOB a carta (e não
-// sob o dedo) — senão, mirando pela carta, o drop cai fora do alvo.
-const GHOST_LEVANTA = 0.78;
 
 // Tabuleiro tático CHAPADO (visto de cima). As fichas são posicionadas por
 // projetarSlot num retângulo plano; o MESMO mapa alimenta desenho e hit-test.
@@ -136,63 +310,27 @@ function projetarSlot(
 }
 
 /**
- * Gesto reaproveitável por card: SEGURAR-e-arrastar (fantasma segue o dedo) +
- * toque. O arraste ativa por LONG-PRESS (segurar ~0,2s) para NÃO competir com o
- * scroll: um deslize simples rola a página/banco; segurar levanta a carta e aí
- * o arraste vence a rolagem. `arrastavel` liga/desliga o arraste (modo edição).
+ * Gesto por card: TOQUE simples = selecionar (para trocar); TOQUE LONGO = abrir
+ * detalhe. Sem arraste — a troca é por seleção (toca A, toca B). O long-press
+ * tem prioridade sobre o toque (Exclusive) para o detalhe não disparar sozinho.
  */
 function useGestoPeca(
   tipo: Descritor['tipo'],
   valor: string,
-  arrastavel: boolean,
-  ghostX: SharedNum,
-  ghostY: SharedNum,
-  ghostAtivo: SharedNum,
-  aoIniciar: (tipo: string, valor: string) => void,
-  aoArrastar: (ax: number, ay: number) => void,
-  aoSoltar: (ax: number, ay: number, tipo: string, valor: string) => void,
   aoTocar: (tipo: string, valor: string) => void,
-  aoFinalizar: () => void,
+  aoAbrirDetalhe: (tipo: string, valor: string) => void,
 ) {
   return useMemo(() => {
-    // O TOQUE (abrir detalhe) fica SEMPRE ativo; só o ARRASTE depende do modo.
     const toque = Gesture.Tap().onStart(() => {
       runOnJS(aoTocar)(tipo, valor);
     });
-    const arraste = Gesture.Pan()
-      .enabled(arrastavel)
-      // Segurar ~0,2s para pegar — desempata do scroll (vertical e do banco).
-      .activateAfterLongPress(200)
-      .onStart(evento => {
-        ghostAtivo.value = 1;
-        ghostX.value = evento.absoluteX;
-        ghostY.value = evento.absoluteY;
-        runOnJS(aoIniciar)(tipo, valor);
-      })
-      .onUpdate(evento => {
-        ghostX.value = evento.absoluteX;
-        ghostY.value = evento.absoluteY;
-        runOnJS(aoArrastar)(evento.absoluteX, evento.absoluteY);
-      })
-      .onEnd(evento => {
-        ghostAtivo.value = 0;
-        runOnJS(aoSoltar)(evento.absoluteX, evento.absoluteY, tipo, valor);
-        runOnJS(aoFinalizar)();
+    const longo = Gesture.LongPress()
+      .minDuration(320)
+      .onStart(() => {
+        runOnJS(aoAbrirDetalhe)(tipo, valor);
       });
-    return Gesture.Race(arraste, toque);
-  }, [
-    tipo,
-    valor,
-    arrastavel,
-    ghostX,
-    ghostY,
-    ghostAtivo,
-    aoIniciar,
-    aoArrastar,
-    aoSoltar,
-    aoTocar,
-    aoFinalizar,
-  ]);
+    return Gesture.Exclusive(longo, toque);
+  }, [tipo, valor, aoTocar, aoAbrirDetalhe]);
 }
 
 function CampoFUT({
@@ -204,42 +342,24 @@ function CampoFUT({
   reputacaoTecnico,
   onAtualizarFormacao,
   onAbrirJogador,
-  onArrastandoChange,
   largura,
+  formacaoTipo,
+  formacoesDisponiveis,
+  onTrocarFormacao,
+  onEscalarMelhores,
+  mostrarCabecalho = true,
 }: CampoFUTProps): React.JSX.Element {
   const styles = useEstilosDS(criarEstilos);
   const {cores} = useTheme();
-  // Tabuleiro CHAPADO (retrato). As fichas são CÍRCULOS (quadrado = diâmetro).
-  const altura = Math.round(largura * 1.42);
-  const cardW = Math.round(largura * 0.122); // diâmetro do círculo (folga na linha de 4/5)
-  const cardH = cardW; // ficha quadrada → círculo centrado no slot
-  const cardBancoW = Math.round(largura * 0.16);
-  // Ficha "fantasma" que segue o dedo no arraste (círculo um pouco maior).
-  const ghostW = Math.min(Math.round(largura * 0.28), 120);
-  const ghostH = ghostW;
-  // Quanto o centro visual do fantasma fica ACIMA do dedo (compensado no drop).
-  const ghostOffset = Math.round(ghostH * (GHOST_LEVANTA - 0.5));
-  // Raio de captura do drop: >= metade da distância vertical entre slots
-  // vizinhos, pra não existir "zona morta" entre as cartas maiores.
-  const limiarDrop = Math.round(cardH * 0.75);
-
-  const overlayRef = useRef<View>(null);
-  const pitchRef = useRef<View>(null);
-  const pitchOrigemRef = useRef({x: 0, y: 0});
-  const hoverRef = useRef<number | null>(null);
-  const arrastandoRef = useRef<Descritor | null>(null);
-
-  const ghostX = useSharedValue(0);
-  const ghostY = useSharedValue(0);
-  const ghostAtivo = useSharedValue(0);
-  const overlayOX = useSharedValue(0);
-  const overlayOY = useSharedValue(0);
-
-  const [arrastando, setArrastando] = useState<Descritor | null>(null);
-  const [hover, setHover] = useState<number | null>(null);
-  // Modo treinador: campo abre em VER (só toque/detalhe); o olho entra em EDITAR
-  // (arraste/troca liberados e banco visível).
-  const [modoEdicao, setModoEdicao] = useState(false);
+  // Campo em LARGURA CHEIA (estilo mockup) + banco horizontal de avatares abaixo.
+  const altura = Math.round(largura * 1.32);
+  const cardW = Math.round(largura * 0.118); // camisa no campo (largura da peça)
+  const cardH = cardW;
+  const avatarBanco = Math.round(largura * 0.12); // rosto do reserva no banco
+  // Seleção para TROCA por TOQUE (sem drag): toca num jogador (titular ou
+  // reserva) → fica marcado; toca em outro → troca/entra; tocar no mesmo
+  // desmarca. Substitui o antigo arraste + modo de edição (olho).
+  const [selecionado, setSelecionado] = useState<Descritor | null>(null);
 
   const porId = useMemo(
     () => new Map(jogadores.map(j => [j.id, j])),
@@ -257,9 +377,27 @@ function CampoFUT({
     [titulares],
   );
 
+  // Banco = reservas ESCALADOS (primeiras TAMANHO_BANCO de formacao.reservas);
+  // "fora do jogo" = resto do elenco não relacionado. A capação é só de EXIBIÇÃO
+  // (não escreve no store durante o render); a formação já nasce capada em
+  // montarFormacao/criarFormacaoDefault.
+  const idsBanco = useMemo(
+    () => formacao.reservas.slice(0, TAMANHO_BANCO),
+    [formacao.reservas],
+  );
+  const bancoIds = useMemo(() => new Set(idsBanco), [idsBanco]);
   const banco = useMemo(
-    () => jogadores.filter(j => !titularIds.has(j.id)),
-    [jogadores, titularIds],
+    () => idsBanco.map(id => porId.get(id)).filter((j): j is Player => !!j),
+    [idsBanco, porId],
+  );
+  const foraDoJogo = useMemo(
+    () => jogadores.filter(j => !titularIds.has(j.id) && !bancoIds.has(j.id)),
+    [jogadores, titularIds, bancoIds],
+  );
+  const bancoCheio = banco.length >= TAMANHO_BANCO;
+  const aoAlternarBanco = useCallback(
+    (id: string) => onAtualizarFormacao(alternarBanco(formacao, id)),
+    [formacao, onAtualizarFormacao],
   );
 
   const validacao = useMemo(
@@ -277,115 +415,64 @@ function CampoFUT({
   const slotsTela = useMemo<SlotTela[]>(
     () =>
       titulares.map((titular, slotIndex) => {
-        const {x, y} = coordenadaDoTitular(titular);
+        const base = coordenadaDoTitular(titular);
+        // A FORMA do time morfa com a tática (recuado junta, adiantado sobe…).
+        const {x, y} = ajustePosicaoTatica(base.x, base.y, titular.posicao, tatica);
         const {cx, cy, escala} = projetarSlot(x, y, largura, altura);
         return {slotIndex, jogadorId: titular.jogadorId, cx, cy, escala};
       }),
-    [titulares, largura, altura],
+    [titulares, largura, altura, tatica],
   );
 
-  const medirOverlay = useCallback(() => {
-    overlayRef.current?.measureInWindow((x, y) => {
-      overlayOX.value = x;
-      overlayOY.value = y;
-    });
-  }, [overlayOX, overlayOY]);
-  const medirPitch = useCallback(() => {
-    pitchRef.current?.measureInWindow((x, y) => {
-      pitchOrigemRef.current = {x, y};
-    });
-  }, []);
-
-  /** Slot titular mais próximo do ponto absoluto (ou null fora do limiar). */
-  const slotMaisProximo = useCallback(
-    (ax: number, ay: number, ignorarSlot: number | null): number | null => {
-      const origem = pitchOrigemRef.current;
-      if (origem.x === 0 && origem.y === 0) {
-        return null;
-      }
-      let melhor: number | null = null;
-      let melhorDist = limiarDrop;
-      for (const slot of slotsTela) {
-        if (slot.slotIndex === ignorarSlot) {
-          continue;
+  // Resolve a TROCA entre a seleção anterior (a) e o alvo tocado (b).
+  const aplicarTroca = useCallback(
+    (a: Descritor, b: Descritor) => {
+      // Titular ↔ titular: troca os dois slots.
+      if (a.tipo === 'titular' && b.tipo === 'titular') {
+        const slotA = Number(a.valor);
+        const idB = titulares[Number(b.valor)]?.jogadorId;
+        if (idB) {
+          onAtualizarFormacao(trocarTitular(formacao, slotA, idB));
         }
-        const cx = origem.x + slot.cx;
-        const cy = origem.y + slot.cy;
-        const dist = Math.sqrt((ax - cx) ** 2 + (ay - cy) ** 2);
-        if (dist < melhorDist) {
-          melhorDist = dist;
-          melhor = slot.slotIndex;
-        }
-      }
-      return melhor;
-    },
-    [slotsTela, limiarDrop],
-  );
-
-  const aoIniciar = useCallback(
-    (tipo: string, valor: string) => {
-      medirPitch();
-      medirOverlay();
-      const descritor: Descritor = {tipo: tipo as Descritor['tipo'], valor};
-      arrastandoRef.current = descritor;
-      setArrastando(descritor);
-      onArrastandoChange?.(true);
-    },
-    [medirPitch, medirOverlay, onArrastandoChange],
-  );
-
-  const aoArrastar = useCallback(
-    (ax: number, ay: number) => {
-      const atual = arrastandoRef.current;
-      const ignorar = atual?.tipo === 'titular' ? Number(atual.valor) : null;
-      const alvo = slotMaisProximo(ax, ay - ghostOffset, ignorar);
-      if (alvo !== hoverRef.current) {
-        hoverRef.current = alvo;
-        setHover(alvo);
-      }
-    },
-    [slotMaisProximo, ghostOffset],
-  );
-
-  const aoSoltar = useCallback(
-    (ax: number, ay: number, tipo: string, valor: string) => {
-      if (tipo === 'reserva') {
-        // Reserva só entra caindo sobre um titular (substituição).
-        const alvo = slotMaisProximo(ax, ay - ghostOffset, null);
-        if (alvo === null) {
-          return;
-        }
-        const entrante = porId.get(valor);
-        if (!entrante || entrante.lesionado || entrante.suspenso) {
-          return;
-        }
-        onAtualizarFormacao(trocarTitular(formacao, alvo, valor));
         return;
       }
-
-      // Titular: SÓ troca ao soltar sobre outro slot. Fora de um slot não faz
-      // nada (posições travadas na formação, estilo EA FC — sem arraste livre).
-      const slotOrigem = Number(valor);
-      const alvo = slotMaisProximo(ax, ay - ghostOffset, slotOrigem);
-      if (alvo !== null) {
-        const outroId = titulares[alvo]?.jogadorId;
-        if (outroId) {
-          onAtualizarFormacao(trocarTitular(formacao, slotOrigem, outroId));
+      // Titular + reserva (em qualquer ordem): o reserva entra no slot do titular.
+      const titular = a.tipo === 'titular' ? a : b.tipo === 'titular' ? b : null;
+      const reserva = a.tipo === 'reserva' ? a : b.tipo === 'reserva' ? b : null;
+      if (titular && reserva) {
+        const entrante = porId.get(reserva.valor);
+        if (!entrante || entrante.lesionado || entrante.suspenso) {
+          return; // reserva indisponível (lesão/suspensão) não entra
         }
+        onAtualizarFormacao(
+          trocarTitular(formacao, Number(titular.valor), reserva.valor),
+        );
       }
+      // reserva + reserva: nada a trocar (ambos fora do XI).
     },
-    [slotMaisProximo, porId, onAtualizarFormacao, formacao, titulares, ghostOffset],
+    [titulares, formacao, porId, onAtualizarFormacao],
   );
 
-  const aoFinalizar = useCallback(() => {
-    arrastandoRef.current = null;
-    setArrastando(null);
-    hoverRef.current = null;
-    setHover(null);
-    onArrastandoChange?.(false);
-  }, [onArrastandoChange]);
-
+  // Toque = seleciona; segundo toque troca/entra; tocar no mesmo desmarca.
   const aoTocar = useCallback(
+    (tipo: string, valor: string) => {
+      const alvo: Descritor = {tipo: tipo as Descritor['tipo'], valor};
+      setSelecionado(anterior => {
+        if (!anterior) {
+          return alvo;
+        }
+        if (anterior.tipo === alvo.tipo && anterior.valor === alvo.valor) {
+          return null;
+        }
+        aplicarTroca(anterior, alvo);
+        return null;
+      });
+    },
+    [aplicarTroca],
+  );
+
+  // Toque longo abre o detalhe do jogador (o toque simples é a seleção).
+  const aoAbrirDetalhe = useCallback(
     (tipo: string, valor: string) => {
       const id =
         tipo === 'titular' ? titulares[Number(valor)]?.jogadorId : valor;
@@ -396,53 +483,46 @@ function CampoFUT({
     [titulares, onAbrirJogador],
   );
 
-  // Centraliza o card no dedo na horizontal e o LEVANTA (dedo perto da base do
-  // card), pra o polegar não cobrir o jogador que está sendo arrastado.
-  const ghostStyle = useAnimatedStyle(() => ({
-    opacity: ghostAtivo.value,
-    transform: [
-      {translateX: ghostX.value - overlayOX.value - ghostW / 2},
-      {translateY: ghostY.value - overlayOY.value - ghostH * GHOST_LEVANTA},
-      {scale: 1.03},
-    ],
-  }));
-
-  const jogadorArrastado = arrastando
-    ? arrastando.tipo === 'titular'
-      ? porId.get(titulares[Number(arrastando.valor)]?.jogadorId)
-      : porId.get(arrastando.valor)
-    : undefined;
-
-  const arrastandoAtivo = arrastando !== null;
-
   return (
-    <View ref={overlayRef} onLayout={medirOverlay} style={styles.overlay}>
-      <Cabecalho
-        clube={clube}
-        forca={forca}
-        formacaoDetectada={formacaoDetectada}
-        reputacaoTecnico={reputacaoTecnico}
-      />
+    <View style={styles.overlay}>
+      {mostrarCabecalho ? (
+        <Cabecalho
+          clube={clube}
+          forca={forca}
+          formacaoDetectada={formacaoDetectada}
+          reputacaoTecnico={reputacaoTecnico}
+        />
+      ) : null}
 
       <BannerValidacao validacao={validacao} />
 
-      <View
-        ref={pitchRef}
-        onLayout={medirPitch}
-        style={[styles.pitch, {width: largura, height: altura}]}>
+      <View style={[styles.pitch, {width: largura, height: altura}]}>
         <PitchEstadio largura={largura} altura={altura} />
+        <SetasMovimento
+          slots={slotsTela}
+          titulares={titulares}
+          tatica={tatica}
+          cardH={cardH}
+          largura={largura}
+          altura={altura}
+        />
+        <LinhaImpedimento
+          slots={slotsTela}
+          titulares={titulares}
+          tatica={tatica}
+          cardH={cardH}
+          largura={largura}
+        />
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={modoEdicao ? 'Concluir edição' : 'Editar escalação'}
-          onPress={() => setModoEdicao(m => !m)}
-          style={[styles.botaoOlho, modoEdicao ? styles.botaoOlhoAtivo : null]}>
-          <Icone
-            nome={modoEdicao ? 'check' : 'olho'}
-            tamanho={18}
-            cor={modoEdicao ? cores.onBrand : cores.brand}
-          />
-        </Pressable>
+        {onEscalarMelhores ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Escalar os 11 melhores"
+            onPress={onEscalarMelhores}
+            style={styles.botaoMelhores}>
+            <Icone nome="estrela" tamanho={18} cor={cores.accent} />
+          </Pressable>
+        ) : null}
 
         {slotsTela.map(slot => {
           const titular = titulares[slot.slotIndex];
@@ -457,88 +537,90 @@ function CampoFUT({
               cy={slot.cy}
               cardW={Math.round(cardW * slot.escala)}
               cardH={Math.round(cardH * slot.escala)}
-              arrastavel={modoEdicao}
-              hover={hover === slot.slotIndex}
-              arrastandoEste={
-                arrastando?.tipo === 'titular' &&
-                Number(arrastando.valor) === slot.slotIndex
+              selecionado={
+                selecionado?.tipo === 'titular' &&
+                Number(selecionado.valor) === slot.slotIndex
               }
-              ghostX={ghostX}
-              ghostY={ghostY}
-              ghostAtivo={ghostAtivo}
-              aoIniciar={aoIniciar}
-              aoArrastar={aoArrastar}
-              aoSoltar={aoSoltar}
               aoTocar={aoTocar}
-              aoFinalizar={aoFinalizar}
+              aoAbrirDetalhe={aoAbrirDetalhe}
             />
           );
         })}
       </View>
 
-      <TaticaStrip tatica={tatica} />
+      {onTrocarFormacao && formacaoTipo && formacoesDisponiveis ? (
+        <SelectRow
+          pill
+          compacto
+          label="Formação"
+          valor={formacaoTipo}
+          opcoes={formacoesDisponiveis as string[]}
+          onSelect={onTrocarFormacao}
+        />
+      ) : null}
 
-      {!modoEdicao ? (
-        <Text style={styles.dica}>Toque no olho para editar a escalação.</Text>
+      {/* BANCO horizontal de avatares (estilo mockup). */}
+      <View style={styles.bancoHeader}>
+        <Text style={styles.bancoTitulo}>Banco</Text>
+        <Text style={styles.bancoContagem}>
+          {banco.length}/{TAMANHO_BANCO}
+        </Text>
+      </View>
+      {banco.length === 0 ? (
+        <Text style={styles.bancoVazio}>Banco vazio.</Text>
       ) : (
-        <>
-          <Text style={styles.dica}>
-            Segure e arraste para trocar · segure um reserva e solte sobre um
-            titular
-          </Text>
-
-          {/* Banco de reservas — SCROLL HORIZONTAL (prioridade mobile). */}
-          <View style={styles.bancoHeader}>
-            <Text style={styles.bancoTitulo}>Banco de reservas</Text>
-            <Text style={styles.bancoContagem}>{banco.length}</Text>
-          </View>
-          {banco.length === 0 ? (
-            <Text style={styles.bancoVazio}>Sem reservas disponíveis.</Text>
-          ) : (
-            <ScrollView
-              horizontal
-              scrollEnabled={!arrastandoAtivo}
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.bancoConteudo}>
-              {banco.map(jogador => (
-                <PecaReserva
-                  key={jogador.id}
-                  jogador={jogador}
-                  cardW={cardBancoW}
-                  habilitado={!jogador.lesionado && !jogador.suspenso}
-                  arrastandoEste={
-                    arrastando?.tipo === 'reserva' &&
-                    arrastando.valor === jogador.id
-                  }
-                  ghostX={ghostX}
-                  ghostY={ghostY}
-                  ghostAtivo={ghostAtivo}
-                  aoIniciar={aoIniciar}
-                  aoArrastar={aoArrastar}
-                  aoSoltar={aoSoltar}
-                  aoTocar={aoTocar}
-                  aoFinalizar={aoFinalizar}
-                />
-              ))}
-            </ScrollView>
-          )}
-        </>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.bancoFaixa}>
+          {banco.map(jogador => (
+            <AvatarBanco
+              key={jogador.id}
+              jogador={jogador}
+              tamanho={avatarBanco}
+              noBanco
+              bancoCheio={bancoCheio}
+              selecionado={
+                selecionado?.tipo === 'reserva' &&
+                selecionado.valor === jogador.id
+              }
+              aoAlternarBanco={aoAlternarBanco}
+              aoTocar={aoTocar}
+              aoAbrirDetalhe={aoAbrirDetalhe}
+            />
+          ))}
+        </ScrollView>
       )}
 
-      {/* Ficha circular que segue o dedo durante o arraste. */}
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.ghost, {width: ghostW, height: ghostH}, ghostStyle]}>
-        {jogadorArrastado ? (
-          <CartaFUT
-            jogador={jogadorArrastado}
-            posicaoEscalada={jogadorArrastado.posicaoPrincipal}
-            largura={ghostW}
-            destaque={false}
-            esmaecer={false}
-          />
-        ) : null}
-      </Animated.View>
+      {foraDoJogo.length > 0 ? (
+        <>
+          <View style={[styles.bancoHeader, styles.bancoHeaderFora]}>
+            <Text style={styles.bancoTitulo}>Fora do jogo</Text>
+            <Text style={styles.bancoContagem}>{foraDoJogo.length}</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.bancoFaixa}>
+            {foraDoJogo.map(jogador => (
+              <AvatarBanco
+                key={jogador.id}
+                jogador={jogador}
+                tamanho={avatarBanco}
+                noBanco={false}
+                bancoCheio={bancoCheio}
+                selecionado={
+                  selecionado?.tipo === 'reserva' &&
+                  selecionado.valor === jogador.id
+                }
+                aoAlternarBanco={aoAlternarBanco}
+                aoTocar={aoTocar}
+                aoAbrirDetalhe={aoAbrirDetalhe}
+              />
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -640,14 +722,8 @@ function BannerValidacao({
       </View>
     );
   }
-  return (
-    <View style={[styles.banner, styles.bannerOk]}>
-      <Icone nome="check" tamanho={14} cor={cores.brand} />
-      <Text style={[styles.bannerTexto, {color: cores.brandStrong}]}>
-        Escalação válida
-      </Text>
-    </View>
-  );
+  // Escalação válida não desenha banner — o seletor de formação ocupa o lugar.
+  return null;
 }
 
 /**
@@ -662,6 +738,7 @@ function CartaFUT({
   destaque,
   esmaecer,
   ehCapitao = false,
+  semNome = false,
 }: {
   jogador: Player | undefined;
   posicaoEscalada: Position;
@@ -669,9 +746,10 @@ function CartaFUT({
   destaque: boolean;
   esmaecer: boolean;
   ehCapitao?: boolean;
+  semNome?: boolean; // oculta o rótulo do nome (usado na coluna lateral compacta)
 }): React.JSX.Element {
   const styles = useEstilosDS(criarEstilos);
-  const {cores} = useTheme();
+  const {cores, esporte} = useTheme();
   const raio2 = largura / 2;
   // Rótulo estreito e centrado sob a ficha (largura ~1.6× a ficha), com o nome
   // curto + reticências — antes 2.2× e nome inteiro faziam os nomes colidirem.
@@ -699,20 +777,37 @@ function CartaFUT({
 
   const indisponivel = jogador.lesionado || jogador.suspenso;
   const badge = Math.round(largura * 0.42);
+  // Cor pela FUNÇÃO do jogador (posição principal), não pelo slot: um zagueiro
+  // improvisado no ataque mantém a cor de defensor.
+  const cor = esporte.posicao[areaDaPosicao(jogador.posicaoPrincipal)].cor;
 
   return (
     <View>
       <View
         style={[
-          styles.ficha,
-          {width: largura, height: largura, borderRadius: raio2},
+          {width: largura, height: largura},
           destaque ? styles.fichaDestaque : null,
           esmaecer ? styles.fichaEsmaecida : null,
         ]}>
-        <Text
-          style={[styles.fichaOverall, {fontSize: Math.round(largura * 0.42)}]}>
-          {jogador.overall}
-        </Text>
+        <Svg
+          width={largura}
+          height={largura}
+          viewBox="0 0 48 48"
+          style={StyleSheet.absoluteFill}>
+          <Path
+            d={CAMISA_PATH}
+            fill={cor}
+            stroke={cores.onBrand}
+            strokeWidth={2}
+            strokeLinejoin="round"
+          />
+        </Svg>
+        <View style={[styles.camisaCentro, {paddingTop: largura * 0.14}]}>
+          <Text
+            style={[styles.fichaOverall, {fontSize: Math.round(largura * 0.34)}]}>
+            {jogador.overall}
+          </Text>
+        </View>
         {ehCapitao ? (
           <Text
             style={[styles.fichaCapitao, {fontSize: Math.round(largura * 0.28)}]}>
@@ -733,12 +828,14 @@ function CartaFUT({
           </View>
         ) : null}
       </View>
-      <Text
-        style={[styles.fichaNome, nomeStyle]}
-        numberOfLines={1}
-        ellipsizeMode="tail">
-        {nomeCampo(jogador)}
-      </Text>
+      {semNome ? null : (
+        <Text
+          style={[styles.fichaNome, nomeStyle]}
+          numberOfLines={1}
+          ellipsizeMode="tail">
+          {nomeCampo(jogador)}
+        </Text>
+      )}
     </View>
   );
 }
@@ -752,17 +849,9 @@ type PecaCampoProps = {
   cy: number;
   cardW: number;
   cardH: number;
-  arrastavel: boolean;
-  hover: boolean;
-  arrastandoEste: boolean;
-  ghostX: SharedNum;
-  ghostY: SharedNum;
-  ghostAtivo: SharedNum;
-  aoIniciar: (tipo: string, valor: string) => void;
-  aoArrastar: (ax: number, ay: number) => void;
-  aoSoltar: (ax: number, ay: number, tipo: string, valor: string) => void;
+  selecionado: boolean;
   aoTocar: (tipo: string, valor: string) => void;
-  aoFinalizar: () => void;
+  aoAbrirDetalhe: (tipo: string, valor: string) => void;
 };
 
 function PecaCampo({
@@ -774,30 +863,15 @@ function PecaCampo({
   cy,
   cardW,
   cardH,
-  arrastavel,
-  hover,
-  arrastandoEste,
-  ghostX,
-  ghostY,
-  ghostAtivo,
-  aoIniciar,
-  aoArrastar,
-  aoSoltar,
+  selecionado,
   aoTocar,
-  aoFinalizar,
+  aoAbrirDetalhe,
 }: PecaCampoProps): React.JSX.Element {
   const gesto = useGestoPeca(
     'titular',
     String(slotIndex),
-    arrastavel,
-    ghostX,
-    ghostY,
-    ghostAtivo,
-    aoIniciar,
-    aoArrastar,
-    aoSoltar,
     aoTocar,
-    aoFinalizar,
+    aoAbrirDetalhe,
   );
 
   return (
@@ -811,8 +885,8 @@ function PecaCampo({
           jogador={jogador}
           posicaoEscalada={posicaoEscalada}
           largura={cardW}
-          destaque={hover}
-          esmaecer={arrastandoEste}
+          destaque={selecionado}
+          esmaecer={false}
           ehCapitao={ehCapitao}
         />
       </View>
@@ -820,82 +894,90 @@ function PecaCampo({
   );
 }
 
-type PecaReservaProps = {
+type AvatarBancoProps = {
   jogador: Player;
-  cardW: number;
-  habilitado: boolean;
-  arrastandoEste: boolean;
-  ghostX: SharedNum;
-  ghostY: SharedNum;
-  ghostAtivo: SharedNum;
-  aoIniciar: (tipo: string, valor: string) => void;
-  aoArrastar: (ax: number, ay: number) => void;
-  aoSoltar: (ax: number, ay: number, tipo: string, valor: string) => void;
+  tamanho: number;
+  noBanco: boolean; // true = está no banco (chip "−"); false = fora (chip "+")
+  bancoCheio: boolean;
+  selecionado: boolean;
+  aoAlternarBanco: (id: string) => void;
   aoTocar: (tipo: string, valor: string) => void;
-  aoFinalizar: () => void;
+  aoAbrirDetalhe: (tipo: string, valor: string) => void;
 };
 
-function PecaReserva({
+/**
+ * Item do BANCO horizontal (estilo mockup): rosto do jogador num anel colorido
+ * pela posição + selo de overall + nome + tag de status (lesão/suspensão). O
+ * rosto é selecionável por toque; o chip +/− chama/tira do banco.
+ */
+function AvatarBanco({
   jogador,
-  cardW,
-  habilitado,
-  arrastandoEste,
-  ghostX,
-  ghostY,
-  ghostAtivo,
-  aoIniciar,
-  aoArrastar,
-  aoSoltar,
+  tamanho,
+  noBanco,
+  bancoCheio,
+  selecionado,
+  aoAlternarBanco,
   aoTocar,
-  aoFinalizar,
-}: PecaReservaProps): React.JSX.Element {
-  const gesto = useGestoPeca(
-    'reserva',
-    jogador.id,
-    habilitado,
-    ghostX,
-    ghostY,
-    ghostAtivo,
-    aoIniciar,
-    aoArrastar,
-    aoSoltar,
-    aoTocar,
-    aoFinalizar,
-  );
-
-  return (
-    <GestureDetector gesture={gesto}>
-      <View style={!habilitado ? estilosFixos.reservaIndisponivel : null}>
-        <CartaFUT
-          jogador={jogador}
-          posicaoEscalada={jogador.posicaoPrincipal}
-          largura={cardW}
-          destaque={false}
-          esmaecer={arrastandoEste}
-        />
-      </View>
-    </GestureDetector>
-  );
-}
-
-/** Resumo tático ao vivo (chips): estilo, linha, ritmo, marcação. */
-function TaticaStrip({tatica}: {tatica: Tatica}): React.JSX.Element {
+  aoAbrirDetalhe,
+}: AvatarBancoProps): React.JSX.Element {
   const styles = useEstilosDS(criarEstilos);
-  const chips = [
-    tatica.estiloOfensivo,
-    `Linha ${tatica.linhaDefensiva.toLowerCase()}`,
-    `Ritmo ${tatica.ritmo.toLowerCase()}`,
-    tatica.marcacao,
-    `Ataque ${(tatica.ladoAtaque ?? 'Ambos').toLowerCase()}`,
-    `Largura ${(tatica.amplidao ?? 'Normal').toLowerCase()}`,
-  ];
+  const {cores, esporte} = useTheme();
+  const gesto = useGestoPeca('reserva', jogador.id, aoTocar, aoAbrirDetalhe);
+  const cor = esporte.posicao[areaDaPosicao(jogador.posicaoPrincipal)].cor;
+  const apto = !jogador.lesionado && !jogador.suspenso;
+  const chipDesabilitado = !noBanco && bancoCheio;
+  const status = jogador.lesionado
+    ? 'Lesão'
+    : jogador.suspenso
+    ? 'Suspenso'
+    : null;
   return (
-    <View style={styles.taticaStrip}>
-      {chips.map(texto => (
-        <View key={texto} style={styles.taticaChip}>
-          <Text style={styles.taticaChipTexto}>{texto}</Text>
+    <View style={[styles.avatarItem, {width: tamanho + espacamento[3]}]}>
+      <View>
+        <GestureDetector gesture={gesto}>
+          <View
+            style={[
+              styles.avatarAnel,
+              {
+                width: tamanho + 8,
+                height: tamanho + 8,
+                borderRadius: (tamanho + 8) / 2,
+                borderColor: cor,
+              },
+              selecionado ? styles.avatarAnelSel : null,
+              !apto ? estilosFixos.reservaIndisponivel : null,
+            ]}>
+            <PlayerAvatar id={jogador.id} tamanho={tamanho} />
+          </View>
+        </GestureDetector>
+        <View style={[styles.avatarOverall, {borderColor: cor}]}>
+          <Text style={styles.avatarOverallTexto}>{jogador.overall}</Text>
         </View>
-      ))}
+        <Pressable
+          style={[
+            styles.avatarChip,
+            {backgroundColor: noBanco ? cores.danger : cores.brand},
+            chipDesabilitado ? styles.bancoChipDesabilitado : null,
+          ]}
+          hitSlop={6}
+          disabled={chipDesabilitado}
+          onPress={() => aoAlternarBanco(jogador.id)}
+          accessibilityLabel={
+            noBanco
+              ? `Tirar ${jogador.nome} do jogo`
+              : `Chamar ${jogador.nome} para o banco`
+          }>
+          <Text style={styles.avatarChipTexto}>{noBanco ? '−' : '+'}</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.avatarNome} numberOfLines={1}>
+        {nomeCampo(jogador)}
+      </Text>
+      {status ? (
+        <View style={styles.avatarStatus}>
+          <Text style={styles.avatarStatusTexto}>{status}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -1019,6 +1101,141 @@ const CAMPO_VERDE = '#2E9E58';
 const CAMPO_VERDE_2 = '#2A9151';
 const LINHA_CAMPO = 'rgba(255, 255, 255, 0.85)';
 
+// Silhueta de CAMISA (viewBox 0 0 48 48): gola + ombros + mangas + corpo. O
+// número (overall) é sobreposto por cima como <Text> (fonte consistente).
+const CAMISA_PATH =
+  'M18 6 C20 9 28 9 30 6 L38 9 L47 18 L40 26 L36 23 L36 41 C36 43.5 34.5 45 32 45 L16 45 C13.5 45 12 43.5 12 41 L12 23 L8 26 L1 18 L10 9 Z';
+
+/**
+ * Setas de MOVIMENTO TÁTICO: uma seta por jogador cuja DIREÇÃO e TAMANHO vêm de
+ * `vetorSeta(posição, tática)` — logo, refletem a estratégia (frente/trás,
+ * flancos, ritmo). Overlay abaixo das camisas; pointerEvents desligado.
+ */
+function SetasMovimento({
+  slots,
+  titulares,
+  tatica,
+  cardH,
+  largura,
+  altura,
+}: {
+  slots: SlotTela[];
+  titulares: TitularFormacao[];
+  tatica: Tatica;
+  cardH: number;
+  largura: number;
+  altura: number;
+}): React.JSX.Element {
+  const cor = 'rgba(255, 255, 255, 0.62)';
+  return (
+    <Svg
+      width={largura}
+      height={altura}
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}>
+      {slots.map(s => {
+        const pos = titulares[s.slotIndex]?.posicao;
+        const v = pos ? vetorSeta(pos, tatica) : null;
+        if (!v) {
+          return null;
+        }
+        const mag = Math.hypot(v.dx, v.dy);
+        const ux = v.dx / mag;
+        const uy = v.dy / mag;
+        const comp = Math.min(Math.max(mag, 0.5), 1.7) * cardH * 0.85;
+        const sx = s.cx + ux * cardH * 0.58; // parte da borda da camisa
+        const sy = s.cy + uy * cardH * 0.58;
+        const ex = sx + ux * comp;
+        const ey = sy + uy * comp;
+        const wing = cardH * 0.24;
+        const px = -uy; // perpendicular unitária
+        const py = ux;
+        const bx = ex - ux * wing * 0.85;
+        const by = ey - uy * wing * 0.85;
+        return (
+          <React.Fragment key={s.slotIndex}>
+            <Line
+              x1={sx}
+              y1={sy}
+              x2={ex}
+              y2={ey}
+              stroke={cor}
+              strokeWidth={2}
+              strokeDasharray="3,3"
+              strokeLinecap="round"
+            />
+            <Path
+              d={`M ${bx + px * wing * 0.6} ${by + py * wing * 0.6} L ${ex} ${ey} L ${bx - px * wing * 0.6} ${by - py * wing * 0.6}`}
+              fill="none"
+              stroke={cor}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </React.Fragment>
+        );
+      })}
+    </Svg>
+  );
+}
+
+/**
+ * LINHA DE IMPEDIMENTO: marcação horizontal na altura da última linha de defesa,
+ * que SOBE com a linha "Adiantada" (armadilha de impedimento alta) e RECUA com a
+ * "Recuada". Deriva da posição média dos zagueiros + o ajuste da Linha defensiva.
+ */
+function LinhaImpedimento({
+  slots,
+  titulares,
+  tatica,
+  cardH,
+  largura,
+}: {
+  slots: SlotTela[];
+  titulares: TitularFormacao[];
+  tatica: Tatica;
+  cardH: number;
+  largura: number;
+}): React.JSX.Element | null {
+  const styles = useEstilosDS(criarEstilos);
+  const {cores} = useTheme();
+  const defs = slots.filter(
+    s => areaDaPosicao(titulares[s.slotIndex]?.posicao ?? 'MC') === 'defesa',
+  );
+  if (defs.length === 0) {
+    return null;
+  }
+  const yBase = defs.reduce((soma, s) => soma + s.cy, 0) / defs.length;
+  const desloc =
+    tatica.linhaDefensiva === 'Adiantada'
+      ? -cardH
+      : tatica.linhaDefensiva === 'Recuada'
+      ? cardH
+      : 0;
+  const y = yBase + desloc;
+  return (
+    <View
+      pointerEvents="none"
+      style={[styles.linhaImped, {top: y - 8, width: largura}]}>
+      <Svg width={largura} height={16}>
+        <Line
+          x1={4}
+          y1={8}
+          x2={largura - 4}
+          y2={8}
+          stroke={cores.accent}
+          strokeWidth={2}
+          strokeDasharray="7,5"
+          strokeLinecap="round"
+        />
+      </Svg>
+      <View style={[styles.linhaImpedTag, {backgroundColor: cores.accent}]}>
+        <Text style={styles.linhaImpedTagTxt}>IMPEDIMENTO</Text>
+      </View>
+    </View>
+  );
+}
+
 const criarEstilos = (t: TemaDS) =>
   StyleSheet.create({
     overlay: {
@@ -1125,10 +1342,6 @@ const criarEstilos = (t: TemaDS) =>
       backgroundColor: t.cores.accentSoft,
       borderColor: t.cores.accent,
     },
-    bannerOk: {
-      backgroundColor: t.cores.brandSoft,
-      borderColor: t.cores.brand,
-    },
     bannerTexto: {
       flex: 1,
       fontSize: 12,
@@ -1138,17 +1351,37 @@ const criarEstilos = (t: TemaDS) =>
       alignSelf: 'center',
       position: 'relative',
     },
-    botaoOlho: {
+    linhaImped: {
+      position: 'absolute',
+      left: 0,
+      height: 16,
+      justifyContent: 'center',
+    },
+    linhaImpedTag: {
+      position: 'absolute',
+      left: 6,
+      top: 1,
+      borderRadius: raios.sm,
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+    },
+    linhaImpedTagTxt: {
+      color: '#0B1E3F',
+      fontSize: 8,
+      fontWeight: '900',
+      letterSpacing: 0.6,
+    },
+    botaoMelhores: {
       alignItems: 'center',
       backgroundColor: t.cores.surface,
-      borderColor: t.cores.border,
+      borderColor: t.cores.accent,
       borderRadius: 999,
-      borderWidth: 1,
+      borderWidth: 1.5,
       elevation: 3,
       height: 38,
       justifyContent: 'center',
-      left: 6,
       position: 'absolute',
+      right: 6,
       shadowColor: '#0F1E3D',
       shadowOffset: {width: 0, height: 2},
       shadowOpacity: 0.12,
@@ -1157,10 +1390,6 @@ const criarEstilos = (t: TemaDS) =>
       width: 38,
       zIndex: 999,
     },
-    botaoOlhoAtivo: {
-      backgroundColor: t.cores.brand,
-      borderColor: t.cores.brand,
-    },
     ficha: {
       alignItems: 'center',
       justifyContent: 'center',
@@ -1168,9 +1397,21 @@ const criarEstilos = (t: TemaDS) =>
       borderWidth: 2,
       borderColor: t.cores.onBrand,
     },
+    camisaCentro: {
+      alignItems: 'center',
+      bottom: 0,
+      justifyContent: 'center',
+      left: 0,
+      position: 'absolute',
+      right: 0,
+      top: 0,
+    },
     fichaOverall: {
       color: t.cores.onBrand,
       fontWeight: '900',
+      textShadowColor: 'rgba(0, 0, 0, 0.35)',
+      textShadowOffset: {width: 0, height: 1},
+      textShadowRadius: 2,
     },
     fichaNome: {
       position: 'absolute',
@@ -1231,39 +1472,21 @@ const criarEstilos = (t: TemaDS) =>
       bottom: -2,
       zIndex: 5,
     },
-    dica: {
-      color: t.cores.textSecondary,
-      fontSize: 11,
-      textAlign: 'center',
-    },
-    taticaStrip: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: espacamento[1],
-      justifyContent: 'center',
-    },
-    taticaChip: {
-      backgroundColor: t.cores.surfaceSubtle,
-      borderColor: t.cores.border,
-      borderRadius: raios.sm,
-      borderWidth: 1,
-      paddingHorizontal: espacamento[2],
-      paddingVertical: 3,
-    },
-    taticaChipTexto: {
-      color: t.cores.textSecondary,
-      fontSize: 11,
-      fontWeight: '700',
-    },
     bancoHeader: {
       alignItems: 'center',
       flexDirection: 'row',
-      gap: espacamento[2],
+      gap: espacamento[1],
+      justifyContent: 'space-between',
+      paddingHorizontal: 2,
+    },
+    bancoHeaderFora: {
+      marginTop: espacamento[1],
     },
     bancoTitulo: {
       color: t.cores.textPrimary,
-      fontSize: 14,
+      fontSize: 13,
       fontWeight: '800',
+      letterSpacing: 0.2,
     },
     bancoContagem: {
       backgroundColor: t.cores.surfaceSubtle,
@@ -1277,23 +1500,79 @@ const criarEstilos = (t: TemaDS) =>
     },
     bancoVazio: {
       color: t.cores.textSecondary,
-      fontSize: 12,
-    },
-    bancoConteudo: {
-      gap: espacamento[2],
+      fontSize: 11,
       paddingHorizontal: 2,
-      paddingVertical: 2,
     },
-    ghost: {
-      elevation: 14,
-      left: 0,
+    bancoFaixa: {
+      gap: espacamento[1],
+      paddingHorizontal: 2,
+      paddingVertical: espacamento[1],
+    },
+    avatarItem: {
+      alignItems: 'center',
+      gap: 3,
+    },
+    avatarAnel: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surfaceSubtle,
+      borderWidth: 2.5,
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    avatarAnelSel: {
+      borderColor: t.cores.accent,
+    },
+    avatarOverall: {
+      alignItems: 'center',
+      backgroundColor: t.cores.surface,
+      borderRadius: 999,
+      borderWidth: 1.5,
+      justifyContent: 'center',
+      minWidth: 20,
+      paddingHorizontal: 3,
       position: 'absolute',
-      shadowColor: '#0B1E3F',
-      shadowOffset: {width: 0, height: 10},
-      shadowOpacity: 0.4,
-      shadowRadius: 18,
-      top: 0,
+      right: -2,
+      top: -2,
     },
+    avatarOverallTexto: {
+      color: t.cores.textPrimary,
+      fontSize: 10,
+      fontWeight: '900',
+    },
+    avatarChip: {
+      alignItems: 'center',
+      borderRadius: 9,
+      bottom: -2,
+      height: 18,
+      justifyContent: 'center',
+      left: -2,
+      position: 'absolute',
+      width: 18,
+    },
+    avatarChipTexto: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: '800',
+      lineHeight: 15,
+    },
+    avatarNome: {
+      color: t.cores.textPrimary,
+      fontSize: 10,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    avatarStatus: {
+      backgroundColor: t.cores.dangerSoft,
+      borderRadius: raios.sm,
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+    },
+    avatarStatusTexto: {
+      color: t.cores.danger,
+      fontSize: 9,
+      fontWeight: '800',
+    },
+    bancoChipDesabilitado: {opacity: 0.4},
   });
 
 /**

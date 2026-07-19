@@ -12,6 +12,7 @@ import {
   posicaoPorCoordenada,
   preencherCoordenadas,
 } from '../../../engine/tactics/geometria';
+import {TAMANHO_BANCO} from '../../../engine/tactics/formacaoOps';
 import {sugerirCapitao} from '../../../engine/carreira/capitao';
 
 export const TEMPLATES_FORMACAO: Record<FormacaoPreset, Position[]> = {
@@ -41,27 +42,40 @@ export const taticaDefault: Tatica = {
   amplidao: 'Normal',
 };
 
-function jogadorCompatibilidade(
-  jogador: Player,
-  posicao: Position,
-): number {
+// Compatibilidade de posição DOMINA a escolha automática: um jogador na posição
+// certa (principal ou secundária) sempre ganha de um improvisado, mesmo com
+// overall bem menor. Só quando NÃO há ninguém apto para a posição é que entra
+// alguém de fora dela. Overall/condição/moral desempatam DENTRO do mesmo nível.
+const COMPAT_PRINCIPAL = 3000;
+const COMPAT_SECUNDARIA = 1500;
+// Indisponível (lesão/suspensão) cai para o fim absoluto da fila: só é escalado
+// quando não há NENHUMA alternativa apta para fechar os 11.
+const PENALIDADE_INDISPONIVEL = 100000;
+
+function jogadorCompatibilidade(jogador: Player, posicao: Position): number {
   if (jogador.posicaoPrincipal === posicao) {
-    return 30;
+    return COMPAT_PRINCIPAL;
   }
-
   if (jogador.posicoesSecundarias.includes(posicao)) {
-    return 15;
+    return COMPAT_SECUNDARIA;
   }
-
   return 0;
 }
 
-// Penalidade forte para lesionado/suspenso no auto-preenchimento: o escalador
-// automático joga os indisponíveis para o fim da fila, então eles só entram se
-// NÃO houver aptos suficientes para fechar os 11 (evita montar um XI ilegal e,
-// ao mesmo tempo, nunca lança "elenco insuficiente" a mais que antes).
-function penalidadeIndisponivel(jogador: Player): number {
-  return jogador.lesionado || jogador.suspenso ? -1000 : 0;
+// Qualidade para DESEMPATE dentro do mesmo nível de compatibilidade: overall
+// modulado por condição física (cansaço derruba) e moral (motivação soma/tira).
+function qualidadeEscalacao(jogador: Player): number {
+  const condicao = jogador.condicaoFisica ?? 100;
+  const moral = jogador.moral ?? 70;
+  return jogador.overall + (condicao - 100) * 0.15 + (moral - 70) * 0.08;
+}
+
+function scoreEscalacao(jogador: Player, posicao: Position): number {
+  const base =
+    jogadorCompatibilidade(jogador, posicao) + qualidadeEscalacao(jogador);
+  return jogador.lesionado || jogador.suspenso
+    ? base - PENALIDADE_INDISPONIVEL
+    : base;
 }
 
 function escolherTitulares(
@@ -72,11 +86,7 @@ function escolherTitulares(
 
   return template.map(posicao => {
     disponiveis.sort(
-      (a, b) =>
-        b.overall +
-        jogadorCompatibilidade(b, posicao) +
-        penalidadeIndisponivel(b) -
-        (a.overall + jogadorCompatibilidade(a, posicao) + penalidadeIndisponivel(a)),
+      (a, b) => scoreEscalacao(b, posicao) - scoreEscalacao(a, posicao),
     );
 
     const escolhido = disponiveis.shift();
@@ -92,6 +102,25 @@ function escolherTitulares(
   });
 }
 
+// Banco padrão: melhores NÃO-titulares APTOS — lesionado/suspenso NÃO ocupa vaga
+// no banco (vai para "fora do jogo"). Ordena por qualidade (overall + condição +
+// moral) e corta no teto do banco.
+function montarReservas(
+  jogadores: Player[],
+  titularIds: Set<string>,
+): string[] {
+  return jogadores
+    .filter(
+      jogador =>
+        !titularIds.has(jogador.id) &&
+        !jogador.lesionado &&
+        !jogador.suspenso,
+    )
+    .sort((a, b) => qualidadeEscalacao(b) - qualidadeEscalacao(a))
+    .slice(0, TAMANHO_BANCO)
+    .map(jogador => jogador.id);
+}
+
 export function criarFormacaoDefault(jogadores: Player[]): Formacao {
   const titulares = preencherCoordenadas(escolherTitulares(jogadores));
   const titularIds = new Set(titulares.map(titular => titular.jogadorId));
@@ -99,10 +128,7 @@ export function criarFormacaoDefault(jogadores: Player[]): Formacao {
   return {
     tipo: '4-3-3',
     titulares,
-    reservas: jogadores
-      .filter(jogador => !titularIds.has(jogador.id))
-      .sort((a, b) => b.overall - a.overall)
-      .map(jogador => jogador.id),
+    reservas: montarReservas(jogadores, titularIds),
   };
 }
 
@@ -123,10 +149,7 @@ export function montarFormacao(
   return {
     tipo,
     titulares,
-    reservas: jogadores
-      .filter(jogador => !titularIds.has(jogador.id))
-      .sort((a, b) => b.overall - a.overall)
-      .map(jogador => jogador.id),
+    reservas: montarReservas(jogadores, titularIds),
   };
 }
 
