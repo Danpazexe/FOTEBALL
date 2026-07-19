@@ -1075,6 +1075,10 @@ function MatchSimulation(): React.JSX.Element | null {
     if (!entrante || entrante.lesionado || entrante.suspenso) {
       return;
     }
+    // Só quem está no BANCO (reservas escalados) pode entrar (regra real).
+    if (!formacao.reservas.includes(entranteId)) {
+      return;
+    }
     const nomeSai = nomesRef.current[saiId] ?? 'o titular';
     const nomeEntra = nomesRef.current[entranteId] ?? 'o reserva';
     const lado = ladoUsuarioRef.current;

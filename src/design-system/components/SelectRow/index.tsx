@@ -20,6 +20,8 @@ type Props = {
   onSelect: (valor: string) => void;
   /** Compacto (só o valor + ▾), para cabeçalhos como a formação. */
   pill?: boolean;
+  /** Pílula ainda menor (padding/tipografia reduzidos). Só com `pill`. */
+  compacto?: boolean;
 };
 
 export function SelectRow({
@@ -28,6 +30,7 @@ export function SelectRow({
   opcoes,
   onSelect,
   pill,
+  compacto,
 }: Props): React.JSX.Element {
   const {cores} = useTheme();
   const [aberto, setAberto] = useState(false);
@@ -46,12 +49,13 @@ export function SelectRow({
       accessibilityLabel={`${label ?? 'Opção'}: ${valor}`}
       style={[
         estilos.pill,
+        compacto ? estilos.pillCompacto : null,
         {backgroundColor: cores.surfaceSubtle, borderColor: cores.border},
       ]}>
-      <Text variant="labelL" color="brand">
+      <Text variant={compacto ? 'labelM' : 'labelL'} color="brand">
         {valor}
       </Text>
-      <Icon nome="seta-baixo" size={16} color="brand" />
+      <Icon nome="seta-baixo" size={compacto ? 13 : 16} color="brand" />
     </Pressable>
   ) : (
     <Card
@@ -134,6 +138,11 @@ const estilos = StyleSheet.create({
     borderRadius: raios.full,
     paddingHorizontal: espacamento[3],
     paddingVertical: espacamento[1],
+  },
+  pillCompacto: {
+    gap: 3,
+    paddingHorizontal: espacamento[2],
+    paddingVertical: 2,
   },
   backdrop: {flex: 1, justifyContent: 'flex-end'},
   sheet: {

@@ -251,12 +251,22 @@ function AjustesPartida({
     () => new Set(formacao.titulares.map(t => t.jogadorId)),
     [formacao],
   );
+  // Só os RESERVAS ESCALADOS (banco definido) podem entrar — não o elenco todo.
+  const reservasEscalados = useMemo(
+    () => new Set(formacao.reservas),
+    [formacao.reservas],
+  );
   const banco = useMemo(
     () =>
       elenco
-        .filter(j => !titularIds.has(j.id) && !jaSairamIds.has(j.id))
+        .filter(
+          j =>
+            reservasEscalados.has(j.id) &&
+            !titularIds.has(j.id) &&
+            !jaSairamIds.has(j.id),
+        )
         .sort((a, b) => b.overall - a.overall),
-    [elenco, titularIds, jaSairamIds],
+    [elenco, reservasEscalados, titularIds, jaSairamIds],
   );
 
   // Contexto do painel "quem entra": posição da vaga, jogador que sai e a lista
