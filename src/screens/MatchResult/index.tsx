@@ -216,6 +216,23 @@ function MatchResult(): React.JSX.Element {
     );
   }, [partida, clubeUsuarioId, clubes, jogadores]);
 
+  // Cartões da partida (súmula): amarelos e vermelhos na ordem do jogo.
+  const cartoes = useMemo(() => {
+    if (!partida) {
+      return [];
+    }
+    return partida.eventos
+      .filter(e => e.tipo === 'cartao_amarelo' || e.tipo === 'cartao_vermelho')
+      .map(e => ({
+        minuto: e.minuto,
+        vermelho: e.tipo === 'cartao_vermelho',
+        segundoAmarelo: e.segundoAmarelo ?? false,
+        jogador: jogadoresPorId.get(e.jogadorId),
+        sigla: siglaClube(clubes, e.timeId),
+      }))
+      .sort((a, b) => a.minuto - b.minuto);
+  }, [partida, jogadoresPorId, clubes]);
+
   // Mapa de chutes: partidas da engine V2 usam os chutes FACTUAIS persistidos
   // (posição/xG reais do lance); partidas legacy caem na reconstrução
   // determinística e recebem o selo de estimativa (RF-11 — legacy honesto).
@@ -563,6 +580,38 @@ function MatchResult(): React.JSX.Element {
         </Card>
       ) : null}
 
+      {/* Cartões (súmula) */}
+      {cartoes.length > 0 ? (
+        <Card>
+          <View style={estilos.cardInner}>
+            <SectionHeader titulo="Cartões" />
+            {cartoes.map((c, i) => (
+              <View key={`${c.minuto}-${i}`} style={estilos.notaRow}>
+                <Text
+                  variant="labelM"
+                  color="textSecondary"
+                  tabular
+                  style={estilos.cartaoMin}>
+                  {c.minuto}'
+                </Text>
+                <Icon
+                  nome="cartao"
+                  size={16}
+                  color={c.vermelho ? 'danger' : 'warning'}
+                />
+                <Text variant="bodyM" numberOfLines={1} style={estilos.notaNome}>
+                  {c.jogador ? nomeCurto(c.jogador) : 'Jogador'}
+                  {c.segundoAmarelo ? ' (2º amarelo)' : ''}
+                </Text>
+                <Text variant="caption" color="textSecondary">
+                  {c.sigla}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      ) : null}
+
       {/* Estatísticas relevantes */}
       {linhasEstat.length > 0 ? (
         <Card>
@@ -763,6 +812,7 @@ const estilos = StyleSheet.create({
   },
   notaNome: {flex: 1},
   notaValor: {width: 32, textAlign: 'right'},
+  cartaoMin: {width: 32},
   golsRow: {
     flexDirection: 'row',
     gap: espacamento[3],

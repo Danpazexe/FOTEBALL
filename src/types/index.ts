@@ -62,6 +62,11 @@ export type {
   RegistroDesenvolvimento,
 } from './desenvolvimento';
 export type {
+  DisciplinaPorCompeticao,
+  DisponibilidadeJogador,
+} from './disciplina';
+export {COMPETICAO_LEGADO, LIMIAR_AMARELOS_SUSPENSAO} from './disciplina';
+export type {
   IntensidadeTreino,
   PlanoTreino,
   PlanoTreinoStatus,

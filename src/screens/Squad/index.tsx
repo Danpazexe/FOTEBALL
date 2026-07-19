@@ -309,6 +309,8 @@ function LinhaJogador({
       ? esporte.fitness.medium
       : esporte.fitness.low;
   const indisponivel = jogador.lesionado || jogador.suspenso;
+  // "Amarelado": tem amarelo acumulado rumo ao gancho (limiar 2) — mas ainda apto.
+  const amarelado = !indisponivel && (jogador.amarelosParaSuspensao ?? 0) > 0;
   const humor = humorJogador(jogador.condicaoFisica);
 
   return (
@@ -343,6 +345,8 @@ function LinhaJogador({
           size={18}
           color="danger"
         />
+      ) : amarelado ? (
+        <Icon nome="cartao" size={18} color="warning" />
       ) : (
         <Icon nome={humor.icone} size={18} color={humor.cor} />
       )}

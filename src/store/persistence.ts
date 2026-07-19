@@ -28,6 +28,7 @@ import type {
 import {REPUTACAO_INICIAL} from '../engine/carreira/carreiraEngine';
 import {sugerirCapitao} from '../engine/carreira/capitao';
 import {comEstadoFisico} from '../engine/physical/fisicoEngine';
+import {comDisponibilidade} from '../engine/disciplina';
 import {comAtributosCalibrados} from '../engine/progression/calibracaoAtributos';
 import {comHabilidades} from '../engine/progression/habilidades';
 import {comTipo} from '../engine/progression/tipoJogador';
@@ -93,6 +94,8 @@ export interface SnapshotJogo {
   ledgerDesenvolvimento?: RegistroDesenvolvimento[];
   /** Série de evolução da média do elenco (gráfico de Desenvolvimento). */
   historicoDesenvolvimento?: InstantaneoDesenvolvimento[];
+  /** Ids de partidas cuja disciplina já foi contabilizada (idempotência). */
+  partidasDisciplinaProcessada?: string[];
 }
 
 /**
@@ -137,6 +140,7 @@ export function montarSnapshot(
     pendencias: state.pendencias,
     ledgerDesenvolvimento: state.ledgerDesenvolvimento,
     historicoDesenvolvimento: state.historicoDesenvolvimento,
+    partidasDisciplinaProcessada: state.partidasDisciplinaProcessada,
   };
 }
 
@@ -197,7 +201,8 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
       .map(comAtributosCalibrados)
       .map(comHabilidades)
       .map(comTipo)
-      .map(comEstadoFisico),
+      .map(comEstadoFisico)
+      .map(comDisponibilidade),
     partidas: snapshot.partidas,
     tabela: snapshot.tabela,
     jovensDisponiveis: snapshot.jovensDisponiveis ?? [],
@@ -222,6 +227,7 @@ export function aplicarSnapshot(snapshot: SnapshotJogo): Partial<GameState> {
     pendencias: snapshot.pendencias ?? [],
     ledgerDesenvolvimento: snapshot.ledgerDesenvolvimento ?? [],
     historicoDesenvolvimento: snapshot.historicoDesenvolvimento ?? [],
+    partidasDisciplinaProcessada: snapshot.partidasDisciplinaProcessada ?? [],
     // Mundo mestre: restaura o evoluído quando presente. Ausente (save antigo),
     // OMITE — o estado inicial mantém o mundo completo do seed (não regride para
     // só a Série A). Aplica calibração/habilidades/tipo e, por fim, a migração de
@@ -249,7 +255,8 @@ function mundoMestreRestaurado(
     .map(comAtributosCalibrados)
     .map(comHabilidades)
     .map(comTipo)
-    .map(comEstadoFisico);
+    .map(comEstadoFisico)
+    .map(comDisponibilidade);
   const {clubes, jogadores} = mesclarConteudoNovoDoSeed(
     clubesMundo,
     jogadoresMundo,

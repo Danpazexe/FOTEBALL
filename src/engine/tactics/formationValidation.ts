@@ -1,4 +1,5 @@
 import type {Formacao, Player} from '../../types';
+import {calcularElegibilidadeJogador} from '../disciplina';
 import {validarEscalacao} from './validacao';
 import {nivelAdaptacao} from './adaptacao';
 
@@ -11,15 +12,17 @@ import {nivelAdaptacao} from './adaptacao';
  * Reaproveita a checagem estrutural de `validarEscalacao` (11 titulares, 1
  * goleiro, mínimos por setor, duplicados) e adiciona a propriedade do clube.
  *
- *   ERROS (bloqueiam — sempre satisfazíveis por qualquer elenco de 11+):
+ *   ERROS (bloqueiam):
  *     - estrutura (tudo que `validarEscalacao` já considera erro)
  *     - jogador que não pertence ao clube (clubeId divergente)
+ *     - COM `competicaoId` (contexto de partida): titular OU reserva inelegível
+ *       (lesionado, ou suspenso NAQUELA competição). Regra do projeto: lesionados
+ *       e suspensos ficam bloqueados de titulares E do banco, e a validação
+ *       impede iniciar a partida com jogador inelegível.
  *
  *   AVISOS (NÃO bloqueiam):
- *     - jogador lesionado ou suspenso escalado como titular. NÃO é erro de
- *       propósito: bloquear travaria elencos curtos (que podem não ter 11 aptos)
- *       e o motor de simulação já IGNORA indisponíveis em campo. O aviso deixa o
- *       problema visível sem impedir o técnico de salvar/ajustar a escalação.
+ *     - SEM `competicaoId` (salvar formação geral): indisponibilidade é só aviso —
+ *       a formação não é de uma competição específica, então não trava o técnico.
  *     - jogador improvisado na posição escalada (nível 'improvisado')
  *     - titular com condição física baixa (abaixo de LIMIAR_CONDICAO_BAIXA)
  *
@@ -46,8 +49,14 @@ export function validarFormacao(args: {
   formacao: Formacao;
   jogadores: Player[];
   clubeId: string;
+  /**
+   * Competição da PARTIDA. Quando informado, inelegível (lesionado ou suspenso
+   * NAQUELA competição) vira ERRO que bloqueia iniciar — titulares E banco. Sem
+   * ele (salvar formação geral), a indisponibilidade é apenas aviso.
+   */
+  competicaoId?: string;
 }): FormationValidationResult {
-  const {formacao, jogadores, clubeId} = args;
+  const {formacao, jogadores, clubeId, competicaoId} = args;
 
   // 1. Estrutura: reaproveita a validação existente (11 titulares, 1 goleiro,
   //    mínimos por setor, duplicados). NÃO reimplementa essas regras.
@@ -60,37 +69,36 @@ export function validarFormacao(args: {
     porId.set(jogador.id, jogador);
   }
 
-  // 2. Regras por titular (disponibilidade, propriedade e encaixe). Cada jogador
-  //    é avaliado uma única vez — duplicados já viram erro estrutural em `base`.
+  // Indisponibilidade (lesão/suspensão): ERRO no contexto de partida, aviso ao
+  // salvar formação geral. Cobre titular E banco (regra do projeto).
+  const avaliarDisponibilidade = (jogador: Player): void => {
+    const {elegivel, motivo} = calcularElegibilidadeJogador(jogador, competicaoId);
+    if (elegivel || !motivo) {
+      return;
+    }
+    const texto =
+      motivo === 'lesionado'
+        ? `${jogador.nome} está lesionado (indisponível).`
+        : `${jogador.nome} está suspenso nesta competição.`;
+    (competicaoId ? errors : warnings).push(texto);
+  };
+
+  // 2. Regras por titular. Cada jogador é avaliado uma única vez — duplicados já
+  //    viram erro estrutural em `base`.
   const vistos = new Set<string>();
   for (const titular of formacao.titulares) {
     const jogador = porId.get(titular.jogadorId);
-    // Slot vazio / id inexistente: a falta de 11 titulares já é erro estrutural.
-    if (jogador === undefined) {
-      continue;
-    }
-    if (vistos.has(jogador.id)) {
+    if (jogador === undefined || vistos.has(jogador.id)) {
       continue;
     }
     vistos.add(jogador.id);
-
-    // Propriedade: o titular precisa pertencer ao clube que está escalando (erro).
     if (jogador.clubeId !== clubeId) {
       errors.push(`${jogador.nome} não pertence ao seu elenco.`);
     }
-    // Disponibilidade: lesionado/suspenso é AVISO (não bloqueia) — ver cabeçalho.
-    if (jogador.lesionado) {
-      warnings.push(`${jogador.nome} está lesionado (indisponível).`);
-    }
-    if (jogador.suspenso) {
-      warnings.push(`${jogador.nome} está suspenso (indisponível).`);
-    }
-    // Encaixe: fora da posição natural/similar é só um AVISO (o técnico pode
-    // improvisar de propósito), mas precisa ficar visível.
+    avaliarDisponibilidade(jogador);
     if (nivelAdaptacao(jogador, titular.posicao).nivel === 'improvisado') {
       warnings.push(`${jogador.nome} está improvisado na posição ${titular.posicao}.`);
     }
-    // Condição física baixa: titular desgastado — avisa, sem bloquear.
     if (jogador.condicaoFisica < LIMIAR_CONDICAO_BAIXA) {
       warnings.push(
         `${jogador.nome} está com condição física baixa (${Math.round(
@@ -98,6 +106,19 @@ export function validarFormacao(args: {
         )}%).`,
       );
     }
+  }
+
+  // 3. Banco: um reserva inelegível também bloqueia iniciar a partida.
+  for (const id of formacao.reservas) {
+    const jogador = porId.get(id);
+    if (jogador === undefined || vistos.has(jogador.id)) {
+      continue;
+    }
+    vistos.add(jogador.id);
+    if (jogador.clubeId !== clubeId) {
+      errors.push(`${jogador.nome} não pertence ao seu elenco.`);
+    }
+    avaliarDisponibilidade(jogador);
   }
 
   return {
