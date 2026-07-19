@@ -72,6 +72,15 @@ function statusJogador(j: Player): {rotulo: string; tom: CorTexto; icone: IconeN
   if (j.suspenso) {
     return {rotulo: `Suspenso · ${j.jogosSuspensao} jogo(s)`, tom: 'danger', icone: 'cartao'};
   }
+  const amarelos = j.amarelosParaSuspensao ?? 0;
+  if (amarelos > 0) {
+    // Amarelado: acúmulo rumo ao gancho (2 = suspensão). Aviso, ainda apto.
+    return {
+      rotulo: `Amarelado · ${amarelos} amarelo${amarelos > 1 ? 's' : ''}`,
+      tom: 'warning',
+      icone: 'cartao',
+    };
+  }
   return {rotulo: 'Disponível', tom: 'success', icone: 'check'};
 }
 

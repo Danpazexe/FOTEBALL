@@ -242,4 +242,38 @@ describe('validarFormacao', () => {
     expect(r.warnings.some(w => w.includes('lesionado'))).toBe(true);
     expect(r.warnings.some(w => w.includes('suspenso'))).toBe(true);
   });
+
+  it('COM competicaoId: titular inelegível vira ERRO e bloqueia iniciar', () => {
+    const r = validarFormacao({
+      formacao: form(baseTitulares()),
+      jogadores: baseJogadores({5: {lesionado: true}, 6: {suspenso: true}}),
+      clubeId: CLUBE,
+      competicaoId: 'br-serie-a',
+    });
+    expect(r.valid).toBe(false);
+    expect(r.errors.some(e => e.includes('lesionado'))).toBe(true);
+    expect(r.errors.some(e => e.includes('suspenso'))).toBe(true);
+  });
+
+  it('COM competicaoId: reserva inelegível no BANCO também bloqueia', () => {
+    const jogadores = [
+      ...baseJogadores(),
+      criarPlayer({
+        id: 'r1',
+        nome: 'Reserva Suspenso',
+        posicaoPrincipal: 'CA',
+        clubeId: CLUBE,
+        suspenso: true,
+      }),
+    ];
+    const formacao: Formacao = {...form(baseTitulares()), reservas: ['r1']};
+    const r = validarFormacao({
+      formacao,
+      jogadores,
+      clubeId: CLUBE,
+      competicaoId: 'br-serie-a',
+    });
+    expect(r.valid).toBe(false);
+    expect(r.errors.some(e => e.includes('Reserva Suspenso'))).toBe(true);
+  });
 });

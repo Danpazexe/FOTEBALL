@@ -34,7 +34,7 @@ import {
   type CorTexto,
 } from '../../design-system';
 import {taticaProvavelIA} from '../../engine/tactics/preview';
-import {validarEscalacao} from '../../engine/tactics/validacao';
+import {validarFormacao} from '../../engine/tactics/formationValidation';
 import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {
@@ -332,8 +332,9 @@ function PreJogo(): React.JSX.Element {
 
   const formacao = clubeUsuario?.formacaoAtual ?? null;
 
-  // Avisos da escalação (mesma validação da tela de Tática) — não bloqueiam aqui,
-  // só apontam o que corrigir antes do jogo.
+  // Avisos da escalação para ESTA partida. Erros (inclusive titular/reserva
+  // inelegível NA competição do jogo) viram 'danger' e BLOQUEIAM o início
+  // (podeJogar). Avisos (improviso, condição baixa) só alertam.
   const avisos = useMemo<Aviso[]>(() => {
     if (!formacao) {
       return [
@@ -344,16 +345,24 @@ function PreJogo(): React.JSX.Element {
         },
       ];
     }
-    const validacao = validarEscalacao(formacao, jogadoresUsuario);
+    if (!clubeUsuario || !proximo) {
+      return [];
+    }
+    const validacao = validarFormacao({
+      formacao,
+      jogadores: jogadoresUsuario,
+      clubeId: clubeUsuario.id,
+      competicaoId: proximo.competicaoId,
+    });
     const lista: Aviso[] = [];
-    for (const erro of validacao.erros) {
+    for (const erro of validacao.errors) {
       lista.push({icone: 'fechar', cor: 'danger', texto: erro});
     }
-    for (const aviso of validacao.avisos) {
+    for (const aviso of validacao.warnings) {
       lista.push({icone: 'lesao', cor: 'warning', texto: aviso});
     }
     return lista;
-  }, [formacao, jogadoresUsuario]);
+  }, [formacao, jogadoresUsuario, clubeUsuario, proximo]);
 
   if (!proximo || !confronto || !clubeUsuario) {
     return (

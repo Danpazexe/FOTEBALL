@@ -1,6 +1,7 @@
 import {clubesSeed} from '../../../data/seed/clubes';
 import {jogadoresSeed} from '../../../data/seed/jogadores';
 import {comEstadoFisico} from '../../../engine/physical/fisicoEngine';
+import {comDisponibilidade} from '../../../engine/disciplina';
 import {comAtributosCalibrados} from '../../../engine/progression/calibracaoAtributos';
 import {comHabilidades} from '../../../engine/progression/habilidades';
 import {comTipo} from '../../../engine/progression/tipoJogador';
@@ -26,7 +27,8 @@ export function loadSeedData(): SeedData {
     .map(comAtributosCalibrados)
     .map(comHabilidades)
     .map(comTipo)
-    .map(comEstadoFisico);
+    .map(comEstadoFisico)
+    .map(comDisponibilidade);
   return {
     jogadores,
     clubes: clubesSeed.map(clube => aplicarDefaultsClube(clube, jogadores)),

@@ -134,8 +134,15 @@ export interface Player {
   diasLesao: number;
   suspenso: boolean;
   jogosSuspensao: number;
-  /** Amarelos acumulados rumo à próxima suspensão (0-2; a cada 3, suspende). */
+  /** Amarelos acumulados rumo à próxima suspensão (espelho legado; a fonte da
+   * verdade é `disponibilidade.disciplinas` por competição). */
   amarelosParaSuspensao?: number;
+  /**
+   * Disciplina POR COMPETIÇÃO (cartões/suspensão isolados por torneio) + lesão
+   * derivada. Opcional para compatibilidade; derivada no load (`comDisponibilidade`).
+   * Os campos `suspenso`/`jogosSuspensao` viram espelho global derivado daqui.
+   */
+  disponibilidade?: import('./disciplina').DisponibilidadeJogador;
   estatisticasTemporada: PlayerSeasonStats;
   historicoTemporadas: PlayerSeasonStats[];
 }

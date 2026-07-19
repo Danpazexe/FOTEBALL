@@ -34,6 +34,10 @@ import {
 } from '../engine/progression/treinoAtributos';
 import {atualizarFormaPorNota} from '../engine/progression/formaEngine';
 import {instantaneoDoElenco} from '../engine/progression/instantaneoDesenvolvimento';
+import {
+  aplicarDisciplinaPartida,
+  disponibilidadeInicial,
+} from '../engine/disciplina';
 import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
@@ -210,6 +214,9 @@ export interface ResultadoConfrontoUsuario {
   golsAdversario: number;
   /** Id do clube vencedor nos pênaltis (quando o jogo terminou empatado). */
   vencedorPenaltis?: string;
+  /** Eventos do jogo (cartões etc.) — alimentam a disciplina POR COMPETIÇÃO da
+   * Copa (isolada da liga). Opcional; ausente = sem cartões contabilizados. */
+  eventos?: EventoPartida[];
 }
 
 /** Overall médio de um elenco (0-100). Alimenta a disputa de pênaltis simulada. */
@@ -367,6 +374,12 @@ export interface GameState {
    * evolução (Desenvolvimento). Aditivo; vazio em saves antigos.
    */
   historicoDesenvolvimento: InstantaneoDesenvolvimento[];
+  /**
+   * Ids de partidas cuja DISCIPLINA (cartões/suspensão) já foi contabilizada —
+   * torna o processamento idempotente por partidaId (reabrir/recalcular não
+   * duplica). Resetado na virada de temporada. Aditivo; vazio em saves antigos.
+   */
+  partidasDisciplinaProcessada: string[];
   /** (Re)gera as propostas de patrocínio do clube do usuário para a temporada. */
   gerarPropostasPatrocinioUsuario: () => void;
   /** Aceita uma proposta de patrocínio (cria contrato ativo). */
@@ -881,18 +894,13 @@ function aplicarResultadoNosJogadores(
       return jogador;
     }
 
-    // 1) Decrementa punições pendentes desta rodada.
-    let suspenso = jogador.suspenso;
-    let jogosSuspensao = jogador.jogosSuspensao;
-    if (suspenso && jogosSuspensao > 0) {
-      jogosSuspensao -= 1;
-      if (jogosSuspensao <= 0) {
-        suspenso = false;
-        jogosSuspensao = 0;
-      }
-    }
+    // Disciplina (cartões/suspensão) é aplicada POR COMPETIÇÃO logo após este
+    // passo, pela engine de disciplina (idempotente por partidaId). Aqui os
+    // campos passam intactos — a engine é a única autoridade sobre suspensão.
+    const suspenso = jogador.suspenso;
+    const jogosSuspensao = jogador.jogosSuspensao;
     // Lesão anda em DIAS REAIS pelo pipeline diário do calendário (Onda 3) —
-    // aqui só entram punições/lesões NOVAS desta partida.
+    // aqui só entram lesões NOVAS desta partida.
     let lesionado = jogador.lesionado;
     let diasLesao = jogador.diasLesao;
 
@@ -909,17 +917,7 @@ function aplicarResultadoNosJogadores(
     ).length;
     const lesoes = eventosDoJogador.filter(e => e.tipo === 'lesao').length;
 
-    if (vermelhos > 0) {
-      suspenso = true;
-      jogosSuspensao += vermelhos; // vermelho = 1 jogo cada
-    }
-    let amarelosParaSuspensao = jogador.amarelosParaSuspensao ?? 0;
-    amarelosParaSuspensao += amarelos;
-    while (amarelosParaSuspensao >= 3) {
-      suspenso = true;
-      jogosSuspensao += 1; // 3 amarelos = 1 jogo
-      amarelosParaSuspensao -= 3;
-    }
+    const amarelosParaSuspensao = jogador.amarelosParaSuspensao ?? 0;
     if (lesoes > 0) {
       lesionado = true;
       diasLesao = Math.max(diasLesao, sortearDuracaoLesao(rngPartida));
@@ -1177,6 +1175,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   pendencias: [],
   ledgerDesenvolvimento: [],
   historicoDesenvolvimento: [],
+  partidasDisciplinaProcessada: [],
 
   gerarPropostasPatrocinioUsuario: () => {
     const state = get();
@@ -1258,6 +1257,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         liga.dataAtual,
         TEMPORADA_INICIAL,
       ),
+      partidasDisciplinaProcessada: [],
       jogadores: liga.jogadores,
       partidas: liga.partidas,
       tabela: liga.tabela,
@@ -1333,6 +1333,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         liga.dataAtual,
         state.temporadaAtual,
       ),
+      partidasDisciplinaProcessada: [],
       ultimaPartidaUsuario: null,
       treinouProximoJogo: false,
       conversouComGrupo: false,
@@ -1463,6 +1464,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     );
 
     let jogadoresAtualizados = periodo.jogadores;
+    let disciplinaProcessada = state.partidasDisciplinaProcessada;
     const partidasAtualizadas = state.partidas.map(partida => {
       const jogo = jogosRodada.find(item => item.id === partida.id);
 
@@ -1502,6 +1504,20 @@ export const useGameStore = create<GameState>((set, get) => ({
           clubeCasa,
           clubeFora,
         );
+        // Disciplina POR COMPETIÇÃO (idempotente por partidaId): cartões da
+        // súmula viram acúmulo/suspensão no balde da competição do jogo.
+        ({jogadores: jogadoresAtualizados, processadas: disciplinaProcessada} =
+          aplicarDisciplinaPartida(
+            jogadoresAtualizados,
+            {
+              id: partida.id,
+              competicaoId: jogo.competicaoId,
+              timeCasa: jogo.timeCasa,
+              timeFora: jogo.timeFora,
+              eventos: simulada.eventos,
+            },
+            disciplinaProcessada,
+          ));
 
         // Preserva o id do calendário: simularPartida gera um id próprio e o
         // spread o sobrescreveria, quebrando buscas por id (ex.: localizar a
@@ -1606,6 +1622,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       estadoFinanceiro: carreira.estadoFinanceiro,
       demissao: carreira.demissao,
       mensagens: carreira.mensagens,
+      partidasDisciplinaProcessada: disciplinaProcessada,
     });
 
     checarConquistas({
@@ -1668,6 +1685,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     ]);
 
     let jogadoresAtualizados = periodo.jogadores;
+    let disciplinaProcessada = state.partidasDisciplinaProcessada;
     const partidasAtualizadas = state.partidas.map(partida => {
       const jogo = jogosRodada.find(item => item.id === partida.id);
       if (!jogo) {
@@ -1722,6 +1740,19 @@ export const useGameStore = create<GameState>((set, get) => ({
         clubeCasa,
         clubeFora,
       );
+      // Disciplina por competição (idempotente por partidaId).
+      ({jogadores: jogadoresAtualizados, processadas: disciplinaProcessada} =
+        aplicarDisciplinaPartida(
+          jogadoresAtualizados,
+          {
+            id: partida.id,
+            competicaoId: jogo.competicaoId,
+            timeCasa: jogo.timeCasa,
+            timeFora: jogo.timeFora,
+            eventos: resultado.eventos,
+          },
+          disciplinaProcessada,
+        ));
       return {...partida, ...resultado, id: partida.id};
     });
 
@@ -1803,6 +1834,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       estadoFinanceiro: carreira.estadoFinanceiro,
       demissao: carreira.demissao,
       mensagens: carreira.mensagens,
+      partidasDisciplinaProcessada: disciplinaProcessada,
     });
 
     checarConquistas({
@@ -2330,7 +2362,42 @@ export const useGameStore = create<GameState>((set, get) => ({
               : jogador,
           );
 
-    set({copa: copaAvancada, clubes, mensagens, jogadores});
+    // Disciplina POR COMPETIÇÃO da Copa: os cartões do confronto DO USUÁRIO
+    // entram no balde 'copa_brasil', isolado da liga (regra: Série A não
+    // contamina a Copa). Idempotente por id do confronto.
+    let disciplinaProcessada = state.partidasDisciplinaProcessada;
+    let jogadoresFinaisCopa = jogadores;
+    const confrontoUser = userId
+      ? confrontosResolvidos.find(
+          (c, i) =>
+            !!c?.vencedor &&
+            !fase.confrontos[i].vencedor &&
+            (c.timeA === userId || c.timeB === userId),
+        )
+      : undefined;
+    if (confrontoUser && resultadoUsuario?.eventos) {
+      const disc = aplicarDisciplinaPartida(
+        jogadoresFinaisCopa,
+        {
+          id: confrontoUser.id,
+          competicaoId: 'copa_brasil',
+          timeCasa: confrontoUser.timeA,
+          timeFora: confrontoUser.timeB,
+          eventos: resultadoUsuario.eventos,
+        },
+        disciplinaProcessada,
+      );
+      jogadoresFinaisCopa = disc.jogadores;
+      disciplinaProcessada = disc.processadas;
+    }
+
+    set({
+      copa: copaAvancada,
+      clubes,
+      mensagens,
+      jogadores: jogadoresFinaisCopa,
+      partidasDisciplinaProcessada: disciplinaProcessada,
+    });
   },
 
   renovarContrato: (jogadorId, anos, salario) => {
@@ -2937,6 +3004,8 @@ export const useGameStore = create<GameState>((set, get) => ({
           suspenso: false,
           jogosSuspensao: 0,
           amarelosParaSuspensao: 0,
+          // Disciplina zera entre EDIÇÕES: nova temporada, baldes limpos.
+          disponibilidade: disponibilidadeInicial(),
           lesionado: false,
           diasLesao: 0,
         };
@@ -2967,6 +3036,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         suspenso: false,
         jogosSuspensao: 0,
         amarelosParaSuspensao: 0,
+        disponibilidade: disponibilidadeInicial(),
         lesionado: false,
         diasLesao: 0,
       };
@@ -3277,6 +3347,8 @@ export const useGameStore = create<GameState>((set, get) => ({
 
     set({
       temporadaAtual: proximaTemporada,
+      // Disciplina reinicia a cada temporada: nada de partidas contabilizadas.
+      partidasDisciplinaProcessada: [],
       rodadaAtual: 1,
       todosClubes: todosClubesNovos,
       todosJogadores: jogadoresEvoluidos,
@@ -3503,6 +3575,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendencias: [],
       ledgerDesenvolvimento: [],
       historicoDesenvolvimento: [],
+      partidasDisciplinaProcessada: [],
       mensagens: [],
     });
     useAchievementsStore.getState().reiniciarConquistas();

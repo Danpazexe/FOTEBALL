@@ -1015,7 +1015,9 @@ function MatchSimulation(): React.JSX.Element | null {
       // igual aos confrontos de CPU, sem disputa interativa.
       const golsUsuario = e.placarCasa;
       const golsAdversario = e.placarFora;
-      useGameStore.getState().avancarFaseCopa({golsUsuario, golsAdversario});
+      useGameStore
+        .getState()
+        .avancarFaseCopa({golsUsuario, golsAdversario, eventos: e.eventos});
       nav.navigate('Copa');
     } else {
       useGameStore
