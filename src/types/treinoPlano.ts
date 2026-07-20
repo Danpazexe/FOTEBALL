@@ -8,8 +8,18 @@
  * quando ele não escolheu (RF-08).
  */
 
-/** Intensidade de uma sessão — fonte única (a engine re-exporta este tipo). */
-export type IntensidadeTreino = 'leve' | 'normal' | 'forte' | 'muito_forte';
+/**
+ * Intensidade de uma sessão — fonte única (a engine re-exporta este tipo). Os 5
+ * níveis exibidos ao usuário: Descanso (`descanso`) · Leve (`leve`) · Balanceado
+ * (`normal`) · Intenso (`forte`) · Máximo (`muito_forte`). `descanso` é pura
+ * recuperação: não treina atributo, recupera condição e sobe moral.
+ */
+export type IntensidadeTreino =
+  | 'descanso'
+  | 'leve'
+  | 'normal'
+  | 'forte'
+  | 'muito_forte';
 
 /**
  * Situação da CONFIGURAÇÃO de treino do clube do usuário:

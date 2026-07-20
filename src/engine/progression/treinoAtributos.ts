@@ -244,7 +244,9 @@ export function calcularEfeitoTreino(
     // calendário (Onda 3: rodadas distam 3-4 dias) — ~1 a 3 jogos fora.
     const diasLesao = inteiroEntre(rng, 3, 10);
     const condicaoBruta =
-      intensidade === 'leve' || intensidade === 'normal'
+      intensidade === 'descanso' ||
+      intensidade === 'leve' ||
+      intensidade === 'normal'
         ? -5
         : config.deltaCondicao;
     const deltaCondicao = clampDelta(

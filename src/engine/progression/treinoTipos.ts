@@ -32,8 +32,9 @@ export interface ConfigIntensidade {
   custo: number;
 }
 
-/** Ordem de exibição das intensidades (leve → muito forte). */
+/** Ordem de exibição das intensidades (descanso → máximo). */
 export const INTENSIDADES_ORDEM: IntensidadeTreino[] = [
+  'descanso',
   'leve',
   'normal',
   'forte',
@@ -41,6 +42,17 @@ export const INTENSIDADES_ORDEM: IntensidadeTreino[] = [
 ];
 
 export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
+  descanso: {
+    rotulo: 'Descanso',
+    // Pura recuperação: não treina atributo (0), recupera muito a condição e
+    // sobe a moral; perde ritmo de jogo (forma). Sem custo, risco mínimo.
+    multiplicadorGanho: 0,
+    deltaCondicao: 16,
+    deltaForma: -0.8,
+    deltaMoral: 0.8,
+    riscoLesaoBase: 0.001,
+    custo: 0,
+  },
   leve: {
     rotulo: 'Leve',
     multiplicadorGanho: 0.6,
@@ -51,7 +63,7 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
     custo: 5_000,
   },
   normal: {
-    rotulo: 'Normal',
+    rotulo: 'Balanceado',
     multiplicadorGanho: 1,
     deltaCondicao: 4,
     deltaForma: 0.4,
@@ -60,7 +72,7 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
     custo: 15_000,
   },
   forte: {
-    rotulo: 'Forte',
+    rotulo: 'Intenso',
     multiplicadorGanho: 1.55,
     deltaCondicao: -1,
     deltaForma: 1,
@@ -69,7 +81,7 @@ export const INTENSIDADES: Record<IntensidadeTreino, ConfigIntensidade> = {
     custo: 35_000,
   },
   muito_forte: {
-    rotulo: 'Muito forte',
+    rotulo: 'Máximo',
     multiplicadorGanho: 2.1,
     deltaCondicao: -4,
     deltaForma: 1.6,

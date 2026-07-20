@@ -115,6 +115,38 @@ describe('treinoAtributos', () => {
     expect(efeito.deltaCondicao).toBeGreaterThan(0);
   });
 
+  it('descanso: recupera condição e NÃO treina atributo (ganho zero)', () => {
+    const jogador = criarPlayer({
+      id: 'cansado',
+      idade: 22,
+      posicaoPrincipal: 'CA',
+      condicaoFisica: 60,
+    });
+
+    const descanso = calcularEfeitoTreino(
+      jogador,
+      treinoFinalizacao,
+      'descanso',
+      contexto,
+      semLesao,
+    );
+    const leve = calcularEfeitoTreino(
+      jogador,
+      treinoFinalizacao,
+      'leve',
+      contexto,
+      semLesao,
+    );
+
+    // Recuperação pura: sem progresso/ganho de atributo.
+    expect(descanso.progressoAtributos.finalizacao ?? 0).toBe(0);
+    expect(descanso.ganhoAtributos).toEqual({});
+    expect(descanso.atributosFinais.finalizacao).toBe(jogador.atributos.finalizacao);
+    // Recupera condição — e mais que o treino leve.
+    expect(descanso.deltaCondicao).toBeGreaterThan(0);
+    expect(descanso.deltaCondicao).toBeGreaterThan(leve.deltaCondicao);
+  });
+
   it('veterano ganha bem menos progresso que jovem no mesmo treino', () => {
     const jovem = criarPlayer({
       id: 'jovem',
