@@ -776,6 +776,8 @@ function CartaFUT({
   }
 
   const indisponivel = jogador.lesionado || jogador.suspenso;
+  // "Amarelado": tem amarelo acumulado rumo ao gancho (limiar 2), mas ainda apto.
+  const amarelado = !indisponivel && (jogador.amarelosParaSuspensao ?? 0) > 0;
   const badge = Math.round(largura * 0.42);
   // Cor pela FUNÇÃO do jogador (posição principal), não pelo slot: um zagueiro
   // improvisado no ataque mantém a cor de defensor.
@@ -822,6 +824,18 @@ function CartaFUT({
             ]}>
             <Icone
               nome={jogador.lesionado ? 'lesao' : 'cartao'}
+              tamanho={Math.round(largura * 0.24)}
+              cor={cores.onBrand}
+            />
+          </View>
+        ) : amarelado ? (
+          <View
+            style={[
+              styles.fichaAmarelo,
+              {width: badge, height: badge, borderRadius: badge / 2},
+            ]}>
+            <Icone
+              nome="cartao"
               tamanho={Math.round(largura * 0.24)}
               cor={cores.onBrand}
             />
@@ -926,10 +940,16 @@ function AvatarBanco({
   const cor = esporte.posicao[areaDaPosicao(jogador.posicaoPrincipal)].cor;
   const apto = !jogador.lesionado && !jogador.suspenso;
   const chipDesabilitado = !noBanco && bancoCheio;
+  const amarelado =
+    !jogador.lesionado &&
+    !jogador.suspenso &&
+    (jogador.amarelosParaSuspensao ?? 0) > 0;
   const status = jogador.lesionado
     ? 'Lesão'
     : jogador.suspenso
     ? 'Suspenso'
+    : amarelado
+    ? 'Amarelado'
     : null;
   return (
     <View style={[styles.avatarItem, {width: tamanho + espacamento[3]}]}>
@@ -974,8 +994,18 @@ function AvatarBanco({
         {nomeCampo(jogador)}
       </Text>
       {status ? (
-        <View style={styles.avatarStatus}>
-          <Text style={styles.avatarStatusTexto}>{status}</Text>
+        <View
+          style={[
+            styles.avatarStatus,
+            amarelado ? styles.avatarStatusAmarelo : null,
+          ]}>
+          <Text
+            style={[
+              styles.avatarStatusTexto,
+              amarelado ? styles.avatarStatusTextoAmarelo : null,
+            ]}>
+            {status}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -1472,6 +1502,17 @@ const criarEstilos = (t: TemaDS) =>
       bottom: -2,
       zIndex: 5,
     },
+    fichaAmarelo: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: t.cores.accent,
+      borderWidth: 1.5,
+      borderColor: t.cores.onBrand,
+      position: 'absolute',
+      right: -2,
+      bottom: -2,
+      zIndex: 5,
+    },
     bancoHeader: {
       alignItems: 'center',
       flexDirection: 'row',
@@ -1571,6 +1612,12 @@ const criarEstilos = (t: TemaDS) =>
       color: t.cores.danger,
       fontSize: 9,
       fontWeight: '800',
+    },
+    avatarStatusAmarelo: {
+      backgroundColor: t.cores.accentSoft,
+    },
+    avatarStatusTextoAmarelo: {
+      color: t.cores.warning,
     },
     bancoChipDesabilitado: {opacity: 0.4},
   });
