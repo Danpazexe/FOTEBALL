@@ -432,6 +432,8 @@ export interface GameState {
   descansarElencoUsuario: () => number;
   /** Define (ou limpa, com null) o atributo em foco no treino individual de um jogador. */
   definirFocoTreino: (jogadorId: string, foco: AtributoChave | null) => void;
+  /** Define (ou limpa, com null) o PLANO por função (Camada 3) de um jogador. */
+  definirPlanoDesenvolvimento: (jogadorId: string, planoId: string | null) => void;
   /** Recomendação do staff para o plano de treino (mockup) — não muta o estado. */
   recomendarPlanoTreino: () => RecomendacaoTreino | null;
   /** Ativa um plano de treino recorrente do usuário (resolve a pendência). */
@@ -2095,6 +2097,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       jogadores: state.jogadores.map(jogador =>
         jogador.id === jogadorId
           ? {...jogador, focoTreino: foco ?? undefined}
+          : jogador,
+      ),
+    }));
+  },
+
+  definirPlanoDesenvolvimento: (jogadorId, planoId) => {
+    set(state => ({
+      jogadores: state.jogadores.map(jogador =>
+        jogador.id === jogadorId
+          ? {...jogador, planoDesenvolvimento: planoId ?? undefined}
           : jogador,
       ),
     }));

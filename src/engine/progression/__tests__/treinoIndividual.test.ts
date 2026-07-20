@@ -72,4 +72,25 @@ describe('desenvolverFoco', () => {
     const j = atacante({focoTreino: 'passe'});
     expect(desenvolverFoco(j, passa)).toEqual(desenvolverFoco(j, passa));
   });
+
+  it('plano por função desenvolve o CONJUNTO (sobe o atributo mais baixo)', () => {
+    // Falso 9 (ata_falso9): passe(65), drible(74), finalização(70) → sobe passe.
+    const j = atacante({planoDesenvolvimento: 'ata_falso9'});
+    const ev = desenvolverFoco(j, passa);
+    expect(ev.atributos.passe).toBe(66);
+    expect(ev.atributos.finalizacao).toBe(70);
+    expect(ev.atributos.drible).toBe(74);
+  });
+
+  it('plano por função tem PRIORIDADE sobre o foco de atributo único', () => {
+    // Finalizador (ata_finalizador): finalização(70) < posicionamento(72) → sobe finalização;
+    // o foco em velocidade é ignorado enquanto há plano.
+    const j = atacante({
+      focoTreino: 'velocidade',
+      planoDesenvolvimento: 'ata_finalizador',
+    });
+    const ev = desenvolverFoco(j, passa);
+    expect(ev.atributos.finalizacao).toBe(71);
+    expect(ev.atributos.velocidade).toBe(j.atributos.velocidade);
+  });
 });

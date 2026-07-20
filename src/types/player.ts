@@ -115,6 +115,12 @@ export interface Player {
    * compatibilidade com saves antigos (undefined = sem foco).
    */
   focoTreino?: AtributoChave;
+  /**
+   * Plano de desenvolvimento por FUNÇÃO (Camada 3): id de `PLANOS_FUNCAO`. Quando
+   * definido, o treino individual desenvolve o CONJUNTO de atributos do papel (tem
+   * prioridade sobre `focoTreino`). Opcional (undefined = sem plano).
+   */
+  planoDesenvolvimento?: string;
   overall: number;
   potencial: number;
   condicaoFisica: number;
