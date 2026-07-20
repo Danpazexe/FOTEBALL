@@ -1,8 +1,8 @@
 /**
- * Disciplina por competição — trava as 7 regras do projeto (refs 03/04/06):
- * amarelos por competição, 2 → gancho + zera, vermelho/2º amarelo sem apagar o
- * acúmulo, decremento só na competição da partida, isolamento Série A × Copa,
- * idempotência por partidaId, e a elegibilidade (lesão em dias + suspensão).
+ * Disciplina por competição — trava as regras do projeto (refs 03/04/06):
+ * amarelos por competição, LIMIAR configurável (3 no padrão brasileiro) → gancho
+ * + zera, expulsão (+1 jogo, 1º amarelo conta), decremento só na competição da
+ * partida, isolamento Série A × Copa, idempotência, e a elegibilidade.
  */
 import {
   aplicarDisciplinaPartida,
@@ -76,13 +76,17 @@ const discDe = (j: Player, comp: string) =>
   j.disponibilidade!.disciplinas.find(d => d.competicaoId === comp);
 
 describe('disciplina por competição', () => {
-  it('Regra 4/5: 2 amarelos → 1 jogo de suspensão e zera o acúmulo', () => {
+  it('padrão BR: 3 amarelos → 1 jogo de suspensão e zera; 2 ainda NÃO suspende', () => {
     let [p] = [jog('p1')];
     ({jogadores: [p]} = aplicarDisciplinaPartida([p], partida('m1', LIGA, [amarelo('p1')]), []));
     expect(discDe(p, LIGA)?.amarelosAcumulados).toBe(1);
-    expect(discDe(p, LIGA)?.partidasRestantesSuspensao ?? 0).toBe(0);
-    // 2º amarelo (em outra partida) gera a suspensão e zera o acúmulo.
+    // 2º amarelo (outra partida): acumula, mas AINDA não suspende (limiar 3).
     ({jogadores: [p]} = aplicarDisciplinaPartida([p], partida('m2', LIGA, [amarelo('p1')]), ['m1']));
+    expect(discDe(p, LIGA)?.amarelosAcumulados).toBe(2);
+    expect(discDe(p, LIGA)?.partidasRestantesSuspensao ?? 0).toBe(0);
+    expect(p.suspenso).toBe(false);
+    // 3º amarelo gera a suspensão e zera o acúmulo.
+    ({jogadores: [p]} = aplicarDisciplinaPartida([p], partida('m3', LIGA, [amarelo('p1')]), ['m1', 'm2']));
     expect(discDe(p, LIGA)?.partidasRestantesSuspensao).toBe(1);
     expect(discDe(p, LIGA)?.amarelosAcumulados ?? 0).toBe(0);
     expect(p.suspenso).toBe(true); // espelho legado
@@ -90,9 +94,8 @@ describe('disciplina por competição', () => {
 
   it('cumpre a suspensão só numa partida DAQUELA competição (decremento)', () => {
     let p = jog('p1');
-    // gera suspensão na liga
-    ({jogadores: [p]} = aplicarDisciplinaPartida([p], partida('m1', LIGA, [amarelo('p1'), amarelo('p1')]), []));
-    // um amarelo dobrado num jogo = vira vermelho no motor; aqui forço 2 amarelos p/ chegar a 2
+    // gera suspensão na liga (3 amarelos forçados num jogo só, p/ o teste)
+    ({jogadores: [p]} = aplicarDisciplinaPartida([p], partida('m1', LIGA, [amarelo('p1'), amarelo('p1'), amarelo('p1')]), []));
     expect(discDe(p, LIGA)?.partidasRestantesSuspensao).toBe(1);
     // uma partida da COPA não cumpre a suspensão da liga
     ({jogadores: [p]} = aplicarDisciplinaPartida([p], partida('c1', COPA, []), ['m1']));
@@ -111,33 +114,33 @@ describe('disciplina por competição', () => {
     expect(discDe(p, LIGA)?.amarelosAcumulados).toBe(1);
     expect(discDe(p, COPA)?.amarelosAcumulados).toBe(1);
     expect(p.suspenso).toBe(false);
-    // o 2º amarelo NA COPA suspende só na Copa
-    ({jogadores: [p]} = aplicarDisciplinaPartida([p], partida('c2', COPA, [amarelo('p1')]), ['m1', 'c1']));
+    // +2 amarelos NA COPA (total 3) suspendem só na Copa
+    ({jogadores: [p]} = aplicarDisciplinaPartida([p], partida('c2', COPA, [amarelo('p1'), amarelo('p1')]), ['m1', 'c1']));
     expect(discDe(p, COPA)?.partidasRestantesSuspensao).toBe(1);
     expect(discDe(p, LIGA)?.partidasRestantesSuspensao ?? 0).toBe(0);
     expect(calcularElegibilidadeJogador(p, COPA).elegivel).toBe(false);
     expect(calcularElegibilidadeJogador(p, LIGA).elegivel).toBe(true);
   });
 
-  it('Extra: vermelho/2º amarelo → 1 jogo sem apagar o acúmulo prévio', () => {
+  it('expulsão por 2º amarelo → +1 jogo; o 1º amarelo do jogo CONTA no acúmulo', () => {
     let p = jog('p1');
     // acumula 1 amarelo na liga
     ({jogadores: [p]} = aplicarDisciplinaPartida([p], partida('m1', LIGA, [amarelo('p1')]), []));
     expect(discDe(p, LIGA)?.amarelosAcumulados).toBe(1);
-    // 2º amarelo no MESMO jogo seguinte: engine emite amarelo + vermelho(segundoAmarelo)
+    // 2º amarelo no jogo seguinte: engine emite amarelo(1º) + vermelho(segundoAmarelo)
     ({jogadores: [p]} = aplicarDisciplinaPartida(
       [p],
       partida('m2', LIGA, [amarelo('p1'), vermelho('p1', true)]),
       ['m1'],
     ));
-    // +1 jogo pela expulsão; o acúmulo prévio (1) é preservado, não vira 2/zera
+    // +1 jogo pela expulsão; o 1º amarelo do jogo conta → acúmulo vai a 2 (< 3)
     expect(discDe(p, LIGA)?.partidasRestantesSuspensao).toBe(1);
-    expect(discDe(p, LIGA)?.amarelosAcumulados).toBe(1);
+    expect(discDe(p, LIGA)?.amarelosAcumulados).toBe(2);
   });
 
   it('Regra 7: idempotente por partidaId (reprocessar não duplica)', () => {
     let p = jog('p1');
-    const m = partida('m1', LIGA, [amarelo('p1'), amarelo('p1')]);
+    const m = partida('m1', LIGA, [amarelo('p1'), amarelo('p1'), amarelo('p1')]);
     let processadas: string[];
     ({jogadores: [p], processadas} = aplicarDisciplinaPartida([p], m, []));
     const susp1 = discDe(p, LIGA)?.partidasRestantesSuspensao;

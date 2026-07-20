@@ -64,8 +64,15 @@ export type {
 export type {
   DisciplinaPorCompeticao,
   DisponibilidadeJogador,
+  RegraDisciplina,
 } from './disciplina';
-export {COMPETICAO_LEGADO, LIMIAR_AMARELOS_SUSPENSAO} from './disciplina';
+export {
+  COMPETICAO_LEGADO,
+  LIMIAR_AMARELOS_SUSPENSAO,
+  REGRAS_DISCIPLINA,
+  REGRA_DISCIPLINA_PADRAO,
+  regraDisciplina,
+} from './disciplina';
 export type {
   IntensidadeTreino,
   PlanoTreino,
