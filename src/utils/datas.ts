@@ -61,11 +61,6 @@ export function indiceDiaSemana(iso: string): number {
   return new Date(Date.UTC(ano, mes - 1, dia)).getUTCDay();
 }
 
-/** Quantidade de dias no mês (1-12). */
-export function diasNoMes(ano: number, mes: number): number {
-  return new Date(Date.UTC(ano, mes, 0)).getUTCDate();
-}
-
 /** Nome do mês capitalizado ("Abril"). */
 export function nomeMes(mes: number): string {
   const nome = MESES[mes - 1] ?? '';
@@ -78,12 +73,6 @@ export function formatarDataCurta(iso: string): string {
   return `${diaDaSemana(iso)} ${String(dia).padStart(2, '0')}/${String(
     mes,
   ).padStart(2, '0')}`;
-}
-
-/** "Qua, 8 de abril" — para cabeçalhos. */
-export function formatarDataLonga(iso: string): string {
-  const {mes, dia} = partes(iso);
-  return `${diaDaSemana(iso)}, ${dia} de ${MESES[mes - 1] ?? ''}`;
 }
 
 /**

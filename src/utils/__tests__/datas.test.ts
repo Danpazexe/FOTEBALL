@@ -1,10 +1,8 @@
 import {
   adicionarDias,
   diaDaSemana,
-  diasNoMes,
   diferencaEmDias,
   formatarDataCurta,
-  formatarDataLonga,
   indiceDiaSemana,
   nomeMes,
 } from '../datas';
@@ -29,16 +27,12 @@ describe('utils/datas', () => {
 
   it('formatadores produzem rótulos legíveis', () => {
     expect(formatarDataCurta('2026-04-06')).toBe('Seg 06/04');
-    expect(formatarDataLonga('2026-04-06')).toBe('Seg, 6 de abril');
   });
 
   it('helpers do calendário mensal', () => {
     // 2026-04-06 é segunda (índice 1); 1º de abril/2026 é quarta (índice 3).
     expect(indiceDiaSemana('2026-04-06')).toBe(1);
     expect(indiceDiaSemana('2026-04-01')).toBe(3);
-    expect(diasNoMes(2026, 4)).toBe(30);
-    expect(diasNoMes(2026, 2)).toBe(28); // não bissexto
-    expect(diasNoMes(2024, 2)).toBe(29); // bissexto
     expect(nomeMes(4)).toBe('Abril');
     expect(nomeMes(12)).toBe('Dezembro');
   });
