@@ -1,4 +1,4 @@
-import type {Clube} from '../types';
+import type {Clube, Player} from '../types';
 
 /**
  * Formata um valor monetário (sem centavos). O símbolo é rótulo de EXIBIÇÃO —
@@ -30,4 +30,16 @@ export function nomeClube(clubes: Clube[], clubeId: string): string {
 export function siglaClube(clubes: Clube[], clubeId: string): string {
   const clube = clubes.find(item => item.id === clubeId);
   return clube?.sigla ?? clube?.nome ?? clubeId;
+}
+
+/** Nome de exibição curto do jogador: apelido quando houver, senão o nome. */
+export function nomeCurto(jogador: Player): string {
+  return jogador.apelido ?? jogador.nome;
+}
+
+/** Faixa overall→potencial quando há margem ("78–85"); só o overall se não há. */
+export function faixaOverall(jogador: Player): string {
+  return jogador.potencial > jogador.overall
+    ? `${jogador.overall}–${jogador.potencial}`
+    : `${jogador.overall}`;
 }

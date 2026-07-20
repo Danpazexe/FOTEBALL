@@ -22,6 +22,7 @@ import {
   useTheme,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
+import {nomeCurto} from '../../utils/formatters';
 import GraficoEvolucao from '../../components/GraficoEvolucao';
 import {useElencoNavigation} from '../../navigation/types';
 import {useGameStore, useJogadoresUsuario} from '../../store/useGameStore';
@@ -57,8 +58,6 @@ const ATRIBUTOS_PT: Record<AtributoChave, string> = {
   cabeceio: 'Cabeceio',
   cruzamento: 'Cruzamento',
 };
-
-const nomeCurto = (j: Player): string => j.apelido ?? j.nome;
 
 // ─── Linha de jogador (do elenco) ────────────────────────────────────────────
 function LinhaJogador({

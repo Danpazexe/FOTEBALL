@@ -44,7 +44,7 @@ import {obterFinalizacoesPartida} from '../../engine/simulation/finalizacoes';
 import {reconstruirLancesGol} from '../../engine/simulation/lanceReplay';
 import type {LanceGol} from '../../engine/simulation/lances';
 import {analisarMomentos, type TomMomento} from '../../engine/simulation/momentos';
-import {nomeClube, siglaClube} from '../../utils/formatters';
+import {nomeClube, nomeCurto, siglaClube} from '../../utils/formatters';
 import {rotuloMinuto} from '../../utils/minutoPartida';
 import {useGameStore} from '../../store/useGameStore';
 import {useAppNavigation, type RootStackParamList} from '../../navigation/types';
@@ -58,10 +58,6 @@ type LinhaJogador = {
   assistencias: number;
   nota: number;
 };
-
-function nomeCurto(jogador: Player): string {
-  return jogador.apelido ?? jogador.nome;
-}
 
 /** Cor da nota pelo valor (verde ótima, âmbar regular, vermelho fraca). */
 function corNota(nota: number): CorTexto {

@@ -8,6 +8,7 @@
 import React, {useMemo, useState} from 'react';
 import {ScrollView, StyleSheet, TextInput, View} from 'react-native';
 
+import {nomeCurto} from '../../utils/formatters';
 import {normalizarTexto} from '../../utils/texto';
 
 import {
@@ -72,10 +73,6 @@ function humorJogador(
     return {icone: 'humor-cansado', cor: 'warning', rotulo: 'Cansado'};
   }
   return {icone: 'humor-ruim', cor: 'danger', rotulo: 'Exausto'};
-}
-
-function nomeCurto(jogador: Player): string {
-  return jogador.apelido ?? jogador.nome;
 }
 
 function Squad(): React.JSX.Element {

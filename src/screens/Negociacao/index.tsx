@@ -32,7 +32,13 @@ import {
   useMercadoNavigation,
   type MercadoStackParamList,
 } from '../../navigation/types';
-import {moeda, moedaCompacta, nomeClube} from '../../utils/formatters';
+import {
+  faixaOverall,
+  moeda,
+  moedaCompacta,
+  nomeClube,
+  nomeCurto,
+} from '../../utils/formatters';
 import {simboloMoeda} from '../../engine/competitions/registry/competitionRegistry';
 
 function Negociacao(): React.JSX.Element {
@@ -83,11 +89,7 @@ function Negociacao(): React.JSX.Element {
     );
   }
 
-  const nome = jogador.apelido ?? jogador.nome;
-  const faixaOverall =
-    jogador.potencial > jogador.overall
-      ? `${jogador.overall}–${jogador.potencial}`
-      : `${jogador.overall}`;
+  const nome = nomeCurto(jogador);
   const valor = Number(valorInput) || precoCompra(jogador);
   const saldo = clube?.financas.saldo ?? 0;
   const orcamentoApos = saldo - valor;
@@ -120,7 +122,7 @@ function Negociacao(): React.JSX.Element {
           <View style={styles.metaLinha}>
             <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
             <Text variant="labelM" color="textSecondary">
-              {jogador.idade} anos · OVR {faixaOverall}
+              {jogador.idade} anos · OVR {faixaOverall(jogador)}
             </Text>
           </View>
         </View>

@@ -26,6 +26,7 @@ import {
   useTheme,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
+import {nomeCurto} from '../../utils/formatters';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
 import type {Clube, Player, Position} from '../../types';
@@ -72,10 +73,6 @@ const TOM_CONHECIMENTO: Record<Conhecimento, TomBadge> = {
   Parcial: 'accent',
   Inicial: 'neutral',
 };
-
-function nomeCurto(jogador: Player): string {
-  return jogador.apelido ?? jogador.nome;
-}
 
 /**
  * Conhecimento derivado de sinal REAL: reputação do clube do alvo (0–100) pesa

@@ -42,7 +42,14 @@ import {
   listarPaises,
   simboloMoeda,
 } from '../../engine/competitions/registry/competitionRegistry';
-import {moeda, moedaCompacta, nomeClube, siglaClube} from '../../utils/formatters';
+import {
+  faixaOverall,
+  moeda,
+  moedaCompacta,
+  nomeClube,
+  nomeCurto,
+  siglaClube,
+} from '../../utils/formatters';
 import {normalizarTexto} from '../../utils/texto';
 import type {Player, Position} from '../../types';
 
@@ -52,17 +59,6 @@ const POSICOES: Array<Position | 'Todos'> = [
 ];
 
 type Aba = 'disponiveis' | 'emprestar' | 'propostas';
-
-function nomeCurto(jogador: Player): string {
-  return jogador.apelido ?? jogador.nome;
-}
-
-/** Faixa overall→potencial (ambos conhecidos); só o número se não há margem. */
-function faixaOverall(jogador: Player): string {
-  return jogador.potencial > jogador.overall
-    ? `${jogador.overall}–${jogador.potencial}`
-    : `${jogador.overall}`;
-}
 
 function TransferMarket(): React.JSX.Element {
   const nav = useMercadoNavigation();
