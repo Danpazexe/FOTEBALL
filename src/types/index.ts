@@ -40,12 +40,7 @@ export type {
   VersaoEnginePartida,
 } from './match';
 export {ehEventoGol} from './match';
-export type {
-  Competicao,
-  Confronto,
-  PremiacaoCompeticao,
-  TabelaClassificacao,
-} from './competition';
+export type {TabelaClassificacao} from './competition';
 export type {Federacao, Regiao} from './federacao';
 export type {
   EstadoFinanceiro,
