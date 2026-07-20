@@ -210,3 +210,18 @@ export const esporteEscuro: CoresEsporte = {
     ataque: {cor: '#FF6E66', fundo: '#3B1E1E'},
   },
 };
+
+/**
+ * Cor semântica por FAIXA de overall — régua única do anel/badge de overall:
+ * ≥75 verde (success), ≥60 âmbar (warning), abaixo vermelho (danger). Devolve um
+ * token semântico (índice de CoresSemanticas), resolvido pela cor do tema ativo.
+ */
+export function faixaCorOverall(overall: number): keyof CoresSemanticas {
+  if (overall >= 75) {
+    return 'success';
+  }
+  if (overall >= 60) {
+    return 'warning';
+  }
+  return 'danger';
+}

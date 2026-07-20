@@ -43,9 +43,9 @@ import {
   SelectRow,
   espacamento,
   raios,
+  faixaCorOverall,
   useEstilosDS,
   useTheme,
-  type CorTexto,
   type TemaDS,
 } from '../../design-system';
 import type {
@@ -234,17 +234,6 @@ function ajustePosicaoTatica(
     x: limitar(0.5 + (x - 0.5) * kX + sX, 0.06, 0.94),
     y: limitar(PIVO_Y + (y - PIVO_Y) * kY + sY, 0.05, 0.97),
   };
-}
-
-/** Faixa de cor do overall — mesma régua do OverallBadge (DS). */
-function faixaCorOverall(overall: number): CorTexto {
-  if (overall >= 75) {
-    return 'success';
-  }
-  if (overall >= 60) {
-    return 'warning';
-  }
-  return 'danger';
 }
 
 type CampoFUTProps = {
