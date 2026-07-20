@@ -6,7 +6,7 @@
  */
 
 import React, {useMemo, useState} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {Modal, StyleSheet, View} from 'react-native';
 
 import {
   AppHeader,
@@ -29,6 +29,7 @@ import {useToast} from '../../components/feedback';
 import {calcularEfeitoTreino} from '../../engine/progression/treinoAtributos';
 import {
   PRESETS_TREINO,
+  definirDiaNoPlano,
   planoDePreset,
   type PresetTreinoId,
 } from '../../engine/progression/planoTreinoEngine';
@@ -62,6 +63,63 @@ const FOCOS: Array<{
 
 /** Rótulos dos 7 dias do ciclo (0 = segunda … 6 = domingo). */
 const DIAS_CICLO = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
+
+/**
+ * Tipos de DIA da agenda (Camada 2, estilo FM): o usuário monta a semana
+ * escolhendo um por dia. Cada tipo mapeia para uma sessão real do catálogo
+ * (treino + intensidade); Folga = sem sessão (só recuperação).
+ */
+const TIPOS_DIA: Array<{
+  id: string;
+  nome: string;
+  descricao: string;
+  icone: IconeNome;
+  sessao: SessaoPlanoTreino | null;
+}> = [
+  {id: 'folga', nome: 'Folga', descricao: 'Sem treino — recuperação', icone: 'relogio', sessao: null},
+  {
+    id: 'recuperacao',
+    nome: 'Recuperação',
+    descricao: 'Carga mínima, recupera condição',
+    icone: 'relogio',
+    sessao: {treinoId: 'hab_fisico', intensidade: 'descanso'},
+  },
+  {
+    id: 'fisico',
+    nome: 'Físico',
+    descricao: 'Força e resistência (intenso)',
+    icone: 'tendencia',
+    sessao: {treinoId: 'hab_fisico', intensidade: 'forte'},
+  },
+  {
+    id: 'tecnico',
+    nome: 'Técnico',
+    descricao: 'Drible, passe e finalização',
+    icone: 'estrela',
+    sessao: {treinoId: 'hab_tecnica', intensidade: 'normal'},
+  },
+  {
+    id: 'tatico',
+    nome: 'Tático',
+    descricao: 'Marcação e posicionamento',
+    icone: 'tatica',
+    sessao: {treinoId: 'hab_marcacao', intensidade: 'normal'},
+  },
+  {
+    id: 'bola_parada',
+    nome: 'Bola parada',
+    descricao: 'Cruzamento e finalização',
+    icone: 'bola',
+    sessao: {treinoId: 'hab_bola_parada', intensidade: 'normal'},
+  },
+  {
+    id: 'pre_jogo',
+    nome: 'Pré-jogo',
+    descricao: 'Ativação leve véspera de jogo',
+    icone: 'jogar',
+    sessao: {treinoId: 'hab_fisico', intensidade: 'leve'},
+  },
+];
 
 /** Peso 1–4 de uma intensidade (leve→muito forte) para agregar a carga. */
 function pesoIntensidade(i: IntensidadeTreino): number {
@@ -148,6 +206,8 @@ function Semana(): React.JSX.Element {
 
   const [focoId, setFocoId] = useState<string>(FOCOS[0].id);
   const [intensidade, setIntensidade] = useState<IntensidadeTreino>('normal');
+  // Dia da agenda em edição (índice 0..6) — abre o seletor de tipo de dia.
+  const [diaEditando, setDiaEditando] = useState<number | null>(null);
   const recomendacao = useMemo(
     () => recomendarPlanoTreino(),
     [recomendarPlanoTreino],
@@ -274,6 +334,24 @@ function Semana(): React.JSX.Element {
     toast(`Plano "${PRESETS_TREINO[presetId].nome}" ativado.`, 'sucesso');
   };
 
+  // Define o TIPO de um dia da agenda (Camada 2) e persiste o plano.
+  const aoDefinirDia = (sessao: SessaoPlanoTreino | null) => {
+    if (!clube || diaEditando === null) {
+      return;
+    }
+    configurarPlanoTreino(
+      definirDiaNoPlano(
+        planoTreino,
+        clube.id,
+        `${new Date().getFullYear()}`,
+        diaEditando,
+        sessao,
+      ),
+    );
+    setDiaEditando(null);
+    toast('Dia atualizado.', 'sucesso');
+  };
+
   return (
     <Screen
       scroll
@@ -349,7 +427,10 @@ function Semana(): React.JSX.Element {
               return (
                 <View key={DIAS_CICLO[i]}>
                   {i > 0 ? <Divider /> : null}
-                  <View style={styles.cronoLinha}>
+                  <Pressable
+                    onPress={() => setDiaEditando(i)}
+                    accessibilityLabel={`Editar treino de ${DIAS_CICLO[i]}`}
+                    style={styles.cronoLinha}>
                     <Text
                       variant="labelL"
                       color="textSecondary"
@@ -359,7 +440,7 @@ function Semana(): React.JSX.Element {
                     </Text>
                     <View style={styles.flex}>
                       <Text variant="titleM">
-                        {dia ? treinoDia?.nome ?? 'Treino' : 'Descanso'}
+                        {dia ? treinoDia?.nome ?? 'Treino' : 'Folga'}
                       </Text>
                       <Text variant="caption" color="textSecondary">
                         {dia
@@ -367,12 +448,8 @@ function Semana(): React.JSX.Element {
                           : 'Recuperação ativa'}
                       </Text>
                     </View>
-                    <Icon
-                      nome={dia ? 'tendencia' : 'relogio'}
-                      size={16}
-                      color="textSecondary"
-                    />
-                  </View>
+                    <Icon nome="avancar" size={18} color="textSecondary" />
+                  </Pressable>
                 </View>
               );
             })}
@@ -561,6 +638,45 @@ function Semana(): React.JSX.Element {
         onPress={confirmar}
         fullWidth
       />
+
+      {/* Seletor de TIPO de dia (agenda dia-a-dia, Camada 2) */}
+      <Modal
+        visible={diaEditando !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDiaEditando(null)}>
+        <Pressable
+          onPress={() => setDiaEditando(null)}
+          accessibilityLabel="Fechar"
+          style={[styles.modalBackdrop, {backgroundColor: cores.overlay}]}>
+          <View
+            style={[
+              styles.modalSheet,
+              {backgroundColor: cores.surface, borderColor: cores.border},
+            ]}>
+            <Text variant="labelM" color="textSecondary" style={styles.caps}>
+              {diaEditando !== null
+                ? `Treino de ${DIAS_CICLO[diaEditando]}`
+                : ''}
+            </Text>
+            {TIPOS_DIA.map(tipo => (
+              <Pressable
+                key={tipo.id}
+                onPress={() => aoDefinirDia(tipo.sessao)}
+                accessibilityLabel={tipo.nome}
+                style={styles.tipoDiaLinha}>
+                <Icon nome={tipo.icone} size={20} color="brand" />
+                <View style={styles.flex}>
+                  <Text variant="labelL">{tipo.nome}</Text>
+                  <Text variant="caption" color="textSecondary">
+                    {tipo.descricao}
+                  </Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
@@ -613,6 +729,22 @@ export default Semana;
 
 const styles = StyleSheet.create({
   caps: {textTransform: 'uppercase', letterSpacing: 1},
+  modalBackdrop: {flex: 1, justifyContent: 'flex-end'},
+  modalSheet: {
+    borderTopLeftRadius: raios.xl,
+    borderTopRightRadius: raios.xl,
+    borderWidth: 1,
+    gap: espacamento[1],
+    paddingBottom: espacamento[6],
+    paddingHorizontal: espacamento[4],
+    paddingTop: espacamento[3],
+  },
+  tipoDiaLinha: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espacamento[3],
+    minHeight: 52,
+  },
   cronoLinha: {
     flexDirection: 'row',
     alignItems: 'center',
