@@ -25,6 +25,7 @@ import type {RootStackParamList} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
 import {classificarCenario} from '../../engine/carreira/cenarios';
 import type {Clube} from '../../types';
+import {agruparClubesPorDivisao} from '../../utils/clubes';
 
 const ORDEM_DIVISOES = [
   'Série A',
@@ -73,20 +74,7 @@ function NewCareer(): React.JSX.Element {
           clube => (clube.divisao ?? 'Série A') === divisaoFiltro,
         )
       : todosClubes;
-    const grupos = new Map<string, Clube[]>();
-    for (const clube of base) {
-      const divisao = clube.divisao ?? 'Série A';
-      const lista = grupos.get(divisao) ?? [];
-      lista.push(clube);
-      grupos.set(divisao, lista);
-    }
-    return [...grupos.keys()]
-      .sort((a, b) => {
-        const ia = ORDEM_DIVISOES.indexOf(a);
-        const ib = ORDEM_DIVISOES.indexOf(b);
-        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-      })
-      .map(divisao => ({divisao, clubes: grupos.get(divisao) ?? []}));
+    return agruparClubesPorDivisao(base, ORDEM_DIVISOES);
   }, [todosClubes, divisaoFiltro]);
 
   async function selecionar(clube: Clube): Promise<void> {

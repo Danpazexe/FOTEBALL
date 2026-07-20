@@ -22,6 +22,7 @@ import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
 import type {Clube, MotivoDemissao, Player} from '../../types';
 import {moeda} from '../../utils/formatters';
+import {agruparClubesPorDivisao} from '../../utils/clubes';
 
 const ORDEM_DIVISOES = ['Série A', 'Série B', 'Série C', 'Série D'];
 
@@ -66,25 +67,10 @@ function Demissao(): React.JSX.Element {
         clube.id !== clubeUsuarioId &&
         clubeElegivelParaTecnico(reputacaoTecnico, clube.reputacao),
     );
-    const grupos = new Map<string, Clube[]>();
-    for (const clube of elegiveis) {
-      const divisao = clube.divisao ?? 'Série A';
-      const lista = grupos.get(divisao) ?? [];
-      lista.push(clube);
-      grupos.set(divisao, lista);
-    }
-    return [...grupos.keys()]
-      .sort((a, b) => {
-        const ia = ORDEM_DIVISOES.indexOf(a);
-        const ib = ORDEM_DIVISOES.indexOf(b);
-        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-      })
-      .map(divisao => ({
-        divisao,
-        clubes: (grupos.get(divisao) ?? []).sort(
-          (a, b) => b.reputacao - a.reputacao,
-        ),
-      }));
+    return agruparClubesPorDivisao(elegiveis, ORDEM_DIVISOES).map(grupo => ({
+      divisao: grupo.divisao,
+      clubes: grupo.clubes.sort((a, b) => b.reputacao - a.reputacao),
+    }));
   }, [todosClubes, clubeUsuarioId, reputacaoTecnico]);
 
   const semPropostas = secoes.length === 0;
