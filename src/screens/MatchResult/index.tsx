@@ -155,6 +155,8 @@ function MatchResult(): React.JSX.Element {
   const {width} = useWindowDimensions();
   const [mapaTime, setMapaTime] = useState<'casa' | 'fora'>('casa');
   const [mapaTempo, setMapaTempo] = useState<'todos' | '1' | '2'>('todos');
+  // Relatório em duas leituras: Resumo (destaques) e Detalhes (números/notas).
+  const [aba, setAba] = useState<'resumo' | 'detalhes'>('resumo');
 
   // Craque do jogo: maior nota entre quem atuou nos dois times.
   const melhor = useMemo<LinhaJogador | null>(() => {
@@ -445,7 +447,18 @@ function MatchResult(): React.JSX.Element {
         ) : null}
       </Box>
 
-      {/* Gols / autores */}
+      <SegmentedTabs
+        abas={[
+          {chave: 'resumo', rotulo: 'Resumo'},
+          {chave: 'detalhes', rotulo: 'Detalhes'},
+        ]}
+        ativa={aba}
+        onSelect={c => setAba(c as 'resumo' | 'detalhes')}
+      />
+
+      {aba === 'resumo' ? (
+        <>
+          {/* Gols / autores */}
       {temGols ? (
         <Card>
           <View style={estilos.cardInner}>
@@ -540,7 +553,36 @@ function MatchResult(): React.JSX.Element {
         </Card>
       ) : null}
 
-      {/* Notas do time do usuário (assinatura Sofascore no pós-jogo) */}
+          {/* Momentos (destaques na ótica do usuário) */}
+          {momentos.length > 0 ? (
+            <Card>
+              <View style={estilos.cardInner}>
+                <SectionHeader titulo="Momentos" />
+                <View style={estilos.momentosLista}>
+                  {momentos.map(momento => (
+                    <View key={momento.tipo} style={estilos.momentoLinha}>
+                      <View
+                        style={[
+                          estilos.momentoDot,
+                          {backgroundColor: corMomento(momento.tom)},
+                        ]}
+                      />
+                      <Text
+                        variant="bodyM"
+                        color="textSecondary"
+                        style={estilos.momentoTexto}>
+                        {momento.texto}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </Card>
+          ) : null}
+        </>
+      ) : (
+        <>
+          {/* Notas do time do usuário (assinatura Sofascore no pós-jogo) */}
       {notasUsuario.length > 0 ? (
         <Card>
           <View style={estilos.cardInner}>
@@ -707,32 +749,8 @@ function MatchResult(): React.JSX.Element {
         </Card>
       ) : null}
 
-      {/* Momentos (insight na ótica do usuário) */}
-      {momentos.length > 0 ? (
-        <Card>
-          <View style={estilos.cardInner}>
-            <SectionHeader titulo="Momentos" />
-            <View style={estilos.momentosLista}>
-              {momentos.map(momento => (
-                <View key={momento.tipo} style={estilos.momentoLinha}>
-                  <View
-                    style={[
-                      estilos.momentoDot,
-                      {backgroundColor: corMomento(momento.tom)},
-                    ]}
-                  />
-                  <Text
-                    variant="bodyM"
-                    color="textSecondary"
-                    style={estilos.momentoTexto}>
-                    {momento.texto}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        </Card>
-      ) : null}
+        </>
+      )}
 
       <Button
         titulo="Continuar"
