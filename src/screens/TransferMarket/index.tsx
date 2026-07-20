@@ -534,25 +534,4 @@ const styles = StyleSheet.create({
   rowNums: {alignItems: 'flex-end', gap: 2},
   proposta: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
   propostaAcoes: {gap: espacamento[1]},
-  modalBackdrop: {flex: 1, justifyContent: 'flex-end'},
-  modalCard: {
-    borderTopLeftRadius: raios.xl,
-    borderTopRightRadius: raios.xl,
-    borderWidth: 1,
-    gap: espacamento[2],
-    padding: espacamento[5],
-  },
-  input: {
-    borderRadius: raios.sm,
-    borderWidth: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    paddingHorizontal: espacamento[3],
-    paddingVertical: espacamento[2],
-  },
-  modalAcoes: {
-    flexDirection: 'row',
-    gap: espacamento[2],
-    marginTop: espacamento[2],
-  },
 });
