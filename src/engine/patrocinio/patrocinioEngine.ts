@@ -9,6 +9,7 @@
  */
 import {
   criarRNGComSeed,
+  embaralhar,
   hashString,
   limitar,
   type RandomGenerator,
@@ -132,17 +133,6 @@ interface DescricaoMeta {
   tipo: TipoMetaPatrocinio;
   descricao: string;
   alvo: number;
-}
-
-function embaralhar<T>(itens: readonly T[], rng: RandomGenerator): T[] {
-  const arr = [...itens];
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    const tmp = arr[i];
-    arr[i] = arr[j] as T;
-    arr[j] = tmp as T;
-  }
-  return arr;
 }
 
 /**
