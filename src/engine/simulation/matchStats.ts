@@ -30,6 +30,7 @@ import type {
 } from '../../types';
 
 import {limitar, type RandomGenerator} from './rng';
+import {corredorDaPosicao} from './geometriaCampo';
 
 /** Acumulador mutável de um time (floats; arredonda só no fim). */
 interface AcumuladorTime {
@@ -148,17 +149,6 @@ function mediaAtributo(
     return 60;
   }
   return jogadores.reduce((soma, j) => soma + seletor(j), 0) / jogadores.length;
-}
-
-/** Corredor do campo pela posição natural: 0=esquerda, 1=centro, 2=direita. */
-function corredorDaPosicao(posicao: Position): 0 | 1 | 2 {
-  if (posicao === 'LE' || posicao === 'PE') {
-    return 0;
-  }
-  if (posicao === 'LD' || posicao === 'PD') {
-    return 2;
-  }
-  return 1;
 }
 
 /** Corredor REAL do chute pela coordenada x persistida no ledger. */

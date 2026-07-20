@@ -18,6 +18,7 @@ import type {
 } from '../../../types';
 
 import {limitar, type RandomGenerator} from '../rng';
+import {corredorDaPosicao, limitar01} from '../geometriaCampo';
 import type {ForcaTime} from '../teamStrength';
 import {
   CHANCE_CAUSAL,
@@ -66,18 +67,6 @@ export interface ChancesMinutoLado {
   impedimentos: number;
   faltasComuns: number;
 }
-
-function corredorDaPosicao(posicao: Position): 0 | 1 | 2 {
-  if (posicao === 'LE' || posicao === 'PE') {
-    return 0;
-  }
-  if (posicao === 'LD' || posicao === 'PD') {
-    return 2;
-  }
-  return 1;
-}
-
-const limitar01 = (v: number): number => Math.min(1, Math.max(0, v));
 
 /** Arredonda coordenadas persistidas (3 casas) — corta o payload do save. */
 const coord = (v: number): number => Math.round(v * 1000) / 1000;

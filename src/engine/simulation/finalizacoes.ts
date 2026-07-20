@@ -21,6 +21,7 @@
 import type {ChutePartida, EventoPartida, Partida, Position} from '../../types';
 import {ehEventoGol} from '../../types';
 import {criarRNGComSeed, hashString, type RandomGenerator} from './rng';
+import {corredorDaPosicao, limitar01} from './geometriaCampo';
 
 /** Desfecho de um chute, para colorir o dot no mapa. */
 export type ResultadoFinalizacao =
@@ -84,17 +85,6 @@ function ehEventoChute(evento: EventoPartida): boolean {
   );
 }
 
-/** Corredor natural: 0 = esquerda, 1 = centro, 2 = direita (espelha a engine). */
-function corredorDaPosicao(posicao: Position | undefined): 0 | 1 | 2 {
-  if (posicao === 'LE' || posicao === 'PE') {
-    return 0;
-  }
-  if (posicao === 'LD' || posicao === 'PD') {
-    return 2;
-  }
-  return 1;
-}
-
 /** x-base do corredor (0.5 = centro do gol) com leve espalhamento por RNG. */
 function xDoCorredor(corredor: 0 | 1 | 2, rng: RandomGenerator): number {
   const centro = corredor === 0 ? 0.34 : corredor === 2 ? 0.66 : 0.5;
@@ -105,8 +95,6 @@ function xDoCorredor(corredor: 0 | 1 | 2, rng: RandomGenerator): number {
 function yDaDistancia(deFora: boolean, rng: RandomGenerator): number {
   return deFora ? 0.4 + rng() * 0.45 : 0.05 + rng() * 0.27;
 }
-
-const limitar01 = (v: number): number => Math.min(1, Math.max(0, v));
 
 /** Pé/cabeça — direita é a mais comum; cabeça mais provável perto do gol. */
 function derivarPe(deFora: boolean, rng: RandomGenerator): PeChute {
