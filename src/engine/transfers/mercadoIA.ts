@@ -1,5 +1,5 @@
 import type {Clube, Player} from '../../types';
-import {criarRNGComSeed, embaralhar, type RandomGenerator} from '../simulation/rng';
+import {criarRNGComSeed, embaralhar} from '../simulation/rng';
 
 /**
  * Mercado IA↔IA (BRASFOOT_MASTER §9.4): os clubes controlados pela IA negociam
