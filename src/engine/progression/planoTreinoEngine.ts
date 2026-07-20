@@ -142,6 +142,53 @@ export function planoDePreset(
   };
 }
 
+/** Semana de 7 folgas — base para montar um plano manual dia-a-dia. */
+function semanaVazia(): SemanaPlanoTreino {
+  return {dias: [null, null, null, null, null, null, null]};
+}
+
+/**
+ * Define a SESSÃO de UM dia (0=seg … 6=dom) do plano — a agenda dia-a-dia (FM).
+ * `sessao=null` = folga. Cria um plano "Personalizado" do zero se ainda não
+ * houver plano; preserva os demais dias. Puro — a store persiste via
+ * `configurarPlanoTreino`.
+ */
+export function definirDiaNoPlano(
+  plano: PlanoTreino | null,
+  clubeId: string,
+  criadoEm: string,
+  diaIndex: number,
+  sessao: SessaoPlanoTreino | null,
+): PlanoTreino {
+  const base: PlanoTreino = plano ?? {
+    id: `plano_personalizado_${clubeId}`,
+    clubeId,
+    nome: 'Personalizado',
+    status: 'ativo',
+    recorrencia: {tipo: 'semanal'},
+    semanas: [semanaVazia()],
+    autoAjustePartidas: true,
+    criadoPor: 'usuario',
+    criadoEm,
+  };
+  if (diaIndex < 0 || diaIndex > 6) {
+    return base;
+  }
+  const semana = base.semanas[0] ?? semanaVazia();
+  const dias = [...semana.dias];
+  while (dias.length < 7) {
+    dias.push(null);
+  }
+  dias[diaIndex] = sessao;
+  return {
+    ...base,
+    nome: 'Personalizado',
+    status: 'ativo',
+    criadoPor: 'usuario',
+    semanas: [{...semana, dias}, ...base.semanas.slice(1)],
+  };
+}
+
 /**
  * Contexto do elenco/temporada para o assistente decidir. Tudo derivável do
  * estado sem acoplar a store (a store monta e passa).

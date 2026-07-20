@@ -4,6 +4,7 @@
  */
 import {
   PRESETS_TREINO,
+  definirDiaNoPlano,
   planoDePreset,
   recomendarPlano,
   SESSAO_PROVISORIA,
@@ -73,5 +74,31 @@ describe('planoTreinoEngine', () => {
     expect(rec.plano.status).toBe('ativo');
     expect(rec.motivos.length).toBeGreaterThan(0);
     expect(rec.motivos[0]).toContain('3 jogos');
+  });
+
+  describe('definirDiaNoPlano (agenda dia-a-dia)', () => {
+    const sessao = {treinoId: 'hab_tecnica', intensidade: 'normal' as const};
+
+    it('cria plano "Personalizado" do zero e define o dia (7 slots)', () => {
+      const p = definirDiaNoPlano(null, 'meu', '2026-04-06', 1, sessao);
+      expect(p.semanas[0].dias).toHaveLength(7);
+      expect(p.semanas[0].dias[1]).toEqual(sessao);
+      expect(p.criadoPor).toBe('usuario');
+      expect(p.status).toBe('ativo');
+    });
+
+    it('edita 1 dia preservando os demais; folga = null', () => {
+      const base = planoDePreset('equilibrado', 'meu', '2026-04-06');
+      const intacto = base.semanas[0].dias[2];
+      const p = definirDiaNoPlano(base, 'meu', '2026-04-06', 0, null);
+      expect(p.semanas[0].dias[0]).toBeNull(); // virou folga
+      expect(p.semanas[0].dias[2]).toEqual(intacto); // resto preservado
+      expect(p.nome).toBe('Personalizado');
+    });
+
+    it('índice inválido não altera o plano base', () => {
+      const base = planoDePreset('equilibrado', 'meu', '2026-04-06');
+      expect(definirDiaNoPlano(base, 'meu', '2026-04-06', 9, null)).toEqual(base);
+    });
   });
 });
