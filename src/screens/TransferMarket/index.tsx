@@ -43,6 +43,7 @@ import {
   simboloMoeda,
 } from '../../engine/competitions/registry/competitionRegistry';
 import {moeda, moedaCompacta, nomeClube, siglaClube} from '../../utils/formatters';
+import {normalizarTexto} from '../../utils/texto';
 import type {Player, Position} from '../../types';
 
 const LIMITE = 30;
@@ -54,13 +55,6 @@ type Aba = 'disponiveis' | 'emprestar' | 'propostas';
 
 function nomeCurto(jogador: Player): string {
   return jogador.apelido ?? jogador.nome;
-}
-
-function normalizar(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
 }
 
 /** Faixa overall→potencial (ambos conhecidos); só o número se não há margem. */
@@ -114,7 +108,7 @@ function TransferMarket(): React.JSX.Element {
       ? cores.warning
       : cores.brand;
 
-  const alvoBusca = normalizar(busca.trim());
+  const alvoBusca = normalizarTexto(busca.trim());
 
   // Mercado UNIVERSAL: enxerga TODAS as ligas carregadas (não só a divisão
   // jogada). A liga ativa vence para o elenco do usuário (estado vivo).
@@ -162,7 +156,9 @@ function TransferMarket(): React.JSX.Element {
             filtroPais === 'Todos' ||
             paisPorClube.get(j.clubeId ?? '') === filtroPais,
         )
-        .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
+        .filter(
+          j => alvoBusca === '' || normalizarTexto(nomeCurto(j)).includes(alvoBusca),
+        )
         .sort((a, b) => b.overall - a.overall)
         .slice(0, LIMITE),
     [jogadoresMundo, clubeUsuarioId, filtro, filtroPais, paisPorClube, alvoBusca],
@@ -181,7 +177,9 @@ function TransferMarket(): React.JSX.Element {
             filtroPais === 'Todos' ||
             paisPorClube.get(j.clubeId ?? '') === filtroPais,
         )
-        .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
+        .filter(
+          j => alvoBusca === '' || normalizarTexto(nomeCurto(j)).includes(alvoBusca),
+        )
         .sort((a, b) => a.idade - b.idade || b.overall - a.overall)
         .slice(0, LIMITE),
     [jogadoresMundo, clubeUsuarioId, filtro, filtroPais, paisPorClube, alvoBusca],

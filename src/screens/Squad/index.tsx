@@ -8,6 +8,8 @@
 import React, {useMemo, useState} from 'react';
 import {ScrollView, StyleSheet, TextInput, View} from 'react-native';
 
+import {normalizarTexto} from '../../utils/texto';
+
 import {
   AppBar,
   Badge,
@@ -76,13 +78,6 @@ function nomeCurto(jogador: Player): string {
   return jogador.apelido ?? jogador.nome;
 }
 
-function normalizar(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
-}
-
 function Squad(): React.JSX.Element {
   const nav = useElencoNavigation();
   const {cores} = useTheme();
@@ -103,7 +98,7 @@ function Squad(): React.JSX.Element {
   );
 
   const jogadoresFiltrados = useMemo(() => {
-    const alvo = normalizar(busca.trim());
+    const alvo = normalizarTexto(busca.trim());
     return jogadores
       .filter(j => {
         if (aba === 'titulares') {
@@ -115,7 +110,7 @@ function Squad(): React.JSX.Element {
         return true;
       })
       .filter(j => filtro === 'Todos' || j.posicaoPrincipal === filtro)
-      .filter(j => alvo === '' || normalizar(nomeCurto(j)).includes(alvo));
+      .filter(j => alvo === '' || normalizarTexto(nomeCurto(j)).includes(alvo));
   }, [jogadores, aba, filtro, busca, titularesIds]);
 
   // Jogador em destaque: o capitão, ou o de maior overall.

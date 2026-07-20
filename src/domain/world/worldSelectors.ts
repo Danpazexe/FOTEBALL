@@ -6,6 +6,7 @@
 import type {Clube, Player, Position} from '../../types';
 import {competicaoPorDivisaoLegada, competicaoPorId} from '../../engine/competitions/registry/competitionRegistry';
 import type {WorldState} from './worldTypes';
+import {normalizarTexto} from '../../utils/texto';
 
 export function selectClubePorId(
   world: WorldState,
@@ -68,14 +69,6 @@ export interface FiltrosMercadoGlobal {
   excluirClubeId?: string;
 }
 
-function normalizar(texto: string): string {
-  // Remove diacríticos combinantes (U+0300–U+036F) para busca acento-insensível.
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
-
 /**
  * MERCADO GLOBAL (RF-06/RF-07/RF-08): todos os jogadores de TODAS as ligas
  * carregadas, filtrados. Puro; a paginação/ordenação fica no chamador (a tela
@@ -85,7 +78,7 @@ export function selectJogadoresMercadoGlobal(
   world: WorldState,
   filtros: FiltrosMercadoGlobal = {},
 ): Player[] {
-  const buscaNorm = filtros.busca ? normalizar(filtros.busca) : undefined;
+  const buscaNorm = filtros.busca ? normalizarTexto(filtros.busca) : undefined;
   return Object.values(world.playersById).filter(jogador => {
     if (filtros.soAgentesLivres && jogador.clubeId !== null) {
       return false;
@@ -116,7 +109,7 @@ export function selectJogadoresMercadoGlobal(
       }
     }
     if (buscaNorm) {
-      const alvo = normalizar(
+      const alvo = normalizarTexto(
         `${jogador.nome} ${jogador.apelido ?? ''} ${clube?.nome ?? ''}`,
       );
       if (!alvo.includes(buscaNorm)) {
