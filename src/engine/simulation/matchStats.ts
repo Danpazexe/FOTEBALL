@@ -25,7 +25,6 @@ import type {
   EstatisticasTimePartida,
   EventoPartida,
   Player,
-  Position,
   Tatica,
 } from '../../types';
 

@@ -12,7 +12,6 @@ import type {
   ChutePartida,
   ParteCorpoChute,
   Player,
-  Position,
   SituacaoLance,
   Tatica,
 } from '../../../types';
