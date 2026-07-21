@@ -29,6 +29,7 @@ import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
   INTENSIDADES,
+  TREINO_PADRAO_ID,
   type IntensidadeTreino,
 } from '../engine/progression/treinoTipos';
 import {
@@ -735,7 +736,7 @@ function treinarCicloAutomatico(args: {
       jogadores,
       clube.id,
       clube.estadio.nivelInfraestrutura,
-      {treinoId: 'hab_fisico', intensidade: INTENSIDADE_AUTO},
+      {treinoId: TREINO_PADRAO_ID, intensidade: INTENSIDADE_AUTO},
       hashString(`${args.temporada}_${args.rodada}_ia_${clube.id}`),
     );
   }

@@ -70,7 +70,6 @@ describe('Onda 1 — contratos do épico Overall Dinâmico', () => {
           ],
         },
       ],
-      autoAjustePartidas: true,
       criadoPor: 'usuario',
       criadoEm: '2026-04-06',
     };

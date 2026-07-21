@@ -17,10 +17,11 @@ import type {
   SessaoPlanoTreino,
   SemanaPlanoTreino,
 } from '../../types';
+import {TREINO_PADRAO_ID} from './treinoTipos';
 
 /** Sessão provisória segura aplicada quando não há plano (nunca "sem treino"). */
 export const SESSAO_PROVISORIA: SessaoPlanoTreino = {
-  treinoId: 'hab_fisico',
+  treinoId: TREINO_PADRAO_ID,
   intensidade: 'leve',
 };
 
@@ -136,7 +137,6 @@ export function planoDePreset(
     status: 'ativo',
     recorrencia: {tipo: 'semanal'},
     semanas: [semana],
-    autoAjustePartidas: true,
     criadoPor,
     criadoEm,
   };
@@ -167,7 +167,6 @@ export function definirDiaNoPlano(
     status: 'ativo',
     recorrencia: {tipo: 'semanal'},
     semanas: [semanaVazia()],
-    autoAjustePartidas: true,
     criadoPor: 'usuario',
     criadoEm,
   };

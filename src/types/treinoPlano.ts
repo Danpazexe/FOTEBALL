@@ -41,9 +41,7 @@ export interface SessaoPlanoTreino {
 
 /**
  * Uma semana-modelo do plano: 7 slots (índice 0 = segunda … 6 = domingo).
- * `null` = descanso/folga naquele dia. Dias de PARTIDA são sempre respeitados
- * pelo executor quando `autoAjustePartidas` está ligado (a sessão do dia vira
- * recuperação leve, sem apagar o plano).
+ * `null` = descanso/folga naquele dia.
  */
 export interface SemanaPlanoTreino {
   dias: (SessaoPlanoTreino | null)[];
@@ -66,8 +64,6 @@ export interface PlanoTreino {
   recorrencia: RecorrenciaPlanoTreino;
   /** Semanas-modelo aplicadas em sequência (ciclo reinicia ao terminar). */
   semanas: SemanaPlanoTreino[];
-  /** Ajusta sessões automaticamente em semanas com jogos (pré/pós-jogo leve). */
-  autoAjustePartidas: boolean;
   criadoPor: 'usuario' | 'assistente' | 'ia_clube';
   /** Data ISO da carreira em que o plano foi criado. */
   criadoEm: string;
