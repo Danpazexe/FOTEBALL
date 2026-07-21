@@ -445,6 +445,7 @@ const CORES_TIME = [
 export function corDoTime(clubeId: string): string {
   let hash = 0;
   for (let i = 0; i < clubeId.length; i += 1) {
+    // eslint-disable-next-line no-bitwise -- hash intencional (cor estável)
     hash = (hash * 31 + clubeId.charCodeAt(i)) >>> 0;
   }
   return CORES_TIME[hash % CORES_TIME.length];

@@ -97,6 +97,7 @@ export function gerarJovensTemporada(
 function jitterAtributo(id: string, chave: string): number {
   let hash = 0;
   for (const caractere of `${id}|${chave}`) {
+    // eslint-disable-next-line no-bitwise -- hash intencional (determinismo)
     hash = (hash * 31 + caractere.charCodeAt(0)) >>> 0;
   }
   return (hash % 7) - 3;

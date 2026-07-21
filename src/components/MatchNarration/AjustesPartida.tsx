@@ -1019,7 +1019,8 @@ function PecaTitular({
         <View
           style={[
             styles.ficha,
-            {borderColor: corBorda, borderWidth: hover || selecionado ? 3 : 2},
+            {borderColor: corBorda},
+            hover || selecionado ? styles.fichaDestacada : null,
             hover ? styles.fichaHover : null,
           ]}>
           <Text style={[styles.fichaOverall, {color: corBorda}]}>
@@ -1375,9 +1376,13 @@ const criarEstilos = (t: TemaDS) =>
       // são claras e só leem bem sobre fundo escuro — intencional nos dois temas.
       backgroundColor: t.cores.scoreboard,
       borderRadius: DIAM,
+      borderWidth: 2,
       height: DIAM,
       justifyContent: 'center',
       width: DIAM,
+    },
+    fichaDestacada: {
+      borderWidth: 3,
     },
     fichaHover: {
       backgroundColor: t.cores.brandStrong,

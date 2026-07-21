@@ -145,7 +145,6 @@ describe('STRESS: empty side reachability', () => {
         throwsCount += 1;
       }
     }
-    // eslint-disable-next-line no-console
     console.log(
       `STRESS: throws=${throwsCount}, maxIndisponiveisUmLado=${maxIndisponiveisVistos} em ${TOTAL} jogos`,
     );

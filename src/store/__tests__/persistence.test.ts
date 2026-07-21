@@ -141,7 +141,6 @@ describe('persistence', () => {
     const estado = useGameStore.getState();
     const snap = montarSnapshot(estado);
     // Simula um save anterior, sem os campos do mundo mestre (rest-omit).
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const {todosClubes: _c, todosJogadores: _j, ...semMundo} = snap;
     const aplicado = aplicarSnapshot(semMundo);
     // Ausentes no snapshot → omitidos do partial → setState mantém o seed
