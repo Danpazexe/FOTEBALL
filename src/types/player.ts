@@ -11,6 +11,14 @@ export type Position =
   | 'SA'
   | 'CA';
 
+/**
+ * Ordem canônica das posições (gol → ataque) — fonte única para filtros,
+ * ordenação de elenco e sorteios por posição. Espelha a união `Position`.
+ */
+export const ORDEM_POSICOES: Position[] = [
+  'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
+];
+
 export type PernaDominante = 'D' | 'E' | 'Ambidestro';
 
 export interface PlayerAttributes {

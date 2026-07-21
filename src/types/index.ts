@@ -10,6 +10,7 @@ export type {
   ProgressoAtributos,
   TipoJogador,
 } from './player';
+export {ORDEM_POSICOES} from './player';
 export type {
   Clube,
   DespesaDetalhada,

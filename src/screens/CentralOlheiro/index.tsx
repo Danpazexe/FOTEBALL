@@ -29,7 +29,7 @@ import PlayerAvatar from '../../components/PlayerAvatar';
 import {nomeCurto} from '../../utils/formatters';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import type {Clube, Player, Position} from '../../types';
+import {ORDEM_POSICOES, type Clube, type Player, type Position} from '../../types';
 
 type Aba = 'relatorios' | 'observados' | 'missoes';
 type Conhecimento = 'Completo' | 'Parcial' | 'Inicial';
@@ -62,11 +62,6 @@ const ROTULO_POSICAO: Record<Position, string> = {
   SA: 'Segundo atacante',
   CA: 'Centroavante',
 };
-
-/** Ordem determinística para desempate (menos jogadores no elenco → prioridade). */
-const ORDEM_POSICOES: Position[] = [
-  'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-];
 
 const TOM_CONHECIMENTO: Record<Conhecimento, TomBadge> = {
   Completo: 'success',

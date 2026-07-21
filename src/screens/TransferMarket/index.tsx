@@ -51,12 +51,10 @@ import {
   siglaClube,
 } from '../../utils/formatters';
 import {normalizarTexto} from '../../utils/texto';
-import type {Player, Position} from '../../types';
+import {ORDEM_POSICOES, type Player, type Position} from '../../types';
 
 const LIMITE = 30;
-const POSICOES: Array<Position | 'Todos'> = [
-  'Todos', 'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-];
+const POSICOES: Array<Position | 'Todos'> = ['Todos', ...ORDEM_POSICOES];
 
 type Aba = 'disponiveis' | 'emprestar' | 'propostas';
 

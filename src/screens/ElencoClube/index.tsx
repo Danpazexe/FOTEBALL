@@ -26,12 +26,7 @@ import {useAppNavigation, useAppRoute} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
 import {moedaCompacta} from '../../utils/formatters';
 import {simboloMoeda} from '../../engine/competitions/registry/competitionRegistry';
-import type {Player, Position} from '../../types';
-
-/** Ordem canônica de posições (mesma da academia). */
-const ORDEM_POSICOES: Position[] = [
-  'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-];
+import {ORDEM_POSICOES, type Player, type Position} from '../../types';
 
 type Setor = {chave: string; titulo: string; posicoes: Position[]};
 

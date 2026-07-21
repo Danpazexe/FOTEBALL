@@ -16,6 +16,7 @@ import type {
   ResultadoCarreira,
   TabelaClassificacao,
 } from '../types';
+import {ORDEM_POSICOES} from '../types';
 import {adicionarDias} from '../utils/datas';
 
 /**
@@ -39,10 +40,7 @@ export function necessidadesPorPosicao(
     );
   }
   const necessidades: Partial<Record<Player['posicaoPrincipal'], number>> = {};
-  const posicoes: Player['posicaoPrincipal'][] = [
-    'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-  ];
-  for (const posicao of posicoes) {
+  for (const posicao of ORDEM_POSICOES) {
     necessidades[posicao] = Math.max(0, 2 - (contagem.get(posicao) ?? 0));
   }
   return necessidades;

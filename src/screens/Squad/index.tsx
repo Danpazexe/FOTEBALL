@@ -39,7 +39,7 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import type {Player, Position} from '../../types';
+import {ORDEM_POSICOES, type Player, type Position} from '../../types';
 
 type Aba = 'todos' | 'titulares' | 'reservas';
 type FiltroPosicao = 'Todos' | Position;
@@ -50,9 +50,7 @@ const ABAS: Array<{chave: Aba; rotulo: string}> = [
   {chave: 'reservas', rotulo: 'Reservas'},
 ];
 
-const FILTROS: FiltroPosicao[] = [
-  'Todos', 'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-];
+const FILTROS: FiltroPosicao[] = ['Todos', ...ORDEM_POSICOES];
 
 /**
  * Emote de condição — SEGUE A MESMA REGRA DA BARRA de condição física (limiares
