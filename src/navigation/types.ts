@@ -28,7 +28,6 @@ export type ElencoStackParamList = {
   Semana: undefined;
   Academia: undefined;
   DepartamentoMedico: undefined;
-  Performance: undefined;
   Desenvolvimento: undefined;
 };
 

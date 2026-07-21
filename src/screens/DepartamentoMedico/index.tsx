@@ -1,14 +1,18 @@
 /**
- * Departamento Médico (aba Elenco). Prontidão do elenco derivada de dado REAL:
- * condição física média dos aptos, lesionados (com previsão e gravidade), em
- * recuperação (condição baixa) e disponíveis; risco de lesão por condição +
- * idade. Ajuste de carga → Treino. Nada é inventado. DS v2.
+ * Departamento Médico (aba Elenco) — central única do físico do elenco (a
+ * antiga tela Performance foi fundida aqui). Lê o estado FÍSICO real da engine
+ * pura (`fisicoEngine`): prontidão, fadiga e risco de lesão são DERIVAÇÕES,
+ * nunca campos persistidos. Mostra a prontidão média dos aptos, lesionados
+ * (previsão + gravidade), jogadores em recuperação/desgaste com medidores
+ * compactos (FAD/RIT) e a recomendação do staff → Semana. Nada é inventado.
+ * DS v2, cor por token.
  */
 import React, {useMemo, useState} from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import {
   AppHeader,
+  Badge,
   Button,
   Card,
   Divider,
@@ -25,6 +29,12 @@ import {
   type CorTexto,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
+import {
+  fadiga,
+  nivelRisco,
+  prontidao,
+  type NivelRisco,
+} from '../../engine/physical/fisicoEngine';
 import {useElencoNavigation} from '../../navigation/types';
 import {useJogadoresUsuario} from '../../store/useGameStore';
 import type {Player} from '../../types';
@@ -32,13 +42,21 @@ import type {Player} from '../../types';
 type Aba = 'todos' | 'lesionados' | 'recuperacao';
 type Estado = 'lesionado' | 'recuperacao' | 'disponivel';
 
-const CONDICAO_RECUPERACAO = 65;
+// Limiares da classificação (herdados da antiga Performance).
+const CONDICAO_RECUPERACAO = 65; // abaixo disso, recuperando frescor
+const PRONTIDAO_MINIMA = 70; // abaixo disso, desgastado (fadiga/ritmo)
+const RITMO_PADRAO = 50; // default quando o físico ainda não foi calculado
 
+/** Bucket físico único — lesão primeiro; "recuperação" cobre tanto frescor
+ * baixo quanto desgaste (prontidão da engine abaixo do mínimo). */
 function estadoDoJogador(j: Player): Estado {
   if (j.lesionado) {
     return 'lesionado';
   }
-  if (j.condicaoFisica < CONDICAO_RECUPERACAO) {
+  if (
+    j.condicaoFisica < CONDICAO_RECUPERACAO ||
+    prontidao(j) < PRONTIDAO_MINIMA
+  ) {
     return 'recuperacao';
   }
   return 'disponivel';
@@ -57,28 +75,22 @@ function gravidadeLesao(diasLesao: number): {rotulo: Gravidade; tom: CorTexto} {
   return {rotulo: 'Grave', tom: 'danger'};
 }
 
-// ─── Risco de lesão (condição baixa + idade avançada elevam) ─────────────────
-type Risco = 'Baixo' | 'Médio' | 'Alto';
+// ─── Risco de lesão (faixa REAL da engine física) ────────────────────────────
+// Rótulo pt + tom. Badge não tem 'warning', então 'moderado' usa 'accent'
+// (âmbar de atenção).
+const RISCO_INFO: Record<
+  NivelRisco,
+  {rotulo: string; tom: 'success' | 'accent' | 'danger'}
+> = {
+  baixo: {rotulo: 'Baixo', tom: 'success'},
+  moderado: {rotulo: 'Moderado', tom: 'accent'},
+  elevado: {rotulo: 'Elevado', tom: 'danger'},
+  muito_elevado: {rotulo: 'Muito elevado', tom: 'danger'},
+};
 
-function riscoLesao(j: Player): {rotulo: Risco; tom: CorTexto} {
-  let pontos = 0;
-  if (j.condicaoFisica < 55) {
-    pontos += 2;
-  } else if (j.condicaoFisica < 70) {
-    pontos += 1;
-  }
-  if (j.idade >= 33) {
-    pontos += 2;
-  } else if (j.idade >= 30) {
-    pontos += 1;
-  }
-  if (pontos >= 3) {
-    return {rotulo: 'Alto', tom: 'danger'};
-  }
-  if (pontos >= 1) {
-    return {rotulo: 'Médio', tom: 'warning'};
-  }
-  return {rotulo: 'Baixo', tom: 'success'};
+function riscoElevado(j: Player): boolean {
+  const risco = nivelRisco(j);
+  return risco === 'elevado' || risco === 'muito_elevado';
 }
 
 function recomendacao(j: Player, estado: Estado): string {
@@ -90,7 +102,13 @@ function recomendacao(j: Player, estado: Estado): string {
       : 'Fisioterapia leve';
   }
   if (estado === 'recuperacao') {
-    return j.condicaoFisica < 55 ? 'Poupar — carga reduzida' : 'Retorno gradual';
+    if (j.condicaoFisica < 55) {
+      return 'Poupar — carga reduzida';
+    }
+    if (j.condicaoFisica < CONDICAO_RECUPERACAO) {
+      return 'Retorno gradual';
+    }
+    return 'Gerir minutos — recuperar ritmo';
   }
   return 'Apto para jogar';
 }
@@ -110,19 +128,68 @@ function faixaProntidao(pct: number): {rotulo: string; tom: CorTexto} {
   return {rotulo: 'Crítica', tom: 'danger'};
 }
 
+/** Recomendação curta do staff (herdada da Performance) a partir do agregado —
+ * alimenta o CTA único da tela (→ Semana). */
+function recomendacaoStaff(agregado: {
+  total: number;
+  lesionados: number;
+  emRecuperacao: number;
+  riscoAlto: number;
+}): {tom: CorTexto; texto: string} {
+  const {total, lesionados, emRecuperacao, riscoAlto} = agregado;
+  if (total === 0) {
+    return {tom: 'info', texto: 'Sem jogadores no elenco.'};
+  }
+  if (riscoAlto > 0) {
+    return {
+      tom: 'warning',
+      texto: `${riscoAlto} atleta${
+        riscoAlto > 1 ? 's' : ''
+      } com risco elevado de lesão. Reduza a carga e priorize recuperação nesta semana.`,
+    };
+  }
+  if (lesionados > 0 || emRecuperacao >= 3) {
+    return {
+      tom: 'warning',
+      texto:
+        'Vários atletas pedindo cuidado. Reduza a carga e priorize recuperação nesta semana.',
+    };
+  }
+  if (emRecuperacao > 0) {
+    return {
+      tom: 'accent',
+      texto:
+        'Alguns atletas precisam recuperar ritmo. Ajuste a carga de treino na semana.',
+    };
+  }
+  return {
+    tom: 'success',
+    texto:
+      'Elenco pronto para a rodada. Mantenha a carga e o descanso equilibrados.',
+  };
+}
+
 function DepartamentoMedico(): React.JSX.Element {
   const nav = useElencoNavigation();
   const {esporte} = useTheme();
   const [aba, setAba] = useState<Aba>('todos');
   const elenco = useJogadoresUsuario();
 
-  const {disponiveis, recuperacao, lesionados, riscoAlto, prontidao} =
+  // Fadiga é ruim quando alta → inverte a leitura de cor do fitness.
+  const corFadiga = (v: number): string =>
+    v <= 40
+      ? esporte.fitness.high
+      : v <= 65
+      ? esporte.fitness.medium
+      : esporte.fitness.low;
+
+  const {disponiveis, recuperacao, lesionados, riscoAlto, prontidaoElenco} =
     useMemo(() => {
       let d = 0;
       let r = 0;
       let l = 0;
       let risc = 0;
-      let somaCond = 0;
+      let somaProntidao = 0;
       let aptos = 0;
       for (const j of elenco) {
         const e = estadoDoJogador(j);
@@ -134,9 +201,9 @@ function DepartamentoMedico(): React.JSX.Element {
           d += 1;
         }
         if (!j.lesionado) {
-          somaCond += j.condicaoFisica;
+          somaProntidao += prontidao(j);
           aptos += 1;
-          if (riscoLesao(j).rotulo === 'Alto') {
+          if (riscoElevado(j)) {
             risc += 1;
           }
         }
@@ -146,7 +213,7 @@ function DepartamentoMedico(): React.JSX.Element {
         recuperacao: r,
         lesionados: l,
         riscoAlto: risc,
-        prontidao: aptos > 0 ? Math.round(somaCond / aptos) : 0,
+        prontidaoElenco: aptos > 0 ? Math.round(somaProntidao / aptos) : 0,
       };
     }, [elenco]);
 
@@ -160,15 +227,26 @@ function DepartamentoMedico(): React.JSX.Element {
         : aba === 'recuperacao'
         ? comEstado.filter(x => x.estado === 'recuperacao')
         : comEstado;
-    // Lesionados primeiro, depois por condição.
+    // Lesionados primeiro; depois os de pior prontidão (piores primeiro).
     return filtrada.sort(
       (a, b) =>
         Number(b.estado === 'lesionado') - Number(a.estado === 'lesionado') ||
-        a.j.condicaoFisica - b.j.condicaoFisica,
+        prontidao(a.j) - prontidao(b.j),
     );
   }, [elenco, aba]);
 
-  const faixa = faixaProntidao(prontidao);
+  const staff = useMemo(
+    () =>
+      recomendacaoStaff({
+        total: elenco.length,
+        lesionados,
+        emRecuperacao: recuperacao,
+        riscoAlto,
+      }),
+    [elenco.length, lesionados, recuperacao, riscoAlto],
+  );
+
+  const faixa = faixaProntidao(prontidaoElenco);
   const corProntidao =
     faixa.tom === 'success'
       ? esporte.fitness.high
@@ -185,7 +263,7 @@ function DepartamentoMedico(): React.JSX.Element {
           onBack={() => (nav.canGoBack() ? nav.goBack() : undefined)}
         />
       }>
-      {/* Prontidão média do elenco (condição dos aptos) */}
+      {/* Prontidão média do elenco (derivação real da engine física) */}
       <Card variante="outlined" style={styles.prontidaoCard}>
         <View style={styles.prontidaoTopo}>
           <View style={styles.flex}>
@@ -194,19 +272,19 @@ function DepartamentoMedico(): React.JSX.Element {
             </Text>
             <View style={styles.prontidaoValor}>
               <Text variant="titleXL" color={faixa.tom} tabular>
-                {prontidao}%
+                {prontidaoElenco}%
               </Text>
               <Text variant="labelM" color={faixa.tom}>
                 {faixa.rotulo}
               </Text>
             </View>
             <Text variant="caption" color="textMuted">
-              Média de condição física dos aptos
+              Média dos aptos — condição, ritmo e fadiga
             </Text>
           </View>
           <Icon nome="lesao" size={22} color={faixa.tom} />
         </View>
-        <ProgressBar valor={prontidao} cor={corProntidao} altura={8} />
+        <ProgressBar valor={prontidaoElenco} cor={corProntidao} altura={8} />
       </Card>
 
       {/* Contagem por estado */}
@@ -218,14 +296,25 @@ function DepartamentoMedico(): React.JSX.Element {
         <CelulaStat valor={lesionados} rotulo="Lesionados" tom="danger" />
       </Card>
 
-      {riscoAlto > 0 ? (
-        <Card variante="status" status="warning" padding={3} style={styles.cargaCard}>
-          <Icon nome="lesao" size={18} color="warning" />
+      {/* Recomendação do staff — CTA único da tela (plano da semana) */}
+      <Card variante="status" status={staff.tom} style={styles.staffCard}>
+        <View style={styles.staffTopo}>
+          <Icon nome="ficha" size={18} color={staff.tom} />
           <Text variant="labelL" style={styles.flex}>
-            Alto risco de lesão: {riscoAlto} jogador{riscoAlto > 1 ? 'es' : ''}
+            Recomendação do staff
           </Text>
-        </Card>
-      ) : null}
+        </View>
+        <Text variant="bodyM" color="textSecondary">
+          {staff.texto}
+        </Text>
+        <Button
+          variante="secondary"
+          titulo="Ver plano sugerido"
+          icone="calendario"
+          onPress={() => nav.navigate('Semana')}
+          fullWidth
+        />
+      </Card>
 
       <SegmentedTabs
         abas={[
@@ -242,7 +331,7 @@ function DepartamentoMedico(): React.JSX.Element {
           <EmptyState
             icone="check"
             title="Elenco 100% saudável"
-            description="Nenhum jogador lesionado ou em recuperação."
+            description="Nenhum jogador lesionado, cansado ou em recuperação."
           />
         </View>
       ) : (
@@ -254,7 +343,9 @@ function DepartamentoMedico(): React.JSX.Element {
               ? Math.max(5, 100 - j.diasLesao * 6)
               : j.condicaoFisica;
             const grav = lesionado ? gravidadeLesao(j.diasLesao) : null;
-            const risco = !lesionado ? riscoLesao(j) : null;
+            const risco = !lesionado ? RISCO_INFO[nivelRisco(j)] : null;
+            const fad = fadiga(j);
+            const ritmo = j.fisico?.ritmo ?? RITMO_PADRAO;
             return (
               <Card key={j.id} variante="outlined" style={styles.card}>
                 <View style={styles.cardTopo}>
@@ -276,21 +367,33 @@ function DepartamentoMedico(): React.JSX.Element {
                         style={styles.flex}>
                         {lesionado
                           ? `Lesionado · retorno em ${j.diasLesao} dia${j.diasLesao > 1 ? 's' : ''}`
-                          : `Condição física ${j.condicaoFisica}%`}
+                          : j.condicaoFisica < CONDICAO_RECUPERACAO
+                          ? `Condição física ${j.condicaoFisica}%`
+                          : `Prontidão ${prontidao(j)}%`}
                       </Text>
                       {grav ? (
                         <Text variant="caption" weight="800" color={grav.tom}>
                           {grav.rotulo}
                         </Text>
                       ) : risco ? (
-                        <Text variant="caption" weight="800" color={risco.tom}>
-                          Risco {risco.rotulo}
-                        </Text>
+                        <Badge
+                          label={`Risco ${risco.rotulo.toLowerCase()}`}
+                          tom={risco.tom}
+                        />
                       ) : null}
                     </View>
                   </View>
                 </View>
                 <ProgressBar valor={progresso} cor={corCond} />
+                {/* Medidores compactos da engine física (fadiga e ritmo) */}
+                <View style={styles.medidores}>
+                  <Medidor rotulo="FAD" valor={fad} cor={corFadiga(fad)} />
+                  <Medidor
+                    rotulo="RIT"
+                    valor={ritmo}
+                    cor={corCondicao(ritmo, esporte)}
+                  />
+                </View>
                 <Text variant="caption" color="textSecondary">
                   {lesionado ? 'Recuperação' : 'Condição'} ·{' '}
                   {recomendacao(j, estado)}
@@ -300,14 +403,6 @@ function DepartamentoMedico(): React.JSX.Element {
           })}
         </View>
       )}
-
-      <Button
-        icone="apito"
-        variante="secondary"
-        titulo="Ajustar carga de treino"
-        onPress={() => nav.navigate('Semana')}
-        fullWidth
-      />
     </Screen>
   );
 }
@@ -333,13 +428,42 @@ function CelulaStat({
   );
 }
 
+// ─── Medidor compacto (rótulo + valor + barra fina) ──────────────────────────
+function Medidor({
+  rotulo,
+  valor,
+  cor,
+}: {
+  rotulo: string;
+  valor: number;
+  cor: string;
+}): React.JSX.Element {
+  return (
+    <View style={styles.medidor}>
+      <View style={styles.medidorTopo}>
+        <Text variant="caption" color="textMuted">
+          {rotulo}
+        </Text>
+        <Text variant="caption" color="textSecondary" tabular>
+          {Math.round(valor)}
+        </Text>
+      </View>
+      <ProgressBar valor={valor} cor={cor} altura={4} />
+    </View>
+  );
+}
+
 export default DepartamentoMedico;
 
 const styles = StyleSheet.create({
   flex: {flex: 1},
   vazio: {flex: 1, justifyContent: 'center', paddingVertical: espacamento[6]},
   prontidaoCard: {gap: espacamento[3]},
-  prontidaoTopo: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
+  prontidaoTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: espacamento[3],
+  },
   prontidaoValor: {
     flexDirection: 'row',
     alignItems: 'baseline',
@@ -347,9 +471,17 @@ const styles = StyleSheet.create({
   },
   statsRow: {flexDirection: 'row', alignItems: 'center'},
   celula: {flex: 1, alignItems: 'center', gap: 2},
-  cargaCard: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  staffCard: {gap: espacamento[2]},
+  staffTopo: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
   lista: {gap: espacamento[2]},
   card: {gap: espacamento[2]},
   cardTopo: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
   nomeLinha: {flexDirection: 'row', alignItems: 'center', gap: espacamento[2]},
+  medidores: {flexDirection: 'row', gap: espacamento[3]},
+  medidor: {flex: 1, gap: espacamento[1]},
+  medidorTopo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
 });

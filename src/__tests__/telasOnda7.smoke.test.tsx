@@ -42,7 +42,7 @@ jest.mock('@react-navigation/native', () => ({
   useRoute: () => mockRota,
 }));
 
-import Performance from '../screens/Performance';
+import DepartamentoMedico from '../screens/DepartamentoMedico';
 import Desenvolvimento from '../screens/Desenvolvimento';
 import Semana from '../screens/Semana';
 import PlayerDetail from '../screens/PlayerDetail';
@@ -76,10 +76,39 @@ describe('telas da Onda 7 — smoke de runtime', () => {
     });
   });
 
-  it('Performance renderiza os medidores do elenco (CON/FAD/RIT)', () => {
-    const {textos} = render(<Performance />);
-    expect(textos).toContain('Performance');
-    expect(textos).toMatch(/CON|FAD|RIT/);
+  it('Departamento Médico absorveu a Performance: staff, risco e FAD/RIT', () => {
+    // Prepara um desgastado (fadiga alta/ritmo baixo) e um lesionado no elenco
+    // do usuário para a lista renderizar os medidores da engine física.
+    act(() => {
+      const clubeId = estado().clubeUsuarioId;
+      const doClube = estado().jogadores.filter(j => j.clubeId === clubeId);
+      const desgastado = doClube[0].id;
+      const machucado = doClube[1].id;
+      useGameStore.setState({
+        jogadores: estado().jogadores.map(j =>
+          j.id === desgastado
+            ? {
+                ...j,
+                condicaoFisica: 80,
+                fisico: {cargaAguda: 95, cargaCronica: 40, ritmo: 30},
+              }
+            : j.id === machucado
+            ? {...j, lesionado: true, diasLesao: 12}
+            : j,
+        ),
+      });
+    });
+    const {textos} = render(<DepartamentoMedico />);
+    expect(textos).toContain('Departamento Médico');
+    // Diferencial absorvido: recomendação do staff com CTA → Semana.
+    expect(textos).toContain('Recomendação do staff');
+    expect(textos).toContain('Ver plano sugerido');
+    // Medidores compactos da engine física por jogador.
+    expect(textos).toMatch(/FAD/);
+    expect(textos).toMatch(/RIT/);
+    // Lesionado segue com previsão de retorno; desgastado com risco da engine.
+    expect(textos).toContain('Lesionado · retorno em 12 dias');
+    expect(textos).toMatch(/Risco /);
   });
 
   it('Desenvolvimento renderiza mesmo com ledger VAZIO (carreira nova)', () => {
