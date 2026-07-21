@@ -20,3 +20,24 @@ export function corredorDaPosicao(posicao: Position | undefined): 0 | 1 | 2 {
 export function limitar01(v: number): number {
   return Math.min(1, Math.max(0, v));
 }
+
+/**
+ * Posição na BALIZA (0..1) da cobrança de pênalti, a partir da direção (E/C/D)
+ * e altura (Alta/Baixa) sorteadas no lance. Fonte única do mapeamento — usada
+ * pelo ledger de chutes (matchSimulator) e pela derivação do mapa de
+ * finalizações (com jitter aplicado pelo chamador).
+ */
+export function balizaDoPenalti(penaltiData: {
+  direcaoChute: 'E' | 'C' | 'D';
+  alturaChute: 'A' | 'B';
+}): {golX: number; golY: number} {
+  return {
+    golX:
+      penaltiData.direcaoChute === 'E'
+        ? 0.24
+        : penaltiData.direcaoChute === 'D'
+          ? 0.76
+          : 0.5,
+    golY: penaltiData.alturaChute === 'A' ? 0.68 : 0.24,
+  };
+}

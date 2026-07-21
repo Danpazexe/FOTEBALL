@@ -21,7 +21,7 @@
 import type {ChutePartida, EventoPartida, Partida, Position} from '../../types';
 import {ehEventoGol} from '../../types';
 import {criarRNGComSeed, hashString, type RandomGenerator} from './rng';
-import {corredorDaPosicao, limitar01} from './geometriaCampo';
+import {balizaDoPenalti, corredorDaPosicao, limitar01} from './geometriaCampo';
 
 /** Desfecho de um chute, para colorir o dot no mapa. */
 export type ResultadoFinalizacao =
@@ -137,11 +137,10 @@ function derivarGol(
 ): {golX: number; golY: number} {
   const p = evento.penaltiData;
   if (p) {
-    const baseX = p.direcaoChute === 'E' ? 0.24 : p.direcaoChute === 'D' ? 0.76 : 0.5;
-    const baseY = p.alturaChute === 'A' ? 0.68 : 0.24;
+    const base = balizaDoPenalti(p);
     return {
-      golX: limitar01(baseX + (rng() - 0.5) * 0.08),
-      golY: limitar01(baseY + (rng() - 0.5) * 0.08),
+      golX: limitar01(base.golX + (rng() - 0.5) * 0.08),
+      golY: limitar01(base.golY + (rng() - 0.5) * 0.08),
     };
   }
   // Chutes no alvo tendem aos cantos baixos; poucos no ângulo.
