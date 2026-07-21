@@ -1,4 +1,3 @@
-import {useMemo} from 'react';
 import {create} from 'zustand';
 
 import {verificarConquistas} from '../engine/conquistas/verificadorConquistas';
@@ -80,7 +79,6 @@ import {
   hashString,
   inteiroEntre,
 } from '../engine/simulation/rng';
-import {calcularForcaTime, type ForcaTime} from '../engine/simulation/teamStrength';
 import {mesmaTatica} from '../engine/tactics/estrategias';
 import {validarFormacao} from '../engine/tactics/formationValidation';
 import {removerJogadorDaFormacao} from '../engine/tactics/formacaoOps';
@@ -913,18 +911,6 @@ function aplicarResultadoNosJogadores(
       },
     };
   });
-}
-
-function forcaClube(clube: Clube, jogadores: Player[]): ForcaTime | null {
-  if (!clube.formacaoAtual || !clube.taticaAtual) {
-    return null;
-  }
-
-  return calcularForcaTime(
-    clube.formacaoAtual,
-    jogadoresDoClube(jogadores, clube.id),
-    clube.taticaAtual,
-  );
 }
 
 /**
@@ -3069,34 +3055,6 @@ export function selecionarCopaNaVez(state: GameState): boolean {
   return selecionarProximoCompromisso(state)?.tipo === 'copa';
 }
 
-/**
- * Hooks memoizados para dados derivados. NÃO usar como seletores diretos do
- * zustand: eles criam novas referências (arrays/objetos) a cada chamada, o que
- * dispara "Maximum update depth exceeded" com o useSyncExternalStore interno.
- * Por isso selecionamos fatias estáveis e derivamos com useMemo.
- */
-export function useJogadoresUsuario(): Player[] {
-  const jogadores = useGameStore(state => state.jogadores);
-  const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
-
-  return useMemo(() => {
-    if (!clubeUsuarioId) {
-      return [];
-    }
-
-    return jogadoresDoClube(jogadores, clubeUsuarioId).sort(
-      (a, b) => b.overall - a.overall,
-    );
-  }, [jogadores, clubeUsuarioId]);
-}
-
-export function useForcaUsuario(): ForcaTime | null {
-  const clubes = useGameStore(state => state.clubes);
-  const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
-  const jogadores = useGameStore(state => state.jogadores);
-
-  return useMemo(() => {
-    const clube = clubes.find(item => item.id === clubeUsuarioId);
-    return clube ? forcaClube(clube, jogadores) : null;
-  }, [clubes, clubeUsuarioId, jogadores]);
-}
+// Hooks React de leitura do elenco vivem em useElenco.ts (estado puro no store,
+// sem React). Re-exportados aqui para manter a API das telas estável.
+export {useForcaUsuario, useJogadoresUsuario} from './useElenco';
