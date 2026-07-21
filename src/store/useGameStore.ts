@@ -33,7 +33,6 @@ import {
   aplicarEfeitoTreino,
 } from '../engine/progression/treinoAtributos';
 import {atualizarFormaPorNota} from '../engine/progression/formaEngine';
-import {instantaneoDoElenco} from '../engine/progression/instantaneoDesenvolvimento';
 import {
   aplicarDisciplinaPartida,
   disponibilidadeInicial,
@@ -116,7 +115,9 @@ import {gerarTransferenciasIA} from '../engine/transfers/mercadoIA';
 import {processarDiasAte} from '../engine/calendar/pipelineDiario';
 import {adicionarDias} from '../utils/datas';
 import {useAchievementsStore} from './useAchievementsStore';
+import {adicionarMensagem, type MensagemJogo} from './mensagens';
 import {
+  instantaneoInicial,
   jogadoresDoClube,
   limiteDerrotasPorDivisao,
   mensagemDemissao,
@@ -191,11 +192,6 @@ import type {
   TabelaClassificacao,
   Tatica,
 } from '../types';
-
-export interface MensagemJogo {
-  id: string;
-  texto: string;
-}
 
 export interface ResultadoTransacao {
   ok: boolean;
@@ -466,16 +462,6 @@ export interface GameState {
   reiniciarCarreira: () => void;
 }
 
-function adicionarMensagem(
-  mensagens: MensagemJogo[],
-  texto: string,
-): MensagemJogo[] {
-  return [{id: `${Date.now()}_${mensagens.length}`, texto}, ...mensagens].slice(
-    0,
-    8,
-  );
-}
-
 /** Teto da Central de Pendências (as mais novas primeiro; save enxuto). */
 const MAX_PENDENCIAS = 12;
 /** Teto do ledger de desenvolvimento (as mais recentes; poda o save). */
@@ -557,20 +543,6 @@ function pendenciaPlanoTreino(data: string): PendenciaCarreira {
     criadaEm: data,
     bloqueante: false,
   };
-}
-
-/**
- * Ponto inicial da série de desenvolvimento: a média do elenco no começo (0 ou
- * 1 instantâneo). Cada virada de temporada acrescenta mais um ponto real.
- */
-function instantaneoInicial(
-  jogadores: Player[],
-  clubeId: string,
-  data: string,
-  temporada: string,
-): InstantaneoDesenvolvimento[] {
-  const snap = instantaneoDoElenco(jogadores, clubeId, data, temporada);
-  return snap ? [snap] : [];
 }
 
 /** Propostas da IA que EXPIRAM na próxima rodada viram pendência (Central). */

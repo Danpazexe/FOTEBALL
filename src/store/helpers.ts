@@ -6,8 +6,10 @@
  */
 import {LIMITE_DERROTAS_DEMISSAO} from '../engine/carreira/carreiraEngine';
 import {hashString, inteiroEntre, type RandomGenerator} from '../engine/simulation/rng';
+import {instantaneoDoElenco} from '../engine/progression/instantaneoDesenvolvimento';
 import type {
   Clube,
+  InstantaneoDesenvolvimento,
   MotivoDemissao,
   Partida,
   Player,
@@ -140,6 +142,20 @@ export function mensagemDemissao(motivo: MotivoDemissao): string {
     return 'A diretoria te demitiu após o rebaixamento.';
   }
   return 'A diretoria te demitiu após a sequência de derrotas.';
+}
+
+/**
+ * Ponto inicial da série de desenvolvimento: a média do elenco no começo (0 ou
+ * 1 instantâneo). Cada virada de temporada acrescenta mais um ponto real.
+ */
+export function instantaneoInicial(
+  jogadores: Player[],
+  clubeId: string,
+  data: string,
+  temporada: string,
+): InstantaneoDesenvolvimento[] {
+  const snap = instantaneoDoElenco(jogadores, clubeId, data, temporada);
+  return snap ? [snap] : [];
 }
 
 /** Resultado da rodada para o clube do usuário (null se não jogou). */
