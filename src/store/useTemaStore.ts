@@ -20,8 +20,8 @@ interface TemaState {
 }
 
 export const useTemaStore = create<TemaState>(set => ({
-  // Padrão 'claro' (North Star): as telas migradas assumem o tema claro. As telas
-  // ainda NÃO migradas seguem escuras por constantes importadas de src/theme.
+  // Padrão 'claro' (North Star): as telas seguem o tema resolvido pelo
+  // design system (useTheme) a partir desta preferência.
   modo: 'claro',
   esquemaSistema: 'escuro',
   definirModo: modo => set({modo}),
