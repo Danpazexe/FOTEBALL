@@ -6,9 +6,11 @@ import {
   aplicarManutencaoEstadio,
   aplicarPatrocinioAnual,
   cotaTV,
+  faixaPctFolha,
   fatorOcupacaoPorPreco,
   MANUTENCAO_POR_LUGAR,
   PATROCINIO_POR_REPUTACAO,
+  pctFolhaSobreReceita,
   TAXA_JUROS_ANUAL,
 } from '../financeEngine';
 import {criarClube, criarPlayer} from '../../../testing/fixtures';
@@ -118,6 +120,21 @@ describe('cotaTV (§8.3)', () => {
     const depois = aplicarCotaTV(clube, 'Série A', 1, DATA);
     expect(depois.financas.saldo).toBe(clube.financas.saldo + 120_000_000);
     expect(depois.financas.historicoTransacoes[0].categoria).toBe('cota_tv');
+  });
+});
+
+describe('peso da folha na receita (regra que vivia em TransferMarket/Financas)', () => {
+  it('pctFolhaSobreReceita: 0 sem receita, proporcional, teto em 100', () => {
+    expect(pctFolhaSobreReceita(500_000, 0)).toBe(0);
+    expect(pctFolhaSobreReceita(300_000, 1_000_000)).toBe(30);
+    expect(pctFolhaSobreReceita(2_000_000, 1_000_000)).toBe(100);
+  });
+
+  it('faixaPctFolha: >80 crítica, >60 atenção, senão saudável', () => {
+    expect(faixaPctFolha(60)).toBe('saudavel');
+    expect(faixaPctFolha(61)).toBe('atencao');
+    expect(faixaPctFolha(80)).toBe('atencao');
+    expect(faixaPctFolha(81)).toBe('critica');
   });
 });
 

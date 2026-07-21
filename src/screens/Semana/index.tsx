@@ -29,8 +29,11 @@ import {useToast} from '../../components/feedback';
 import {calcularEfeitoTreino} from '../../engine/progression/treinoAtributos';
 import {
   PRESETS_TREINO,
+  cargaDaSemana,
   definirDiaNoPlano,
+  faixaRiscoLesao,
   planoDePreset,
+  type NivelAlerta,
   type PresetTreinoId,
 } from '../../engine/progression/planoTreinoEngine';
 import type {SessaoPlanoTreino} from '../../types';
@@ -121,45 +124,12 @@ const TIPOS_DIA: Array<{
   },
 ];
 
-/** Peso 1–4 de uma intensidade (leve→muito forte) para agregar a carga. */
-function pesoIntensidade(i: IntensidadeTreino): number {
-  return INTENSIDADES_ORDEM.indexOf(i) + 1;
-}
-
-/** Carga agregada da semana a partir das sessões (Leve/Média/Alta). */
-function cargaDaSemana(dias: (SessaoPlanoTreino | null)[]): {
-  texto: string;
-  tom: CorTexto;
-} {
-  const pesos = dias
-    .filter((d): d is SessaoPlanoTreino => d !== null)
-    .map(d => pesoIntensidade(d.intensidade));
-  if (pesos.length === 0) {
-    return {texto: 'Folga', tom: 'success'};
-  }
-  const medio = pesos.reduce((s, v) => s + v, 0) / pesos.length;
-  if (medio <= 1.4) {
-    return {texto: 'Leve', tom: 'success'};
-  }
-  if (medio <= 2.4) {
-    return {texto: 'Média', tom: 'warning'};
-  }
-  return {texto: 'Alta', tom: 'danger'};
-}
-
-/** Tom (token) de risco de lesão a partir do risco-base da intensidade. */
-function rotuloRisco(risco: number): {texto: string; tom: CorTexto} {
-  if (risco <= 0.005) {
-    return {texto: 'Muito baixo', tom: 'success'};
-  }
-  if (risco <= 0.015) {
-    return {texto: 'Baixo', tom: 'success'};
-  }
-  if (risco <= 0.035) {
-    return {texto: 'Médio', tom: 'warning'};
-  }
-  return {texto: 'Alto', tom: 'danger'};
-}
+/** Mapa nível de alerta da engine → token de cor do design system. */
+const TOM_POR_NIVEL: Record<NivelAlerta, CorTexto> = {
+  ok: 'success',
+  atencao: 'warning',
+  alerta: 'danger',
+};
 
 function media(valores: number[]): number {
   if (valores.length === 0) {
@@ -263,7 +233,7 @@ function Semana(): React.JSX.Element {
     return {condAtual, condNova, formaAtual, formaNova, comAfinidade};
   }, [treino, elenco, intensidade, nivelInfra]);
 
-  const risco = rotuloRisco(INTENSIDADES[intensidade].riscoLesaoBase);
+  const risco = faixaRiscoLesao(INTENSIDADES[intensidade].riscoLesaoBase);
 
   // Cronograma da semana do plano ATIVO (7 dias do ciclo corrente) + resumo.
   const semanaPlano = useMemo(() => {
@@ -283,7 +253,7 @@ function Semana(): React.JSX.Element {
     return {
       dias,
       carga,
-      risco: rotuloRisco(riscoBaseMax),
+      risco: faixaRiscoLesao(riscoBaseMax),
       prontidaoPct,
     };
   }, [planoTreino, rodadaAtual, elenco]);
@@ -465,7 +435,7 @@ function Semana(): React.JSX.Element {
             <ResumoStat
               rotulo="Carga"
               texto={semanaPlano.carga.texto}
-              tom={semanaPlano.carga.tom}
+              tom={TOM_POR_NIVEL[semanaPlano.carga.nivel]}
             />
             <ResumoStat
               rotulo="Prontidão"
@@ -475,7 +445,7 @@ function Semana(): React.JSX.Element {
             <ResumoStat
               rotulo="Risco de lesão"
               texto={semanaPlano.risco.texto}
-              tom={semanaPlano.risco.tom}
+              tom={TOM_POR_NIVEL[semanaPlano.risco.nivel]}
             />
           </View>
         </Card>
@@ -605,7 +575,7 @@ function Semana(): React.JSX.Element {
             <Text variant="bodyM" color="textSecondary">
               Risco de lesão
             </Text>
-            <Text variant="labelL" color={risco.tom}>
+            <Text variant="labelL" color={TOM_POR_NIVEL[risco.nivel]}>
               {risco.texto}
             </Text>
           </View>

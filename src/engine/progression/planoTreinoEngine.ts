@@ -17,13 +17,59 @@ import type {
   SessaoPlanoTreino,
   SemanaPlanoTreino,
 } from '../../types';
-import {TREINO_PADRAO_ID} from './treinoTipos';
+import {INTENSIDADES_ORDEM, TREINO_PADRAO_ID} from './treinoTipos';
 
 /** Sessão provisória segura aplicada quando não há plano (nunca "sem treino"). */
 export const SESSAO_PROVISORIA: SessaoPlanoTreino = {
   treinoId: TREINO_PADRAO_ID,
   intensidade: 'leve',
 };
+
+/** Nível de alerta semântico das classificações de treino (a UI mapeia p/ cor). */
+export type NivelAlerta = 'ok' | 'atencao' | 'alerta';
+
+/** Peso 1–5 de uma intensidade (descanso→muito forte) para agregar a carga. */
+export function pesoIntensidade(intensidade: IntensidadeTreino): number {
+  return INTENSIDADES_ORDEM.indexOf(intensidade) + 1;
+}
+
+/** Carga agregada da semana a partir das sessões (Folga/Leve/Média/Alta). */
+export function cargaDaSemana(dias: (SessaoPlanoTreino | null)[]): {
+  texto: string;
+  nivel: NivelAlerta;
+} {
+  const pesos = dias
+    .filter((dia): dia is SessaoPlanoTreino => dia !== null)
+    .map(dia => pesoIntensidade(dia.intensidade));
+  if (pesos.length === 0) {
+    return {texto: 'Folga', nivel: 'ok'};
+  }
+  const medio = pesos.reduce((soma, valor) => soma + valor, 0) / pesos.length;
+  if (medio <= 1.4) {
+    return {texto: 'Leve', nivel: 'ok'};
+  }
+  if (medio <= 2.4) {
+    return {texto: 'Média', nivel: 'atencao'};
+  }
+  return {texto: 'Alta', nivel: 'alerta'};
+}
+
+/** Classifica o risco-base de lesão de uma sessão/semana de treino. */
+export function faixaRiscoLesao(risco: number): {
+  texto: string;
+  nivel: NivelAlerta;
+} {
+  if (risco <= 0.005) {
+    return {texto: 'Muito baixo', nivel: 'ok'};
+  }
+  if (risco <= 0.015) {
+    return {texto: 'Baixo', nivel: 'ok'};
+  }
+  if (risco <= 0.035) {
+    return {texto: 'Médio', nivel: 'atencao'};
+  }
+  return {texto: 'Alto', nivel: 'alerta'};
+}
 
 interface PresetDef {
   nome: string;

@@ -29,7 +29,11 @@ import {
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
 import {useToast} from '../../components/feedback';
-import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
+import {
+  calcularFolhaSalarial,
+  faixaPctFolha,
+  pctFolhaSobreReceita,
+} from '../../engine/finance/financeEngine';
 import {
   custoEmprestimo,
   ehEmprestado,
@@ -91,16 +95,15 @@ function TransferMarket(): React.JSX.Element {
     const receita = (clubeUsuario?.financas.historicoTransacoes ?? [])
       .filter(t => t.tipo === 'receita')
       .reduce((s, t) => s + Math.abs(t.valor), 0);
-    const pctFolha = receita > 0 ? Math.min(100, (folha / receita) * 100) : 0;
+    const pctFolha = pctFolhaSobreReceita(folha, receita);
     return {saldo, folha, pctFolha};
   }, [clubeUsuario, jogadores, clubeUsuarioId]);
 
-  const corFolha =
-    orcamento.pctFolha > 80
-      ? cores.danger
-      : orcamento.pctFolha > 60
-      ? cores.warning
-      : cores.brand;
+  const corFolha = {
+    critica: cores.danger,
+    atencao: cores.warning,
+    saudavel: cores.brand,
+  }[faixaPctFolha(orcamento.pctFolha)];
 
   const alvoBusca = normalizarTexto(busca.trim());
 

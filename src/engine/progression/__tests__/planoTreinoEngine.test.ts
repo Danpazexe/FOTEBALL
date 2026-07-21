@@ -3,15 +3,19 @@
  * ciclo determinística com folga/pausa e o assistente escolhendo por contexto.
  */
 import {
-  PRESETS_TREINO,
+  cargaDaSemana,
   definirDiaNoPlano,
+  faixaRiscoLesao,
+  pesoIntensidade,
   planoDePreset,
+  PRESETS_TREINO,
   recomendarPlano,
   SESSAO_PROVISORIA,
   sessaoDoCiclo,
   type ContextoAssistente,
 } from '../planoTreinoEngine';
-import {buscarTreino} from '../treinoTipos';
+import {buscarTreino, INTENSIDADES_ORDEM, type IntensidadeTreino} from '../treinoTipos';
+import type {SessaoPlanoTreino} from '../../../types';
 
 const contextoBase: ContextoAssistente = {
   clubeId: 'meu',
@@ -100,5 +104,40 @@ describe('planoTreinoEngine', () => {
       const base = planoDePreset('equilibrado', 'meu', '2026-04-06');
       expect(definirDiaNoPlano(base, 'meu', '2026-04-06', 9, null)).toEqual(base);
     });
+  });
+});
+
+describe('classificações de carga e risco (regras que viviam na tela Semana)', () => {
+  const sessao = (intensidade: IntensidadeTreino): SessaoPlanoTreino => ({
+    treinoId: 'fisico',
+    intensidade,
+  });
+
+  it('pesoIntensidade segue a ordem canônica (descanso=1 … muito_forte=5)', () => {
+    expect(INTENSIDADES_ORDEM.map(pesoIntensidade)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('cargaDaSemana: sem sessões é Folga; média ≤1.4 Leve, ≤2.4 Média, acima Alta', () => {
+    expect(cargaDaSemana([null, null])).toEqual({texto: 'Folga', nivel: 'ok'});
+    expect(cargaDaSemana([sessao('descanso'), null])).toEqual({
+      texto: 'Leve',
+      nivel: 'ok',
+    });
+    // leve(2) + descanso(1) → média 1.5.
+    expect(cargaDaSemana([sessao('leve'), sessao('descanso')])).toEqual({
+      texto: 'Média',
+      nivel: 'atencao',
+    });
+    expect(cargaDaSemana([sessao('muito_forte'), sessao('forte')])).toEqual({
+      texto: 'Alta',
+      nivel: 'alerta',
+    });
+  });
+
+  it('faixaRiscoLesao respeita os limiares 0.005/0.015/0.035 (inclusivos)', () => {
+    expect(faixaRiscoLesao(0.005)).toEqual({texto: 'Muito baixo', nivel: 'ok'});
+    expect(faixaRiscoLesao(0.015)).toEqual({texto: 'Baixo', nivel: 'ok'});
+    expect(faixaRiscoLesao(0.035)).toEqual({texto: 'Médio', nivel: 'atencao'});
+    expect(faixaRiscoLesao(0.036)).toEqual({texto: 'Alto', nivel: 'alerta'});
   });
 });

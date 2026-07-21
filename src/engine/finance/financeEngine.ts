@@ -11,6 +11,27 @@ export function calcularFolhaSalarial(jogadores: Player[]): number {
   return jogadores.reduce((total, jogador) => total + jogador.salario, 0);
 }
 
+/** Peso da folha salarial sobre a receita acumulada (0–100; sem receita → 0). */
+export function pctFolhaSobreReceita(
+  folha: number,
+  receitaTotal: number,
+): number {
+  return receitaTotal > 0 ? Math.min(100, (folha / receitaTotal) * 100) : 0;
+}
+
+export type FaixaFolha = 'saudavel' | 'atencao' | 'critica';
+
+/** Faixa de alerta do peso da folha: >80 crítica, >60 atenção, senão saudável. */
+export function faixaPctFolha(pct: number): FaixaFolha {
+  if (pct > 80) {
+    return 'critica';
+  }
+  if (pct > 60) {
+    return 'atencao';
+  }
+  return 'saudavel';
+}
+
 /**
  * Registra a transação só quando `valor > 0` — guarda única dos pontos de
  * crédito/débito condicionais (patrocínio, manutenção, juros, taxas de
