@@ -38,8 +38,19 @@ maestro studio
 
 ## Flows
 
-- `flows/01-nova-carreira-smoke.yaml` — app sobe, menu responde e o usuário
-  chega até a seleção de clube ao iniciar uma nova carreira.
+Os flows são **incisivos de propósito**: cada tela do caminho tem asserts dos
+elementos-chave + um screenshot numerado. Quando algo quebra, o relatório do
+Maestro aponta o assert exato que falhou e a imagem mostra como a tela estava —
+diagnóstico direto, sem adivinhar.
+
+- `flows/01-nova-carreira-smoke.yaml` — mapeia o fluxo inteiro: menu → seleção
+  de liga → seleção de clube (Flamengo) → confirmação → Home → as 5 tabs
+  (Início/Elenco/Partidas/Mercado/Clube) → volta ao hub. 10 screenshots.
+- `flows/02-fluxo-partida.yaml` — Home → Pré-jogo → partida ao vivo (Central da
+  partida). Assume carreira criada (rodar após o 01). 4 screenshots.
+
+Os screenshots ficam em `~/.maestro/tests/<timestamp>/` (ou no diretório
+corrente, conforme a versão) — junto do log de cada passo.
 
 ## Notas
 

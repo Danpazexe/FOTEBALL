@@ -1,19 +1,62 @@
-# Smoke E2E: o app SOBE, o menu principal responde e o usuário consegue iniciar
-# uma nova carreira até a seleção de clube. Valida a navegação real da UI —
-# feedback exato que os testes de unidade (Jest) não dão.
+# MAPEAMENTO E2E INCISIVO: percorre o fluxo inteiro (menu → nova carreira →
+# as 5 tabs do jogo), ASSERTANDO os elementos-chave de cada tela e tirando
+# SCREENSHOT em todas — quando algo quebrar, o relatório diz exatamente ONDE
+# (assert que falhou) e COMO a tela estava (imagem).
 #
 # Pré-requisitos: Maestro instalado + simulador iOS booted com o FOTEBALL.app
-# instalado (ver .maestro/README.md).
+# (ver .maestro/README.md). Rodar: maestro test .maestro/flows/
 appId: com.pazconcept.foteball
 ---
 - launchApp:
     clearState: true
-# Menu principal: aceita o rótulo de save existente OU de primeira vez.
+
+# ── Tela 1: Menu principal ────────────────────────────────────────────────
+- assertVisible: "FOTEBALL"
+- takeScreenshot: 01-menu-principal
 - tapOn:
     text: "Começar agora|Nova carreira"
-# Seleção de liga (AppBar "Nova carreira" / "Escolha a liga").
+
+# ── Tela 2: Seleção de liga ───────────────────────────────────────────────
+- assertVisible: "Nova carreira"
 - assertVisible: "Escolha a liga"
+- takeScreenshot: 02-selecao-liga
 - tapOn: "Série A"
-# Seleção de clube (subtítulo "Escolha o clube").
+
+# ── Tela 3: Seleção de clube ──────────────────────────────────────────────
 - assertVisible: "Escolha o clube"
-- takeScreenshot: nova-carreira-selecao-clube
+- takeScreenshot: 03-selecao-clube
+- tapOn: "Flamengo"
+# Diálogo de confirmação do clube.
+- assertVisible: "Comandar o Flamengo?"
+- takeScreenshot: 04-confirmacao-clube
+- tapOn:
+    text: "Confirmar|Comandar|Sim|OK"
+
+# ── Tela 4: Home (Início) — o hub da rodada ───────────────────────────────
+- assertVisible: "Próxima partida"
+- assertVisible: "JOGAR PARTIDA"
+- takeScreenshot: 05-home-inicio
+
+# ── Tela 5: tab Elenco ────────────────────────────────────────────────────
+- tapOn: "Elenco"
+- assertVisible: "Elenco"
+- takeScreenshot: 06-tab-elenco
+
+# ── Tela 6: tab Partidas ──────────────────────────────────────────────────
+- tapOn: "Partidas"
+- takeScreenshot: 07-tab-partidas
+
+# ── Tela 7: tab Mercado ───────────────────────────────────────────────────
+- tapOn: "Mercado"
+- assertVisible: "Mercado"
+- takeScreenshot: 08-tab-mercado
+
+# ── Tela 8: tab Clube ─────────────────────────────────────────────────────
+- tapOn: "Clube"
+- assertVisible: "Clube"
+- takeScreenshot: 09-tab-clube
+
+# ── Volta ao Início: o hub continua íntegro após navegar por tudo ────────
+- tapOn: "Início"
+- assertVisible: "JOGAR PARTIDA"
+- takeScreenshot: 10-home-final

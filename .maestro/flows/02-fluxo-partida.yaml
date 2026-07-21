@@ -1,0 +1,27 @@
+# MAPEAMENTO E2E do FLUXO DE PARTIDA (a área mais mexida no refactor):
+# Home → Pré-jogo → partida ao vivo (Central da partida). Asserta os marcos de
+# cada etapa e fotografa tudo — diagnóstico exato quando o fluxo quebrar.
+#
+# Assume um save já em andamento (rodar depois do flow 01, que cria a carreira).
+appId: com.pazconcept.foteball
+---
+- launchApp
+# ── Home: hub da rodada ───────────────────────────────────────────────────
+- assertVisible: "JOGAR PARTIDA"
+- takeScreenshot: 20-home-antes-do-jogo
+- tapOn: "JOGAR PARTIDA"
+
+# ── Pré-jogo: escalação + CTA de jogar ────────────────────────────────────
+- assertVisible: "Pré-jogo"
+- takeScreenshot: 21-pre-jogo
+- tapOn: "Jogar ao vivo"
+
+# ── Central da partida (narração ao vivo) ─────────────────────────────────
+- assertVisible: "Central da partida"
+- takeScreenshot: 22-central-da-partida
+# Deixa o jogo rolar um pouco e registra o meio do caminho (timeout largo:
+# a narração é em tempo real).
+- extendedWaitUntil:
+    visible: "Ajustar time"
+    timeout: 60000
+- takeScreenshot: 23-partida-em-andamento
