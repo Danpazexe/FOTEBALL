@@ -47,10 +47,4 @@ describe('useTemaStore', () => {
     useTemaStore.getState().definirEsquemaSistema('claro');
     expect(useTemaStore.getState().esquemaSistema).toBe('claro');
   });
-
-  it('mantém a ponte do tema antigo (escuro) p/ telas não migradas', () => {
-    const {tema} = useTemaStore.getState();
-    expect(tema).toBeDefined();
-    expect(tema.cores.fundo).toBeDefined();
-  });
 });

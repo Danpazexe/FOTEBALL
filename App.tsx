@@ -23,24 +23,26 @@ import {
   conquistasParaSalvar,
   useAchievementsStore,
 } from './src/store/useAchievementsStore';
-import {type Tema} from './src/theme';
-import {useTemaStore} from './src/store/useTemaStore';
-import {ThemeProvider, useTheme} from './src/design-system';
+import {
+  ThemeProvider,
+  useTheme,
+  type CoresSemanticas,
+} from './src/design-system';
 
 const DEBOUNCE_SALVAR_MS = 800;
 
-/** Tema de navegação derivado da paleta (noite de estádio). */
-function criarTemaNav(tema: Tema): Theme {
+/** Tema de navegação derivado dos tokens do design system (claro/escuro). */
+function criarTemaNav(cores: CoresSemanticas): Theme {
   return {
     ...DefaultTheme,
     colors: {
       ...DefaultTheme.colors,
-      primary: tema.cores.primaria,
-      background: tema.cores.fundo,
-      card: tema.cores.superficie,
-      text: tema.cores.texto,
-      border: tema.cores.borda,
-      notification: tema.cores.secundaria,
+      primary: cores.brand,
+      background: cores.canvas,
+      card: cores.surface,
+      text: cores.textPrimary,
+      border: cores.border,
+      notification: cores.accent,
     },
   };
 }
@@ -52,11 +54,9 @@ function criarTemaNav(tema: Tema): Theme {
 function App(): React.JSX.Element {
   const [carregando, setCarregando] = useState(true);
 
-  // Tema visual: a ponte antiga (escuro) alimenta a navegação/telas não migradas.
-  const temaAtivo = useTemaStore(estado => estado.tema);
-  const temaFoteball = useMemo(() => criarTemaNav(temaAtivo), [temaAtivo]);
-  // Esquema do Design System v2 (claro/escuro) — reage à preferência do usuário.
-  const esquemaDS = useTheme().esquema;
+  // Tema do design system (claro/escuro) — alimenta navegação e StatusBar.
+  const {cores: coresDS, esquema: esquemaDS} = useTheme();
+  const temaFoteball = useMemo(() => criarTemaNav(coresDS), [coresDS]);
 
   // Boot: hidrata o save (se houver) antes de montar a navegação.
   useEffect(() => {
@@ -219,7 +219,7 @@ function App(): React.JSX.Element {
         <ThemeProvider>
           <StatusBar
             barStyle={esquemaDS === 'claro' ? 'dark-content' : 'light-content'}
-            backgroundColor={temaAtivo.cores.fundo}
+            backgroundColor={coresDS.canvas}
           />
           <NavigationContainer theme={temaFoteball}>
             <FeedbackProvider>
