@@ -27,7 +27,7 @@ import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {runOnJS} from 'react-native-reanimated';
 import Svg, {Ellipse, Line, Path, Rect} from 'react-native-svg';
 
-import {trocarTitular} from '../../api/database/seed/defaults';
+import {trocarTitular} from '../../engine/tactics/escalacao';
 import type {ForcaTime} from '../../engine/simulation/teamStrength';
 import {
   coordenadaDoTitular,

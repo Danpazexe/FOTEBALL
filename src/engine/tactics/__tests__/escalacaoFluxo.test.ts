@@ -4,12 +4,12 @@
  * titular por um reserva (toque), e mover jogadores entre Banco e "Fora do jogo".
  * Garante o comportamento de ponta a ponta (não só peças isoladas).
  */
-import {montarFormacao, trocarTitular} from '../defaults';
+import {montarFormacao, trocarTitular} from '../escalacao';
 import {
   TAMANHO_BANCO,
   alternarBanco,
-} from '../../../../engine/tactics/formacaoOps';
-import type {Player, Position} from '../../../../types';
+} from '../formacaoOps';
+import type {Player, Position} from '../../../types';
 
 function jogador(
   id: string,

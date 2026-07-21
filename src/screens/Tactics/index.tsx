@@ -25,7 +25,7 @@ import {
 import {
   FORMACOES_DISPONIVEIS,
   montarFormacao,
-} from '../../api/database/seed/defaults';
+} from '../../engine/tactics/escalacao';
 import {ESTRATEGIAS, estrategiaAtiva} from '../../engine/tactics/estrategias';
 import {useAppNavigation} from '../../navigation/types';
 import {

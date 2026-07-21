@@ -4,7 +4,7 @@
  * que já existiam (ex.: titular que ficou indisponível e ainda não foi trocado)
  * não podem travar substituições/edições legítimas, inclusive durante a partida.
  */
-import {trocarTitular} from '../../api/database/seed/defaults';
+import {trocarTitular} from '../../engine/tactics/escalacao';
 import {useGameStore} from '../useGameStore';
 
 const estado = () => useGameStore.getState();

@@ -14,7 +14,7 @@
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Animated, ScrollView, StyleSheet, View} from 'react-native';
 
-import {trocarTitular} from '../../api/database/seed/defaults';
+import {trocarTitular} from '../../engine/tactics/escalacao';
 import {
   definirSomHabilitado,
   definirVolumeEfeitos,

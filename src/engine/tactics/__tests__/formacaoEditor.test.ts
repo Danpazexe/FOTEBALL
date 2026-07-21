@@ -1,5 +1,5 @@
-import {montarFormacao, trocarEsquema, trocarTitular} from '../defaults';
-import type {Player, Position} from '../../../../types';
+import {montarFormacao, trocarEsquema, trocarTitular} from '../escalacao';
+import type {Player, Position} from '../../../types';
 
 function jogador(id: string, posicao: Position, overall: number): Player {
   return {
