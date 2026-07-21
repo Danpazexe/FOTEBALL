@@ -6,7 +6,7 @@
  * o jogo conhece (overall + potencial); nada é inventado.
  */
 import React, {useMemo, useState} from 'react';
-import {ScrollView, StyleSheet, TextInput, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {
   AppBar,
@@ -23,8 +23,8 @@ import {
   SegmentedTabs,
   TeamCrest,
   Text,
+  TextField,
   espacamento,
-  raios,
   useTheme,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
@@ -278,21 +278,12 @@ function TransferMarket(): React.JSX.Element {
       <SegmentedTabs abas={abas} ativa={aba} onSelect={c => setAba(c as Aba)} />
 
       {buscaAberta ? (
-        <TextInput
+        <TextField
           value={busca}
           onChangeText={setBusca}
           autoFocus
           placeholder="Buscar por nome"
-          placeholderTextColor={cores.textMuted}
           accessibilityLabel="Buscar por nome"
-          style={[
-            styles.busca,
-            {
-              backgroundColor: cores.surfaceSubtle,
-              borderColor: cores.border,
-              color: cores.textPrimary,
-            },
-          ]}
         />
       ) : null}
 
@@ -505,14 +496,6 @@ export default TransferMarket;
 const styles = StyleSheet.create({
   flex: {flex: 1},
   headerAcoes: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
-  busca: {
-    borderRadius: raios.md,
-    borderWidth: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingHorizontal: espacamento[3],
-    paddingVertical: espacamento[2],
-  },
   orcamento: {gap: espacamento[3]},
   orcamentoLinha: {flexDirection: 'row', gap: espacamento[3]},
   filtros: {flexDirection: 'row', gap: espacamento[2], paddingRight: espacamento[4]},

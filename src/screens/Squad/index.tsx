@@ -6,7 +6,7 @@
  * física · humor — com destaque para lesão/suspensão. Tocar abre o detalhe.
  */
 import React, {useMemo, useState} from 'react';
-import {ScrollView, StyleSheet, TextInput, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {nomeCurto} from '../../utils/formatters';
 import {normalizarTexto} from '../../utils/texto';
@@ -26,8 +26,8 @@ import {
   Screen,
   SegmentedTabs,
   Text,
+  TextField,
   espacamento,
-  raios,
   useTheme,
   type CorTexto,
 } from '../../design-system';
@@ -155,21 +155,12 @@ function Squad(): React.JSX.Element {
       />
 
       {buscaAberta ? (
-        <TextInput
+        <TextField
           value={busca}
           onChangeText={setBusca}
           autoFocus
           placeholder="Buscar por nome"
-          placeholderTextColor={cores.textMuted}
           accessibilityLabel="Buscar por nome"
-          style={[
-            styles.busca,
-            {
-              backgroundColor: cores.surfaceSubtle,
-              borderColor: cores.border,
-              color: cores.textPrimary,
-            },
-          ]}
         />
       ) : null}
 
@@ -348,14 +339,6 @@ export default Squad;
 
 const styles = StyleSheet.create({
   headerAcoes: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
-  busca: {
-    borderRadius: raios.md,
-    borderWidth: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingHorizontal: espacamento[3],
-    paddingVertical: espacamento[2],
-  },
   chipsRow: {flexDirection: 'row', gap: espacamento[2], paddingRight: espacamento[4]},
   // Destaque
   destaque: {gap: espacamento[3]},

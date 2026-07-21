@@ -5,7 +5,7 @@
  * (fazerPropostaCompra), tratando contraproposta/aceite/recusa. DS v2.
  */
 import React, {useMemo, useState} from 'react';
-import {StyleSheet, TextInput, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import {
@@ -17,9 +17,8 @@ import {
   PositionBadge,
   Screen,
   Text,
+  TextField,
   espacamento,
-  raios,
-  useTheme,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
 import {useToast} from '../../components/feedback';
@@ -43,7 +42,6 @@ import {simboloMoeda} from '../../engine/competitions/registry/competitionRegist
 
 function Negociacao(): React.JSX.Element {
   const nav = useMercadoNavigation();
-  const {cores} = useTheme();
   const toast = useToast();
   const route = useRoute<RouteProp<MercadoStackParamList, 'Negociacao'>>();
   const {jogadorId} = route.params;
@@ -151,21 +149,13 @@ function Negociacao(): React.JSX.Element {
         <Text variant="labelM" color="textSecondary" style={styles.caps}>
           Valor da proposta
         </Text>
-        <TextInput
+        <TextField
+          variante="valorDestaque"
           keyboardType="numeric"
           value={valorInput}
           onChangeText={setValorInput}
           accessibilityLabel="Valor da proposta"
           placeholder="Valor da proposta"
-          placeholderTextColor={cores.textMuted}
-          style={[
-            styles.input,
-            {
-              backgroundColor: cores.surfaceSubtle,
-              borderColor: cores.border,
-              color: cores.textPrimary,
-            },
-          ]}
         />
         {contra !== null ? (
           <Text variant="labelM" color="warning">
@@ -237,14 +227,6 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   secao: {gap: espacamento[2]},
-  input: {
-    borderRadius: raios.md,
-    borderWidth: 1,
-    fontSize: 18,
-    fontWeight: '800',
-    paddingHorizontal: espacamento[3],
-    paddingVertical: espacamento[3],
-  },
   orcamentoLinha: {
     flexDirection: 'row',
     alignItems: 'center',
