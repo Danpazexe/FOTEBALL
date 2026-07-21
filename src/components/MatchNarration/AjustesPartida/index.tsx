@@ -23,8 +23,12 @@ import Animated, {useAnimatedStyle, useSharedValue} from 'react-native-reanimate
 import {trocarEsquema, trocarTitular} from '../../../api/database/seed/defaults';
 // Funções de cor por VALOR (tier/encaixe/condição) — fonte única compartilhada
 // com as demais telas de escalação; ainda vivem no módulo de tema antigo.
-import {corOverall} from '../../../theme';
-import {espacamento, useEstilosDS, useTheme} from '../../../design-system';
+import {
+  espacamento,
+  faixaCorOverall,
+  useEstilosDS,
+  useTheme,
+} from '../../../design-system';
 import type {Formacao, FormacaoPreset, Player, Tatica} from '../../../types';
 import Icone from '../../Icone';
 import {
@@ -594,12 +598,12 @@ function AjustesPartida({
             <View
               style={[
                 styles.ghostFicha,
-                {borderColor: corOverall(jogadorArrastado.overall)},
+                {borderColor: cores[faixaCorOverall(jogadorArrastado.overall)]},
               ]}>
               <Text
                 style={[
                   styles.ghostOverall,
-                  {color: corOverall(jogadorArrastado.overall)},
+                  {color: cores[faixaCorOverall(jogadorArrastado.overall)]},
                 ]}>
                 {jogadorArrastado.overall}
               </Text>

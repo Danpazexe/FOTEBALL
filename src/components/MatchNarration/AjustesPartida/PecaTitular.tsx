@@ -3,8 +3,7 @@ import React from 'react';
 import {Text, View} from 'react-native';
 import {GestureDetector} from 'react-native-gesture-handler';
 
-import {corAdaptacao} from '../../../theme';
-import {useEstilosDS, useTheme} from '../../../design-system';
+import {corEncaixe, useEstilosDS, useTheme} from '../../../design-system';
 import {nivelAdaptacao} from '../../../engine/tactics/adaptacao';
 import type {Player} from '../../../types';
 import {DIAM, SLOT_W} from './constantes';
@@ -52,17 +51,15 @@ function PecaTitular({
     aoTocar,
     aoFinalizar,
   );
-  // Anel por ENCAIXE de posição (verde natural → vermelho improviso), a mesma
-  // semântica/cor do DraggablePitch — as telas de escalação seguem um padrão só.
+  // Anel por ENCAIXE de posição: neutro quando natural (caso comum, sem alarde);
+  // só os desvios ganham cor (similar/adaptado/improviso) — corEncaixe do DS.
   const adaptacao = jogador ? nivelAdaptacao(jogador, slot.posicao) : null;
-  const corEncaixe = adaptacao
-    ? corAdaptacao(adaptacao.nivel)
-    : cores.textSecondary;
+  const corFit = adaptacao ? corEncaixe(adaptacao.nivel, cores) : null;
   const corBorda = hover
     ? cores.accent
     : selecionado
       ? cores.brand
-      : corEncaixe;
+      : (corFit ?? cores.textSecondary);
   const pct = adaptacao ? Math.round(adaptacao.fator * 100) : 100;
   return (
     <GestureDetector gesture={gesto}>

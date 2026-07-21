@@ -25,6 +25,7 @@ import {
   StatValue,
   Text,
   espacamento,
+  faixaCorOverall,
   raios,
   useTheme,
   type CorTexto,
@@ -36,7 +37,6 @@ import {
 } from '../../engine/progression/treinoIndividual';
 import type {IconeNome} from '../../components/Icone';
 import {useConfirm, useToast} from '../../components/feedback';
-import {corOverall} from '../../theme';
 import {moeda, nomeClube} from '../../utils/formatters';
 import {simboloMoeda} from '../../engine/competitions/registry/competitionRegistry';
 import {HABILIDADES} from '../../engine/progression/habilidades';
@@ -111,6 +111,7 @@ function PlayerDetail(): React.JSX.Element {
   const nav = useAppNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'PlayerDetail'>>();
   const {jogadorId} = route.params;
+  const {cores} = useTheme();
 
   // Mercado universal: o jogador pode ser de outra liga (liga ativa vence).
   const jogador = useGameStore(
@@ -311,7 +312,7 @@ function PlayerDetail(): React.JSX.Element {
           <StatBar
             valor={jogador.overall}
             max={jogador.potencial}
-            cor={corOverall(jogador.overall)}
+            cor={cores[faixaCorOverall(jogador.overall)]}
             mostrarValor={false}
           />
           <Text variant="caption" color="textSecondary">
@@ -534,7 +535,7 @@ function AtributoLinha({
   onPress?: () => void;
 }): React.JSX.Element {
   const {cores} = useTheme();
-  const cor = corOverall(valor);
+  const cor = cores[faixaCorOverall(valor)];
   const pctProgresso = Math.max(0, Math.min(100, progresso));
   const Container = onPress ? Pressable : View;
   return (

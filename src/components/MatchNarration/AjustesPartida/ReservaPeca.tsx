@@ -3,8 +3,7 @@ import React from 'react';
 import {Text, View} from 'react-native';
 import {GestureDetector} from 'react-native-gesture-handler';
 
-import {corOverall} from '../../../theme';
-import {useEstilosDS} from '../../../design-system';
+import {faixaCorOverall, useEstilosDS, useTheme} from '../../../design-system';
 import type {Player} from '../../../types';
 import {criarEstilos} from './estilos';
 import type {PecaCompartilhada} from './tipos';
@@ -47,7 +46,8 @@ function ReservaPeca({
     aoTocar,
     aoFinalizar,
   );
-  const cor = corOverall(jogador.overall);
+  const {cores} = useTheme();
+  const cor = cores[faixaCorOverall(jogador.overall)];
   return (
     <GestureDetector gesture={gesto}>
       <View

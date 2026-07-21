@@ -10,6 +10,7 @@ import Svg, {Circle} from 'react-native-svg';
 
 import {Text} from '../../primitives/Text';
 import {useTheme} from '../../themes/useTheme';
+import {faixaCorOverall} from '../../tokens/colors';
 
 type Props = {
   valor: number;
@@ -29,8 +30,7 @@ export function OverallRing({
   const r = (tamanho - stroke) / 2;
   const c = 2 * Math.PI * r;
   const centro = tamanho / 2;
-  const corArco =
-    v >= 75 ? cores.success : v >= 60 ? cores.warning : cores.danger;
+  const corArco = cores[faixaCorOverall(v)];
 
   return (
     <View style={styles.wrap}>

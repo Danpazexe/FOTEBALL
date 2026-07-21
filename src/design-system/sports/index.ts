@@ -9,3 +9,4 @@ export {
   LIMIAR_CONDICAO_MEDIA,
 } from './corCondicao';
 export {contrasteTexto, corDoTime} from './corDoTime';
+export {corEncaixe} from './corEncaixe';

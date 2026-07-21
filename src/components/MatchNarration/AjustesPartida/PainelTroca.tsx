@@ -7,8 +7,13 @@
 import React from 'react';
 import {Pressable, ScrollView, Text, View} from 'react-native';
 
-import {corAdaptacao, corOverall} from '../../../theme';
-import {corCondicao, useEstilosDS, useTheme} from '../../../design-system';
+import {
+  corCondicao,
+  corEncaixe,
+  faixaCorOverall,
+  useEstilosDS,
+  useTheme,
+} from '../../../design-system';
 import type {NivelAdaptacao} from '../../../engine/tactics/adaptacao';
 import type {Player, Position} from '../../../types';
 import Icone from '../../Icone';
@@ -97,8 +102,9 @@ function PainelTroca({
             style={styles.trocaLista}
             showsVerticalScrollIndicator={false}>
             {candidatos.map(({jogador, adaptacao}) => {
-              const cor = corOverall(jogador.overall);
-              const corFit = corAdaptacao(adaptacao.nivel);
+              const cor = cores[faixaCorOverall(jogador.overall)];
+              // null quando natural: chip neutro (borda/texto), sem tinta.
+              const corFit = corEncaixe(adaptacao.nivel, cores);
               const rotulo =
                 adaptacao.nivel === 'natural'
                   ? ROTULO_FIT.natural
@@ -143,9 +149,15 @@ function PainelTroca({
                   <View
                     style={[
                       styles.trocaFit,
-                      {borderColor: corFit, backgroundColor: `${corFit}1A`},
+                      corFit
+                        ? {borderColor: corFit, backgroundColor: `${corFit}1A`}
+                        : {borderColor: cores.border},
                     ]}>
-                    <Text style={[styles.trocaFitTexto, {color: corFit}]}>
+                    <Text
+                      style={[
+                        styles.trocaFitTexto,
+                        {color: corFit ?? cores.textSecondary},
+                      ]}>
                       {rotulo}
                     </Text>
                   </View>
