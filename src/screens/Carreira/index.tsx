@@ -15,6 +15,7 @@ import {
   OverallRing,
   ProgressBar,
   Screen,
+  StatValue,
   TeamCrest,
   Text,
   espacamento,
@@ -119,13 +120,35 @@ function Carreira(): React.JSX.Element {
         Desempenho geral
       </Text>
       <Card variante="outlined" style={styles.statsRow}>
-        <CelulaStat valor={campanha.jogos} rotulo="Jogos" />
+        <StatValue
+          value={String(campanha.jogos)}
+          label="Jogos"
+          align="center"
+          style={styles.flex}
+        />
         <Divider vertical />
-        <CelulaStat valor={campanha.vitorias} rotulo="Vitórias" tom="success" />
+        <StatValue
+          value={String(campanha.vitorias)}
+          label="Vitórias"
+          tom="success"
+          align="center"
+          style={styles.flex}
+        />
         <Divider vertical />
-        <CelulaStat valor={campanha.empates} rotulo="Empates" />
+        <StatValue
+          value={String(campanha.empates)}
+          label="Empates"
+          align="center"
+          style={styles.flex}
+        />
         <Divider vertical />
-        <CelulaStat valor={campanha.derrotas} rotulo="Derrotas" tom="danger" />
+        <StatValue
+          value={String(campanha.derrotas)}
+          label="Derrotas"
+          tom="danger"
+          align="center"
+          style={styles.flex}
+        />
       </Card>
 
       {/* Aproveitamento + Confiança (anéis) */}
@@ -175,27 +198,6 @@ function Carreira(): React.JSX.Element {
   );
 }
 
-function CelulaStat({
-  valor,
-  rotulo,
-  tom = 'textPrimary',
-}: {
-  valor: number;
-  rotulo: string;
-  tom?: 'textPrimary' | 'success' | 'danger';
-}): React.JSX.Element {
-  return (
-    <View style={styles.celula}>
-      <Text variant="titleL" color={tom} tabular>
-        {valor}
-      </Text>
-      <Text variant="caption" color="textSecondary">
-        {rotulo}
-      </Text>
-    </View>
-  );
-}
-
 export default Carreira;
 
 const styles = StyleSheet.create({
@@ -205,7 +207,6 @@ const styles = StyleSheet.create({
   jornadaCard: {gap: espacamento[2]},
   jornadaTopo: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
   statsRow: {flexDirection: 'row', alignItems: 'center'},
-  celula: {flex: 1, alignItems: 'center', gap: 2},
   aneisRow: {flexDirection: 'row', alignItems: 'center'},
   anel: {flex: 1, alignItems: 'center'},
   divisorV: {width: StyleSheet.hairlineWidth, alignSelf: 'stretch'},
