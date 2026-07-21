@@ -27,6 +27,9 @@ import {
   SegmentedTabs,
   Text,
   TextField,
+  LIMIAR_CONDICAO_ALTA,
+  LIMIAR_CONDICAO_MEDIA,
+  corCondicao,
   espacamento,
   useTheme,
   type CorTexto,
@@ -54,20 +57,18 @@ const FILTROS: FiltroPosicao[] = ['Todos', ...ORDEM_POSICOES];
 
 /**
  * Emote de condição — SEGUE A MESMA REGRA DA BARRA de condição física (limiares
- * 75/50), então barra e emote ficam SEMPRE da mesma cor no mesmo momento. Os
- * tokens success/warning/danger são idênticos a esporte.fitness.high/medium/low.
+ * canônicos de `corCondicao` no design system), então barra e emote ficam
+ * SEMPRE da mesma cor no mesmo momento. Os tokens success/warning/danger são
+ * idênticos a esporte.fitness.high/medium/low.
  * (Antes o emote olhava a moral — quase uniforme no jogo — e ficava sempre verde.)
  */
-const LIMIAR_COND_ALTA = 75;
-const LIMIAR_COND_MEDIA = 50;
-
 function humorJogador(
   condicao: number,
 ): {icone: IconeNome; cor: CorTexto; rotulo: string} {
-  if (condicao >= LIMIAR_COND_ALTA) {
+  if (condicao >= LIMIAR_CONDICAO_ALTA) {
     return {icone: 'humor-bom', cor: 'success', rotulo: 'Descansado'};
   }
-  if (condicao >= LIMIAR_COND_MEDIA) {
+  if (condicao >= LIMIAR_CONDICAO_MEDIA) {
     return {icone: 'humor-cansado', cor: 'warning', rotulo: 'Cansado'};
   }
   return {icone: 'humor-ruim', cor: 'danger', rotulo: 'Exausto'};
@@ -281,14 +282,8 @@ function LinhaJogador({
   onPress: () => void;
 }): React.JSX.Element {
   const {esporte} = useTheme();
-  const cf = jogador.condicaoFisica;
   // Mesmos limiares do emote (humorJogador) → barra e emote na mesma cor.
-  const corCf =
-    cf >= LIMIAR_COND_ALTA
-      ? esporte.fitness.high
-      : cf >= LIMIAR_COND_MEDIA
-      ? esporte.fitness.medium
-      : esporte.fitness.low;
+  const corCf = corCondicao(jogador.condicaoFisica, esporte);
   const indisponivel = jogador.lesionado || jogador.suspenso;
   // "Amarelado": tem amarelo acumulado rumo ao gancho (limiar 2) — mas ainda apto.
   const amarelado = !indisponivel && (jogador.amarelosParaSuspensao ?? 0) > 0;

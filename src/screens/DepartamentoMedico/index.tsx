@@ -19,6 +19,7 @@ import {
   Screen,
   SegmentedTabs,
   Text,
+  corCondicao,
   espacamento,
   useTheme,
   type CorTexto,
@@ -248,12 +249,7 @@ function DepartamentoMedico(): React.JSX.Element {
         <View style={styles.lista}>
           {lista.map(({j, estado}) => {
             const lesionado = estado === 'lesionado';
-            const corCond =
-              j.condicaoFisica >= 75
-                ? esporte.fitness.high
-                : j.condicaoFisica >= 50
-                ? esporte.fitness.medium
-                : esporte.fitness.low;
+            const corCond = corCondicao(j.condicaoFisica, esporte);
             const progresso = lesionado
               ? Math.max(5, 100 - j.diasLesao * 6)
               : j.condicaoFisica;

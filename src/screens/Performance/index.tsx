@@ -21,6 +21,7 @@ import {
   SectionHeader,
   SegmentedTabs,
   Text,
+  corCondicao,
   espacamento,
   useTheme,
   type CorTexto,
@@ -83,12 +84,7 @@ function Performance(): React.JSX.Element {
   const elenco = useJogadoresUsuario();
 
   // Cor do medidor pela FAIXA (verde/âmbar/vermelho de fitness do tema).
-  const corFaixa = (v: number): string =>
-    v >= 75
-      ? esporte.fitness.high
-      : v >= 50
-      ? esporte.fitness.medium
-      : esporte.fitness.low;
+  const corFaixa = (v: number): string => corCondicao(v, esporte);
   // Fadiga é ruim quando alta → inverte a leitura de cor.
   const corFadiga = (v: number): string =>
     v <= 40

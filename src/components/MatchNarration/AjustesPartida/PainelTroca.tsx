@@ -7,8 +7,8 @@
 import React from 'react';
 import {Pressable, ScrollView, Text, View} from 'react-native';
 
-import {corAdaptacao, corCondicao, corOverall} from '../../../theme';
-import {useEstilosDS, useTheme} from '../../../design-system';
+import {corAdaptacao, corOverall} from '../../../theme';
+import {corCondicao, useEstilosDS, useTheme} from '../../../design-system';
 import type {NivelAdaptacao} from '../../../engine/tactics/adaptacao';
 import type {Player, Position} from '../../../types';
 import Icone from '../../Icone';
@@ -43,7 +43,7 @@ function PainelTroca({
   onFechar,
 }: PainelTrocaProps): React.JSX.Element {
   const styles = useEstilosDS(criarEstilos);
-  const {cores} = useTheme();
+  const {cores, esporte} = useTheme();
   return (
     <View style={styles.trocaOverlay}>
       <Pressable
@@ -77,7 +77,7 @@ function PainelTroca({
             <View
               style={[
                 styles.condDot,
-                {backgroundColor: corCondicao(saindo.condicaoFisica)},
+                {backgroundColor: corCondicao(saindo.condicaoFisica, esporte)},
               ]}
             />
             <Text style={styles.trocaSaiInfo}>
@@ -128,7 +128,10 @@ function PainelTroca({
                         style={[
                           styles.condDot,
                           {
-                            backgroundColor: corCondicao(jogador.condicaoFisica),
+                            backgroundColor: corCondicao(
+                              jogador.condicaoFisica,
+                              esporte,
+                            ),
                           },
                         ]}
                       />

@@ -406,16 +406,8 @@ export function corAdaptacao(
   return cores.perigo;
 }
 
-/** Cor da barra de condição física (verde→amarelo→vermelho). */
-export function corCondicao(valor: number): string {
-  if (valor >= 75) {
-    return cores.primaria;
-  }
-  if (valor >= 45) {
-    return cores.secundaria;
-  }
-  return cores.perigo;
-}
+// corCondicao migrou para o design system: `corCondicao(valor, esporte)` em
+// src/design-system/sports/corCondicao (fonte única, mesmos limiares 75/45).
 
 /**
  * Paleta de cores "de camisa" para identificar visualmente cada clube na

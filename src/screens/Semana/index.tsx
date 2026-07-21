@@ -19,6 +19,8 @@ import {
   Pressable,
   Screen,
   Text,
+  LIMIAR_CONDICAO_ALTA,
+  LIMIAR_CONDICAO_MEDIA,
   espacamento,
   raios,
   useTheme,
@@ -141,8 +143,14 @@ function media(valores: number[]): number {
 function corMoralTom(moral: number): CorTexto {
   return moral >= 75 ? 'success' : moral >= 50 ? 'warning' : 'danger';
 }
+// Gêmea em TOKEN da `corCondicao` do design system (success/warning/danger têm
+// os mesmos hex de fitness.high/medium/low) — limiares vêm da fonte única.
 function corCondicaoTom(valor: number): CorTexto {
-  return valor >= 75 ? 'success' : valor >= 45 ? 'warning' : 'danger';
+  return valor >= LIMIAR_CONDICAO_ALTA
+    ? 'success'
+    : valor >= LIMIAR_CONDICAO_MEDIA
+    ? 'warning'
+    : 'danger';
 }
 
 function Semana(): React.JSX.Element {
