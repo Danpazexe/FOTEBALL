@@ -16,7 +16,8 @@ export type DestinoPendencia =
   | 'mercado'
   | 'academia'
   | 'clube'
-  | 'gabinete';
+  | 'gabinete'
+  | 'contratos';
 
 export interface Pendencia {
   id: string;
@@ -34,6 +35,11 @@ export interface EntradaPendencias {
   propostas: number;
   /** Jovens da base disponíveis para avaliação. */
   jovens: number;
+  /**
+   * Contratos do elenco vencendo NA temporada atual (critério canônico de
+   * urgência da tela Contratos: `contratoVenceNaTemporada`).
+   */
+  contratosVencendo: number;
   /** Saldo do clube abaixo de zero. */
   saldoNegativo: boolean;
   /** Texto do saldo (ex.: "-R$ 2,3 mi") para o subtítulo. */
@@ -96,6 +102,20 @@ export function derivarPendencias(e: EntradaPendencias): Pendencia[] {
       icone: 'conversa',
       tom: 'warning',
       destino: 'gabinete',
+    });
+  }
+
+  if (e.contratosVencendo > 0) {
+    lista.push({
+      id: 'contratos',
+      titulo:
+        e.contratosVencendo === 1
+          ? '1 contrato vence nesta temporada'
+          : `${e.contratosVencendo} contratos vencem nesta temporada`,
+      subtitulo: 'Renove antes que saiam de graça',
+      icone: 'ficha',
+      tom: 'warning',
+      destino: 'contratos',
     });
   }
 

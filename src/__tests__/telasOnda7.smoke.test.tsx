@@ -42,7 +42,6 @@ jest.mock('@react-navigation/native', () => ({
   useRoute: () => mockRota,
 }));
 
-import PendenciasClube from '../screens/PendenciasClube';
 import Performance from '../screens/Performance';
 import Desenvolvimento from '../screens/Desenvolvimento';
 import Semana from '../screens/Semana';
@@ -75,21 +74,6 @@ describe('telas da Onda 7 — smoke de runtime', () => {
       estado().reiniciarCarreira();
       estado().iniciarNovaCarreira(estado().clubes[3].id);
     });
-  });
-
-  it('Pendências do clube renderiza a pendência de treino da carreira nova', () => {
-    const {textos} = render(<PendenciasClube />);
-    expect(textos).toContain('Pendências do clube');
-    // Carreira nova nasce com "Definir plano de treino".
-    expect(textos).toContain('Definir plano de treino');
-  });
-
-  it('Pendências: EmptyState quando não há pendências', () => {
-    act(() => useGameStore.setState({pendencias: []}));
-    const {textos} = render(<PendenciasClube />);
-    expect(textos).toContain('Pendências do clube');
-    // Sem crash; algum conteúdo de "tudo em dia" aparece.
-    expect(textos.length).toBeGreaterThan(0);
   });
 
   it('Performance renderiza os medidores do elenco (CON/FAD/RIT)', () => {

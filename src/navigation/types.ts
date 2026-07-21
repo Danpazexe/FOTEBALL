@@ -76,9 +76,6 @@ export type RootStackParamList = {
   PlayerDetail: {jogadorId: string};
   /** Ficha de elenco de um clube qualquer (ex.: tocar um time na Classificação). */
   ElencoClube: {clubeId: string};
-  /** Hub de atalhos/notificações — saiu da tab bar, agora é tela de stack. */
-  Central: undefined;
-  PendenciasClube: undefined;
   /** `copa: true` joga o confronto da Copa do usuário (em vez do jogo da liga). */
   MatchSimulation: {copa?: boolean} | undefined;
   MatchResult: {partidaId: string};
@@ -95,7 +92,7 @@ export type RootStackParamList = {
   Contratos: undefined;
   Tactics: undefined;
   Demissao: undefined;
-  /** Ajustes saiu da tab bar; agora é tela de stack (acessível pela Central). */
+  /** Ajustes saiu da tab bar; agora é tela de stack (acessível pela Home). */
   Settings: undefined;
 };
 

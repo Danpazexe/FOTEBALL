@@ -141,6 +141,11 @@ function Squad(): React.JSX.Element {
                 tom={filtroAberto || filtro !== 'Todos' ? 'brand' : 'textPrimary'}
               />
               <IconButton
+                icone="tendencia"
+                onPress={() => nav.navigate('Desenvolvimento')}
+                accessibilityLabel="Desenvolvimento do elenco"
+              />
+              <IconButton
                 icone="lesao"
                 onPress={() => nav.navigate('DepartamentoMedico')}
                 accessibilityLabel="Departamento médico"

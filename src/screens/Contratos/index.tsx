@@ -22,14 +22,11 @@ import {
 import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, useJogadoresUsuario} from '../../store/useGameStore';
+import {anoContrato, contratoVenceNaTemporada} from '../../utils/contratos';
 import {moeda} from '../../utils/formatters';
 import type {Player} from '../../types';
 
 const ANOS_OPCOES = [1, 2, 3];
-
-function anoContrato(contratoAte: string): number {
-  return Number(contratoAte.slice(0, 4));
-}
 
 function Contratos(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -91,7 +88,7 @@ function Contratos(): React.JSX.Element {
         <View style={styles.lista}>
           {aRenovar.map(jogador => {
             const ano = anoContrato(jogador.contratoAte);
-            const urgente = ano <= anoAtual;
+            const urgente = contratoVenceNaTemporada(jogador.contratoAte, anoAtual);
             return (
               <Card key={jogador.id} variante="outlined" style={styles.card}>
                 <OverallBadge overall={jogador.overall} />

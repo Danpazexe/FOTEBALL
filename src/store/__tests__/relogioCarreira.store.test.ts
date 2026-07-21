@@ -1,7 +1,7 @@
 /**
  * RELÓGIO DA CARREIRA no store (Onda 3): a data anda pelo pipeline no avanço
- * por evento, lesões correm em dias reais, a copa desgasta os titulares e a
- * Central de Pendências nasce com a carreira.
+ * por evento, lesões correm em dias reais, a copa desgasta os titulares e as
+ * pendências da carreira nascem com ela.
  */
 import {useGameStore} from '../useGameStore';
 
@@ -12,7 +12,7 @@ describe('relógio da carreira (Onda 3)', () => {
     estado().reiniciarCarreira();
   });
 
-  it('carreira nova nasce com a pendência "Definir plano de treino" na Central', () => {
+  it('carreira nova nasce com a pendência "Definir plano de treino"', () => {
     const usuario = estado().clubes[3];
     estado().iniciarNovaCarreira(usuario.id);
     const pendencia = estado().pendencias.find(
@@ -110,7 +110,7 @@ describe('relógio da carreira (Onda 3)', () => {
     ).toBe(true);
   });
 
-  it('proposta da IA que expira na próxima rodada vira pendência da Central', () => {
+  it('proposta da IA que expira na próxima rodada vira pendência da carreira', () => {
     const usuario = estado().clubes[3];
     estado().iniciarNovaCarreira(usuario.id);
     const meu = estado().jogadores.find(j => j.clubeId === usuario.id)!;

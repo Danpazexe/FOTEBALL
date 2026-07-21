@@ -54,6 +54,7 @@ import {
   useGameStore,
 } from '../../store/useGameStore';
 import {limiteDerrotasPorDivisao} from '../../store/helpers';
+import {contratoVenceNaTemporada} from '../../utils/contratos';
 import {moedaCompacta, nomeClube} from '../../utils/formatters';
 import {horarioProvavel, rotuloRelativo} from '../../utils/datas';
 import {
@@ -332,6 +333,20 @@ function Home(): React.JSX.Element {
     ).length;
   }, [jogadores, clubeUsuarioId]);
 
+  // Contratos do elenco vencendo NA temporada atual — mesmo critério de
+  // urgência da tela Contratos (helper compartilhado).
+  const contratosVencendo = useMemo(() => {
+    if (!clubeUsuarioId) {
+      return 0;
+    }
+    const anoAtual = Number(temporadaAtual);
+    return jogadores.filter(
+      j =>
+        j.clubeId === clubeUsuarioId &&
+        contratoVenceNaTemporada(j.contratoAte, anoAtual),
+    ).length;
+  }, [jogadores, clubeUsuarioId, temporadaAtual]);
+
   // Pendências do técnico — agrega sinais reais numa lista acionável priorizada.
   const pendencias = useMemo(
     () =>
@@ -339,6 +354,7 @@ function Home(): React.JSX.Element {
         indisponiveis,
         propostas: numPropostas,
         jovens: jovensDisponiveis.length,
+        contratosVencendo,
         saldoNegativo: (clubeUsuario?.financas.saldo ?? 0) < 0,
         saldoTexto: moedaCompacta(clubeUsuario?.financas.saldo ?? 0),
         metaForaDoRumo: !metaNoRumo,
@@ -347,6 +363,7 @@ function Home(): React.JSX.Element {
       indisponiveis,
       numPropostas,
       jovensDisponiveis.length,
+      contratosVencendo,
       clubeUsuario,
       metaNoRumo,
     ],
@@ -507,6 +524,9 @@ function Home(): React.JSX.Element {
         return;
       case 'gabinete':
         nav.navigate('Gabinete');
+        return;
+      case 'contratos':
+        nav.navigate('Contratos');
         return;
     }
   };
