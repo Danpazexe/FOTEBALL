@@ -2591,55 +2591,46 @@ export const useGameStore = create<GameState>((set, get) => ({
       }));
       return;
     }
-    const jogadores = state.jogadores.map(item =>
-      item.id === proposta.jogadorId
-        ? {...item, clubeId: comprador.id}
-        : item,
-    );
-    const clubes = state.clubes.map(clube => {
-      if (clube.id === state.clubeUsuarioId) {
-        return registrarTransacao(
-          {...clube, elenco: clube.elenco.filter(id => id !== proposta.jogadorId)},
-          {
-            data: `${state.temporadaAtual}-mercado`,
-            tipo: 'receita',
-            categoria: 'vendaJogadores',
-            valor: proposta.valorProposto,
-            descricao: `Venda de ${jogador.nome}`,
-          },
-        );
-      }
-      if (clube.id === comprador.id) {
-        // Conservação de dinheiro: o clube comprador da IA paga o que o
-        // usuário recebe (mesma simetria de comprarJogador/fazerPropostaCompra).
-        return registrarTransacao(
-          {...clube, elenco: [...clube.elenco, proposta.jogadorId]},
-          {
-            data: `${state.temporadaAtual}-mercado`,
-            tipo: 'despesa',
-            categoria: 'contratacoes',
-            valor: proposta.valorProposto,
-            descricao: `Compra de ${jogador.nome}`,
-          },
-        );
-      }
-      return clube;
+    // PORTA ÚNICA de transferência (AD-07): a venda ao clube da IA passa pelo
+    // applyTransfer via aplicarNegocioGlobal — finanças simétricas, elencos
+    // coerentes, FORMAÇÃO REPARADA (vender titular promove reserva) e registro
+    // no histórico, iguais aos demais negócios. Nada de caixa manual paralelo.
+    const resultado = aplicarNegocioGlobal({
+      mundo: state,
+      transferHistory: state.transferHistory,
+      activeCompetitionId:
+        competicaoPorDivisaoLegada(state.clubes[0]?.divisao)?.id ?? null,
+      userClubId: state.clubeUsuarioId,
+      entrada: {
+        playerId: proposta.jogadorId,
+        fromClubId: state.clubeUsuarioId,
+        toClubId: comprador.id,
+        type: 'permanent',
+        fee: proposta.valorProposto,
+        source: 'ai',
+      },
+      date: `${state.temporadaAtual}-mercado`,
     });
-    const mestre = espelharSaidaNoMestre({
-      todosClubes: state.todosClubes,
-      todosJogadores: state.todosJogadores,
-      clubesLiga: clubes,
-      jogadoresLiga: jogadores,
-      clubeIds: [state.clubeUsuarioId, comprador.id].filter(
-        (id): id is string => id !== null,
-      ),
-      jogadorIds: [proposta.jogadorId],
-    });
+    if (!resultado.ok) {
+      // Defensivo (ex.: comprador sem caixa por corrida de estado): a proposta
+      // sai do inbox com aviso, sem tocar em dinheiro/elencos.
+      set(stateAtual => ({
+        propostasRecebidas: stateAtual.propostasRecebidas.filter(
+          p => p.id !== propostaId,
+        ),
+        mensagens: adicionarMensagem(
+          stateAtual.mensagens,
+          `A proposta por ${jogador.nome} caiu (${resultado.erro ?? 'negócio inválido'}).`,
+        ),
+      }));
+      return;
+    }
     set(stateAtual => ({
-      jogadores,
-      clubes,
-      todosClubes: mestre.todosClubes,
-      todosJogadores: mestre.todosJogadores,
+      jogadores: resultado.jogadores,
+      clubes: resultado.clubes,
+      todosClubes: resultado.todosClubes,
+      todosJogadores: resultado.todosJogadores,
+      transferHistory: resultado.transferHistory,
       propostasRecebidas: stateAtual.propostasRecebidas.filter(
         p => p.id !== propostaId,
       ),
@@ -2701,17 +2692,32 @@ export const useGameStore = create<GameState>((set, get) => ({
       .sort((a, b) => b.peso - a.peso)
       .slice(0, quantidade);
 
-    const novas: PropostaTransferencia[] = alvos.map(({jogador}) => {
-      const comprador = iaClubes[inteiroEntre(rng, 0, iaClubes.length - 1)];
+    const novas: PropostaTransferencia[] = alvos.flatMap(({jogador}) => {
+      const sorteado = iaClubes[inteiroEntre(rng, 0, iaClubes.length - 1)];
       const fator = 0.8 + rng() * 0.55; // 0.80x a 1.35x do valor de mercado
-      return {
-        id: `ia_${state.rodadaAtual}_${jogador.id}`,
-        jogadorId: jogador.id,
-        clubeOfertante: comprador.id,
-        valorProposto: Math.round(jogador.valorMercado * fator),
-        status: 'pendente',
-        expiracaoRodada: state.rodadaAtual + 2,
-      };
+      const valorProposto = Math.round(jogador.valorMercado * fator);
+      // Ofertante precisa PODER PAGAR (a porta única de transferência valida o
+      // orçamento no aceite). Se o sorteado não tem caixa, cai deterministicamente
+      // para o clube mais rico que cubra o valor; sem ninguém, a oferta não sai.
+      const comprador =
+        sorteado.financas.saldo >= valorProposto
+          ? sorteado
+          : [...iaClubes]
+              .sort((a, b) => b.financas.saldo - a.financas.saldo)
+              .find(clube => clube.financas.saldo >= valorProposto);
+      if (!comprador) {
+        return [];
+      }
+      return [
+        {
+          id: `ia_${state.rodadaAtual}_${jogador.id}`,
+          jogadorId: jogador.id,
+          clubeOfertante: comprador.id,
+          valorProposto,
+          status: 'pendente' as const,
+          expiracaoRodada: state.rodadaAtual + 2,
+        },
+      ];
     });
     // Inbox = ofertas ainda válidas + novas desta rodada (teto defensivo).
     set({propostasRecebidas: [...pendentesValidas, ...novas].slice(0, 6)});
