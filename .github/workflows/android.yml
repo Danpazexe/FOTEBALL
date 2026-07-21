@@ -11,6 +11,10 @@ name: Android APK
 # Assinatura: debug e release usam a debug key do projeto (android/app/debug.keystore),
 # então NÃO é preciso configurar segredos. Para distribuir de verdade, troque por uma
 # release keystore guardada como secret (ver README).
+#
+# Segurança: actions de terceiros pinadas por SHA de commit completo (a tag no
+# comentário é só referência humana), checkout sem credenciais persistidas e
+# permissões declaradas no nível do job.
 on:
   workflow_dispatch:
     inputs:
@@ -27,8 +31,9 @@ concurrency:
   group: apk-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+# Baseline mínima do workflow; o `contents: write` fica só no job que publica.
 permissions:
-  contents: write # publicar o APK como Release (nightly)
+  contents: read
 
 env:
   NODE_VERSION: "22"
@@ -43,11 +48,22 @@ jobs:
     name: Build APK
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    # `contents: write` é exigido pelo `gh release` (publicar o APK no "nightly").
+    # Build e publicação ficam num job único de propósito: separar em dois jobs
+    # exigiria upload/download do APK entre eles e duplicaria todo o setup
+    # (Node + JDK + SDK) a cada run. Trade-off consciente: os passos de build
+    # rodam com o mesmo token de write — mitigado pelas actions pinadas por SHA
+    # e pelo checkout sem credenciais persistidas.
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: 📥 Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # `gh release` usa a API REST com GH_TOKEN — nenhum passo faz push via git.
+          persist-credentials: false
 
-      - name: Definir parâmetros do build
+      - name: 🔧 Definir parâmetros do build
         id: vars
         run: |
           set -euo pipefail
@@ -64,34 +80,37 @@ jobs:
             BUILD_TYPE="release"
             VERSION="${BUILD_TYPE}-${GITHUB_SHA::7}"
           fi
+          # versionName do app (barato: lido direto do build.gradle, sem Gradle).
+          VERSION_NAME=$(sed -nE 's/^[[:space:]]*versionName[[:space:]]+"([^"]+)".*/\1/p' android/app/build.gradle | head -n 1)
           echo "build_type=$BUILD_TYPE"                 >> "$GITHUB_OUTPUT"
           echo "gradle_task=assemble${BUILD_TYPE^}"     >> "$GITHUB_OUTPUT"
           echo "version=$VERSION"                       >> "$GITHUB_OUTPUT"
           echo "short_sha=${GITHUB_SHA::7}"             >> "$GITHUB_OUTPUT"
-          echo "::notice::Build $BUILD_TYPE (task assemble${BUILD_TYPE^}) — versão $VERSION"
+          echo "version_name=${VERSION_NAME:-n/d}"      >> "$GITHUB_OUTPUT"
+          echo "::notice::Build $BUILD_TYPE (task assemble${BUILD_TYPE^}) — versão $VERSION (versionName ${VERSION_NAME:-n/d}, versionCode ${{ github.run_number }})"
 
-      - name: Setup Node ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
+      - name: ⚙️ Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
 
-      - name: Instalar dependências (npm ci)
+      - name: 📦 Instalar dependências (npm ci)
         run: npm ci
 
-      - name: Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
+      - name: ⚙️ Setup JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Setup Gradle (cache)
-        uses: gradle/actions/setup-gradle@v4
+      - name: ⚙️ Setup Gradle (cache)
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: ⚙️ Setup Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
 
-      - name: Instalar pacotes do SDK (plataforma ${{ env.ANDROID_PLATFORM }}, NDK ${{ env.ANDROID_NDK }})
+      - name: 📦 Instalar pacotes do SDK (plataforma ${{ env.ANDROID_PLATFORM }}, NDK ${{ env.ANDROID_NDK }})
         run: |
           set -euo pipefail
           sdkmanager --install \
@@ -100,11 +119,13 @@ jobs:
             "build-tools;${ANDROID_BUILD_TOOLS}" \
             "ndk;${ANDROID_NDK}"
 
-      - name: Build do APK (${{ steps.vars.outputs.gradle_task }})
+      - name: 🏗️ Build do APK (${{ steps.vars.outputs.gradle_task }})
+        id: build
         working-directory: android
         run: |
           set -euo pipefail
           chmod +x ./gradlew
+          INICIO=$(date +%s)
           # versionCode = número da run (sempre incrementa) para o Android
           # reconhecer cada APK como update. versionName vem do build.gradle.
           # APK só arm64-v8a: cobre praticamente todo celular atual e corta ~4x o
@@ -114,8 +135,10 @@ jobs:
             -PfoteballVersionCode=${{ github.run_number }} \
             -PreactNativeArchitectures=arm64-v8a \
             --no-daemon --stacktrace --warning-mode=all
+          DURACAO=$(( $(date +%s) - INICIO ))
+          echo "duracao=$(printf '%dm%02ds' $((DURACAO / 60)) $((DURACAO % 60)))" >> "$GITHUB_OUTPUT"
 
-      - name: Localizar e renomear o APK
+      - name: 🔍 Localizar e renomear o APK
         id: apk
         run: |
           set -euo pipefail
@@ -129,8 +152,8 @@ jobs:
           echo "path=$DEST"                     >> "$GITHUB_OUTPUT"
           echo "size=$(du -h "$DEST" | cut -f1)" >> "$GITHUB_OUTPUT"
 
-      - name: Publicar APK (artifact)
-        uses: actions/upload-artifact@v4
+      - name: 📤 Publicar APK (artifact)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: foteball-apk-${{ steps.vars.outputs.build_type }}
           path: ${{ steps.apk.outputs.path }}
@@ -140,7 +163,7 @@ jobs:
       # Push na main: publica o APK num Release fixo "nightly" (tag estável), pra
       # baixar direto no celular sem login. Recria o release a cada push para
       # sempre ter só o APK mais novo.
-      - name: Publicar APK no Release "nightly" (só push na main)
+      - name: 🚀 Publicar APK no Release "nightly" (só push na main)
         if: github.event_name == 'push' && github.ref_name == 'main'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -157,7 +180,7 @@ jobs:
       # Config: crie um bot no @BotFather, dê /start nele, pegue seu chat id
       # (@userinfobot) e salve em Settings → Secrets → Actions:
       #   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
-      - name: Avisar no Telegram com o link do APK (só push na main)
+      - name: 📣 Avisar no Telegram com o link do APK (só push na main)
         if: github.event_name == 'push' && github.ref_name == 'main'
         continue-on-error: true # aviso é best-effort: nunca derruba o build
         env:
@@ -178,7 +201,7 @@ jobs:
             --data-urlencode text="${TEXTO}" >/dev/null \
             && echo "Link enviado ao Telegram."
 
-      - name: Resumo do build
+      - name: 📋 Resumo do build
         if: success()
         run: |
           {
@@ -187,8 +210,11 @@ jobs:
             echo "| Campo | Valor |"
             echo "|-------|-------|"
             echo "| Tipo | \`${{ steps.vars.outputs.build_type }}\` |"
+            echo "| versionName | \`${{ steps.vars.outputs.version_name }}\` |"
+            echo "| versionCode | \`${{ github.run_number }}\` |"
             echo "| Arquivo | \`${{ steps.apk.outputs.path }}\` |"
             echo "| Tamanho | ${{ steps.apk.outputs.size }} |"
+            echo "| Tempo de build (gradle) | ${{ steps.build.outputs.duracao }} |"
             echo "| Commit | \`${{ steps.vars.outputs.short_sha }}\` |"
             echo ""
             echo "⬇️ Baixe em **Artifacts** (topo desta página): \`foteball-apk-${{ steps.vars.outputs.build_type }}\`."
@@ -199,9 +225,9 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       # Rastreabilidade de erro: em falha, sobe os relatórios do Gradle/AGP.
-      - name: Upload de logs/reports (em falha)
+      - name: 🪵 Upload de logs/reports (em falha)
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: android-build-reports
           path: |
