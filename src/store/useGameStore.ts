@@ -1071,6 +1071,132 @@ function atualizarCarreiraPosRodada(
 
 const inicial = criarEstadoInicial();
 
+/**
+ * Pipeline POS-SIMULACAO de uma rodada, compartilhado por avancarRodada (simula
+ * tudo) e concluirPartidaAoVivo (usuario decide o proprio jogo). Recebe as
+ * partidas ja resolvidas e o elenco atualizado; devolve o PATCH de estado da
+ * rodada + os argumentos de conquistas. Puro: a store aplica o patch e dispara
+ * conquistas/propostas/mercado. `clubesBase` = base para bilheteria (estado
+ * atual no avanco; escalacao oficial restaurada no jogo ao vivo).
+ */
+function finalizarRodada(
+  state: GameState,
+  params: {
+    partidasAtualizadas: Partida[];
+    jogadoresAtualizados: Player[];
+    disciplinaProcessada: string[];
+    jogosRodada: Partida[];
+    clubesBase: Clube[];
+    dataFinal: string;
+    pendenciasAposDias: PendenciaCarreira[];
+    mensagemRodada: string;
+  },
+): {patch: Partial<GameState>; conquistas: Parameters<typeof checarConquistas>[0]} {
+  const {
+    partidasAtualizadas,
+    jogadoresAtualizados,
+    disciplinaProcessada,
+    jogosRodada,
+    clubesBase,
+    dataFinal,
+    pendenciasAposDias,
+    mensagemRodada,
+  } = params;
+
+  const tabela = calcularTabela(state.clubes, partidasAtualizadas);
+  const partidasComPublico = estamparPublicoRodada(
+    partidasAtualizadas,
+    jogosRodada,
+    state.clubes,
+    tabela,
+  );
+  const partidaUsuario =
+    partidasComPublico.find(
+      partida =>
+        partida.timeCasa === state.clubeUsuarioId ||
+        partida.timeFora === state.clubeUsuarioId,
+    ) ?? null;
+  const clubesComBilheteria = clubesBase.map(clube => {
+    const mandouJogo = jogosRodada.some(partida => partida.timeCasa === clube.id);
+    if (!mandouJogo) {
+      return clube;
+    }
+    return aplicarBilheteria(
+      clube,
+      posicaoClube(tabela, clube.id),
+      `${state.temporadaAtual}-rodada-${state.rodadaAtual}`,
+    );
+  });
+
+  // Patrocinio da rodada (bonus por vitoria do usuario + metas), ANTES da
+  // carreira para o saldo refletir no eixo financeiro.
+  const {clubes: clubesComPatrocinio, patrocinio: patrocinioRodada} =
+    processarPatrocinioNaRodada(
+      state,
+      clubesComBilheteria,
+      tabela,
+      partidasComPublico,
+      partidaUsuario,
+    );
+
+  const carreira = atualizarCarreiraPosRodada(
+    state,
+    clubesComPatrocinio,
+    jogadoresAtualizados,
+    partidaUsuario,
+    adicionarMensagem(state.mensagens, mensagemRodada),
+  );
+
+  // Treino automatico do ciclo (Onda 4).
+  const jogadoresFinais = treinarCicloAutomatico({
+    jogadores: carreira.jogadores,
+    clubes: clubesComPatrocinio,
+    clubeUsuarioId: state.clubeUsuarioId,
+    plano: state.planoTreino,
+    usuarioTreinouNaMao: state.treinouProximoJogo,
+    temporada: state.temporadaAtual,
+    rodada: state.rodadaAtual,
+  });
+
+  // Teto DINAMICO: ultima rodada da liga ativa + 1.
+  const rodadaApos = Math.min(
+    ultimaRodadaLiga(state.partidas) + 1,
+    state.rodadaAtual + 1,
+  );
+
+  return {
+    patch: {
+      jogadores: jogadoresFinais,
+      partidas: partidasComPublico,
+      tabela,
+      clubes: clubesComPatrocinio,
+      patrocinio: patrocinioRodada,
+      rodadaAtual: rodadaApos,
+      ultimaPartidaUsuario: partidaUsuario,
+      dataAtual: dataFinal,
+      pendencias: pendenciasAposDias,
+      treinouProximoJogo: false,
+      conversouComGrupo: false,
+      reputacaoTecnico: carreira.reputacaoTecnico,
+      derrotasConsecutivas: carreira.derrotasConsecutivas,
+      rodadasNoVermelho: carreira.rodadasNoVermelho,
+      estadoFinanceiro: carreira.estadoFinanceiro,
+      demissao: carreira.demissao,
+      mensagens: carreira.mensagens,
+      partidasDisciplinaProcessada: disciplinaProcessada,
+    },
+    conquistas: {
+      clubeUsuarioId: state.clubeUsuarioId,
+      jogadores: jogadoresFinais,
+      partidas: partidasComPublico,
+      tabela,
+      clubes: clubesComPatrocinio,
+      rodadaAtual: rodadaApos,
+    },
+  };
+}
+
+
 export const useGameStore = create<GameState>((set, get) => ({
   clubes: inicial.clubes,
   jogadores: inicial.jogadores,
@@ -1467,102 +1593,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     });
 
-    const tabela = calcularTabela(state.clubes, partidasAtualizadas);
-    const partidasComPublico = estamparPublicoRodada(
+    const {patch, conquistas} = finalizarRodada(state, {
       partidasAtualizadas,
-      jogosRodada,
-      state.clubes,
-      tabela,
-    );
-    const ultimaPartidaUsuario =
-      jogosRodada.find(
-        partida =>
-          partida.timeCasa === state.clubeUsuarioId ||
-          partida.timeFora === state.clubeUsuarioId,
-      ) ?? null;
-    const partidaUsuarioCompleta = ultimaPartidaUsuario
-      ? partidasComPublico.find(partida => partida.id === ultimaPartidaUsuario.id) ?? null
-      : null;
-    const clubesComBilheteria = state.clubes.map(clube => {
-      const mandouJogo = jogosRodada.some(partida => partida.timeCasa === clube.id);
-
-      if (!mandouJogo) {
-        return clube;
-      }
-
-      return aplicarBilheteria(clube, posicaoClube(tabela, clube.id), `${state.temporadaAtual}-rodada-${state.rodadaAtual}`);
-    });
-
-    // Patrocínio da rodada: bônus por vitória do usuário + progresso das metas.
-    // Aplicado ANTES da carreira para o saldo creditado refletir no eixo
-    // financeiro (rodadasNoVermelho etc.).
-    const {clubes: clubesComPatrocinio, patrocinio: patrocinioRodada} =
-      processarPatrocinioNaRodada(
-        state,
-        clubesComBilheteria,
-        tabela,
-        partidasComPublico,
-        partidaUsuarioCompleta,
-      );
-
-    const carreira = atualizarCarreiraPosRodada(
-      state,
-      clubesComPatrocinio,
       jogadoresAtualizados,
-      partidaUsuarioCompleta,
-      adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} simulada.`),
-    );
-
-    // Treino automático do ciclo (Onda 4): usuário treina a sessão do seu
-    // PLANO (pulado se treinou na mão); a IA da liga treina leve.
-    const jogadoresFinais = treinarCicloAutomatico({
-      jogadores: carreira.jogadores,
-      clubes: clubesComPatrocinio,
-      clubeUsuarioId: state.clubeUsuarioId,
-      plano: state.planoTreino,
-      usuarioTreinouNaMao: state.treinouProximoJogo,
-      temporada: state.temporadaAtual,
-      rodada: state.rodadaAtual,
+      disciplinaProcessada,
+      jogosRodada,
+      clubesBase: state.clubes,
+      dataFinal: periodo.dataFinal,
+      pendenciasAposDias,
+      mensagemRodada: `Rodada ${state.rodadaAtual} simulada.`,
     });
-
-    // Teto DINÂMICO: última rodada da liga ativa + 1 (38→39 no Brasileirão,
-    // 46→47 na Championship). Um 39 fixo travava ligas com mais de 38 rodadas.
-    const rodadaAposAvanco = Math.min(
-      ultimaRodadaLiga(state.partidas) + 1,
-      state.rodadaAtual + 1,
-    );
-    set({
-      jogadores: jogadoresFinais,
-      partidas: partidasComPublico,
-      tabela,
-      clubes: clubesComPatrocinio,
-      patrocinio: patrocinioRodada,
-      rodadaAtual: rodadaAposAvanco,
-      ultimaPartidaUsuario: partidaUsuarioCompleta,
-      // Relógio canônico: a data anda pelo pipeline até a data da RODADA
-      // (inclusive nas rodadas de folga do usuário). O treino do ciclo já foi
-      // aplicado automaticamente acima, então o próximo evento é o jogo.
-      dataAtual: periodo.dataFinal,
-      pendencias: pendenciasAposDias,
-      treinouProximoJogo: false,
-      conversouComGrupo: false,
-      reputacaoTecnico: carreira.reputacaoTecnico,
-      derrotasConsecutivas: carreira.derrotasConsecutivas,
-      rodadasNoVermelho: carreira.rodadasNoVermelho,
-      estadoFinanceiro: carreira.estadoFinanceiro,
-      demissao: carreira.demissao,
-      mensagens: carreira.mensagens,
-      partidasDisciplinaProcessada: disciplinaProcessada,
-    });
-
-    checarConquistas({
-      clubeUsuarioId: state.clubeUsuarioId,
-      jogadores: jogadoresFinais,
-      partidas: partidasComPublico,
-      tabela,
-      clubes: clubesComPatrocinio,
-      rodadaAtual: rodadaAposAvanco,
-    });
+    set(patch);
+    checarConquistas(conquistas);
     get().processarPropostasIA();
     get().processarMercadoIA();
   },
@@ -1686,95 +1728,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       return {...partida, ...resultado, id: partida.id};
     });
 
-    const tabela = calcularTabela(state.clubes, partidasAtualizadas);
-    const partidasComPublico = estamparPublicoRodada(
+    const {patch, conquistas} = finalizarRodada(state, {
       partidasAtualizadas,
-      jogosRodada,
-      state.clubes,
-      tabela,
-    );
-    const partidaUsuario =
-      partidasComPublico.find(partida => partida.id === partidaId) ?? null;
-    // clubesNoApito já carrega a escalação/tática OFICIAL do usuário (as
-    // trocas do jogo ao vivo valeram só para ele) — daqui em diante ela é a
-    // formação persistida.
-    const clubesFinais = clubesNoApito.map(clube => {
-      const mandouJogo = jogosRodada.some(partida => partida.timeCasa === clube.id);
-      if (!mandouJogo) {
-        return clube;
-      }
-      return aplicarBilheteria(
-        clube,
-        posicaoClube(tabela, clube.id),
-        `${state.temporadaAtual}-rodada-${state.rodadaAtual}`,
-      );
-    });
-
-    // Patrocínio da rodada (jogo do usuário ao vivo): bônus por vitória + metas.
-    const {clubes: clubesComPatrocinio, patrocinio: patrocinioRodada} =
-      processarPatrocinioNaRodada(
-        state,
-        clubesFinais,
-        tabela,
-        partidasComPublico,
-        partidaUsuario,
-      );
-
-    const carreira = atualizarCarreiraPosRodada(
-      state,
-      clubesComPatrocinio,
       jogadoresAtualizados,
-      partidaUsuario,
-      adicionarMensagem(state.mensagens, `Rodada ${state.rodadaAtual} disputada.`),
-    );
-
-    // Treino automático do ciclo (Onda 4): usuário treina a sessão do seu
-    // PLANO (pulado se treinou na mão); a IA da liga treina leve.
-    const jogadoresFinais = treinarCicloAutomatico({
-      jogadores: carreira.jogadores,
-      clubes: clubesComPatrocinio,
-      clubeUsuarioId: state.clubeUsuarioId,
-      plano: state.planoTreino,
-      usuarioTreinouNaMao: state.treinouProximoJogo,
-      temporada: state.temporadaAtual,
-      rodada: state.rodadaAtual,
+      disciplinaProcessada,
+      jogosRodada,
+      clubesBase: clubesNoApito,
+      dataFinal: periodo.dataFinal,
+      pendenciasAposDias,
+      mensagemRodada: `Rodada ${state.rodadaAtual} disputada.`,
     });
-
-    // Mesmo teto dinâmico do avancarRodada (liga pode ter mais de 38 rodadas).
-    const rodadaAposLive = Math.min(
-      ultimaRodadaLiga(state.partidas) + 1,
-      state.rodadaAtual + 1,
-    );
-    set({
-      jogadores: jogadoresFinais,
-      partidas: partidasComPublico,
-      tabela,
-      clubes: clubesComPatrocinio,
-      patrocinio: patrocinioRodada,
-      formacaoPreLive: null,
-      rodadaAtual: rodadaAposLive,
-      ultimaPartidaUsuario: partidaUsuario,
-      dataAtual: periodo.dataFinal,
-      pendencias: pendenciasAposDias,
-      treinouProximoJogo: false,
-      conversouComGrupo: false,
-      reputacaoTecnico: carreira.reputacaoTecnico,
-      derrotasConsecutivas: carreira.derrotasConsecutivas,
-      rodadasNoVermelho: carreira.rodadasNoVermelho,
-      estadoFinanceiro: carreira.estadoFinanceiro,
-      demissao: carreira.demissao,
-      mensagens: carreira.mensagens,
-      partidasDisciplinaProcessada: disciplinaProcessada,
-    });
-
-    checarConquistas({
-      clubeUsuarioId: state.clubeUsuarioId,
-      jogadores: jogadoresFinais,
-      partidas: partidasComPublico,
-      tabela,
-      clubes: clubesComPatrocinio,
-      rodadaAtual: rodadaAposLive,
-    });
+    set({...patch, formacaoPreLive: null});
+    checarConquistas(conquistas);
     get().processarPropostasIA();
     get().processarMercadoIA();
   },
