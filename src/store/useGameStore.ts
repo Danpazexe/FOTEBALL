@@ -711,6 +711,19 @@ function treinarCicloAutomatico(args: {
       sessao,
       hashString(`${args.temporada}_${args.rodada}_plano_${args.clubeUsuarioId}`),
     );
+    // Camada INDIVIDUAL do ciclo: foco de atributo/plano por função também
+    // rendem no treino RECORRENTE (antes só no manual — o épico do Overall
+    // Dinâmico previa o ciclo como condutor). Restrito ao clube do usuário;
+    // determinístico por temporada/rodada/jogador.
+    const seedFoco = hashString(`${args.temporada}_${args.rodada}_foco`);
+    jogadores = jogadores.map(jogador =>
+      jogador.clubeId === args.clubeUsuarioId
+        ? desenvolverFoco(
+            jogador,
+            criarRNGComSeed(seedFoco + hashString(jogador.id)),
+          )
+        : jogador,
+    );
   }
 
   // IA da liga ativa: treino leve de recuperação (resumido, sem custo).
