@@ -7,7 +7,6 @@ import React from 'react';
 import {StyleSheet, View} from 'react-native';
 
 import type {IconeNome} from '../../components/Icone';
-import {type LadoLance} from '../../components/MatchNarration/LanceLimpo';
 import {
   Icon,
   Text,
@@ -16,7 +15,10 @@ import {
   useTheme,
   type CorTexto,
 } from '../../design-system';
-import {rotuloMinuto} from '../../utils/minutoPartida';
+import {ehMinutoAcrescimo, rotuloMinuto} from '../../utils/minutoPartida';
+
+/** Lado do lance na partida (morava no LanceLimpo, aposentado pela Timeline). */
+export type LadoLance = 'casa' | 'fora' | 'neutro';
 
 export type ItemTimeline = {
   minuto: number;
@@ -88,7 +90,7 @@ export function LinhaEvento({item}: {item: ItemTimeline}): React.JSX.Element {
     <View style={styles.evento}>
       <Text
         variant="labelM"
-        color="textSecondary"
+        color={ehMinutoAcrescimo(item.minuto) ? 'danger' : 'textSecondary'}
         tabular
         style={styles.eventoMin}>
         {rotuloMinuto(item.minuto)}'

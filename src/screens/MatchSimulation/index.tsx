@@ -59,7 +59,6 @@ import {
   useTheme,
 } from '../../design-system';
 import type {IconeNome} from '../../components/Icone';
-import {type LadoLance} from '../../components/MatchNarration/LanceLimpo';
 import AjustesPartida from '../../components/MatchNarration/AjustesPartida';
 import {calcularPublicoJogo} from '../../engine/finance/financeEngine';
 import {
@@ -109,7 +108,7 @@ import {
   type PlacarAoVivo,
 } from './jogosAoVivo';
 import {CabecalhoTabelaAoVivo, LinhaRodada, LinhaTabela} from './TabelaAoVivo';
-import {LinhaEvento, type ItemTimeline} from './Timeline';
+import {LinhaEvento, type ItemTimeline, type LadoLance} from './Timeline';
 
 const MINUTO_INTERVALO = 45;
 // Limite oficial do Brasileirão: 5 substituições por equipe.
