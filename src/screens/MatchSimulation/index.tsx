@@ -53,6 +53,7 @@ import {
   Tabs,
   TeamCrest,
   Text,
+  corDoTime,
   espacamento,
   raios,
   useTheme,
@@ -85,7 +86,6 @@ import {
   selecionarProximoJogo,
   useGameStore,
 } from '../../store/useGameStore';
-import {corDoTime} from '../../theme';
 import {nomeClube, siglaClube} from '../../utils/formatters';
 import {rotuloMinuto} from '../../utils/minutoPartida';
 import type {

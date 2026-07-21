@@ -409,72 +409,8 @@ export function corAdaptacao(
 // corCondicao migrou para o design system: `corCondicao(valor, esporte)` em
 // src/design-system/sports/corCondicao (fonte única, mesmos limiares 75/45).
 
-/**
- * Paleta de cores "de camisa" para identificar visualmente cada clube na
- * narração (balões/badges). Os dados não trazem cor, então derivamos uma cor
- * estável a partir do id do clube — sempre a mesma para o mesmo clube.
- */
-// Paleta curada (verde/dourado/azul-noite): tons vivos e legíveis, espalhados de
-// quente a frio para que dois times num confronto contrastem. Sem roxo/rosa/marrom.
-const CORES_TIME = [
-  '#E5484D', // vermelho
-  '#FF7A5C', // coral
-  '#F4511E', // telha
-  '#FB8C00', // laranja
-  '#F5A623', // âmbar
-  '#FDD835', // amarelo
-  '#C0CA33', // lima
-  '#43A047', // verde
-  '#10B981', // esmeralda
-  '#00897B', // teal
-  '#00ACC1', // ciano
-  '#26A9E0', // azul-céu
-  '#1E88E5', // azul
-  '#2979FF', // azul-vivo
-] as const;
-
-/** Cor estável de um clube (hash determinístico do id sobre a paleta). */
-export function corDoTime(clubeId: string): string {
-  let hash = 0;
-  for (let i = 0; i < clubeId.length; i += 1) {
-    // eslint-disable-next-line no-bitwise -- hash intencional (cor estável)
-    hash = (hash * 31 + clubeId.charCodeAt(i)) >>> 0;
-  }
-  return CORES_TIME[hash % CORES_TIME.length];
-}
-
-/**
- * Cor de camisa/identidade REAL dos clubes (aprox. da cor predominante do
- * escudo/uniforme), usada nas camisas dos cards. Times de uniforme branco usam
- * a cor escura da identidade. Fallback: corDoTime (hash) para clubes fora do mapa.
- */
-const CORES_CLUBE: Record<string, string> = {
-  club_flamengo: '#C8102E',
-  club_corinthians: '#151515',
-  club_palmeiras: '#016436',
-  club_sao_paulo: '#E4002B',
-  club_santos: '#151515',
-  club_vasco: '#151515',
-  club_fluminense: '#7A1C2E',
-  club_botafogo: '#151515',
-  club_gremio: '#0D80BF',
-  club_cruzeiro: '#1D4A9E',
-  club_internacional: '#D6001C',
-  club_atletico_mg: '#1A1A1A',
-  club_bahia: '#1B54A4',
-  club_vitoria: '#D6001C',
-  club_bragantino: '#E30613',
-  club_mirassol: '#0A8A3F',
-  club_athletico_pr: '#C4122E',
-  club_chapecoense: '#0A8B4C',
-  club_coritiba: '#0A6B3B',
-  club_remo: '#003DA5',
-};
-
-/** Cor real da camisa do clube (fallback: hash de corDoTime). */
-export function corDoClube(clubeId: string): string {
-  return CORES_CLUBE[clubeId] ?? corDoTime(clubeId);
-}
+// corDoTime/contrasteTexto migraram para o design system:
+// src/design-system/sports/corDoTime (fonte única da identidade de cor do clube).
 
 /**
  * Cor sólida (#RRGGBB) → string rgba() com alfa. Serve para derivar tints de
@@ -492,14 +428,4 @@ export function comAlfa(corHex: string, alfa: number): string {
   const g = parseInt(n.slice(2, 4), 16);
   const b = parseInt(n.slice(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${alfa})`;
-}
-
-/** Texto legível (claro/escuro) sobre uma cor de fundo sólida. */
-export function contrasteTexto(corHex: string): string {
-  const hex = corHex.replace('#', '');
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  const luminancia = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminancia > 0.6 ? '#17233B' : '#FFFFFF';
 }

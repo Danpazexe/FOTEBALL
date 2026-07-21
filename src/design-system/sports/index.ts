@@ -8,3 +8,4 @@ export {
   LIMIAR_CONDICAO_ALTA,
   LIMIAR_CONDICAO_MEDIA,
 } from './corCondicao';
+export {contrasteTexto, corDoTime} from './corDoTime';

@@ -12,7 +12,9 @@ import {
   simularMinuto,
   type EstadoPartidaAoVivo,
 } from '../../engine/simulation/matchSimulator';
-import {corDoTime} from '../../theme';
+// Import direto do módulo (não do index do DS): este arquivo é puro e o index
+// arrastaria componentes React para o grafo do teste de paridade.
+import {corDoTime} from '../../design-system/sports/corDoTime';
 import type {Clube, Partida, Player, TabelaClassificacao} from '../../types';
 import {nomeClube} from '../../utils/formatters';
 

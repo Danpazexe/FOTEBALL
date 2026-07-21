@@ -9,7 +9,9 @@ import {Image, StyleSheet, Text, View} from 'react-native';
 
 import {IconeGlifo} from '../Icone';
 import {escudoDoTime} from '../../assets/escudos';
-import {contrasteTexto, corDoTime} from '../../theme';
+// Import direto do módulo (sem passar pelo index do design system): o
+// TeamCrest do DS envolve este Escudo — importar o index criaria ciclo.
+import {contrasteTexto, corDoTime} from '../../design-system/sports/corDoTime';
 
 type EscudoProps = {
   clubeId: string;
