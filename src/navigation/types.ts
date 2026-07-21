@@ -6,6 +6,8 @@ import type {
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useNavigation, useRoute} from '@react-navigation/native';
 
+import type {DisputaPenaltisCopa} from '../store/useGameStore';
+
 // ─── Stacks internos de cada aba ────────────────────────────────────────────
 // Cada área da tab bar tem seu próprio Stack Navigator; as telas internas rolam
 // por baixo com a tab bar VISÍVEL e o ícone da área selecionado. As telas ainda
@@ -79,6 +81,8 @@ export type RootStackParamList = {
   MatchResult: {partidaId: string};
   PreJogo: undefined;
   Copa: undefined;
+  /** Acompanhamento ao vivo da disputa de pênaltis da Copa (resultado já commitado). */
+  DisputaPenaltis: {disputa: DisputaPenaltisCopa};
   /** Chaveamento da Série D (carreira na D): grupos → mata-mata. */
   SerieD: undefined;
   Semana: undefined;

@@ -70,6 +70,10 @@ import {
   simularPartida,
 } from '../engine/simulation/matchSimulator';
 import {
+  simularDisputaPenaltis,
+  type DisputaPenaltis,
+} from '../engine/simulation/penaltis';
+import {
   calcularNotaPartida,
   contarAssistencias,
   mediaIncremental,
@@ -184,6 +188,17 @@ export interface ResultadoConfrontoUsuario {
   /** Eventos do jogo (cartões etc.) — alimentam a disciplina POR COMPETIÇÃO da
    * Copa (isolada da liga). Opcional; ausente = sem cartões contabilizados. */
   eventos?: EventoPartida[];
+}
+
+/**
+ * Disputa de pênaltis do confronto do usuário na Copa, pronta para a tela de
+ * acompanhamento ao vivo (`timeA`/`timeB` na ordem do confronto; na disputa,
+ * "casa" = timeA).
+ */
+export interface DisputaPenaltisCopa {
+  timeA: string;
+  timeB: string;
+  disputa: DisputaPenaltis;
 }
 
 /** Overall médio de um elenco (0-100). Alimenta a disputa de pênaltis simulada. */
@@ -382,6 +397,12 @@ export interface GameState {
    * informado ou simulando) e simula os demais, avança a chave e paga premiação.
    */
   avancarFaseCopa: (resultadoUsuario?: ResultadoConfrontoUsuario) => void;
+  /**
+   * Computa (sem commitar) a disputa de pênaltis do confronto do usuário na
+   * Copa — mesmo seed/entradas de `avancarFaseCopa`, então o que a tela exibe
+   * é exatamente o que será commitado. `null` se não há confronto pendente.
+   */
+  prepararDisputaPenaltisCopa: () => DisputaPenaltisCopa | null;
   /** Fecha a fase de grupos da Série D (carreira na D) e monta o mata-mata do usuário. */
   iniciarMataMataDaCarreira: () => void;
   /** Avança uma fase do mata-mata da Série D (resultado do usuário ou simulado). */
@@ -2067,6 +2088,35 @@ export const useGameStore = create<GameState>((set, get) => ({
       ),
     });
     return true;
+  },
+
+  prepararDisputaPenaltisCopa: () => {
+    const state = get();
+    if (!state.copa) {
+      return null;
+    }
+    const confronto = confrontoDoClube(state.copa, state.clubeUsuarioId);
+    if (!confronto || confronto.vencedor) {
+      return null;
+    }
+    const jogadoresDe = (id: string): Player[] => {
+      const ativos = jogadoresDoClube(state.jogadores, id);
+      return ativos.length > 0
+        ? ativos
+        : jogadoresDoClube(state.todosJogadores, id);
+    };
+    const elencoA = jogadoresDe(confronto.timeA);
+    const elencoB = jogadoresDe(confronto.timeB);
+    const disputa = simularDisputaPenaltis(
+      criarRNGComSeed(hashString(`${confronto.id}_pen`)),
+      overallMedioElenco(elencoA),
+      overallMedioElenco(elencoB),
+      confronto.timeA,
+      confronto.timeB,
+      elencoA,
+      elencoB,
+    );
+    return {timeA: confronto.timeA, timeB: confronto.timeB, disputa};
   },
 
   avancarFaseCopa: resultadoUsuario => {

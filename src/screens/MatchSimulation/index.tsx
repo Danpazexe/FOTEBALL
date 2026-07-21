@@ -1007,18 +1007,33 @@ function MatchSimulation(): React.JSX.Element | null {
     }
     comitadoRef.current = true;
     pararTorcida();
-    tocarFimDeJogo();
     const e = estadoRef.current;
+    // Empate em jogo de Copa → disputa de pênaltis: o apito final fica para a
+    // tela de acompanhamento, junto do vencedor.
+    const disputaCopa =
+      modoCopaRef.current && e.placarCasa === e.placarFora
+        ? useGameStore.getState().prepararDisputaPenaltisCopa()
+        : null;
+    if (!disputaCopa) {
+      tocarFimDeJogo();
+    }
     if (modoCopaRef.current) {
       // Usuário manda o jogo: gols dele = placar da casa. No empate, os pênaltis
-      // são resolvidos pela ENGINE dentro de avancarFaseCopa (modo manager) —
-      // igual aos confrontos de CPU, sem disputa interativa.
+      // são resolvidos pela ENGINE (modo manager) e COMMITADOS já aqui — a tela
+      // DisputaPenaltis só APRESENTA a disputa, cobrança a cobrança.
       const golsUsuario = e.placarCasa;
       const golsAdversario = e.placarFora;
-      useGameStore
-        .getState()
-        .avancarFaseCopa({golsUsuario, golsAdversario, eventos: e.eventos});
-      nav.navigate('Copa');
+      useGameStore.getState().avancarFaseCopa({
+        golsUsuario,
+        golsAdversario,
+        eventos: e.eventos,
+        vencedorPenaltis: disputaCopa?.disputa.vencedor,
+      });
+      if (disputaCopa) {
+        nav.navigate('DisputaPenaltis', {disputa: disputaCopa});
+      } else {
+        nav.navigate('Copa');
+      }
     } else {
       useGameStore
         .getState()

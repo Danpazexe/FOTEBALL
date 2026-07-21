@@ -45,6 +45,7 @@ import {
   limitar,
   type RandomGenerator,
 } from './rng';
+import {simularDisputaPenaltis} from './penaltis';
 import {processarSubstituicoesIA} from './substituicoesIA';
 import {calcularForcaTime, type ForcaTime} from './teamStrength';
 
@@ -76,6 +77,8 @@ function mediaOverall(jogadores: Player[]): number {
  * Disputa de pênaltis determinística (usa o RNG semeado da partida). Cinco
  * cobranças para cada lado e, persistindo o empate, morte súbita. A habilidade
  * dá uma leve vantagem na conversão. Retorna o id do clube vencedor.
+ * Delegada a `simularDisputaPenaltis` (fonte única da regra — mesma sequência
+ * de RNG), que também devolve a disputa cobrança a cobrança quando necessário.
  */
 export function disputarPenaltis(
   rng: RandomGenerator,
@@ -84,34 +87,13 @@ export function disputarPenaltis(
   casaId: string,
   foraId: string,
 ): string {
-  const probDe = (hab: number) => limitar(0.55 + hab / 300, 0.6, 0.85);
-  const probCasa = probDe(habilidadeCasa);
-  const probFora = probDe(habilidadeFora);
-  let golsCasa = 0;
-  let golsFora = 0;
-  for (let i = 0; i < 5; i += 1) {
-    if (rng() < probCasa) {
-      golsCasa += 1;
-    }
-    if (rng() < probFora) {
-      golsFora += 1;
-    }
-  }
-  // Morte súbita: rodadas extras até alguém abrir vantagem na mesma rodada.
-  while (golsCasa === golsFora) {
-    const fezCasa = rng() < probCasa;
-    const fezFora = rng() < probFora;
-    if (fezCasa) {
-      golsCasa += 1;
-    }
-    if (fezFora) {
-      golsFora += 1;
-    }
-    if (fezCasa !== fezFora) {
-      break;
-    }
-  }
-  return golsCasa > golsFora ? casaId : foraId;
+  return simularDisputaPenaltis(
+    rng,
+    habilidadeCasa,
+    habilidadeFora,
+    casaId,
+    foraId,
+  ).vencedor;
 }
 
 function criarEvento(
