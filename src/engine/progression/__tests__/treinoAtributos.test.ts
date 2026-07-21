@@ -237,4 +237,58 @@ describe('treinoAtributos', () => {
     // treinoId não existe — a guarda é o buscarTreino retornar undefined.
     expect(buscarTreino('nao_existe')).toBeUndefined();
   });
+
+  it('lesão em treino de jogador SAUDÁVEL interrompe a sessão: sem ganho e com dias reais', () => {
+    const jogador = criarPlayer({id: 'azarado', posicaoPrincipal: 'CA'});
+    expect(jogador.lesionado).toBe(false);
+    // rng sempre 0: dispara o sorteio de lesão (0 < risco) e puxa a duração mínima.
+    const rngLesiona: RandomGenerator = () => 0;
+
+    const efeito = calcularEfeitoTreino(
+      jogador,
+      treinoFinalizacao,
+      'forte',
+      contexto,
+      rngLesiona,
+    );
+
+    expect(efeito.lesionou).toBe(true);
+    expect(efeito.diasLesao).toBeGreaterThanOrEqual(3);
+    expect(efeito.diasLesao).toBeLessThanOrEqual(10);
+    // Sessão interrompida: nenhum ganho/progresso de atributo.
+    expect(efeito.ganhoAtributos).toEqual({});
+    expect(efeito.progressoAtributos).toEqual({});
+    // E o Player resultante fica marcado como lesionado.
+    const machucado = aplicarEfeitoTreino(jogador, efeito);
+    expect(machucado.lesionado).toBe(true);
+    expect(machucado.diasLesao).toBe(efeito.diasLesao);
+  });
+
+  it('fAfinidade: treino do grupo ideal rende ~15% mais progresso', () => {
+    // Fixture com atributos uniformes: a ÚNICA diferença é a posição (CA está
+    // em gruposIdeais do hab_finalizacao; MC não).
+    const atacante = criarPlayer({id: 'afim', posicaoPrincipal: 'CA'});
+    const meia = criarPlayer({id: 'neutro', posicaoPrincipal: 'MC'});
+
+    const efAfim = calcularEfeitoTreino(
+      atacante,
+      treinoFinalizacao,
+      'normal',
+      contexto,
+      semLesao,
+    );
+    const efNeutro = calcularEfeitoTreino(
+      meia,
+      treinoFinalizacao,
+      'normal',
+      contexto,
+      semLesao,
+    );
+
+    const pAfim = efAfim.progressoAtributos.finalizacao ?? 0;
+    const pNeutro = efNeutro.progressoAtributos.finalizacao ?? 0;
+    expect(pNeutro).toBeGreaterThan(0);
+    expect(pAfim).toBeGreaterThan(pNeutro);
+    expect(pAfim / pNeutro).toBeCloseTo(1.15, 1);
+  });
 });
