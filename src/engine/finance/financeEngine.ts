@@ -13,8 +13,8 @@ export function calcularFolhaSalarial(jogadores: Player[]): number {
 
 /**
  * Registra a transação só quando `valor > 0` — guarda única dos pontos de
- * crédito/débito condicionais (patrocínio, taxas de transferência), evitando
- * lançamentos zerados/negativos no histórico.
+ * crédito/débito condicionais (patrocínio, manutenção, juros, taxas de
+ * transferência), evitando lançamentos zerados/negativos no histórico.
  */
 export function registrarTransacaoSePositiva(
   clube: Clube,
@@ -204,10 +204,7 @@ export function aplicarPatrocinioAnual(clube: Clube, data: string): Clube {
     dosContratos > 0
       ? dosContratos
       : Math.round(clube.reputacao * PATROCINIO_POR_REPUTACAO);
-  if (valor <= 0) {
-    return clube;
-  }
-  return registrarTransacao(clube, {
+  return registrarTransacaoSePositiva(clube, {
     data,
     tipo: 'receita',
     categoria: 'patrocinio',
@@ -223,10 +220,7 @@ export function aplicarManutencaoEstadio(clube: Clube, data: string): Clube {
     doSeed > 0
       ? doSeed
       : Math.round(clube.estadio.capacidade * MANUTENCAO_POR_LUGAR);
-  if (valor <= 0) {
-    return clube;
-  }
-  return registrarTransacao(clube, {
+  return registrarTransacaoSePositiva(clube, {
     data,
     tipo: 'despesa',
     categoria: 'manutencao',
@@ -241,10 +235,7 @@ export function aplicarJurosSaldoNegativo(clube: Clube, data: string): Clube {
     return clube;
   }
   const valor = Math.round(-clube.financas.saldo * TAXA_JUROS_ANUAL);
-  if (valor <= 0) {
-    return clube;
-  }
-  return registrarTransacao(clube, {
+  return registrarTransacaoSePositiva(clube, {
     data,
     tipo: 'despesa',
     categoria: 'juros',
