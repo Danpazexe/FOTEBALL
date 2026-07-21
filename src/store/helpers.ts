@@ -5,7 +5,7 @@
  * testáveis isoladamente. A store apenas as importa e orquestra.
  */
 import {LIMITE_DERROTAS_DEMISSAO} from '../engine/carreira/carreiraEngine';
-import {hashString, inteiroEntre, type RandomGenerator} from '../engine/simulation/rng';
+import {hashString} from '../engine/simulation/rng';
 import {instantaneoDoElenco} from '../engine/progression/instantaneoDesenvolvimento';
 import type {
   Clube,
@@ -104,25 +104,8 @@ export function posicaoClube(
   return index === -1 ? tabela.length : index + 1;
 }
 
-/**
- * Dias de afastamento por gravidade da lesão (7 dias ≈ 1 jogo/rodada).
- * Determinístico: usa o RNG derivado da partida (mesma partida => mesma lesão).
- */
-/**
- * Duração da lesão em DIAS REAIS de calendário (Onda 3: o pipeline diário
- * decrementa 1/dia e as rodadas distam 3-4 dias — antes a escala era "7 dias
- * = 1 rodada"). Faixas reescalonadas para preservar o impacto em JOGOS.
- */
-export function sortearDuracaoLesao(rng: RandomGenerator): number {
-  const r = rng();
-  if (r < 0.5) {
-    return inteiroEntre(rng, 4, 8); // leve: 1-2 jogos
-  }
-  if (r < 0.85) {
-    return inteiroEntre(rng, 10, 18); // média: 3-5 jogos
-  }
-  return inteiroEntre(rng, 21, 35); // grave: 6-10 jogos
-}
+// Duração de lesão pós-partida agora vive na engine, junto do pós-jogo (M8).
+export {sortearDuracaoLesao} from '../engine/season/rodada';
 
 export function limiteDerrotasPorDivisao(divisao: string): number {
   if (divisao === 'Série B') {
