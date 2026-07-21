@@ -1,0 +1,19 @@
+# Smoke E2E: o app SOBE, o menu principal responde e o usuário consegue iniciar
+# uma nova carreira até a seleção de clube. Valida a navegação real da UI —
+# feedback exato que os testes de unidade (Jest) não dão.
+#
+# Pré-requisitos: Maestro instalado + simulador iOS booted com o FOTEBALL.app
+# instalado (ver .maestro/README.md).
+appId: com.pazconcept.foteball
+---
+- launchApp:
+    clearState: true
+# Menu principal: aceita o rótulo de save existente OU de primeira vez.
+- tapOn:
+    text: "Começar agora|Nova carreira"
+# Seleção de liga (AppBar "Nova carreira" / "Escolha a liga").
+- assertVisible: "Escolha a liga"
+- tapOn: "Série A"
+# Seleção de clube (subtítulo "Escolha o clube").
+- assertVisible: "Escolha o clube"
+- takeScreenshot: nova-carreira-selecao-clube
