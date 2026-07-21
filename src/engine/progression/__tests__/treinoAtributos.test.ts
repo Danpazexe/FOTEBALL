@@ -2,11 +2,10 @@ import {criarPlayer} from '../../../testing/fixtures';
 import {buscarTreino} from '../treinoTipos';
 import {
   calcularEfeitoTreino,
-  treinarElenco,
   aplicarEfeitoTreino,
   type ContextoTreino,
 } from '../treinoAtributos';
-import type {RandomGenerator} from '../../simulation/rng';
+import {criarRNGComSeed, type RandomGenerator} from '../../simulation/rng';
 
 /**
  * Testes do motor de treino por acúmulo de progresso. RNG sempre injetado para
@@ -75,17 +74,28 @@ describe('treinoAtributos', () => {
     expect(jogador.atributos.finalizacao).toBeGreaterThan(finalizacaoInicial);
   });
 
-  it('é determinístico: mesmo baseSeed produz resultado idêntico', () => {
+  it('é determinístico: mesma seed produz efeito idêntico por jogador', () => {
     const elenco = [
       criarPlayer({id: 'a', idade: 19, posicaoPrincipal: 'CA'}),
       criarPlayer({id: 'b', idade: 24, posicaoPrincipal: 'MEI'}),
       criarPlayer({id: 'c', idade: 31, posicaoPrincipal: 'ZAG'}),
     ];
 
-    const r1 = treinarElenco(elenco, 'hab_finalizacao', 'forte', contexto, 42);
-    const r2 = treinarElenco(elenco, 'hab_finalizacao', 'forte', contexto, 42);
+    const treinar = (seed: number) =>
+      elenco.map(jogador =>
+        aplicarEfeitoTreino(
+          jogador,
+          calcularEfeitoTreino(
+            jogador,
+            treinoFinalizacao,
+            'forte',
+            contexto,
+            criarRNGComSeed(seed),
+          ),
+        ),
+      );
 
-    expect(r1).toEqual(r2);
+    expect(treinar(42)).toEqual(treinar(42));
   });
 
   it('lesionado recebe efeito leve sem ganho de atributo', () => {
@@ -222,9 +232,9 @@ describe('treinoAtributos', () => {
     }
   });
 
-  it('treino inexistente retorna elenco inalterado', () => {
-    const elenco = [criarPlayer({id: 'a', posicaoPrincipal: 'CA'})];
-    const resultado = treinarElenco(elenco, 'nao_existe', 'normal', contexto, 1);
-    expect(resultado).toBe(elenco);
+  it('treino inexistente não resolve no catálogo (guarda dos orquestradores)', () => {
+    // A store (aplicarSessaoAoClube) devolve o elenco inalterado quando o
+    // treinoId não existe — a guarda é o buscarTreino retornar undefined.
+    expect(buscarTreino('nao_existe')).toBeUndefined();
   });
 });

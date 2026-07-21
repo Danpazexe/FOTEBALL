@@ -3,7 +3,7 @@
  * um jogador pode ter um atributo em FOCO; ao treinar, esse atributo tende a subir
  * 1 ponto (com RNG estável), respeitando o teto do atributo e a margem de potencial
  * (o foco NUNCA leva o overall além do potencial). É ADITIVO ao treino de elenco
- * existente (não altera calcularEfeitoTreino/treinarElenco) — sem risco ao
+ * existente (não altera calcularEfeitoTreino) — sem risco ao
  * balanceamento de progressão.
  */
 
