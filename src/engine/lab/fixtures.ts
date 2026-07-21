@@ -108,7 +108,6 @@ export function criarClubeLab(
       saldo: 5_000_000,
       receitaMensal: {bilheteria: 0, patrocinio: 0, premiacoes: 0, vendaJogadores: 0},
       despesaMensal: {salarios: 0, manutencaoEstadio: 0, comissoes: 0, contratacoes: 0},
-      patrocinadores: [],
       historicoTransacoes: [],
     },
     estadio: {

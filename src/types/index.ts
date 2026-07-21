@@ -18,7 +18,6 @@ export type {
   Formacao,
   FormacaoPreset,
   FormacaoTipo,
-  Patrocinio,
   ReceitaDetalhada,
   Tatica,
   TitularFormacao,

@@ -125,7 +125,7 @@ function criarClube(id: string, jogadores: Player[], tatica: Tatica): Clube {
       saldo: 5000000,
       receitaMensal: {bilheteria: 0, patrocinio: 0, premiacoes: 0, vendaJogadores: 0},
       despesaMensal: {salarios: 0, manutencaoEstadio: 0, comissoes: 0, contratacoes: 0},
-      patrocinadores: [], historicoTransacoes: [],
+      historicoTransacoes: [],
     },
     estadio: {nome: `Estádio ${id}`, capacidade: 30000, precoMedioIngresso: 40, nivelInfraestrutura: 3},
     reputacao: 50,

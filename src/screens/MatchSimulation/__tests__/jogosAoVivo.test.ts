@@ -102,7 +102,6 @@ function criarClube(id: string, jogadores: Player[]): Clube {
       saldo: 5000000,
       receitaMensal: {bilheteria: 0, patrocinio: 0, premiacoes: 0, vendaJogadores: 0},
       despesaMensal: {salarios: 0, manutencaoEstadio: 0, comissoes: 0, contratacoes: 0},
-      patrocinadores: [],
       historicoTransacoes: [],
     },
     estadio: {

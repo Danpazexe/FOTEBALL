@@ -118,7 +118,6 @@ function criarClube(id: string, jogadores: Player[]): Clube {
         comissoes: 0,
         contratacoes: 0,
       },
-      patrocinadores: [],
       historicoTransacoes: [],
     },
     estadio: {

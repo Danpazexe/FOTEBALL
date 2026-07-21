@@ -21,7 +21,6 @@ function clube(id: string, nome: string, over: Partial<Clube> = {}): Clube {
       saldo: 0,
       receitaMensal: {bilheteria: 0, patrocinio: 0, premiacoes: 0, vendaJogadores: 0},
       despesaMensal: {salarios: 0, manutencaoEstadio: 0, comissoes: 0, contratacoes: 0},
-      patrocinadores: [],
       historicoTransacoes: [],
     },
     estadio: {nome: 'Estádio', capacidade: 10000, precoMedioIngresso: 20, nivelInfraestrutura: 3},
@@ -417,7 +416,6 @@ describe('gerarFeedNoticias', () => {
         saldo: 0,
         receitaMensal: {bilheteria: 0, patrocinio: 0, premiacoes: 0, vendaJogadores: 0},
         despesaMensal: {salarios: 0, manutencaoEstadio: 0, comissoes: 0, contratacoes: 0},
-        patrocinadores: [],
         historicoTransacoes: [
           {data: '2026-01-01', tipo: 'despesa', categoria: 'salarios', valor: 100, descricao: 'Folha'},
           {data: '2026-01-02', tipo: 'despesa', categoria: 'contratacoes', valor: 5000, descricao: 'Contratação de Craque'},

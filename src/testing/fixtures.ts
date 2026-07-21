@@ -95,7 +95,6 @@ export function criarClube(parcial: Partial<Clube> & {id: string}): Clube {
         comissoes: 0,
         contratacoes: 0,
       },
-      patrocinadores: [],
       historicoTransacoes: [],
     },
     estadio: {
