@@ -8,12 +8,7 @@ import {
   PRECO_INGRESSO_FATOR_MIN,
   registrarTransacao,
 } from '../engine/finance/financeEngine';
-import {
-  aplicarMoral,
-  calcularDeltasMoralPartida,
-  converteComGrupo,
-  type ResultadoPartida,
-} from '../engine/progression/moralEngine';
+import {aplicarMoral, converteComGrupo} from '../engine/progression/moralEngine';
 import {
   faixaPotencial,
   jovemParaPlayer,
@@ -23,7 +18,6 @@ import {
   calcularEfeitoTreino,
   aplicarEfeitoTreino,
 } from '../engine/progression/treinoAtributos';
-import {atualizarFormaPorNota} from '../engine/progression/formaEngine';
 import {aplicarDisciplinaPartida} from '../engine/disciplina';
 import {desenvolverFoco} from '../engine/progression/treinoIndividual';
 import {
@@ -39,11 +33,7 @@ import {
   type RecomendacaoTreino,
 } from '../engine/progression/planoTreinoEngine';
 import {aplicarCondicaoPosPartida} from '../engine/progression/condicao';
-import {
-  aplicarCargaPosPartida,
-  descansarJogador,
-  fadiga,
-} from '../engine/physical/fisicoEngine';
+import {descansarJogador, fadiga} from '../engine/physical/fisicoEngine';
 import {
   atualizarDerrotasConsecutivas,
   atualizarReputacao,
@@ -56,6 +46,7 @@ import {
 } from '../engine/carreira/carreiraEngine';
 import type {Dificuldade} from '../engine/carreira/dificuldade';
 import {calcularTabela} from '../engine/season/classification';
+import {resolverJogosRodada} from '../engine/season/rodada';
 import {
   avancarCopa,
   confrontoDoClube,
@@ -73,12 +64,6 @@ import {
   simularDisputaPenaltis,
   type DisputaPenaltis,
 } from '../engine/simulation/penaltis';
-import {
-  calcularNotaPartida,
-  contarAssistencias,
-  mediaIncremental,
-  type ResultadoJogador,
-} from '../engine/simulation/matchRating';
 import {
   criarRNGComSeed,
   hashString,
@@ -109,7 +94,6 @@ import {
   mensagemDemissao,
   posicaoClube,
   resultadoDoUsuario,
-  sortearDuracaoLesao,
   ultimaRodadaLiga,
 } from './helpers';
 import {
@@ -537,43 +521,6 @@ function pendenciasDePropostas(
     }));
 }
 
-/**
- * Enxuga as estatísticas de partidas da IA para o save não inflar: mantém os
- * agregados por time (xG, finalizações, zonas...) e descarta os detalhes
- * pesados (mapas por jogador e momentum por minuto) — que a súmula degrada
- * para "—" sem quebrar. A partida do USUÁRIO mantém tudo.
- */
-function enxugarEstatisticasIA(partida: Partida): Partida {
-  if (!partida.estatisticas) {
-    return partida;
-  }
-  const enxugarTime = (time: EstatisticasPartida['casa']) => ({
-    ...time,
-    finalizacoesPorJogador: {},
-    passesPorJogador: {},
-  });
-  return {
-    ...partida,
-    estatisticas: {
-      ...partida.estatisticas,
-      casa: enxugarTime(partida.estatisticas.casa),
-      fora: enxugarTime(partida.estatisticas.fora),
-      momentumPorMinuto: [],
-    },
-    // Ledger RESUMIDO (causal_summary): guarda os chutes que contam a história
-    // — gols, defesas, traves, anulados e grandes chances. Chutes de rotina
-    // (fora/bloqueado sem perigo) saem do save; os AGREGADOS já os registram.
-    // O resumo nunca altera placar/estatísticas — só o que fica armazenado.
-    chutes: partida.chutes?.filter(
-      chute =>
-        chute.resultado !== 'fora' && chute.resultado !== 'bloqueado'
-          ? true
-          : chute.grandeChance,
-    ),
-    qualidadeDados: partida.chutes ? 'causal_summary' : partida.qualidadeDados,
-  };
-}
-
 /** O clube do usuário venceu a partida dele nesta rodada? */
 function usuarioVenceuNaRodada(
   partidas: Partida[],
@@ -763,189 +710,6 @@ function treinarCicloAutomatico(args: {
   }
 
   return jogadores;
-}
-
-/**
- * Aplica o resultado da partida aos jogadores dos dois times:
- * 1) decrementa suspensão/lesão pendentes (uma rodada se passou);
- * 2) aplica NOVAS punições dos eventos — vermelho = 1 jogo, 3 amarelos
- *    acumulados = 1 jogo (zera o acúmulo), lesão por gravidade;
- * 3) atualiza estatísticas/condição de quem entrou em campo.
- */
-function aplicarResultadoNosJogadores(
-  jogadores: Player[],
-  partida: Partida,
-  clubeCasa: Clube,
-  clubeFora: Clube,
-): Player[] {
-  const jogadorIdsEmCampo = new Set(
-    partida.eventos.map(evento => evento.jogadorId),
-  );
-
-  // RNG determinístico derivado do id da partida — a mesma partida sempre
-  // produz a mesma duração de lesão (sem Math.random na pós-partida).
-  const rngPartida = criarRNGComSeed(hashString(partida.id));
-
-  // "Jogou na partida" = titular (mesmo que substituído depois) OU reserva que
-  // entrou via substituição. Garante que zagueiro sem lance também é avaliado.
-  const jogou = new Set<string>();
-  // Titulares que de fato começaram a partida (90' de desgaste, salvo
-  // substituição). Distinto de quem entrou do banco (desgaste parcial).
-  const titularesNoApito = new Set<string>();
-  // Estado PRÉ-rodada dos jogadores (suspensão/lesão ainda não decrementadas):
-  // é o retrato de quem estava disponível no apito inicial.
-  const porIdNoApito = new Map(jogadores.map(j => [j.id, j] as const));
-  for (const clube of [clubeCasa, clubeFora]) {
-    for (const titular of clube.formacaoAtual?.titulares ?? []) {
-      const jogadorTitular = porIdNoApito.get(titular.jogadorId);
-      // Só conta como "jogou" quem estava DISPONÍVEL no apito inicial. O motor
-      // (teamStrength + escolherJogadorPonderado) ignora lesionados/suspensos,
-      // então creditar-lhes jogo/nota/desgaste seria presença fantasma — comum
-      // em clubes da IA, que nunca trocam a escalação default ao longo do ano.
-      if (
-        jogadorTitular &&
-        !jogadorTitular.lesionado &&
-        !jogadorTitular.suspenso
-      ) {
-        jogou.add(titular.jogadorId);
-        titularesNoApito.add(titular.jogadorId);
-      }
-    }
-  }
-  for (const evento of partida.eventos) {
-    if (evento.tipo === 'substituicao' && evento.jogadorEntraId) {
-      jogou.add(evento.jogadorEntraId);
-    }
-  }
-
-  // Moral (Módulo 4): deltas por jogador dos dois clubes conforme o resultado
-  // e o que cada um fez (gol/lesão/expulsão). "Em campo" = quem apareceu em lances.
-  const placarCasa = partida.placarCasa ?? 0;
-  const placarFora = partida.placarFora ?? 0;
-  const vencedor: ResultadoPartida =
-    placarCasa > placarFora
-      ? 'casa'
-      : placarFora > placarCasa
-        ? 'fora'
-        : 'empate';
-  const idsEmCampo = [...jogadorIdsEmCampo];
-  const mapaMoral = new Map(
-    [
-      ...calcularDeltasMoralPartida(
-        partida,
-        partida.timeCasa,
-        jogadores.filter(j => j.clubeId === partida.timeCasa),
-        idsEmCampo,
-        vencedor,
-      ),
-      ...calcularDeltasMoralPartida(
-        partida,
-        partida.timeFora,
-        jogadores.filter(j => j.clubeId === partida.timeFora),
-        idsEmCampo,
-        vencedor,
-      ),
-    ].map(delta => [delta.jogadorId, delta.delta] as const),
-  );
-
-  return jogadores.map(jogador => {
-    if (jogador.clubeId !== partida.timeCasa && jogador.clubeId !== partida.timeFora) {
-      return jogador;
-    }
-
-    // Disciplina (cartões/suspensão) é aplicada POR COMPETIÇÃO logo após este
-    // passo, pela engine de disciplina (idempotente por partidaId). Aqui os
-    // campos passam intactos — a engine é a única autoridade sobre suspensão.
-    const suspenso = jogador.suspenso;
-    const jogosSuspensao = jogador.jogosSuspensao;
-    // Lesão anda em DIAS REAIS pelo pipeline diário do calendário (Onda 3) —
-    // aqui só entram lesões NOVAS desta partida.
-    let lesionado = jogador.lesionado;
-    let diasLesao = jogador.diasLesao;
-
-    // 2) Novas punições a partir dos eventos deste jogo.
-    const eventosDoJogador = partida.eventos.filter(
-      evento => evento.jogadorId === jogador.id,
-    );
-    const gols = eventosDoJogador.filter(e => e.tipo === 'gol').length;
-    const amarelos = eventosDoJogador.filter(
-      e => e.tipo === 'cartao_amarelo',
-    ).length;
-    const vermelhos = eventosDoJogador.filter(
-      e => e.tipo === 'cartao_vermelho',
-    ).length;
-    const lesoes = eventosDoJogador.filter(e => e.tipo === 'lesao').length;
-
-    const amarelosParaSuspensao = jogador.amarelosParaSuspensao ?? 0;
-    if (lesoes > 0) {
-      lesionado = true;
-      diasLesao = Math.max(diasLesao, sortearDuracaoLesao(rngPartida));
-    }
-
-    // Preparo físico (BRASFOOT_MASTER §4/§11): titular joga 90' e cansa (-11),
-    // reserva que entrou cansa leve (-2), quem ficou de fora recupera cheio
-    // (+25). Com a folga + treino leve (+8/rodada), o titular que joga TUDO cai
-    // ~3/rodada e precisa de rodízio; quem descansa volta. Regra em condicao.ts.
-    const ehTitular = titularesNoApito.has(jogador.id);
-    const participou =
-      ehTitular || jogou.has(jogador.id) || jogadorIdsEmCampo.has(jogador.id);
-    const condicaoFisica = aplicarCondicaoPosPartida(jogador.condicaoFisica, {
-      ehTitular,
-      participou,
-    });
-
-    const base: Player = {
-      ...jogador,
-      suspenso,
-      jogosSuspensao,
-      lesionado,
-      diasLesao,
-      amarelosParaSuspensao,
-      condicaoFisica,
-      // Carga aguda/crônica e ritmo (Onda 5): jogar cansa e dá ritmo; ficar de
-      // fora perde ritmo de leve. Separado da condição.
-      fisico: aplicarCargaPosPartida(jogador, {ehTitular, participou}),
-      moral: aplicarMoral(jogador.moral, mapaMoral.get(jogador.id) ?? 0),
-    };
-
-    if (!participou) {
-      return base;
-    }
-
-    // 3) Estatísticas + nota da partida (Módulo de progressão).
-    const ehCasa = jogador.clubeId === partida.timeCasa;
-    const cleanSheet = ehCasa ? placarFora === 0 : placarCasa === 0;
-    const resultadoJogador: ResultadoJogador =
-      vencedor === 'empate'
-        ? 'empate'
-        : (vencedor === 'casa') === ehCasa
-          ? 'vitoria'
-          : 'derrota';
-    const assistencias = contarAssistencias(partida.eventos, jogador.id);
-    const nota = calcularNotaPartida(
-      jogador,
-      eventosDoJogador,
-      resultadoJogador,
-      cleanSheet,
-    );
-    const stats = jogador.estatisticasTemporada;
-
-    return {
-      ...base,
-      // Forma reage ao DESEMPENHO (Onda 6): a nota do jogo empurra a fase
-      // técnica — antes a forma só mudava por treino (stub).
-      forma: atualizarFormaPorNota(base.forma, nota),
-      estatisticasTemporada: {
-        ...stats,
-        jogos: stats.jogos + 1,
-        gols: stats.gols + gols,
-        assistencias: stats.assistencias + assistencias,
-        cartoesAmarelos: stats.cartoesAmarelos + amarelos,
-        cartoesVermelhos: stats.cartoesVermelhos + vermelhos,
-        notaMedia: mediaIncremental(stats.notaMedia, stats.jogos, nota),
-      },
-    };
-  });
 }
 
 /**
@@ -1502,84 +1266,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       ],
     );
 
-    let jogadoresAtualizados = periodo.jogadores;
-    let disciplinaProcessada = state.partidasDisciplinaProcessada;
-    const partidasAtualizadas = state.partidas.map(partida => {
-      const jogo = jogosRodada.find(item => item.id === partida.id);
-
-      if (!jogo) {
-        return partida;
-      }
-
-      const clubeCasa = state.clubes.find(clube => clube.id === jogo.timeCasa);
-      const clubeFora = state.clubes.find(clube => clube.id === jogo.timeFora);
-
-      if (!clubeCasa || !clubeFora) {
-        return partida;
-      }
-
-      try {
-        const simulada = simularPartida({
-          timeCasa: clubeCasa,
-          timeFora: clubeFora,
-          jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
-          jogadoresFora: jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
-          seed: state.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
-          competicaoId: jogo.competicaoId,
-          rodada: jogo.rodada,
-          data: jogo.data,
-        });
-        // Jogo da IA guarda só os agregados (save enxuto); o do usuário, tudo.
-        const ehDoUsuario =
-          jogo.timeCasa === state.clubeUsuarioId ||
-          jogo.timeFora === state.clubeUsuarioId;
-        const resultado = ehDoUsuario
-          ? simulada
-          : enxugarEstatisticasIA(simulada);
-
-        jogadoresAtualizados = aplicarResultadoNosJogadores(
-          jogadoresAtualizados,
-          resultado,
-          clubeCasa,
-          clubeFora,
-        );
-        // Disciplina POR COMPETIÇÃO (idempotente por partidaId): cartões da
-        // súmula viram acúmulo/suspensão no balde da competição do jogo.
-        ({jogadores: jogadoresAtualizados, processadas: disciplinaProcessada} =
-          aplicarDisciplinaPartida(
-            jogadoresAtualizados,
-            {
-              id: partida.id,
-              competicaoId: jogo.competicaoId,
-              timeCasa: jogo.timeCasa,
-              timeFora: jogo.timeFora,
-              eventos: simulada.eventos,
-            },
-            disciplinaProcessada,
-          ));
-
-        // Preserva o id do calendário: simularPartida gera um id próprio e o
-        // spread o sobrescreveria, quebrando buscas por id (ex.: localizar a
-        // partida do usuário recém-jogada para a narração e a "Última Partida").
-        return {...partida, ...resultado, id: partida.id};
-      } catch (erro) {
-        // Defesa: um jogo que falha NÃO pode abortar a rodada inteira (perderia
-        // o avanço e o save). Encerra seguro em 0x0 e segue os demais jogos.
-        console.warn(`[avancarRodada] jogo ${partida.id} falhou (0x0):`, erro);
-        return {
-          ...partida,
-          jogada: true,
-          placarCasa: 0,
-          placarFora: 0,
-          eventos: [],
-        };
-      }
+    // Resolução dos jogos vive na engine (season/rodada): simula com as seeds
+    // de sempre, enxuga o save da IA e aplica pós-partida + disciplina.
+    const resolvido = resolverJogosRodada({
+      partidas: state.partidas,
+      jogosRodada,
+      clubes: state.clubes,
+      jogadores: periodo.jogadores,
+      disciplinaProcessada: state.partidasDisciplinaProcessada,
+      rodadaAtual: state.rodadaAtual,
+      clubeUsuarioId: state.clubeUsuarioId,
+      aoFalharJogo: (partidaId, erro) =>
+        console.warn(`[avancarRodada] jogo ${partidaId} falhou (0x0):`, erro),
     });
 
     const {patch, conquistas} = finalizarRodada(state, {
-      partidasAtualizadas,
-      jogadoresAtualizados,
-      disciplinaProcessada,
+      partidasAtualizadas: resolvido.partidas,
+      jogadoresAtualizados: resolvido.jogadores,
+      disciplinaProcessada: resolvido.disciplinaProcessada,
       jogosRodada,
       clubesBase: state.clubes,
       dataFinal: periodo.dataFinal,
@@ -1639,82 +1343,26 @@ export const useGameStore = create<GameState>((set, get) => ({
       ...pendenciasDePropostas(state.propostasRecebidas, state.rodadaAtual, dataRodada),
     ]);
 
-    let jogadoresAtualizados = periodo.jogadores;
-    let disciplinaProcessada = state.partidasDisciplinaProcessada;
-    const partidasAtualizadas = state.partidas.map(partida => {
-      const jogo = jogosRodada.find(item => item.id === partida.id);
-      if (!jogo) {
-        return partida;
-      }
-      const clubeCasa = clubesNoApito.find(clube => clube.id === jogo.timeCasa);
-      const clubeFora = clubesNoApito.find(clube => clube.id === jogo.timeFora);
-      if (!clubeCasa || !clubeFora) {
-        return partida;
-      }
-
-      const resultado: Partida =
-        partida.id === partidaId
-          ? {
-              ...partida,
-              placarCasa,
-              placarFora,
-              eventos: [...eventos].sort((a, b) => a.minuto - b.minuto),
-              jogada: true,
-              modoJogado: 'interativo',
-              posseCasa: posse?.casa,
-              posseFora: posse?.fora,
-              estatisticas,
-              chutes,
-              engineVersion: chutes ? (2 as const) : partida.engineVersion,
-              qualidadeDados: chutes ? ('causal_full' as const) : partida.qualidadeDados,
-              titularesCasa: idsTitularesDisponiveis(
-                clubeCasa,
-                jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
-              ),
-              titularesFora: idsTitularesDisponiveis(
-                clubeFora,
-                jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
-              ),
-            }
-          : enxugarEstatisticasIA(
-              simularPartida({
-                timeCasa: clubeCasa,
-                timeFora: clubeFora,
-                jogadoresCasa: jogadoresDoClube(jogadoresAtualizados, clubeCasa.id),
-                jogadoresFora: jogadoresDoClube(jogadoresAtualizados, clubeFora.id),
-                seed: state.rodadaAtual * 1000 + jogosRodada.indexOf(jogo),
-                competicaoId: jogo.competicaoId,
-                rodada: jogo.rodada,
-                data: jogo.data,
-              }),
-            );
-
-      jogadoresAtualizados = aplicarResultadoNosJogadores(
-        jogadoresAtualizados,
-        resultado,
-        clubeCasa,
-        clubeFora,
-      );
-      // Disciplina por competição (idempotente por partidaId).
-      ({jogadores: jogadoresAtualizados, processadas: disciplinaProcessada} =
-        aplicarDisciplinaPartida(
-          jogadoresAtualizados,
-          {
-            id: partida.id,
-            competicaoId: jogo.competicaoId,
-            timeCasa: jogo.timeCasa,
-            timeFora: jogo.timeFora,
-            eventos: resultado.eventos,
-          },
-          disciplinaProcessada,
-        ));
-      return {...partida, ...resultado, id: partida.id};
+    // A partida do usuário chega DECIDIDA (narração) e é absorvida como
+    // registro; os demais jogos seguem pela engine com as MESMAS seeds do
+    // caminho simulado.
+    const resolvido = resolverJogosRodada({
+      partidas: state.partidas,
+      jogosRodada,
+      clubes: clubesNoApito,
+      jogadores: periodo.jogadores,
+      disciplinaProcessada: state.partidasDisciplinaProcessada,
+      rodadaAtual: state.rodadaAtual,
+      clubeUsuarioId: state.clubeUsuarioId,
+      aoVivo: {partidaId, placarCasa, placarFora, eventos, posse, estatisticas, chutes},
+      aoFalharJogo: (jogoId, erro) =>
+        console.warn(`[concluirPartidaAoVivo] jogo ${jogoId} falhou (0x0):`, erro),
     });
 
     const {patch, conquistas} = finalizarRodada(state, {
-      partidasAtualizadas,
-      jogadoresAtualizados,
-      disciplinaProcessada,
+      partidasAtualizadas: resolvido.partidas,
+      jogadoresAtualizados: resolvido.jogadores,
+      disciplinaProcessada: resolvido.disciplinaProcessada,
       jogosRodada,
       clubesBase: clubesNoApito,
       dataFinal: periodo.dataFinal,

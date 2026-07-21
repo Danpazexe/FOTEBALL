@@ -104,9 +104,6 @@ export function posicaoClube(
   return index === -1 ? tabela.length : index + 1;
 }
 
-// Duração de lesão pós-partida agora vive na engine, junto do pós-jogo (M8).
-export {sortearDuracaoLesao} from '../engine/season/rodada';
-
 export function limiteDerrotasPorDivisao(divisao: string): number {
   if (divisao === 'Série B') {
     return LIMITE_DERROTAS_DEMISSAO.B;
