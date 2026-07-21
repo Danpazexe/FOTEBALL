@@ -110,13 +110,9 @@ import {
   ultimaRodadaLiga,
 } from './helpers';
 import {
-  calcularDatasFasesCopa,
   criarEstadoInicial,
   DIVISAO_PADRAO,
-  ehDivisaoBrasileira,
-  gerarCopaParaTemporada,
-  gerarLiga,
-  gerarLigaSerieDGrupo,
+  montarLigaECopaDaCarreira,
   PREMIACAO_COPA,
   TEMPORADA_INICIAL,
 } from './setup';
@@ -1268,21 +1264,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     const base = criarEstadoInicial();
     const escolhido = base.todosClubes.find(clube => clube.id === clubeId);
     const divisao = escolhido?.divisao ?? DIVISAO_PADRAO;
-    // Série D: a liga ativa é o GRUPO de 6 do clube (não a divisão inteira de 96).
-    const liga =
-      divisao === 'Série D'
-        ? gerarLigaSerieDGrupo(
-            base.todosClubes,
-            base.todosJogadores,
-            clubeId,
-            TEMPORADA_INICIAL,
-          )
-        : gerarLiga(
-            base.todosClubes,
-            base.todosJogadores,
-            divisao,
-            TEMPORADA_INICIAL,
-          );
+    const {liga, copa} = montarLigaECopaDaCarreira(
+      base.todosClubes,
+      base.todosJogadores,
+      divisao,
+      clubeId,
+      TEMPORADA_INICIAL,
+    );
     set({
       todosClubes: base.todosClubes,
       todosJogadores: base.todosJogadores,
@@ -1321,17 +1309,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       jovensDisponiveis: [],
       propostasRecebidas: [],
       formacaoPreLive: null,
-      copa:
-        // Sem Copa do Brasil na Série D (grupo curto) e fora do Brasil.
-        divisao === 'Série D' || !ehDivisaoBrasileira(divisao)
-          ? null
-          : gerarCopaParaTemporada(
-              base.todosClubes,
-              base.todosJogadores,
-              TEMPORADA_INICIAL,
-              clubeId,
-              calcularDatasFasesCopa(liga.partidas),
-            ),
+      copa,
       clubes: liga.clubes.map(clube => ({
         ...clube,
         controladoPorIA: clube.id !== clubeId,
@@ -1357,20 +1335,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       return;
     }
     const divisao = escolhido.divisao ?? DIVISAO_PADRAO;
-    const liga =
-      divisao === 'Série D'
-        ? gerarLigaSerieDGrupo(
-            state.todosClubes,
-            state.todosJogadores,
-            clubeId,
-            state.temporadaAtual,
-          )
-        : gerarLiga(
-            state.todosClubes,
-            state.todosJogadores,
-            divisao,
-            state.temporadaAtual,
-          );
+    const {liga, copa} = montarLigaECopaDaCarreira(
+      state.todosClubes,
+      state.todosJogadores,
+      divisao,
+      clubeId,
+      state.temporadaAtual,
+    );
     set({
       clubeUsuarioId: clubeId,
       rodadaAtual: 1,
@@ -1405,16 +1376,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       jovensDisponiveis: [],
       propostasRecebidas: [],
       formacaoPreLive: null,
-      copa:
-        divisao === 'Série D' || !ehDivisaoBrasileira(divisao)
-          ? null
-          : gerarCopaParaTemporada(
-              state.todosClubes,
-              state.todosJogadores,
-              state.temporadaAtual,
-              clubeId,
-              calcularDatasFasesCopa(liga.partidas),
-            ),
+      copa,
       clubes: liga.clubes.map(clube => ({
         ...clube,
         controladoPorIA: clube.id !== clubeId,
