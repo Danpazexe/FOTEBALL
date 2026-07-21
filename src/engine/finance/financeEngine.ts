@@ -11,6 +11,21 @@ export function calcularFolhaSalarial(jogadores: Player[]): number {
   return jogadores.reduce((total, jogador) => total + jogador.salario, 0);
 }
 
+/**
+ * Registra a transação só quando `valor > 0` — guarda única dos pontos de
+ * crédito/débito condicionais (patrocínio, taxas de transferência), evitando
+ * lançamentos zerados/negativos no histórico.
+ */
+export function registrarTransacaoSePositiva(
+  clube: Clube,
+  transacao: Transacao,
+): Clube {
+  if (transacao.valor <= 0) {
+    return clube;
+  }
+  return registrarTransacao(clube, transacao);
+}
+
 export function registrarTransacao(
   clube: Clube,
   transacao: Transacao,
