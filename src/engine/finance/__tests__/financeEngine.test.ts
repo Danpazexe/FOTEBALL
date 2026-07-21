@@ -24,6 +24,22 @@ describe('financeEngine — acerto anual', () => {
     expect(depois.financas.historicoTransacoes[0].categoria).toBe('patrocinio');
   });
 
+  it('pularPatrocinioReputacao: o acerto anual NÃO paga o patrocínio-por-reputação', () => {
+    // Clube do usuário com CONTRATO ativo: a renda vem do contrato — o acerto
+    // pula o por-reputação para não pagar duas vezes. Diferença exata = 50·taxa.
+    const clube = criarClube({id: 'a', reputacao: 50});
+    const comReputacao = aplicarAcertoFinanceiroAnual(clube, [], DATA, false);
+    const semReputacao = aplicarAcertoFinanceiroAnual(clube, [], DATA, true);
+    expect(comReputacao.financas.saldo - semReputacao.financas.saldo).toBe(
+      50 * PATROCINIO_POR_REPUTACAO,
+    );
+    expect(
+      semReputacao.financas.historicoTransacoes.some(
+        transacao => transacao.categoria === 'patrocinio',
+      ),
+    ).toBe(false);
+  });
+
   it('manutenção do estádio deriva da capacidade', () => {
     const clube = criarClube({id: 'a'}); // capacidade 30000
     const depois = aplicarManutencaoEstadio(clube, DATA);
