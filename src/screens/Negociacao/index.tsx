@@ -28,7 +28,7 @@ import {
   useGameStore,
 } from '../../store/useGameStore';
 import {
-  useMercadoNavigation,
+  useVoltarOu,
   type MercadoStackParamList,
 } from '../../navigation/types';
 import {
@@ -41,7 +41,6 @@ import {
 import {simboloMoeda} from '../../engine/competitions/registry/competitionRegistry';
 
 function Negociacao(): React.JSX.Element {
-  const nav = useMercadoNavigation();
   const toast = useToast();
   const route = useRoute<RouteProp<MercadoStackParamList, 'Negociacao'>>();
   const {jogadorId} = route.params;
@@ -70,8 +69,7 @@ function Negociacao(): React.JSX.Element {
   );
   const [contra, setContra] = useState<number | null>(null);
 
-  const voltar = () =>
-    nav.canGoBack() ? nav.goBack() : nav.navigate('TransferMarket');
+  const voltar = useVoltarOu('TransferMarket');
 
   if (!jogador) {
     return (

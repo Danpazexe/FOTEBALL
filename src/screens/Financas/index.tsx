@@ -29,7 +29,7 @@ import {
   faixaPctFolha,
   pctFolhaSobreReceita,
 } from '../../engine/finance/financeEngine';
-import {useClubeNavigation} from '../../navigation/types';
+import {useVoltarOu} from '../../navigation/types';
 import {moeda, moedaCompacta} from '../../utils/formatters';
 import type {Transacao} from '../../types';
 
@@ -82,13 +82,11 @@ function evolucaoMensal(transacoes: Transacao[]): {mes: string; net: number}[] {
 }
 
 function Financas(): React.JSX.Element {
-  const nav = useClubeNavigation();
   const {cores} = useTheme();
   const clube = useGameStore(selecionarClubeUsuario);
   const elenco = useJogadoresUsuario();
 
-  const voltar = () =>
-    nav.canGoBack() ? nav.goBack() : nav.navigate('CentralClube');
+  const voltar = useVoltarOu('CentralClube');
 
   const dados = useMemo(() => {
     if (!clube) {

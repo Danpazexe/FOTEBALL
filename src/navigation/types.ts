@@ -1,6 +1,9 @@
+import {useCallback} from 'react';
 import type {
   CompositeNavigationProp,
+  NavigationProp,
   NavigatorScreenParams,
+  ParamListBase,
   RouteProp,
 } from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
@@ -157,6 +160,43 @@ export function useInicioNavigation(): InicioNavigation {
 /** Hook de navegação da aba Elenco (ElencoStack + RootStack). */
 export function useElencoNavigation(): ElencoNavigation {
   return useNavigation<ElencoNavigation>();
+}
+
+// ─── Voltar com fallback ────────────────────────────────────────────────────
+
+/** Interseção dos param lists dos stacks (chaves repetidas têm o MESMO tipo).
+ * Exclui MainTabsParamList, cujas chaves colidem com tipos diferentes. */
+type IntersecaoStacks = RootStackParamList &
+  InicioStackParamList &
+  ElencoStackParamList &
+  PartidasStackParamList &
+  MercadoStackParamList &
+  ClubeStackParamList;
+
+/** Achata a interseção num objeto único para valer como ParamList. */
+type ParamListApp = {[K in keyof IntersecaoStacks]: IntersecaoStacks[K]};
+
+/** Rotas SEM parâmetros — as únicas aceitas como fallback do voltar. */
+type RotaVoltarFallback = {
+  [R in keyof ParamListApp]: ParamListApp[R] extends undefined ? R : never;
+}[keyof ParamListApp];
+
+/** Voltar com fallback: volta na pilha se houver histórico; senão navega para
+ * `rotaFallback` (tela aberta como raiz do stack, ex.: por atalho/reset).
+ * O parâmetro trava nas rotas reais SEM params; por baixo o navigate é por
+ * nome e sobe até o navigator dono da rota (mesmo runtime do padrão inline). */
+export function useVoltarOu(rotaFallback: RotaVoltarFallback): () => void {
+  const nav = useNavigation<NavigationProp<ParamListBase>>();
+  return useCallback(() => {
+    if (nav.canGoBack()) {
+      nav.goBack();
+      return;
+    }
+    // Alarga a união de literais para string: o navigate do v7 não aceita
+    // união no nome; a validade da rota já foi garantida pelo tipo acima.
+    const rota: string = rotaFallback;
+    nav.navigate(rota);
+  }, [nav, rotaFallback]);
 }
 
 /** Hook de rota tipado (acessa `route.params` da tela atual). */

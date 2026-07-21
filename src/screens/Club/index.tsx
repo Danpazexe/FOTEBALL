@@ -21,7 +21,7 @@ import {
   espacamento,
 } from '../../design-system';
 import {useToast} from '../../components/feedback';
-import {useClubeNavigation} from '../../navigation/types';
+import {useClubeNavigation, useVoltarOu} from '../../navigation/types';
 import {
   CAPACIDADE_MAX_ESTADIO,
   INFRA_MAX_ESTADIO,
@@ -58,8 +58,7 @@ function Club(): React.JSX.Element {
     [elenco],
   );
 
-  const voltar = () =>
-    nav.canGoBack() ? nav.goBack() : nav.navigate('CentralClube');
+  const voltar = useVoltarOu('CentralClube');
 
   if (!clube) {
     return (

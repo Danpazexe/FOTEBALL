@@ -24,10 +24,9 @@ import {
 import {calcularJornada} from '../../engine/carreira/jornada';
 import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
 import {useAchievementsStore} from '../../store/useAchievementsStore';
-import {useClubeNavigation} from '../../navigation/types';
+import {useVoltarOu} from '../../navigation/types';
 
 function Carreira(): React.JSX.Element {
-  const nav = useClubeNavigation();
   const {cores} = useTheme();
   const clube = useGameStore(selecionarClubeUsuario);
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
@@ -35,8 +34,7 @@ function Carreira(): React.JSX.Element {
   const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
   const conquistas = useAchievementsStore(state => state.conquistas);
 
-  const voltar = () =>
-    nav.canGoBack() ? nav.goBack() : nav.navigate('CentralClube');
+  const voltar = useVoltarOu('CentralClube');
 
   const campanha = useMemo(() => {
     let jogos = 0;
