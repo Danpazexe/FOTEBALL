@@ -16,7 +16,7 @@ import {criarClube, criarPlayer} from '../../../testing/fixtures';
 const DATA = '2026-fim';
 
 describe('financeEngine — acerto anual', () => {
-  it('patrocínio anual deriva da reputação quando não há patrocinadores', () => {
+  it('patrocínio anual deriva da reputação', () => {
     const clube = criarClube({id: 'a', reputacao: 50});
     const depois = aplicarPatrocinioAnual(clube, DATA);
     const esperado = 50 * PATROCINIO_POR_REPUTACAO;

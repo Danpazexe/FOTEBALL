@@ -2,7 +2,7 @@ import type {Clube, Player, Transacao} from '../../types';
 
 /** Juros anuais cobrados sobre saldo negativo (custo de operar no vermelho). */
 export const TAXA_JUROS_ANUAL = 0.12;
-/** Patrocínio anual derivado da reputação quando não há patrocinador no seed. */
+/** Patrocínio anual derivado da reputação (clubes sem contrato de patrocínio). */
 export const PATROCINIO_POR_REPUTACAO = 80_000;
 /** Custo anual de manutenção do estádio por lugar de capacidade. */
 export const MANUTENCAO_POR_LUGAR = 35;
@@ -194,16 +194,13 @@ export function aplicarFolhaMensal(
   });
 }
 
-/** Patrocínio anual: usa os patrocinadores do clube ou deriva da reputação. */
+/**
+ * Patrocínio anual derivado da reputação. CONTRATOS de patrocínio são
+ * exclusivos do clube do usuário e vivem em `engine/patrocinio` — se um dia a
+ * IA ganhar contratos, a renda por contrato deve ser modelada lá, não aqui.
+ */
 export function aplicarPatrocinioAnual(clube: Clube, data: string): Clube {
-  const dosContratos = clube.financas.patrocinadores.reduce(
-    (total, patrocinio) => total + patrocinio.valorMensal * 12,
-    0,
-  );
-  const valor =
-    dosContratos > 0
-      ? dosContratos
-      : Math.round(clube.reputacao * PATROCINIO_POR_REPUTACAO);
+  const valor = Math.round(clube.reputacao * PATROCINIO_POR_REPUTACAO);
   return registrarTransacaoSePositiva(clube, {
     data,
     tipo: 'receita',
