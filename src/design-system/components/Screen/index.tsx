@@ -3,12 +3,19 @@
  * área segura + scroll opcional com margem padrão. Substitui o ScreenContainer
  * antigo (fundo escuro fixo) nas telas migradas.
  */
-import React from 'react';
+import React, {useContext} from 'react';
 import {ScrollView, StyleSheet, View} from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {espacamento} from '../../tokens';
 import {useTheme} from '../../themes/useTheme';
+
+/**
+ * Marca as telas que vivem SOB a tab bar (o TabNavigator provê `true`): ali a
+ * própria TabBar já consome o inset inferior do sistema, então o Screen não
+ * deve duplicá-lo. Fora das abas (default `false`) o Screen aplica o inset.
+ */
+export const ScreenSobTabBarContext = React.createContext(false);
 
 type Props = {
   children: React.ReactNode;
@@ -32,19 +39,34 @@ export function Screen({
   header,
 }: Props): React.JSX.Element {
   const {cores} = useTheme();
+  // Edge-to-edge (Android 15+/targetSdk 35+ desenha SOB as barras do sistema):
+  // o inset inferior (gesture/nav bar) precisa ser aplicado aqui. Sob a tab
+  // bar a própria TabBar já consome o inset; fora dela (telas de stack:
+  // PreJogo, Settings, MatchSimulation…) é o Screen que afasta o conteúdo da
+  // barra. No iOS vale o mesmo para o home indicator.
+  const sobTabBar = useContext(ScreenSobTabBarContext);
+  const insets = useSafeAreaInsets();
+  const insetInferior = sobTabBar ? 0 : insets.bottom;
   return (
     <View style={[estilos.raiz, {backgroundColor: cores.canvas}]}>
       <SafeAreaView style={estilos.flex} edges={['top', 'left', 'right']}>
         {header ? <View style={estilos.header}>{header}</View> : null}
         {scroll ? (
           <ScrollView
-            contentContainerStyle={estilos.conteudo}
+            contentContainerStyle={[
+              estilos.conteudo,
+              // No modo scroll o inset entra como padding do CONTEÚDO: a lista
+              // rola até o fim sem nada preso atrás da barra de gestos.
+              {paddingBottom: espacamento[12] + insetInferior},
+            ]}
             scrollEnabled={scrollEnabled}
             showsVerticalScrollIndicator={false}>
             {children}
           </ScrollView>
         ) : (
-          <View style={estilos.flex}>{children}</View>
+          <View style={[estilos.flex, {paddingBottom: insetInferior}]}>
+            {children}
+          </View>
         )}
       </SafeAreaView>
     </View>
@@ -61,6 +83,6 @@ const estilos = StyleSheet.create({
   conteudo: {
     padding: espacamento[4],
     gap: espacamento[3],
-    paddingBottom: espacamento[12],
+    // paddingBottom vem inline: espacamento[12] + inset inferior (edge-to-edge).
   },
 });

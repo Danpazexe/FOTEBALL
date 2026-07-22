@@ -7,6 +7,7 @@
 
 import React, {useMemo, useState} from 'react';
 import {Modal, StyleSheet, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {
   AppHeader,
@@ -157,6 +158,8 @@ function Semana(): React.JSX.Element {
   const nav = useAppNavigation();
   const toast = useToast();
   const {cores} = useTheme();
+  // Folha inferior em Modal edge-to-edge: soma o inset da gesture/nav bar.
+  const insets = useSafeAreaInsets();
   const elenco = useJogadoresUsuario();
   const clube = useGameStore(selecionarClubeUsuario);
   const aplicarTreino = useGameStore(state => state.aplicarTreino);
@@ -630,7 +633,11 @@ function Semana(): React.JSX.Element {
           <View
             style={[
               styles.modalSheet,
-              {backgroundColor: cores.surface, borderColor: cores.border},
+              {
+                backgroundColor: cores.surface,
+                borderColor: cores.border,
+                paddingBottom: espacamento[6] + insets.bottom,
+              },
             ]}>
             <Text variant="labelM" color="textSecondary" style={styles.caps}>
               {diaEditando !== null
@@ -713,7 +720,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: raios.xl,
     borderWidth: 1,
     gap: espacamento[1],
-    paddingBottom: espacamento[6],
+    // paddingBottom vem inline: espacamento[6] + inset inferior (edge-to-edge).
     paddingHorizontal: espacamento[4],
     paddingTop: espacamento[3],
   },

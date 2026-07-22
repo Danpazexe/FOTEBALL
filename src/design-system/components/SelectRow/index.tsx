@@ -5,6 +5,7 @@
  */
 import React, {useState} from 'react';
 import {Modal, StyleSheet, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {Icon} from '../../primitives/Icon';
 import {Pressable} from '../../primitives/Pressable';
@@ -33,6 +34,8 @@ export function SelectRow({
   compacto,
 }: Props): React.JSX.Element {
   const {cores} = useTheme();
+  // Folha inferior em Modal edge-to-edge: soma o inset da gesture/nav bar.
+  const insets = useSafeAreaInsets();
   const [aberto, setAberto] = useState(false);
 
   const escolher = (v: string) => {
@@ -91,7 +94,11 @@ export function SelectRow({
           <View
             style={[
               estilos.sheet,
-              {backgroundColor: cores.surface, borderColor: cores.border},
+              {
+                backgroundColor: cores.surface,
+                borderColor: cores.border,
+                paddingBottom: espacamento[6] + insets.bottom,
+              },
             ]}>
             {label ? (
               <Text
@@ -151,7 +158,7 @@ const estilos = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: espacamento[4],
     paddingTop: espacamento[3],
-    paddingBottom: espacamento[6],
+    // paddingBottom vem inline: espacamento[6] + inset inferior (edge-to-edge).
     gap: 2,
   },
   sheetTitulo: {

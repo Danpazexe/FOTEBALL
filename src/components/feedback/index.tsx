@@ -14,6 +14,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {
   espacamento,
@@ -56,6 +57,7 @@ interface ConfirmEstado extends ConfirmOpcoes {
 export function FeedbackProvider({children}: {children: React.ReactNode}) {
   const {cores} = useTheme();
   const styles = useEstilosDS(criarEstilos);
+  const insets = useSafeAreaInsets();
   const [confirmEstado, setConfirmEstado] = useState<ConfirmEstado>({
     visivel: false,
     titulo: '',
@@ -128,7 +130,16 @@ export function FeedbackProvider({children}: {children: React.ReactNode}) {
         transparent
         animationType="fade"
         onRequestClose={() => fechar(false)}>
-        <Pressable style={styles.backdrop} onPress={() => fechar(false)}>
+        <Pressable
+          style={[
+            styles.backdrop,
+            // Modal edge-to-edge: diálogo alto nunca termina atrás das barras.
+            {
+              paddingTop: espacamento[6] + insets.top,
+              paddingBottom: espacamento[6] + insets.bottom,
+            },
+          ]}
+          onPress={() => fechar(false)}>
           <Pressable style={styles.dialog}>
             <Text style={styles.titulo}>{confirmEstado.titulo}</Text>
             {confirmEstado.mensagem ? (

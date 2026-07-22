@@ -11,7 +11,7 @@ export {StandingRow} from './StandingRow';
 export {ManagerTask} from './ManagerTask';
 export {Avatar} from './Avatar';
 export {SelectRow} from './SelectRow';
-export {Screen} from './Screen';
+export {Screen, ScreenSobTabBarContext} from './Screen';
 export {StatValue} from './StatValue';
 export {EmptyState} from './EmptyState';
 export {Tabs, type Aba} from './Tabs';

@@ -217,9 +217,11 @@ function App(): React.JSX.Element {
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <ThemeProvider>
+          {/* Edge-to-edge (Android 15+/gradle edgeToEdgeEnabled): backgroundColor
+              é ignorado pelo sistema — a área da status bar mostra o canvas do
+              Screen. Só o estilo dos ícones é gerido aqui. */}
           <StatusBar
             barStyle={esquemaDS === 'claro' ? 'dark-content' : 'light-content'}
-            backgroundColor={coresDS.canvas}
           />
           <NavigationContainer theme={temaFoteball}>
             <FeedbackProvider>

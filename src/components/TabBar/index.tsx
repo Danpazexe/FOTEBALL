@@ -105,8 +105,10 @@ export default function TabBar({
 }: BottomTabBarProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const styles = useEstilosDS(criarEstilos);
+  // Edge-to-edge: SOMA o inset da gesture/nav bar ao respiro próprio — os
+  // ícones e rótulos nunca ficam atrás da barra do sistema.
   return (
-    <View style={[styles.barra, {paddingBottom: Math.max(insets.bottom, 10)}]}>
+    <View style={[styles.barra, {paddingBottom: insets.bottom + 10}]}>
       {state.routes.map((route, index) => {
         const focado = state.index === index;
         const badge = descriptors[route.key]?.options.tabBarBadge as
