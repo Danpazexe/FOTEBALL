@@ -74,10 +74,16 @@ import {
   acrescimosDaSeed,
   calcularEstatisticasFinais,
   calcularPossePartida,
+  idsTitularesDisponiveis,
   iniciarPartidaAoVivo,
   simularMinuto,
   type EstadoPartidaAoVivo,
 } from '../../engine/simulation/matchSimulator';
+import type {PosicoesElenco} from '../../engine/simulation/lances';
+import {
+  reconstruirLanceMinuto,
+  type LanceMinuto,
+} from '../../engine/simulation/reconstruirLanceMinuto';
 import {confrontoDoClube} from '../../engine/season/copaEngine';
 import {hashString} from '../../engine/simulation/rng';
 import {
@@ -113,6 +119,7 @@ import {
   type JogoAoVivo,
   type PlacarAoVivo,
 } from './jogosAoVivo';
+import RadarPartida from './RadarPartida';
 import {CabecalhoTabelaAoVivo, LinhaRodada, LinhaTabela} from './TabelaAoVivo';
 import {LinhaEvento, type ItemTimeline, type LadoLance} from './Timeline';
 
@@ -130,6 +137,15 @@ function mapearNomesJogadores(jogadores: Player[]): Record<string, string> {
   const mapa: Record<string, string> = {};
   for (const jogador of jogadores) {
     mapa[jogador.id] = jogador.apelido ?? jogador.nome;
+  }
+  return mapa;
+}
+
+/** jogadorId → posição natural (formato do MatchResult/reconstruirLancesGol). */
+function mapearPosicoes(jogadores: Player[]): PosicoesElenco {
+  const mapa: PosicoesElenco = {};
+  for (const jogador of jogadores) {
+    mapa[jogador.id] = jogador.posicaoPrincipal;
   }
   return mapa;
 }
@@ -189,6 +205,16 @@ function MatchSimulation(): React.JSX.Element | null {
   const nomeCasaRef = useRef('');
   const nomeForaRef = useRef('');
   const nomesRef = useRef<Record<string, string>>({});
+  // Insumos do RADAR (replay de gol reconstruído): posição natural de cada
+  // jogador + snapshot dos titulares no apito — mesmos dados do MatchResult.
+  const posicoesRef = useRef<PosicoesElenco>({});
+  const titularesRef = useRef<{casa: string[]; fora: string[]}>({
+    casa: [],
+    fora: [],
+  });
+  // Seed REAL da partida — o radar deriva o lance de cada minuto dela (a mesma
+  // seed do estado ao vivo; nenhum RNG da simulação é compartilhado/consumido).
+  const seedRef = useRef(0);
   const ladoUsuarioRef = useRef<LadoLance>('casa');
   const pausarNoIntervaloRef = useRef(true);
   const marcosRef = useRef({
@@ -247,6 +273,9 @@ function MatchSimulation(): React.JSX.Element | null {
   const bannerGolSeqRef = useRef(0);
   const [bannerGol, setBannerGol] = useState<DadosBannerGol | null>(null);
   const fecharBannerGol = useCallback(() => setBannerGol(null), []);
+  // RADAR: lance derivado do último minuto simulado (jogadores reais + bola
+  // tocando entre eles) — espelho de UI, derivado dos fatos da engine.
+  const [lanceMinuto, setLanceMinuto] = useState<LanceMinuto | null>(null);
 
   // Prepara a partida do usuário (sem simular nada ainda).
   useEffect(() => {
@@ -311,7 +340,22 @@ function MatchSimulation(): React.JSX.Element | null {
         ...estado.jogadores,
         ...advJogadores,
       ]);
+      posicoesRef.current = mapearPosicoes([
+        ...estado.jogadores,
+        ...advJogadores,
+      ]);
+      const clubeDoUsuario = estado.clubes.find(c => c.id === userId);
+      titularesRef.current = {
+        casa: clubeDoUsuario
+          ? idsTitularesDisponiveis(
+              clubeDoUsuario,
+              estado.jogadores.filter(j => j.clubeId === userId),
+            )
+          : [],
+        fora: idsTitularesDisponiveis(advClube, advJogadores),
+      };
       const seedPartida = hashString(meu.id) % 1_000_000;
+      seedRef.current = seedPartida;
       estadoRef.current = iniciarPartidaAoVivo(seedPartida);
       setAcrescimos(acrescimosDaSeed(seedPartida));
 
@@ -346,9 +390,27 @@ function MatchSimulation(): React.JSX.Element | null {
       nomeCasaRef.current = nomeClube(estado.clubes, proximo.timeCasa);
       nomeForaRef.current = nomeClube(estado.clubes, proximo.timeFora);
       nomesRef.current = mapearNomesJogadores(estado.jogadores);
+      posicoesRef.current = mapearPosicoes(estado.jogadores);
+      const clubeCasaPre = estado.clubes.find(c => c.id === proximo.timeCasa);
+      const clubeForaPre = estado.clubes.find(c => c.id === proximo.timeFora);
+      titularesRef.current = {
+        casa: clubeCasaPre
+          ? idsTitularesDisponiveis(
+              clubeCasaPre,
+              estado.jogadores.filter(j => j.clubeId === proximo.timeCasa),
+            )
+          : [],
+        fora: clubeForaPre
+          ? idsTitularesDisponiveis(
+              clubeForaPre,
+              estado.jogadores.filter(j => j.clubeId === proximo.timeFora),
+            )
+          : [],
+      };
       const seedPartida =
         estado.rodadaAtual * 1000 +
         (proximo.id.split('').reduce((s, c) => s + c.charCodeAt(0), 0) % 1000);
+      seedRef.current = seedPartida;
       estadoRef.current = iniciarPartidaAoVivo(seedPartida);
       setAcrescimos(acrescimosDaSeed(seedPartida));
       setSiglaCasa(siglaClube(estado.clubes, proximo.timeCasa));
@@ -491,6 +553,8 @@ function MatchSimulation(): React.JSX.Element | null {
     // Cartaz de gol do lote: só eventos que mudam o placar viram banner; se o
     // lote tiver mais de um gol (pulo de tempo), o último é o que fica.
     let bannerNovo: DadosBannerGol | null = null;
+    // Lance do radar do lote (o do minuto mais recente vence).
+    let lanceUltimo: LanceMinuto | null = null;
     const criarItem = (ev: EventoPartida): ItemTimeline => {
       const ehCasa = ev.timeId === fixture.timeCasa;
       const nomeAutor = nomesRef.current[ev.jogadorId] ?? 'Jogador';
@@ -606,8 +670,35 @@ function MatchSimulation(): React.JSX.Element | null {
       } catch {
         break;
       }
+      const chutesAntesDoMinuto = estado.chutes.length;
       const novos = simularMinuto(estado, ctx);
       minutoSimuladoRef.current = proximoMinuto;
+
+      // RADAR: deriva o lance do minuto (toques entre jogadores REAIS em campo,
+      // ancorado nos fatos do minuto). Função PURA fora da simulação — não
+      // consome nenhum RNG do estado, então a paridade com o motor headless
+      // fica intocada. Em lote (pulo de tempo), o último lance é o que fica.
+      const amostrasMomento = estado.estatisticas.momentumPorMinuto;
+      const lanceDoMinuto = reconstruirLanceMinuto({
+        seedPartida: seedRef.current,
+        minuto: proximoMinuto,
+        momentoMinuto: amostrasMomento[amostrasMomento.length - 1] ?? 0,
+        timeCasaId: fixture.timeCasa,
+        timeForaId: fixture.timeFora,
+        emCampoCasa: ctx.jogadoresCasa.map(j => ({
+          id: j.id,
+          posicao: j.posicaoPrincipal,
+        })),
+        emCampoFora: ctx.jogadoresFora.map(j => ({
+          id: j.id,
+          posicao: j.posicaoPrincipal,
+        })),
+        eventosDoMinuto: novos,
+        chutesDoMinuto: estado.chutes.slice(chutesAntesDoMinuto),
+      });
+      if (lanceDoMinuto) {
+        lanceUltimo = lanceDoMinuto;
+      }
       for (const ev of novos) {
         novosItens.push(criarItem(ev));
         const doUsuario =
@@ -730,6 +821,9 @@ function MatchSimulation(): React.JSX.Element | null {
     }
     if (bannerNovo) {
       setBannerGol(bannerNovo);
+    }
+    if (lanceUltimo) {
+      setLanceMinuto(lanceUltimo);
     }
     setPlacar({casa: estado.placarCasa, fora: estado.placarFora});
     setPosse(calcularPossePartida(estado));
@@ -1173,6 +1267,32 @@ function MatchSimulation(): React.JSX.Element | null {
             ) : null}
           </View>
         ) : null}
+
+        {/* RADAR DA PARTIDA: mini-campo vivo a partida inteira — lance do
+            minuto com jogadores reais (bola tocando entre eles), chutes no
+            ponto do ledger, replay do gol e faixa sutil de pressão. Acima do
+            feed (não cobre o BannerGol, que flutua sobre o feed) e colapsável
+            para não competir com o CTA principal. */}
+        <RadarPartida
+          partidaId={fixture.id}
+          timeCasaId={fixture.timeCasa}
+          timeForaId={fixture.timeFora}
+          siglaCasa={siglaCasa}
+          siglaFora={siglaFora}
+          nomeCasa={nomeCasaRef.current}
+          nomeFora={nomeForaRef.current}
+          corCasa={corCasa}
+          corFora={corFora}
+          minuto={minuto}
+          posseCasa={posseCasa}
+          momentum={momentum}
+          chutes={estadoRef.current?.chutes ?? []}
+          eventos={eventosAoVivo}
+          lanceMinuto={lanceMinuto}
+          titularesCasa={titularesRef.current.casa}
+          titularesFora={titularesRef.current.fora}
+          posicoes={posicoesRef.current}
+        />
 
         {temOutrosJogos ? (
           <Tabs

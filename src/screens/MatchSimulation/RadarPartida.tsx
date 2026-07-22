@@ -1,0 +1,907 @@
+/**
+ * RadarPartida — mini-campo HORIZONTAL ao vivo (estilo Sofascore, visual
+ * cartaz: moldura 2px de tinta + sombra dura). Fica em cena a partida inteira,
+ * acima do feed, e é colapsável para não roubar espaço do feed/CTA.
+ *
+ * O radar é FIEL AOS LANCES: a cada minuto simulado, o lance derivado pela
+ * engine (`reconstruirLanceMinuto` — reconstrução DERIVADA, nunca persistida)
+ * coloca em campo os JOGADORES REAIS envolvidos e a bola viaja de jogador a
+ * jogador — nunca flutua sozinha. "Onde o jogo está" emerge de onde os toques
+ * acontecem.
+ *
+ * REGRA DE OURO (nada inventado — só o que a engine produz):
+ *  • LANCE DO MINUTO: posse/profundidade pelo momento REAL do minuto;
+ *    participantes reais da escalação vigente; chute no ponto REAL do ledger.
+ *  • FUNDO: faixa de pressão sutil pela série `momentumPorMinuto` (a mesma do
+ *    MomentoChart). É leitura de PRESSÃO, não posição de bola — o
+ *    accessibilityLabel deixa isso explícito.
+ *  • EVENTOS: chutes pingam no ponto REAL (`chuteId` → ledger); cartão/lesão/
+ *    substituição pingam na posição NATURAL do jogador envolvido.
+ *  • GOL: replay do lance reconstruído por `reconstruirLancesGol` (a MESMA
+ *    reconstrução determinística do pós-jogo — mesma partida ⇒ mesmo lance).
+ *
+ * PROGRESSÃO conduzida por JS/estado (lição do replay): o avanço de lance e
+ * replay vem do sequenciador (`sequenciaReplay`) e a zona muda por prop a cada
+ * minuto simulado; o Reanimated APENAS suaviza (com redução de movimento do
+ * sistema, a suavização vira salto — a informação continua chegando).
+ *
+ * Verdes do gramado/cal são constantes locais — mesmo precedente do
+ * MapaFinalizacoes/ReplayGol/CampoFUT (mobília de campo, fixa nos dois temas).
+ */
+import React, {useCallback, useEffect, useRef, useState} from 'react';
+import {
+  Pressable,
+  StyleSheet,
+  // RN Text cru só para a sigla sobre a bolinha do jogador — "mobília de
+  // campo" (branco/cal sobre a cor do clube), fora dos tokens do DS de UI,
+  // mesmo precedente do MapaFinalizacoes.
+  Text as RNText,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
+import Animated, {
+  Easing,
+  Extrapolation,
+  cancelAnimation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
+import Svg, {Circle, ClipPath, Defs, G, Line, Rect} from 'react-native-svg';
+
+import type {IconeNome} from '../../components/Icone';
+import {
+  criarSequenciadorReplay,
+  type SequenciadorReplay,
+} from '../../components/ReplayGol/sequenciaReplay';
+import {
+  Icon,
+  Text,
+  elevacao,
+  espacamento,
+  raios,
+  useTheme,
+  type CorTexto,
+} from '../../design-system';
+import {reconstruirLancesGol} from '../../engine/simulation/lanceReplay';
+import type {LanceGol, PosicoesElenco} from '../../engine/simulation/lances';
+import type {LanceMinuto} from '../../engine/simulation/reconstruirLanceMinuto';
+import {
+  ehEventoGol,
+  type ChutePartida,
+  type EventoPartida,
+  type Partida,
+  type ResultadoChute,
+} from '../../types';
+import {
+  pontoChuteNoRadar,
+  pontoEventoNoRadar,
+  pontoPassoNoRadar,
+  resumoRadar,
+  zonaPressao,
+  type PontoRadar,
+} from './radarCampo';
+
+// Mobília do campo (fixa nos 2 temas) — mesmos valores do MapaFinalizacoes/
+// ReplayGol/CampoFUT.
+const CAMPO_VERDE = '#2E9E58';
+const CAMPO_VERDE_2 = '#2A9151';
+const CAL = 'rgba(255, 255, 255, 0.85)';
+const CAL_FRACA = 'rgba(255, 255, 255, 0.5)';
+const BOLA_COR = '#FFFFFF';
+const BOLA_BORDA = 'rgba(16, 24, 32, 0.7)';
+
+const LISTRAS = 8;
+/** Margem interna do gramado no SVG. */
+const M = 8;
+/** Proporção altura/largura do mini-campo (mais achatado que o real p/ caber). */
+const PROPORCAO = 0.5;
+/** Eventos sem coordenada ficam em cena por esta janela de MINUTOS de jogo. */
+const JANELA_EVENTOS_MIN = 5;
+/** Duração de cada toque do lance do minuto (sequência curta e viva). */
+const LANCE_SEGMENTO_MS = 260;
+/** Duração de cada segmento do replay de GOL no radar. */
+const RADAR_SEGMENTO_MS = 550;
+/** Pausa (ms) com o lance completo em cena antes de limpar o replay de gol. */
+const RADAR_POS_REPLAY_MS = 1600;
+/** Só reproduz o replay de gol se ele saiu "agora" (pulo de tempo não vira rajada). */
+const REPLAY_JANELA_MIN = 2;
+/** Diâmetro da bolinha de jogador do lance. */
+const JOGADOR_D = 18;
+
+type Props = {
+  partidaId: string;
+  timeCasaId: string;
+  timeForaId: string;
+  siglaCasa: string;
+  siglaFora: string;
+  nomeCasa: string;
+  nomeFora: string;
+  corCasa: string;
+  corFora: string;
+  /** Minuto atual do relógio (não do evento). */
+  minuto: number;
+  posseCasa: number;
+  /** Série REAL `estatisticas.momentumPorMinuto` (ótica da casa, −1..1). */
+  momentum: number[];
+  /** Ledger causal de chutes da partida (fonte das coordenadas reais). */
+  chutes: ChutePartida[];
+  /** Eventos da partida até agora (mesma lista persistida na súmula). */
+  eventos: EventoPartida[];
+  /** Lance derivado do último minuto simulado (engine, pura). */
+  lanceMinuto: LanceMinuto | null;
+  /** Snapshot dos titulares no apito (p/ a construção do replay de gol). */
+  titularesCasa: string[];
+  titularesFora: string[];
+  /** jogadorId → posição natural (mesmo formato do MatchResult). */
+  posicoes: PosicoesElenco;
+};
+
+/** Cor do dot persistente de chute por desfecho (mesma régua do MapaFinalizacoes). */
+function corDoChute(
+  resultado: ResultadoChute,
+  cores: {warning: string; accent: string; danger: string; textMuted: string; textSecondary: string},
+  corGol: string,
+): string {
+  switch (resultado) {
+    case 'gol':
+      return corGol;
+    case 'defesa':
+      return cores.warning;
+    case 'trave':
+      return cores.accent;
+    case 'bloqueado':
+      return cores.textSecondary;
+    default:
+      return cores.textMuted;
+  }
+}
+
+/** Ícone + cor (token) do marcador transitório por tipo de evento. */
+function visualEvento(
+  evento: Pick<EventoPartida, 'tipo' | 'anuladoVAR'>,
+): {icone: IconeNome; cor: CorTexto} | {cartao: 'amarelo' | 'vermelho'} | null {
+  switch (evento.tipo) {
+    case 'cartao_amarelo':
+      return {cartao: 'amarelo'};
+    case 'cartao_vermelho':
+      return {cartao: 'vermelho'};
+    case 'substituicao':
+      return {icone: 'substituicao', cor: 'brand'};
+    case 'lesao':
+      return {icone: 'lesao', cor: 'danger'};
+    case 'penalti':
+      return {icone: 'penalti', cor: 'warning'};
+    case 'falta_cobranca':
+      return {icone: 'apito', cor: 'warning'};
+    case 'bola_trave':
+      return {icone: 'chance', cor: 'accent'};
+    case 'chance_perdida':
+      return evento.anuladoVAR === true
+        ? {icone: 'chance', cor: 'info'}
+        : {icone: 'chance', cor: 'textMuted'};
+    default:
+      // Gol/gol contra têm dot persistente + replay; demais tipos não plotam.
+      return null;
+  }
+}
+
+function RadarPartida({
+  partidaId,
+  timeCasaId,
+  timeForaId,
+  siglaCasa,
+  siglaFora,
+  nomeCasa,
+  nomeFora,
+  corCasa,
+  corFora,
+  minuto,
+  posseCasa,
+  momentum,
+  chutes,
+  eventos,
+  lanceMinuto,
+  titularesCasa,
+  titularesFora,
+  posicoes,
+}: Props): React.JSX.Element {
+  const {cores, esporte} = useTheme();
+  const [aberto, setAberto] = useState(true);
+
+  // Largura fluida por onLayout (mesmo padrão do ReplayGol).
+  const [larguraMedida, setLarguraMedida] = useState(0);
+  const aoMedir = useCallback((e: LayoutChangeEvent) => {
+    setLarguraMedida(Math.round(e.nativeEvent.layout.width));
+  }, []);
+  const W = larguraMedida > 0 ? larguraMedida : 320;
+  const H = Math.round(W * PROPORCAO);
+  const utilW = W - 2 * M;
+  const utilH = H - 2 * M;
+  const px = (x: number): number => M + x * utilW;
+  const py = (y: number): number => M + y * utilH;
+
+  // ── FUNDO: faixa de pressão sutil (momentum real, mesma régua do gráfico) ──
+  const zona = zonaPressao(momentum);
+  const zonaXSv = useSharedValue(0.5);
+  const intensidadeSv = useSharedValue(0);
+  useEffect(() => {
+    // A CONDUÇÃO é o prop (novo valor a cada minuto simulado); o withTiming só
+    // suaviza o deslize até a nova posição real.
+    const cfg = {duration: 650, easing: Easing.out(Easing.quad)};
+    zonaXSv.value = withTiming(zona.x, cfg);
+    intensidadeSv.value = withTiming(zona.intensidade, cfg);
+  }, [zona.x, zona.intensidade, zonaXSv, intensidadeSv]);
+
+  const estiloBandaCasa = useAnimatedStyle(() => {
+    const cx = M + utilW / 2;
+    const x = M + zonaXSv.value * utilW;
+    return {
+      left: cx,
+      width: Math.max(0, x - cx),
+      opacity: 0.08 + 0.18 * intensidadeSv.value,
+    };
+  });
+  const estiloBandaFora = useAnimatedStyle(() => {
+    const cx = M + utilW / 2;
+    const x = M + zonaXSv.value * utilW;
+    return {
+      left: Math.min(x, cx),
+      width: Math.max(0, cx - x),
+      opacity: 0.08 + 0.18 * intensidadeSv.value,
+    };
+  });
+
+  // ── LANCE DO MINUTO: bola tocando de jogador REAL a jogador REAL ───────────
+  const avancoLanceSv = useSharedValue(0);
+  const sequenciadorLanceRef = useRef<SequenciadorReplay | null>(null);
+  useEffect(() => {
+    if (lanceMinuto === null || lanceMinuto.toques.length < 2) {
+      return;
+    }
+    sequenciadorLanceRef.current?.parar();
+    cancelAnimation(avancoLanceSv);
+    avancoLanceSv.value = 0;
+    // PROGRESSÃO por sequenciador JS (informação); withTiming só suaviza.
+    sequenciadorLanceRef.current = criarSequenciadorReplay({
+      totalSegmentos: lanceMinuto.toques.length - 1,
+      duracaoSegmentoMs: LANCE_SEGMENTO_MS,
+      aoAvancar: indice => {
+        avancoLanceSv.value = withTiming(indice, {
+          duration: LANCE_SEGMENTO_MS,
+          easing: Easing.inOut(Easing.quad),
+        });
+      },
+      aoConcluir: () => {},
+    });
+    sequenciadorLanceRef.current.iniciar();
+  }, [lanceMinuto, avancoLanceSv]);
+
+  // ── POR EVENTO: marcadores transitórios (janela recente de minutos) ────────
+  const marcadores = eventos
+    .map((evento, indice) => ({evento, indice}))
+    .filter(
+      ({evento}) =>
+        minuto - evento.minuto <= JANELA_EVENTOS_MIN &&
+        visualEvento(evento) !== null,
+    )
+    .map(({evento, indice}) => ({
+      evento,
+      chave: `${indice}_${evento.minuto}_${evento.tipo}`,
+      ...pontoEventoNoRadar(evento, chutes, timeCasaId, momentum, posicoes),
+    }));
+
+  // ── GOL: replay do lance reconstruído (mesma reconstrução do pós-jogo) ─────
+  const [replay, setReplay] = useState<LanceGol | null>(null);
+  const avancoSv = useSharedValue(0);
+  const sequenciadorRef = useRef<SequenciadorReplay | null>(null);
+  const limparReplayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const golsVistosRef = useRef(0);
+  const totalGols = eventos.filter(e => ehEventoGol(e.tipo)).length;
+
+  useEffect(() => {
+    if (totalGols > golsVistosRef.current) {
+      // Partida "em andamento" no shape persistido: a reconstrução é pura e
+      // determinística por (id, minuto, autor) — o replay ao vivo é IDÊNTICO
+      // ao que o MatchResult mostrará depois. Nenhum RNG da simulação é tocado.
+      const partidaParcial: Partida = {
+        id: partidaId,
+        competicaoId: '',
+        rodada: 0,
+        data: '',
+        timeCasa: timeCasaId,
+        timeFora: timeForaId,
+        eventos,
+        jogada: false,
+        modoJogado: 'interativo',
+        titularesCasa,
+        titularesFora,
+        chutes,
+      };
+      const lances = reconstruirLancesGol(partidaParcial, posicoes);
+      const lance = lances[totalGols - 1];
+      // Só toca o lance de gol "de agora" (ao pular tempo não vira rajada).
+      if (
+        lance &&
+        lance.passos.length >= 2 &&
+        minuto - lance.minuto <= REPLAY_JANELA_MIN
+      ) {
+        if (limparReplayRef.current !== null) {
+          clearTimeout(limparReplayRef.current);
+          limparReplayRef.current = null;
+        }
+        sequenciadorRef.current?.parar();
+        cancelAnimation(avancoSv);
+        avancoSv.value = 0;
+        setReplay(lance);
+        // PROGRESSÃO por sequenciador JS (informação); withTiming só suaviza.
+        sequenciadorRef.current = criarSequenciadorReplay({
+          totalSegmentos: lance.passos.length - 1,
+          duracaoSegmentoMs: RADAR_SEGMENTO_MS,
+          aoAvancar: indice => {
+            avancoSv.value = withTiming(indice, {
+              duration: RADAR_SEGMENTO_MS,
+              easing: Easing.inOut(Easing.quad),
+            });
+          },
+          aoConcluir: () => {
+            limparReplayRef.current = setTimeout(() => {
+              limparReplayRef.current = null;
+              setReplay(null);
+            }, RADAR_POS_REPLAY_MS);
+          },
+        });
+        sequenciadorRef.current.iniciar();
+      }
+    }
+    golsVistosRef.current = totalGols;
+  }, [
+    totalGols,
+    minuto,
+    partidaId,
+    timeCasaId,
+    timeForaId,
+    eventos,
+    chutes,
+    titularesCasa,
+    titularesFora,
+    posicoes,
+    avancoSv,
+  ]);
+
+  // Desmontagem: cancela sequenciadores e timer de limpeza.
+  useEffect(() => {
+    return () => {
+      sequenciadorRef.current?.parar();
+      sequenciadorLanceRef.current?.parar();
+      if (limparReplayRef.current !== null) {
+        clearTimeout(limparReplayRef.current);
+      }
+    };
+  }, []);
+
+  const pontosReplay: PontoRadar[] =
+    replay !== null
+      ? replay.passos.map(p =>
+          pontoPassoNoRadar(p, replay.timeId === timeCasaId),
+        )
+      : [];
+
+  const rotuloA11y = `Radar da partida — lances com os jogadores envolvidos; a faixa de fundo é pressão, não a posição real da bola. ${resumoRadar(
+    nomeCasa,
+    nomeFora,
+    posseCasa,
+    zona.lado,
+  )}.`;
+
+  const mostrarLance = replay === null && lanceMinuto !== null;
+
+  return (
+    <View
+      style={[
+        styles.cartaz,
+        {backgroundColor: cores.surface, borderColor: cores.borderStrong},
+      ]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Radar da partida, ${aberto ? 'recolher' : 'expandir'}`}
+        onPress={() => setAberto(v => !v)}
+        style={styles.header}>
+        <Icon nome="bola" size={16} color="brand" />
+        <Text variant="labelL" weight="800" style={styles.headerTitulo}>
+          Radar da partida
+        </Text>
+        <Text variant="caption" color="textSecondary" tabular>
+          {siglaCasa} {posseCasa}% · {100 - posseCasa}% {siglaFora}
+        </Text>
+        <Icon
+          nome={aberto ? 'seta-cima' : 'seta-baixo'}
+          size={16}
+          color="textSecondary"
+        />
+      </Pressable>
+
+      {aberto ? (
+        <View
+          onLayout={aoMedir}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={rotuloA11y}
+          style={styles.campoWrap}
+          pointerEvents="none">
+          <CampoHorizontal largura={W} altura={H} />
+
+          {/* Faixa de pressão SUTIL de fundo (casa=verde, visitante=vermelho —
+              mesma régua do MomentoChart). */}
+          <Animated.View
+            style={[
+              styles.banda,
+              {top: M, height: utilH, backgroundColor: esporte.match.goal},
+              estiloBandaCasa,
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.banda,
+              {top: M, height: utilH, backgroundColor: esporte.match.cardRed},
+              estiloBandaFora,
+            ]}
+          />
+
+          {/* Dots persistentes: TODOS os chutes reais da partida até agora. */}
+          <View style={StyleSheet.absoluteFill}>
+            <Svg width={W} height={H}>
+              {chutes
+                .filter(chute => chute.resultado !== 'gol_anulado')
+                .map(chute => {
+                  const ponto = pontoChuteNoRadar(chute, timeCasaId);
+                  const ehGol = chute.resultado === 'gol';
+                  return (
+                    <G key={chute.id}>
+                      {ehGol ? (
+                        <Circle
+                          cx={px(ponto.x)}
+                          cy={py(ponto.y)}
+                          r={6}
+                          fill="none"
+                          stroke={CAL}
+                          strokeWidth={1.5}
+                        />
+                      ) : null}
+                      <Circle
+                        cx={px(ponto.x)}
+                        cy={py(ponto.y)}
+                        r={ehGol ? 4 : 2.8}
+                        fill={corDoChute(chute.resultado, cores, esporte.match.goal)}
+                        opacity={0.95}
+                      />
+                    </G>
+                  );
+                })}
+            </Svg>
+          </View>
+
+          {/* LANCE DO MINUTO: jogadores reais + bola tocando entre eles. */}
+          {mostrarLance && lanceMinuto.toques.length > 0 ? (
+            <>
+              {lanceMinuto.toques.map((toque, i) =>
+                toque.tipo === 'gol' ? null : (
+                  <JogadorLance
+                    key={`${lanceMinuto.minuto}_${i}_${toque.jogadorId}`}
+                    avanco={avancoLanceSv}
+                    indice={i}
+                    x={px(toque.x)}
+                    y={py(toque.y)}
+                    cor={toque.timeId === timeCasaId ? corCasa : corFora}
+                    sigla={posicoes[toque.jogadorId] ?? '?'}
+                  />
+                ),
+              )}
+              <BolaRadar
+                avanco={avancoLanceSv}
+                pontos={lanceMinuto.toques.map(t => ({x: px(t.x), y: py(t.y)}))}
+              />
+            </>
+          ) : null}
+
+          {/* Marcadores transitórios dos eventos recentes. */}
+          {marcadores.map(({evento, chave, ponto}) => (
+            <MarcadorEvento
+              key={chave}
+              evento={evento}
+              x={px(ponto.x)}
+              y={py(ponto.y)}
+              corCartaoAmarelo={esporte.match.cardYellow}
+              corCartaoVermelho={esporte.match.cardRed}
+              fundo={cores.surface}
+              borda={cores.border}
+            />
+          ))}
+
+          {/* Replay do GOL: passes → chute → gol sobre o radar. */}
+          {replay !== null && pontosReplay.length >= 2 ? (
+            <>
+              <View style={StyleSheet.absoluteFill}>
+                {pontosReplay.slice(0, -1).map((p, i) => {
+                  const proximo = pontosReplay[i + 1];
+                  return (
+                    <SegmentoReplay
+                      key={`${replay.id}_seg_${i}`}
+                      avanco={avancoSv}
+                      indice={i}
+                      largura={W}
+                      altura={H}
+                      x1={px(p.x)}
+                      y1={py(p.y)}
+                      x2={px(proximo.x)}
+                      y2={py(proximo.y)}
+                    />
+                  );
+                })}
+              </View>
+              {replay.passos.map((passo, i) =>
+                passo.tipo === 'gol' ? null : (
+                  <JogadorLance
+                    key={`${replay.id}_j_${i}`}
+                    avanco={avancoSv}
+                    indice={i}
+                    x={px(pontosReplay[i].x)}
+                    y={py(pontosReplay[i].y)}
+                    cor={replay.timeId === timeCasaId ? corCasa : corFora}
+                    sigla={posicoes[passo.jogadorId] ?? '?'}
+                  />
+                ),
+              )}
+              <BolaRadar
+                avanco={avancoSv}
+                pontos={pontosReplay.map(p => ({x: px(p.x), y: py(p.y)}))}
+              />
+            </>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** Gramado horizontal: listras, moldura, meio-campo, círculo e áreas. */
+function CampoHorizontal({
+  largura,
+  altura,
+}: {
+  largura: number;
+  altura: number;
+}): React.JSX.Element {
+  const W = largura;
+  const H = altura;
+  const utilW = W - 2 * M;
+  const utilH = H - 2 * M;
+  const cx = W / 2;
+  const cy = M + utilH / 2;
+  const areaW = utilW * 0.16;
+  const areaH = utilH * 0.6;
+  const pequenaW = utilW * 0.07;
+  const pequenaH = utilH * 0.32;
+  const raioCirculo = Math.min(utilH * 0.22, utilW * 0.12);
+  const faixaW = utilW / LISTRAS;
+
+  return (
+    <Svg width={W} height={H}>
+      <Defs>
+        <ClipPath id="radarClip">
+          <Rect x={M} y={M} width={utilW} height={utilH} rx={10} />
+        </ClipPath>
+      </Defs>
+      <G clipPath="url(#radarClip)">
+        <Rect x={M} y={M} width={utilW} height={utilH} fill={CAMPO_VERDE} />
+        {Array.from({length: LISTRAS}).map((_, i) =>
+          i % 2 === 1 ? (
+            <Rect
+              key={`listra-${i}`}
+              x={M + faixaW * i}
+              y={M}
+              width={faixaW}
+              height={utilH}
+              fill={CAMPO_VERDE_2}
+            />
+          ) : null,
+        )}
+      </G>
+      <Rect
+        x={M}
+        y={M}
+        width={utilW}
+        height={utilH}
+        rx={10}
+        fill="none"
+        stroke={CAL}
+        strokeWidth={1.5}
+      />
+      {/* Meio-campo */}
+      <Line x1={cx} y1={M} x2={cx} y2={M + utilH} stroke={CAL} strokeWidth={1.2} />
+      <Circle cx={cx} cy={cy} r={raioCirculo} fill="none" stroke={CAL} strokeWidth={1.2} />
+      <Circle cx={cx} cy={cy} r={1.6} fill={CAL} />
+      {/* Áreas (casa à esquerda, visitante à direita) */}
+      <Rect
+        x={M}
+        y={cy - areaH / 2}
+        width={areaW}
+        height={areaH}
+        fill="none"
+        stroke={CAL_FRACA}
+        strokeWidth={1.2}
+      />
+      <Rect
+        x={M}
+        y={cy - pequenaH / 2}
+        width={pequenaW}
+        height={pequenaH}
+        fill="none"
+        stroke={CAL_FRACA}
+        strokeWidth={1}
+      />
+      <Rect
+        x={M + utilW - areaW}
+        y={cy - areaH / 2}
+        width={areaW}
+        height={areaH}
+        fill="none"
+        stroke={CAL_FRACA}
+        strokeWidth={1.2}
+      />
+      <Rect
+        x={M + utilW - pequenaW}
+        y={cy - pequenaH / 2}
+        width={pequenaW}
+        height={pequenaH}
+        fill="none"
+        stroke={CAL_FRACA}
+        strokeWidth={1}
+      />
+    </Svg>
+  );
+}
+
+/** Bolinha de jogador do lance: cor do time + sigla da posição, com pop. */
+function JogadorLance({
+  avanco,
+  indice,
+  x,
+  y,
+  cor,
+  sigla,
+}: {
+  avanco: SharedValue<number>;
+  indice: number;
+  x: number;
+  y: number;
+  cor: string;
+  sigla: string;
+}): React.JSX.Element {
+  const estilo = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      avanco.value,
+      [indice - 0.35, indice],
+      [0, 1],
+      Extrapolation.CLAMP,
+    ),
+  }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.jogadorLance,
+        {left: x - JOGADOR_D / 2, top: y - JOGADOR_D / 2, backgroundColor: cor},
+        estilo,
+      ]}>
+      <RNText style={styles.jogadorSigla} numberOfLines={1} allowFontScaling={false}>
+        {sigla}
+      </RNText>
+    </Animated.View>
+  );
+}
+
+/** Marcador transitório de evento: pill com ícone/cartão, pop de entrada. */
+function MarcadorEvento({
+  evento,
+  x,
+  y,
+  corCartaoAmarelo,
+  corCartaoVermelho,
+  fundo,
+  borda,
+}: {
+  evento: EventoPartida;
+  x: number;
+  y: number;
+  corCartaoAmarelo: string;
+  corCartaoVermelho: string;
+  fundo: string;
+  borda: string;
+}): React.JSX.Element | null {
+  // Pop de entrada (decorativo — pode ser reduzido pelo sistema).
+  const escala = useSharedValue(0.4);
+  useEffect(() => {
+    escala.value = withTiming(1, {duration: 220, easing: Easing.out(Easing.back(1.6))});
+  }, [escala]);
+  const estilo = useAnimatedStyle(() => ({
+    opacity: interpolate(escala.value, [0.4, 1], [0, 1], Extrapolation.CLAMP),
+    transform: [{scale: escala.value}],
+  }));
+
+  const visual = visualEvento(evento);
+  if (visual === null) {
+    return null;
+  }
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.marcador,
+        {left: x - 11, top: y - 11, backgroundColor: fundo, borderColor: borda},
+        estilo,
+      ]}>
+      {'cartao' in visual ? (
+        <View
+          style={[
+            styles.marcadorCartao,
+            {
+              backgroundColor:
+                visual.cartao === 'amarelo' ? corCartaoAmarelo : corCartaoVermelho,
+            },
+          ]}
+        />
+      ) : (
+        <Icon nome={visual.icone} size={12} color={visual.cor} />
+      )}
+    </Animated.View>
+  );
+}
+
+/** Segmento do replay de gol: aparece quando a bola percorre o trecho. */
+function SegmentoReplay({
+  avanco,
+  indice,
+  largura,
+  altura,
+  x1,
+  y1,
+  x2,
+  y2,
+}: {
+  avanco: SharedValue<number>;
+  indice: number;
+  largura: number;
+  altura: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}): React.JSX.Element {
+  const estilo = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      avanco.value,
+      [indice + 0.45, indice + 1],
+      [0, 1],
+      Extrapolation.CLAMP,
+    ),
+  }));
+  return (
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, estilo]}>
+      <Svg width={largura} height={altura}>
+        <Line
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          stroke={CAL}
+          strokeWidth={1.6}
+          strokeDasharray="5 4"
+        />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+/** Bola: percorre os pontos em sequência (interpolada por índice). */
+function BolaRadar({
+  avanco,
+  pontos,
+}: {
+  avanco: SharedValue<number>;
+  pontos: Array<{x: number; y: number}>;
+}): React.JSX.Element {
+  const meio = 5;
+  const indices: number[] = [];
+  const xs: number[] = [];
+  const ys: number[] = [];
+  pontos.forEach((p, i) => {
+    indices.push(i);
+    xs.push(p.x - meio);
+    ys.push(p.y - meio);
+  });
+  if (indices.length === 1) {
+    indices.push(1);
+    xs.push(xs[0]);
+    ys.push(ys[0]);
+  }
+  const estilo = useAnimatedStyle(() => ({
+    transform: [
+      {translateX: interpolate(avanco.value, indices, xs, Extrapolation.CLAMP)},
+      {translateY: interpolate(avanco.value, indices, ys, Extrapolation.CLAMP)},
+    ],
+  }));
+  return <Animated.View pointerEvents="none" style={[styles.bolaRadar, estilo]} />;
+}
+
+const styles = StyleSheet.create({
+  // Tratamento de cartaz: moldura 2px de tinta + sombra dura (mesma linguagem
+  // do placar permanente da tela).
+  cartaz: {
+    borderRadius: raios.lg,
+    borderWidth: 2,
+    overflow: 'hidden',
+    ...elevacao.dura,
+  },
+  header: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espacamento[2],
+    paddingHorizontal: espacamento[3],
+    paddingVertical: espacamento[2],
+  },
+  headerTitulo: {flex: 1},
+  campoWrap: {
+    marginBottom: espacamento[2],
+    marginHorizontal: espacamento[2],
+  },
+  banda: {
+    borderRadius: raios.sm,
+    position: 'absolute',
+  },
+  // Bolinha de jogador: cor do time + sigla curta em "cal" (mobília do campo,
+  // legível sobre qualquer cor de clube pela borda escura).
+  jogadorLance: {
+    alignItems: 'center',
+    borderColor: CAL,
+    borderRadius: JOGADOR_D / 2,
+    borderWidth: 1.2,
+    height: JOGADOR_D,
+    justifyContent: 'center',
+    position: 'absolute',
+    width: JOGADOR_D,
+  },
+  jogadorSigla: {
+    color: BOLA_COR,
+    fontSize: 7,
+    fontWeight: '800',
+    textShadowColor: BOLA_BORDA,
+    textShadowOffset: {width: 0, height: 1},
+    textShadowRadius: 1,
+  },
+  marcador: {
+    alignItems: 'center',
+    borderRadius: raios.full,
+    borderWidth: 1,
+    height: 22,
+    justifyContent: 'center',
+    position: 'absolute',
+    width: 22,
+  },
+  marcadorCartao: {borderRadius: 1.5, height: 12, width: 9},
+  bolaRadar: {
+    backgroundColor: BOLA_COR,
+    borderColor: BOLA_BORDA,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    height: 10,
+    left: 0,
+    position: 'absolute',
+    top: 0,
+    width: 10,
+  },
+});
+
+export default RadarPartida;
