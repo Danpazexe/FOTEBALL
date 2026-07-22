@@ -5,6 +5,7 @@
  */
 import React from 'react';
 import {Modal, StyleSheet, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {Text} from '../../primitives/Text';
 import {espacamento, raios} from '../../tokens';
@@ -33,13 +34,24 @@ export function Dialog({
   destructive,
 }: Props): React.JSX.Element {
   const {cores} = useTheme();
+  // Modal edge-to-edge cobre as barras do sistema: os insets entram no padding
+  // do overlay para um diálogo alto nunca terminar atrás da nav/status bar.
+  const insets = useSafeAreaInsets();
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
       onRequestClose={onCancel}>
-      <View style={[estilos.overlay, {backgroundColor: cores.overlay}]}>
+      <View
+        style={[
+          estilos.overlay,
+          {
+            backgroundColor: cores.overlay,
+            paddingTop: espacamento[6] + insets.top,
+            paddingBottom: espacamento[6] + insets.bottom,
+          },
+        ]}>
         <View
           accessibilityViewIsModal
           style={[

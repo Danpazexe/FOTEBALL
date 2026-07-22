@@ -4,6 +4,7 @@ import {
   type BottomTabBarProps,
 } from '@react-navigation/bottom-tabs';
 
+import {ScreenSobTabBarContext} from '../design-system';
 import {useGameStore} from '../store/useGameStore';
 import TabBar from '../components/TabBar';
 import {InicioStack} from './stacks/InicioStack';
@@ -26,19 +27,23 @@ const renderTabBar = (props: BottomTabBarProps): React.JSX.Element => (
 export function TabNavigator() {
   const propostas = useGameStore(state => state.propostasRecebidas.length);
   return (
-    <Tab.Navigator
-      initialRouteName="Home"
-      tabBar={renderTabBar}
-      screenOptions={{headerShown: false}}>
-      <Tab.Screen name="Elenco" component={ElencoStack} />
-      <Tab.Screen name="Competition" component={PartidasStack} />
-      <Tab.Screen name="Home" component={InicioStack} />
-      <Tab.Screen
-        name="TransferMarket"
-        component={MercadoStack}
-        options={{tabBarBadge: propostas > 0 ? propostas : undefined}}
-      />
-      <Tab.Screen name="Club" component={ClubeStack} />
-    </Tab.Navigator>
+    // Sob a tab bar o inset inferior do sistema já é consumido pela TabBar —
+    // o contexto avisa o Screen do DS para não duplicá-lo (edge-to-edge).
+    <ScreenSobTabBarContext.Provider value={true}>
+      <Tab.Navigator
+        initialRouteName="Home"
+        tabBar={renderTabBar}
+        screenOptions={{headerShown: false}}>
+        <Tab.Screen name="Elenco" component={ElencoStack} />
+        <Tab.Screen name="Competition" component={PartidasStack} />
+        <Tab.Screen name="Home" component={InicioStack} />
+        <Tab.Screen
+          name="TransferMarket"
+          component={MercadoStack}
+          options={{tabBarBadge: propostas > 0 ? propostas : undefined}}
+        />
+        <Tab.Screen name="Club" component={ClubeStack} />
+      </Tab.Navigator>
+    </ScreenSobTabBarContext.Provider>
   );
 }

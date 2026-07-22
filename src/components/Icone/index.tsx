@@ -108,6 +108,7 @@ export type IconeNome =
   | 'chance'
   | 'penalti'
   | 'apito'
+  | 'bandeirinha'
   | 'relogio'
   | 'check'
   | 'fechar'
@@ -164,6 +165,8 @@ const ICONES_SEMANTICOS: Record<IconeNome, LucideIcon> = {
   chance: CircleX,
   penalti: Target,
   apito: Flag,
+  // Bandeirinha do impedimento (radar) — mesma Flag, semântica própria.
+  bandeirinha: Flag,
   relogio: Clock,
   check: Check,
   fechar: X,

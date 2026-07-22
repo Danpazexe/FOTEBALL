@@ -5,6 +5,7 @@
 
 import React, {useMemo, useState} from 'react';
 import {Modal, StyleSheet, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import OverallBadge from '../../components/OverallBadge';
 import {
@@ -32,6 +33,8 @@ function Contratos(): React.JSX.Element {
   const nav = useAppNavigation();
   const toast = useToast();
   const {cores} = useTheme();
+  // Folha inferior em Modal edge-to-edge: soma o inset da gesture/nav bar.
+  const insets = useSafeAreaInsets();
   const elenco = useJogadoresUsuario();
   const temporadaAtual = useGameStore(state => state.temporadaAtual);
   const renovarContrato = useGameStore(state => state.renovarContrato);
@@ -130,7 +133,11 @@ function Contratos(): React.JSX.Element {
           <View
             style={[
               styles.modalCard,
-              {backgroundColor: cores.surface, borderColor: cores.border},
+              {
+                backgroundColor: cores.surface,
+                borderColor: cores.border,
+                paddingBottom: espacamento[5] + insets.bottom,
+              },
             ]}>
             <Text variant="titleL">Renovar {alvo?.apelido ?? alvo?.nome}</Text>
             <Text variant="labelM" color="textSecondary">

@@ -11,6 +11,7 @@
 
 import React, {useMemo, useState} from 'react';
 import {Modal, StyleSheet, View, useWindowDimensions} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import {
@@ -139,6 +140,8 @@ function linhasDoTime(
 function MatchResult(): React.JSX.Element {
   const nav = useAppNavigation();
   const {cores} = useTheme();
+  // Modal do replay é edge-to-edge: os insets protegem o card das barras.
+  const insets = useSafeAreaInsets();
   const route = useRoute<RouteProp<RootStackParamList, 'MatchResult'>>();
   const {partidaId} = route.params;
 
@@ -760,7 +763,15 @@ function MatchResult(): React.JSX.Element {
         transparent
         animationType="fade"
         onRequestClose={() => setLanceAberto(null)}>
-        <View style={[estilos.replayOverlay, {backgroundColor: cores.overlay}]}>
+        <View
+          style={[
+            estilos.replayOverlay,
+            {
+              backgroundColor: cores.overlay,
+              paddingTop: espacamento[4] + insets.top,
+              paddingBottom: espacamento[4] + insets.bottom,
+            },
+          ]}>
           {lanceAberto ? (
             <View
               accessibilityViewIsModal

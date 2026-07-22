@@ -192,6 +192,16 @@ export interface EstatisticasPartida {
   momentumPorMinuto: number[];
 }
 
+/**
+ * Árbitro da partida — derivado deterministicamente da seed (ver
+ * `engine/simulation/arbitro`). `rigor` 1–5 modula as probabilidades de
+ * cartão/falta da simulação (1–2 "deixa jogar", 3 equilibrado, 4–5 rigoroso).
+ */
+export interface ArbitroPartida {
+  nome: string;
+  rigor: number;
+}
+
 export interface Partida {
   id: string;
   competicaoId: string;
@@ -238,4 +248,10 @@ export interface Partida {
    * legacy — a UI não fabrica dados no lugar.
    */
   chutes?: ChutePartida[];
+  /**
+   * Árbitro que apitou a partida (nome fictício + rigor 1–5). Derivado da seed
+   * pela engine — ausente em saves antigos e em partidas ao vivo legadas
+   * (campo aditivo; a ausência é sempre tolerada).
+   */
+  arbitro?: ArbitroPartida;
 }

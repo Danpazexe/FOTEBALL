@@ -5,16 +5,20 @@
  * `engine/simulation/lances`) e SÓ desenha/anima: campo INTEIRO vertical com
  * ataque para cima (gol alvo no topo), bolinhas dos jogadores passo a passo,
  * setas tracejadas entre os passos e a bola percorrendo os segmentos até a
- * rede (Reanimated). Mesma partida ⇒ mesmo replay — nenhum sorteio aqui.
+ * rede. Mesma partida ⇒ mesmo replay — nenhum sorteio aqui.
+ *
+ * A PROGRESSÃO do lance (ordem/tempos dos passos) é conduzida por timer JS —
+ * ver `sequenciaReplay.ts` — porque é informação, não decoração; o Reanimated
+ * faz apenas a suavização entre um passo e o próximo. Com redução de movimento
+ * do sistema (no Android inclui "Escala de animação de transição" = 0), a
+ * suavização e o pulso somem, mas a sequência passo a passo continua.
  *
  * Cores por token do tema; os verdes do gramado e a cal são constantes locais,
  * mesmo precedente do MapaFinalizacoes/CampoFUT (objeto de campo, fixo nos dois
- * temas). Com redução de movimento ativa, renderiza o quadro final completo.
- * O componente é o CARD — quem apresenta (modal/tela) é o chamador.
+ * temas). O componente é o CARD — quem apresenta (modal/tela) é o chamador.
  */
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
-  AccessibilityInfo,
   StyleSheet,
   View,
   useWindowDimensions,
@@ -49,6 +53,11 @@ import {
   type LanceGol,
   type TipoPassoLance,
 } from '../../engine/simulation/lances';
+import {
+  DURACAO_SEGMENTO_MS,
+  criarSequenciadorReplay,
+  type SequenciadorReplay,
+} from './sequenciaReplay';
 
 type Props = {
   lance: LanceGol;
@@ -70,7 +79,6 @@ const LISTRAS = 8;
 const MARGEM_CAMPO = 8;
 const ALTURA_REDE = 12;
 const BOLA_TAMANHO = 12;
-const DURACAO_SEGMENTO = 700;
 const LARGURA_ROTULO = 72;
 
 /** Passo já projetado em pixels do campo. */
@@ -179,65 +187,48 @@ export default function ReplayGol({
   // layout, então redimensionar não reinicia o replay.
   const avanco = useSharedValue(0);
   const pulso = useSharedValue(1);
-  const [reduzido, setReduzido] = useState(false);
+  const sequenciador = useRef<SequenciadorReplay | null>(null);
 
+  // O AVANÇO da sequência é conduzido por timer JS (sequenciaReplay): com
+  // "redução de movimento" do sistema — que no Android um withSequence
+  // conduzido pelo Reanimated (ReduceMotion.System) saltaria direto pro gol —
+  // cada withTiming abaixo vira um salto de passo em passo, mas a progressão
+  // (passe → chute → gol) acontece sempre.
   const reproduzir = useCallback(() => {
+    sequenciador.current?.parar();
     cancelAnimation(avanco);
     avanco.value = 0;
     pulso.value = 1;
-    const total = geo.totalSegmentos;
-    if (total === 0) {
-      return;
-    }
-    const cfg = {duration: DURACAO_SEGMENTO, easing: Easing.inOut(Easing.quad)};
-    const etapas: number[] = [];
-    for (let i = 1; i <= total; i += 1) {
-      if (i === total) {
-        etapas.push(
-          withTiming(i, cfg, fim => {
-            if (fim) {
-              pulso.value = withSequence(
-                withTiming(1.18, {duration: 180}),
-                withTiming(1, {duration: 220}),
-              );
-            }
-          }),
+    const cfg = {duration: DURACAO_SEGMENTO_MS, easing: Easing.inOut(Easing.quad)};
+    sequenciador.current = criarSequenciadorReplay({
+      totalSegmentos: geo.totalSegmentos,
+      duracaoSegmentoMs: DURACAO_SEGMENTO_MS,
+      aoAvancar: indice => {
+        // Só SUAVIZAÇÃO até o índice-alvo; quem avança é o sequenciador.
+        avanco.value = withTiming(indice, cfg);
+      },
+      aoConcluir: () => {
+        // Floreio decorativo — pode ser reduzido pelo sistema.
+        pulso.value = withSequence(
+          withTiming(1.18, {duration: 180}),
+          withTiming(1, {duration: 220}),
         );
-      } else {
-        etapas.push(withTiming(i, cfg));
-      }
-    }
-    avanco.value = etapas.length === 1 ? etapas[0] : withSequence(...etapas);
+      },
+    });
+    sequenciador.current.iniciar();
   }, [avanco, pulso, geo.totalSegmentos]);
 
-  // Auto-play ao montar (e ao trocar de lance); redução de movimento ⇒ quadro
-  // final completo, sem animação.
+  const pararReplay = useCallback(() => {
+    sequenciador.current?.parar();
+    cancelAnimation(avanco);
+  }, [avanco]);
+
+  // Auto-play ao montar (e ao trocar de lance).
   useEffect(() => {
-    let vivo = true;
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then(ativo => {
-        if (!vivo) {
-          return;
-        }
-        if (ativo) {
-          setReduzido(true);
-          avanco.value = geo.totalSegmentos;
-          pulso.value = 1;
-        } else {
-          reproduzir();
-        }
-      })
-      .catch(() => {
-        if (vivo) {
-          reproduzir();
-        }
-      });
-    return () => {
-      vivo = false;
-      cancelAnimation(avanco);
-    };
+    reproduzir();
+    return pararReplay;
     // lance.id nas deps: trocar de lance (mesmo nº de segmentos) reinicia o replay.
-  }, [avanco, pulso, geo.totalSegmentos, reproduzir, lance.id]);
+  }, [reproduzir, pararReplay, lance.id]);
 
   const ehGolContra = lance.origem === 'gol_contra';
   const nomeAutor = nomes[lance.autorId] ?? '?';
@@ -335,15 +326,13 @@ export default function ReplayGol({
           style={styles.sequencia}>
           {sequencia}
         </Text>
-        {!reduzido ? (
-          <IconButton
-            icone="simular"
-            onPress={reproduzir}
-            accessibilityLabel="Repetir replay do gol"
-            tom="brand"
-            variante="soft"
-          />
-        ) : null}
+        <IconButton
+          icone="simular"
+          onPress={reproduzir}
+          accessibilityLabel="Repetir replay do gol"
+          tom="brand"
+          variante="soft"
+        />
       </View>
     </Card>
   );
