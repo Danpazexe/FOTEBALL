@@ -270,6 +270,9 @@ describe('chanceEngine — chutes factuais do minuto', () => {
       forcaAdversario: forca(75, 75, 75),
       xgAlvoMinuto,
       fracaoPosse: 0.5,
+      // Arbitragem neutra no laboratório: rigor médio e VAR presente.
+      fatorRigor: 1,
+      varDisponivel: true,
       rng: criarRNGComSeed(seed),
       proximoSequencial: () => {
         sequencial += 1;

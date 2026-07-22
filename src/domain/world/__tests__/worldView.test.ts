@@ -6,10 +6,10 @@
 import {criarClube, criarPartida, criarPlayer} from '../../../testing/fixtures';
 import {criarEstadoPatrocinioVazio} from '../../../types/patrocinio';
 import type {EstatisticasTimePartida} from '../../../types';
-import {criarRNGComSeed} from '../../../engine/simulation/rng';
-import {criarEstatisticasAoVivo} from '../../../engine/simulation/matchStats';
-import {criarEstadoMomento} from '../../../engine/simulation/causal/momentumEngine';
-import type {EstadoPartidaAoVivo} from '../../../engine/simulation/matchSimulator';
+import {
+  iniciarPartidaAoVivo,
+  type EstadoPartidaAoVivo,
+} from '../../../engine/simulation/matchSimulator';
 import {montarWorldView, type WorldViewSource} from '../worldView';
 
 function estatisticasTimeZeradas(): EstatisticasTimePartida {
@@ -129,30 +129,13 @@ function fonteFixture() {
 }
 
 function criarAoVivoFixture(): EstadoPartidaAoVivo {
-  return {
-    rng: criarRNGComSeed(42),
-    rngPosse: criarRNGComSeed(43),
-    placarCasa: 1,
-    placarFora: 0,
-    eventos: [],
-    amarelosPartida: new Map(),
-    indisponiveis: new Set(),
-    condicaoAtual: new Map(),
-    posseAcumuladaCasa: 10,
-    rngEstatisticas: criarRNGComSeed(44),
-    estatisticas: criarEstatisticasAoVivo(criarRNGComSeed(44)),
-    rngSubs: criarRNGComSeed(45),
-    formacoesAoVivo: new Map(),
-    expulsos: new Set(),
-    lesionadosPendentes: [],
-    subsIA: new Map(),
-    sairamNaPartida: new Set(),
-    cartadaOfensiva: new Set(),
-    minuto: 30,
-    chutes: [],
-    contadorChutes: 0,
-    momento: criarEstadoMomento(),
-  };
+  // Estado REAL da engine (inclui arbitro/fatorRigor derivados da seed) —
+  // sobrescreve apenas o que os testes observam, sem duplicar o literal.
+  const estado = iniciarPartidaAoVivo(42);
+  estado.placarCasa = 1;
+  estado.posseAcumuladaCasa = 10;
+  estado.minuto = 30;
+  return estado;
 }
 
 describe('montarWorldView — fontes únicas por referência', () => {

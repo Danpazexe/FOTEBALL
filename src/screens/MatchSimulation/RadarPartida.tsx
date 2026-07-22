@@ -68,11 +68,7 @@ import type {
   PosicoesElenco,
   TipoPassoLance,
 } from '../../engine/simulation/lances';
-import type {
-  ElencosPosicionados,
-  LanceMinuto,
-  PontoJogadorRadar,
-} from '../../engine/simulation/reconstruirLanceMinuto';
+import type {PontoJogadorRadar} from '../../engine/simulation/reconstruirLanceMinuto';
 import {
   ehEventoGol,
   type ChutePartida,
@@ -80,14 +76,13 @@ import {
   type Partida,
   type ResultadoChute,
 } from '../../types';
+import type {MundoRadar} from './mundoRadar';
 import {
   contornoPorContraste,
-  pontoChuteNoRadar,
-  pontoEventoNoRadar,
   pontoPassoNoRadar,
   resumoRadar,
-  zonaPressao,
   type PontoRadar,
+  type ZonaPressao,
 } from './radarCampo';
 
 // Mobília do campo (fixa nos 2 temas) — mesmos valores do MapaFinalizacoes/
@@ -104,12 +99,8 @@ const LISTRAS = 8;
 const M = 8;
 /** Proporção altura/largura do mini-campo (mais achatado que o real p/ caber). */
 const PROPORCAO = 0.5;
-/**
- * Ícones de evento (cartão/lesão/sub/etc.) ficam em cena por esta janela de
- * MINUTOS de jogo e então expiram — só os ícones; os dots de CHUTE persistem a
- * partida INTEIRA (shotmap vivo), e a timeline completa segue no feed.
- */
-const JANELA_EVENTOS_MIN = 12;
+/** Zona de pressão neutra antes do primeiro minuto simulado (mundo nulo). */
+const ZONA_NEUTRA: ZonaPressao = {x: 0.5, intensidade: 0, lado: 'neutro'};
 /**
  * Duração da viagem da bola até cada tipo de toque: chute é RÁPIDO e reto,
  * cruzamento/escanteio voam mais alto (arco, mais lentos), desarme é seco.
@@ -150,16 +141,15 @@ type Props = {
   /** Minuto atual do relógio (não do evento). */
   minuto: number;
   posseCasa: number;
-  /** Série REAL `estatisticas.momentumPorMinuto` (ótica da casa, −1..1). */
-  momentum: number[];
-  /** Ledger causal de chutes da partida (fonte das coordenadas reais). */
+  /** Ledger causal de chutes (só para reconstruir o REPLAY de gol). */
   chutes: ChutePartida[];
-  /** Eventos da partida até agora (mesma lista persistida na súmula). */
+  /** Eventos da partida até agora (só para reconstruir o REPLAY de gol). */
   eventos: EventoPartida[];
-  /** Lance derivado do último minuto simulado (engine, pura). */
-  lanceMinuto: LanceMinuto | null;
-  /** Os 22 pontos do minuto (formação real + deslize + drift; engine, pura). */
-  elencos: ElencosPosicionados | null;
+  /**
+   * WORLDSTATE do radar (`derivarMundoRadar`): elencos, lance, dots, ícones,
+   * pressão e destaques inteligentes. O componente SÓ desenha o que vem aqui.
+   */
+  mundo: MundoRadar | null;
   /** Snapshot dos titulares no apito (p/ a construção do replay de gol). */
   titularesCasa: string[];
   titularesFora: string[];
@@ -228,17 +218,24 @@ function RadarPartida({
   corFora,
   minuto,
   posseCasa,
-  momentum,
   chutes,
   eventos,
-  lanceMinuto,
-  elencos,
+  mundo,
   titularesCasa,
   titularesFora,
   posicoes,
 }: Props): React.JSX.Element {
   const {cores, esporte} = useTheme();
   const [aberto, setAberto] = useState(true);
+  // Linha de impedimento (visualização broadcast) — liga/desliga no header.
+  const [impedimentoVisivel, setImpedimentoVisivel] = useState(false);
+
+  // Tudo que o campo desenha vem do MUNDO derivado (SRP: a tela orquestra, o
+  // mundoRadar deriva, este componente desenha).
+  const lanceMinuto = mundo?.lance ?? null;
+  const elencos = mundo?.elencos ?? null;
+  const noVermelho = new Set(mundo?.jogadoresNoVermelho ?? []);
+  const alertaPressao = mundo?.alertaPressao ?? null;
 
   // Largura do CONTÊINER medido (onLayout no wrapper do campo) — NUNCA da
   // janela e NUNCA um fallback fixo: o campo só desenha depois de medido
@@ -260,7 +257,7 @@ function RadarPartida({
   const py = (y: number): number => M + y * utilH;
 
   // ── FUNDO: faixa de pressão sutil (momentum real, mesma régua do gráfico) ──
-  const zona = zonaPressao(momentum);
+  const zona = mundo?.pressao ?? ZONA_NEUTRA;
   const zonaXSv = useSharedValue(0.5);
   const intensidadeSv = useSharedValue(0);
   useEffect(() => {
@@ -319,19 +316,10 @@ function RadarPartida({
     sequenciadorLanceRef.current.iniciar();
   }, [lanceMinuto, avancoLanceSv]);
 
-  // ── POR EVENTO: marcadores transitórios (janela recente de minutos) ────────
-  const marcadores = eventos
-    .map((evento, indice) => ({evento, indice}))
-    .filter(
-      ({evento}) =>
-        minuto - evento.minuto <= JANELA_EVENTOS_MIN &&
-        visualEvento(evento) !== null,
-    )
-    .map(({evento, indice}) => ({
-      evento,
-      chave: `${indice}_${evento.minuto}_${evento.tipo}`,
-      ...pontoEventoNoRadar(evento, chutes, timeCasaId, momentum, posicoes),
-    }));
+  // ── POR EVENTO: marcadores transitórios (janela derivada no mundoRadar) ────
+  const marcadores = (mundo?.iconesEvento ?? []).filter(
+    icone => visualEvento(icone) !== null,
+  );
 
   // ── GOL: replay do lance reconstruído (mesma reconstrução do pós-jogo) ─────
   const [replay, setReplay] = useState<LanceGol | null>(null);
@@ -429,12 +417,21 @@ function RadarPartida({
         )
       : [];
 
-  const rotuloA11y = `Radar da partida — lances com os jogadores envolvidos; a faixa de fundo é pressão, não a posição real da bola. ${resumoRadar(
-    nomeCasa,
-    nomeFora,
-    posseCasa,
-    zona.lado,
-  )}.`;
+  const rotuloA11y =
+    `Radar da partida — lances com os jogadores envolvidos; a faixa de fundo é pressão, não a posição real da bola. ${resumoRadar(
+      nomeCasa,
+      nomeFora,
+      posseCasa,
+      zona.lado,
+    )}.` +
+    (alertaPressao !== null
+      ? ` Pressão sustentada do ${
+          alertaPressao.lado === 'casa' ? nomeCasa : nomeFora
+        }.`
+      : '') +
+    (noVermelho.size > 0
+      ? ` ${noVermelho.size} do seu time no vermelho físico.`
+      : '');
 
   const mostrarLance = replay === null && lanceMinuto !== null;
   // Contraste dos pontos: se as cores dos times colidem (ou colam no verde do
@@ -459,6 +456,24 @@ function RadarPartida({
         <Text variant="caption" color="textSecondary" tabular>
           {siglaCasa} {posseCasa}% · {100 - posseCasa}% {siglaFora}
         </Text>
+        {aberto ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{selected: impedimentoVisivel}}
+            accessibilityLabel={
+              impedimentoVisivel
+                ? 'Ocultar linha de impedimento'
+                : 'Mostrar linha de impedimento'
+            }
+            hitSlop={8}
+            onPress={() => setImpedimentoVisivel(v => !v)}>
+            <Icon
+              nome="bandeirinha"
+              size={16}
+              color={impedimentoVisivel ? 'brand' : 'textMuted'}
+            />
+          </Pressable>
+        ) : null}
         <Icon
           nome={aberto ? 'seta-cima' : 'seta-baixo'}
           size={16}
@@ -495,48 +510,95 @@ function RadarPartida({
             ]}
           />
 
+          {/* ZONA PERIGOSA (destaque derivado): mancha discreta na cor do time
+              onde chutes REAIS se acumulam — embaixo dos dots, nunca grita. */}
           {/* Dots persistentes: TODOS os chutes reais da partida até agora. */}
           <View style={StyleSheet.absoluteFill}>
             <Svg width={W} height={H}>
-              {chutes
-                .filter(chute => chute.resultado !== 'gol_anulado')
-                .map(chute => {
-                  const ponto = pontoChuteNoRadar(chute, timeCasaId);
-                  const ehGol = chute.resultado === 'gol';
-                  // Shotmap legível a partida inteira: chute antigo esmaece
-                  // (determinístico pela idade em minutos); gol fica forte.
-                  const idade = minuto - chute.minuto;
-                  const opacidade = ehGol
-                    ? 0.95
-                    : idade <= 10
-                      ? 0.9
-                      : idade <= 25
-                        ? 0.6
-                        : 0.4;
-                  return (
-                    <G key={chute.id}>
-                      {ehGol ? (
-                        <Circle
-                          cx={px(ponto.x)}
-                          cy={py(ponto.y)}
-                          r={6}
-                          fill="none"
-                          stroke={CAL}
-                          strokeWidth={1.5}
-                        />
-                      ) : null}
+              {(mundo?.zonasPerigo ?? []).map((zp, i) => (
+                <Circle
+                  key={`zp_${i}_${zp.ladoCasa ? 'c' : 'f'}`}
+                  cx={px(zp.x)}
+                  cy={py(zp.y)}
+                  r={9 + 8 * zp.intensidade}
+                  fill={zp.ladoCasa ? corCasa : corFora}
+                  opacity={0.1 + 0.14 * zp.intensidade}
+                />
+              ))}
+              {(mundo?.dotsChute ?? []).map(dot => {
+                const ehGol = dot.resultado === 'gol';
+                // Shotmap legível a partida inteira: chute antigo esmaece
+                // (determinístico pela idade em minutos); gol fica forte.
+                const opacidade = ehGol
+                  ? 0.95
+                  : dot.idade <= 10
+                    ? 0.9
+                    : dot.idade <= 25
+                      ? 0.6
+                      : 0.4;
+                return (
+                  <G key={dot.id}>
+                    {ehGol ? (
                       <Circle
-                        cx={px(ponto.x)}
-                        cy={py(ponto.y)}
-                        r={ehGol ? 4 : 2.8}
-                        fill={corDoChute(chute.resultado, cores, esporte.match.goal)}
-                        opacity={opacidade}
+                        cx={px(dot.x)}
+                        cy={py(dot.y)}
+                        r={6}
+                        fill="none"
+                        stroke={CAL}
+                        strokeWidth={1.5}
                       />
-                    </G>
-                  );
-                })}
+                    ) : null}
+                    <Circle
+                      cx={px(dot.x)}
+                      cy={py(dot.y)}
+                      r={ehGol ? 4 : 2.8}
+                      fill={corDoChute(dot.resultado, cores, esporte.match.goal)}
+                      opacity={opacidade}
+                    />
+                  </G>
+                );
+              })}
             </Svg>
           </View>
+
+          {/* LINHA DE IMPEDIMENTO (toggle da bandeirinha): o último defensor
+              DE LINHA adversário, estilo broadcast; junto, as linhas de
+              defesa/meio do SEU bloco (compactação) — tudo derivado dos
+              pontos reais do minuto, nada inventado. */}
+          {impedimentoVisivel && mundo !== null && mundo.linhaImpedimento !== null ? (
+            <View style={StyleSheet.absoluteFill} pointerEvents="none">
+              <Svg width={W} height={H}>
+                <Line
+                  x1={px(mundo.linhaImpedimento)}
+                  y1={M}
+                  x2={px(mundo.linhaImpedimento)}
+                  y2={M + utilH}
+                  stroke={CAL}
+                  strokeWidth={1.4}
+                  strokeDasharray="7 4"
+                />
+                {mundo.linhaDefensiva !== null
+                  ? [mundo.linhaDefensiva.xDefesa, mundo.linhaDefensiva.xMeio].map(
+                      (x, i) => (
+                        <Line
+                          key={`ld_${i}`}
+                          x1={px(x)}
+                          y1={M}
+                          x2={px(x)}
+                          y2={M + utilH}
+                          stroke={
+                            mundo.ladoUsuario === 'casa' ? corCasa : corFora
+                          }
+                          strokeWidth={1}
+                          strokeDasharray="3 5"
+                          opacity={0.5}
+                        />
+                      ),
+                    )
+                  : null}
+              </Svg>
+            </View>
+          ) : null}
 
           {/* OS 22 EM CAMPO: pontos na cor de cada time, ancorados na
               formação REAL e deslizando com o momento (o campo inteiro vive). */}
@@ -550,7 +612,16 @@ function RadarPartida({
                   y={py(ponto.y)}
                   cor={corCasa}
                   contorno={contorno.casa}
-                  corContorno={cores.borderStrong}
+                  corContorno={
+                    // JOGADOR NO VERMELHO (só do usuário): aro na cor de perigo
+                    // — mesmos cortes físicos do rodízio; a troca é nos Ajustes.
+                    mundo?.ladoUsuario === 'casa' && noVermelho.has(ponto.id)
+                      ? cores.danger
+                      : cores.borderStrong
+                  }
+                  alerta={
+                    mundo?.ladoUsuario === 'casa' && noVermelho.has(ponto.id)
+                  }
                 />
               ))}
               {elencos.fora.map(ponto => (
@@ -561,7 +632,14 @@ function RadarPartida({
                   y={py(ponto.y)}
                   cor={corFora}
                   contorno={contorno.fora}
-                  corContorno={cores.borderStrong}
+                  corContorno={
+                    mundo?.ladoUsuario === 'fora' && noVermelho.has(ponto.id)
+                      ? cores.danger
+                      : cores.borderStrong
+                  }
+                  alerta={
+                    mundo?.ladoUsuario === 'fora' && noVermelho.has(ponto.id)
+                  }
                 />
               ))}
             </>
@@ -611,13 +689,13 @@ function RadarPartida({
             </>
           ) : null}
 
-          {/* Marcadores transitórios dos eventos recentes. */}
-          {marcadores.map(({evento, chave, ponto}) => (
+          {/* Marcadores transitórios dos eventos recentes (janela derivada). */}
+          {marcadores.map(icone => (
             <MarcadorEvento
-              key={chave}
-              evento={evento}
-              x={px(ponto.x)}
-              y={py(ponto.y)}
+              key={icone.chave}
+              evento={icone}
+              x={px(icone.x)}
+              y={py(icone.y)}
               corCartaoAmarelo={esporte.match.cardYellow}
               corCartaoVermelho={esporte.match.cardRed}
               fundo={cores.surface}
@@ -666,6 +744,28 @@ function RadarPartida({
           ) : null}
             </>
           ) : null}
+        </View>
+      ) : null}
+
+      {/* PRESSÃO SUSTENTADA (destaque derivado): aviso discreto — vira alerta
+          (warning) quando quem pressiona é o ADVERSÁRIO do usuário. */}
+      {aberto && alertaPressao !== null ? (
+        <View style={styles.alertaLinha}>
+          <View
+            style={[
+              styles.alertaDot,
+              {
+                backgroundColor:
+                  alertaPressao.lado === 'casa' ? corCasa : corFora,
+              },
+            ]}
+          />
+          <Text
+            variant="caption"
+            color={alertaPressao.doAdversario ? 'warning' : 'textSecondary'}>
+            Pressão sustentada ·{' '}
+            {alertaPressao.lado === 'casa' ? siglaCasa : siglaFora}
+          </Text>
         </View>
       ) : null}
     </View>
@@ -782,6 +882,7 @@ function PontoJogador({
   cor,
   contorno,
   corContorno,
+  alerta,
 }: {
   ponto: PontoJogadorRadar;
   x: number;
@@ -789,6 +890,8 @@ function PontoJogador({
   cor: string;
   contorno: boolean;
   corContorno: string;
+  /** Jogador do usuário no VERMELHO físico (cortes do rodízio) — aro de perigo. */
+  alerta: boolean;
 }): React.JSX.Element {
   const sx = useSharedValue(x);
   const sy = useSharedValue(y);
@@ -808,8 +911,11 @@ function PontoJogador({
       pointerEvents="none"
       style={[
         styles.pontoJogador,
-        contorno ? styles.pontoContornoForte : null,
-        {backgroundColor: cor, borderColor: contorno ? corContorno : CAL_FRACA},
+        contorno || alerta ? styles.pontoContornoForte : null,
+        {
+          backgroundColor: cor,
+          borderColor: alerta || contorno ? corContorno : CAL_FRACA,
+        },
         estilo,
       ]}>
       {ponto.goleiro ? <View style={styles.pontoGoleiro} /> : null}
@@ -937,7 +1043,7 @@ function MarcadorEvento({
   fundo,
   borda,
 }: {
-  evento: EventoPartida;
+  evento: Pick<EventoPartida, 'tipo' | 'anuladoVAR'>;
   x: number;
   y: number;
   corCartaoAmarelo: string;
@@ -1130,6 +1236,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 22,
   },
+  // Aviso discreto de pressão sustentada (abaixo do campo, sem card interno).
+  alertaLinha: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espacamento[1],
+    paddingBottom: espacamento[2],
+    paddingHorizontal: espacamento[3],
+  },
+  alertaDot: {borderRadius: 3, height: 6, width: 6},
   marcadorCartao: {borderRadius: 1.5, height: 12, width: 9},
   bolaRadar: {
     backgroundColor: BOLA_COR,

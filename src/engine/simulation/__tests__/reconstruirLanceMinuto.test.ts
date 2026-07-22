@@ -302,6 +302,7 @@ describe('reconstruirLanceMinuto — continuidade entre minutos', () => {
     tipoUltimoToque: 'recepcao',
     x: 0.61,
     y: 0.42,
+    reinicio: 'nenhum',
   };
 
   it('mesma posse: o portador anterior abre o lance de ONDE parou (sem teleporte)', () => {
@@ -350,17 +351,94 @@ describe('reconstruirLanceMinuto — continuidade entre minutos', () => {
     expect(lance?.timeId).toBe(CASA);
   });
 
-  it('fimDoLance encadeia o próximo minuto; gol devolve null (saída de bola)', () => {
+  it('fimDoLance encadeia o próximo minuto: portador e ponto reais, sem reinício', () => {
     const lance = reconstruirLanceMinuto(entradaBase({momentoMinuto: 0.5}));
-    const fim = lance ? fimDoLance(lance) : null;
+    const fim = lance ? fimDoLance(lance, CASA, FORA) : null;
     expect(fim?.timeId).toBe(CASA);
     expect(fim?.jogadorId).toBe(
       lance?.toques[lance.toques.length - 1].jogadorId,
     );
+    expect(fim?.reinicio).toBe('nenhum');
+  });
+});
+
+describe('reconstruirLanceMinuto — âncoras de reinício (jogada nunca nasce do nada)', () => {
+  it('GOL ⇒ o próximo minuto recomeça com SAÍDA DO CENTRO do time que SOFREU', () => {
     const golLance = reconstruirLanceMinuto(
       entradaBase({chutesDoMinuto: [chuteFixture({resultado: 'gol'})]}),
     );
-    expect(golLance ? fimDoLance(golLance) : undefined).toBeNull();
+    expect(golLance).not.toBeNull();
+    const fim = fimDoLance(golLance!, CASA, FORA);
+    // O gol foi da CASA ⇒ o visitante repõe do centro.
+    expect(fim).toEqual({
+      timeId: FORA,
+      jogadorId: '',
+      tipoUltimoToque: 'gol',
+      x: 0.5,
+      y: 0.5,
+      reinicio: 'saida_centro',
+    });
+    const proximo = reconstruirLanceMinuto(
+      entradaBase({minuto: 11, momentoMinuto: 0.5, lanceAnterior: fim}),
+    );
+    const primeiro = proximo?.toques[0];
+    // A bola sai EXATAMENTE do círculo central, com um jogador do visitante.
+    expect(primeiro?.tipo).toBe('passe');
+    expect(primeiro?.timeId).toBe(FORA);
+    expect(primeiro?.jogadorId.startsWith('f_')).toBe(true);
+    expect(primeiro?.x).toBe(0.5);
+    expect(primeiro?.y).toBe(0.5);
+  });
+
+  it('chute DEFENDIDO ⇒ tiro de meta: o GOLEIRO adversário repõe de trás', () => {
+    const lanceChute = reconstruirLanceMinuto(
+      entradaBase({chutesDoMinuto: [chuteFixture({resultado: 'defesa'})]}),
+    );
+    expect(lanceChute).not.toBeNull();
+    const fim = fimDoLance(lanceChute!, CASA, FORA);
+    expect(fim?.reinicio).toBe('tiro_de_meta');
+    expect(fim?.timeId).toBe(FORA);
+    const proximo = reconstruirLanceMinuto(
+      entradaBase({minuto: 11, momentoMinuto: -0.5, lanceAnterior: fim}),
+    );
+    const primeiro = proximo?.toques[0];
+    // Goleiro do visitante (f_0) inicia colado no próprio gol (direita).
+    expect(primeiro?.jogadorId).toBe('f_0');
+    expect(primeiro?.timeId).toBe(FORA);
+    expect(primeiro?.tipo).toBe('passe');
+    expect(primeiro?.x).toBeGreaterThan(0.85);
+    // Saída DE TRÁS: a defesa recebe antes de a bola subir de linha.
+    expect(proximo?.toques[1]?.tipo).toBe('recepcao');
+  });
+
+  it('chute PRA FORA também devolve tiro de meta do adversário', () => {
+    const lanceFora = reconstruirLanceMinuto(
+      entradaBase({chutesDoMinuto: [chuteFixture({resultado: 'fora'})]}),
+    );
+    expect(lanceFora).not.toBeNull();
+    const fim = fimDoLance(lanceFora!, CASA, FORA);
+    expect(fim?.reinicio).toBe('tiro_de_meta');
+    expect(fim?.timeId).toBe(FORA);
+  });
+
+  it('posse roubada na FAIXA LATERAL ⇒ cobrança de lateral dali (bola na linha)', () => {
+    const fimNaLinha: FimLanceMinuto = {
+      timeId: CASA,
+      jogadorId: 'c_7',
+      tipoUltimoToque: 'recepcao',
+      x: 0.61,
+      y: 0.03,
+      reinicio: 'nenhum',
+    };
+    const lance = reconstruirLanceMinuto(
+      entradaBase({momentoMinuto: -0.5, lanceAnterior: fimNaLinha}),
+    );
+    const primeiro = lance?.toques[0];
+    // Na faixa da linha não há "desarme" — o novo time repõe DA LINHA (y na cal).
+    expect(primeiro?.tipo).toBe('recuperacao');
+    expect(primeiro?.timeId).toBe(FORA);
+    expect(primeiro?.x).toBe(0.61);
+    expect(primeiro?.y).toBe(0.02);
   });
 });
 
@@ -419,6 +497,7 @@ describe('reconstruirLanceMinuto — vocabulário de ações', () => {
           tipoUltimoToque: 'recepcao',
           x: 0.4,
           y: 0.5,
+          reinicio: 'nenhum',
         },
       }),
     );

@@ -80,14 +80,9 @@ import {
   type EstadoPartidaAoVivo,
 } from '../../engine/simulation/matchSimulator';
 import type {PosicoesElenco} from '../../engine/simulation/lances';
-import {
-  fimDoLance,
-  posicionarElencosMinuto,
-  reconstruirLanceMinuto,
-  type ElencosPosicionados,
-  type FimLanceMinuto,
-  type JogadorEmCampoLance,
-  type LanceMinuto,
+import type {
+  FimLanceMinuto,
+  JogadorEmCampoLance,
 } from '../../engine/simulation/reconstruirLanceMinuto';
 import {coordenadaDoTitular} from '../../engine/tactics/geometria';
 import {confrontoDoClube} from '../../engine/season/copaEngine';
@@ -125,6 +120,7 @@ import {
   type JogoAoVivo,
   type PlacarAoVivo,
 } from './jogosAoVivo';
+import {derivarMundoRadar, type MundoRadar} from './mundoRadar';
 import RadarPartida from './RadarPartida';
 import {CabecalhoTabelaAoVivo, LinhaRodada, LinhaTabela} from './TabelaAoVivo';
 import {LinhaEvento, type ItemTimeline, type LadoLance} from './Timeline';
@@ -279,13 +275,10 @@ function MatchSimulation(): React.JSX.Element | null {
   const bannerGolSeqRef = useRef(0);
   const [bannerGol, setBannerGol] = useState<DadosBannerGol | null>(null);
   const fecharBannerGol = useCallback(() => setBannerGol(null), []);
-  // RADAR: lance derivado do último minuto simulado (jogadores reais + bola
-  // tocando entre eles) — espelho de UI, derivado dos fatos da engine.
-  const [lanceMinuto, setLanceMinuto] = useState<LanceMinuto | null>(null);
-  // RADAR: os 22 pontos do minuto (formação REAL + deslize pelo momento).
-  const [elencosRadar, setElencosRadar] = useState<ElencosPosicionados | null>(
-    null,
-  );
+  // RADAR: MUNDO derivado do último minuto simulado (`derivarMundoRadar` é a
+  // ÚNICA fonte derivada — 22 pontos, lance, dots, ícones e destaques). A tela
+  // não calcula nada do radar: só orquestra a entrada e espelha a saída na UI.
+  const [mundoRadar, setMundoRadar] = useState<MundoRadar | null>(null);
   // RADAR: fim do lance anterior — continuidade minuto a minuto (mesma posse
   // segue com o portador; posse trocada vira desarme visível; gol reseta
   // para a saída de bola).
@@ -567,9 +560,9 @@ function MatchSimulation(): React.JSX.Element | null {
     // Cartaz de gol do lote: só eventos que mudam o placar viram banner; se o
     // lote tiver mais de um gol (pulo de tempo), o último é o que fica.
     let bannerNovo: DadosBannerGol | null = null;
-    // Quadro do radar do lote (o do minuto mais recente vence).
-    let lanceUltimo: LanceMinuto | null = null;
-    let elencosUltimo: ElencosPosicionados | null = null;
+    // Mundo do radar do lote (o do minuto mais recente vence; se o minuto
+    // mais recente não render lance, o último lance visível do lote fica).
+    let mundoUltimo: MundoRadar | null = null;
     const criarItem = (ev: EventoPartida): ItemTimeline => {
       const ehCasa = ev.timeId === fixture.timeCasa;
       const nomeAutor = nomesRef.current[ev.jogadorId] ?? 'Jogador';
@@ -689,14 +682,14 @@ function MatchSimulation(): React.JSX.Element | null {
       const novos = simularMinuto(estado, ctx);
       minutoSimuladoRef.current = proximoMinuto;
 
-      // RADAR: deriva o quadro do minuto — os 22 pontos (formação REAL vigente:
-      // do usuário via formacaoAtual, da IA via formacoesAoVivo; slot real por
-      // coordenadaDoTitular, a mesma fonte da tela de tática) e o lance (toques
-      // entre jogadores REAIS). Funções PURAS fora da simulação — não consomem
-      // nenhum RNG do estado, então a paridade com o motor headless fica
-      // intocada. Em lote (pulo de tempo), o último quadro é o que fica.
-      const amostrasMomento = estado.estatisticas.momentumPorMinuto;
-      const momentoMinuto = amostrasMomento[amostrasMomento.length - 1] ?? 0;
+      // RADAR: worldstate ÚNICO do minuto via `derivarMundoRadar` — a tela só
+      // monta a ENTRADA (fatos reais da engine: escalações vigentes com âncora
+      // por coordenadaDoTitular — a mesma fonte da tela de tática —, momentum,
+      // ledger de chutes, eventos e o fim do lance anterior) e o derivador
+      // devolve TUDO que o RadarPartida desenha. Funções PURAS fora da
+      // simulação — não consomem nenhum RNG do estado, então a paridade com o
+      // motor headless fica intocada. Em lote (pulo de tempo), o último mundo
+      // é o que fica.
       const formacaoCasaViva =
         estado.formacoesAoVivo.get(clubeCasa.id) ?? clubeCasa.formacaoAtual;
       const formacaoForaViva =
@@ -710,8 +703,6 @@ function MatchSimulation(): React.JSX.Element | null {
             coordenadaDoTitular(titular),
           ]),
         );
-      const ancorasCasa = ancorasDe(formacaoCasaViva);
-      const ancorasFora = ancorasDe(formacaoForaViva);
       const emCampoLance = (
         jogadoresEmCampo: Player[],
         ancoras: Map<string, {x: number; y: number}>,
@@ -721,27 +712,34 @@ function MatchSimulation(): React.JSX.Element | null {
           posicao: j.posicaoPrincipal,
           ancora: ancoras.get(j.id),
         }));
-      const quadroMinuto = {
+      const mundoDoMinuto = derivarMundoRadar({
         seedPartida: seedRef.current,
         minuto: proximoMinuto,
-        momentoMinuto,
-        emCampoCasa: emCampoLance(ctx.jogadoresCasa, ancorasCasa),
-        emCampoFora: emCampoLance(ctx.jogadoresFora, ancorasFora),
-      };
-      elencosUltimo = posicionarElencosMinuto(quadroMinuto);
-      const lanceDoMinuto = reconstruirLanceMinuto({
-        ...quadroMinuto,
+        momentum: [...estado.estatisticas.momentumPorMinuto],
+        posseCasa: calcularPossePartida(estado).casa,
         timeCasaId: fixture.timeCasa,
         timeForaId: fixture.timeFora,
+        ladoUsuario: usuarioEhCasa ? 'casa' : 'fora',
+        emCampoCasa: emCampoLance(ctx.jogadoresCasa, ancorasDe(formacaoCasaViva)),
+        emCampoFora: emCampoLance(ctx.jogadoresFora, ancorasDe(formacaoForaViva)),
+        eventos: estado.eventos,
+        chutes: estado.chutes,
         eventosDoMinuto: novos,
         chutesDoMinuto: estado.chutes.slice(chutesAntesDoMinuto),
         lanceAnterior: fimLanceRef.current,
+        posicoes: posicoesRef.current,
+        jogadoresUsuario: usuarioEhCasa ? ctx.jogadoresCasa : ctx.jogadoresFora,
       });
-      if (lanceDoMinuto) {
-        lanceUltimo = lanceDoMinuto;
-        // Continuidade: o próximo minuto parte de onde este lance terminou.
-        fimLanceRef.current = fimDoLance(lanceDoMinuto);
-      }
+      // Minuto raro sem lance (elenco degenerado): o lance anterior do lote
+      // continua em cena — os demais campos do mundo seguem os mais novos.
+      const lanceAnteriorDoLote: typeof mundoDoMinuto.lance =
+        mundoUltimo !== null ? mundoUltimo.lance : null;
+      mundoUltimo =
+        mundoDoMinuto.lance === null && lanceAnteriorDoLote !== null
+          ? {...mundoDoMinuto, lance: lanceAnteriorDoLote}
+          : mundoDoMinuto;
+      // Continuidade: o próximo minuto parte de onde este lance terminou.
+      fimLanceRef.current = mundoDoMinuto.fim;
       for (const ev of novos) {
         novosItens.push(criarItem(ev));
         const doUsuario =
@@ -865,11 +863,15 @@ function MatchSimulation(): React.JSX.Element | null {
     if (bannerNovo) {
       setBannerGol(bannerNovo);
     }
-    if (lanceUltimo) {
-      setLanceMinuto(lanceUltimo);
-    }
-    if (elencosUltimo) {
-      setElencosRadar(elencosUltimo);
+    if (mundoUltimo !== null) {
+      const mundoNovo = mundoUltimo;
+      // Mesmo comportamento de antes: um minuto sem lance não apaga o último
+      // lance visível (os 22 pontos e o resto do mundo sempre avançam).
+      setMundoRadar(prev =>
+        mundoNovo.lance === null && prev !== null && prev.lance !== null
+          ? {...mundoNovo, lance: prev.lance}
+          : mundoNovo,
+      );
     }
     setPlacar({casa: estado.placarCasa, fora: estado.placarFora});
     setPosse(calcularPossePartida(estado));
@@ -1331,11 +1333,9 @@ function MatchSimulation(): React.JSX.Element | null {
           corFora={corFora}
           minuto={minuto}
           posseCasa={posseCasa}
-          momentum={momentum}
           chutes={estadoRef.current?.chutes ?? []}
           eventos={eventosAoVivo}
-          lanceMinuto={lanceMinuto}
-          elencos={elencosRadar}
+          mundo={mundoRadar}
           titularesCasa={titularesRef.current.casa}
           titularesFora={titularesRef.current.fora}
           posicoes={posicoesRef.current}

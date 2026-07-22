@@ -52,6 +52,17 @@ export interface EntradaChancesMinuto {
   xgAlvoMinuto: number;
   /** Fração de posse DESTE lado no minuto (decidida antes, causalmente). */
   fracaoPosse: number;
+  /**
+   * Fator do rigor do árbitro (~0.8 "deixa jogar" → ~1.25 rigoroso) — entra
+   * como multiplicador no LIMIAR do draw de falta comum já existente (nunca
+   * como sorteio novo; a ordem dos draws fica intacta).
+   */
+  fatorRigor: number;
+  /**
+   * VAR disponível NESTA partida (Séries C/D não têm cabine). Sem VAR, a prob
+   * de gol anulado vira 0 — o draw continua consumido (ordem intacta).
+   */
+  varDisponivel: boolean;
   rng: RandomGenerator;
   /** Gera o próximo sequencial de chute da partida (ids estáveis). */
   proximoSequencial: () => number;
@@ -182,7 +193,12 @@ function resolverChute(
   if (rng() < conversao) {
     // GOL — sabores de drama estruturados (mesmas taxas medidas da V1).
     const sorteDrama = rng();
-    const anulado = rng() < INCIDENTES_CAUSAL.probVarAnulaGol;
+    // Anulação de gol aqui é 100% revisão de VAR (o evento gerado é
+    // "VAR em ação" com `anuladoVAR`): sem cabine na divisão, prob ×0 —
+    // o draw é consumido do mesmo jeito, preservando a ordem dos sorteios.
+    const anulado =
+      rng() <
+      INCIDENTES_CAUSAL.probVarAnulaGol * (entrada.varDisponivel ? 1 : 0);
     const baliza = sortearBaliza(rng);
     const xgot = Math.min(0.95, Math.max(baseXG, 0.3 + rng() * 0.5));
 
@@ -473,7 +489,16 @@ export function gerarChancesMinutoLado(
       : entrada.tatica?.marcacao === 'Individual'
         ? 1.25
         : 1) * (entrada.tatica?.ritmo === 'Intenso' ? 1.15 : 1);
-  if (rng() < INCIDENTES_CAUSAL.probFaltaComumPorMinuto * agressividade) {
+  // Rigor do árbitro modula o LIMIAR do mesmo draw (teto evita minuto com
+  // falta quase certa em combinações extremas de tática × árbitro rigoroso).
+  const probFaltaComum = limitar(
+    INCIDENTES_CAUSAL.probFaltaComumPorMinuto *
+      agressividade *
+      entrada.fatorRigor,
+    0,
+    0.35,
+  );
+  if (rng() < probFaltaComum) {
     resultado.faltasComuns += 1;
   }
 

@@ -25,6 +25,7 @@ export type {
   Transacao,
 } from './club';
 export type {
+  ArbitroPartida,
   ChutePartida,
   ClimaPartida,
   EstatisticasPartida,

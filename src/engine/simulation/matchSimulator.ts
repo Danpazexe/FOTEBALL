@@ -1,4 +1,5 @@
 import type {
+  ArbitroPartida,
   ChutePartida,
   Clube,
   EstatisticasPartida,
@@ -9,6 +10,11 @@ import type {
 } from '../../types';
 
 import {pesoLesaoPartida} from '../physical/fisicoEngine';
+import {
+  fatorRigorArbitro,
+  sortearArbitro,
+  varDisponivelPartida,
+} from './arbitro';
 import {temHabilidade} from '../progression/habilidades';
 import {
   criarChuteFaltaDireta,
@@ -131,6 +137,7 @@ function simularCartao(
   rng: RandomGenerator,
   amarelosPartida: Map<string, number>,
   fatorVermelho: number,
+  fatorRigor: number,
 ): EventoPartida {
   // Defensores e quem desarma muito tendem a levar mais cartão. Quem JÁ tem
   // amarelo joga com cautela (pisa no freio) → bem menos propenso a um 2º → mantém
@@ -143,7 +150,9 @@ function simularCartao(
   const jaTinhaAmarelo = (amarelosPartida.get(jogador.id) ?? 0) >= 1;
   // Vermelho DIRETO raro: com o volume de amarelos calibrado (~3.4/jogo) o 2º
   // amarelo já gera boa parte das expulsões — manter os vermelhos em ~0.20/jogo.
-  const vermelhoDireto = rng() < limitar(0.018 * fatorVermelho, 0.012, 0.06);
+  // O rigor do árbitro entra como fator no LIMIAR (mesmo draw; ordem intacta).
+  const vermelhoDireto =
+    rng() < limitar(0.018 * fatorVermelho * fatorRigor, 0.012, 0.06);
 
   // Segundo amarelo no mesmo jogo => expulsão.
   if (vermelhoDireto || jaTinhaAmarelo) {
@@ -406,6 +415,13 @@ export interface EstadoPartidaAoVivo {
   contadorChutes: number;
   /** Pressão ofensiva recente (Momentum de ataque). */
   momento: EstadoMomento;
+  /** Árbitro da partida — derivado da SEED via hash (nenhum draw consumido). */
+  arbitro: ArbitroPartida;
+  /**
+   * Fator do rigor do árbitro (~0.8 "deixa jogar" → ~1.25 rigoroso) aplicado
+   * como multiplicador nas probs de cartão/falta ANTES dos draws existentes.
+   */
+  fatorRigor: number;
 }
 
 /** Contexto de um minuto: times, jogadores e probabilidades ATUAIS. */
@@ -425,13 +441,24 @@ export interface ContextoMinuto {
   goleiroFora: Player | undefined;
   fatorVermelhoCasa: number;
   fatorVermelhoFora: number;
+  /**
+   * VAR disponível NESTA partida (infraestrutura por divisão: Séries A/B sim;
+   * C/D não — ver `varDisponivelPartida`). Sem VAR, as probs de anulação/
+   * pênalti de VAR viram 0, mas os draws continuam consumidos (ordem intacta).
+   */
+  varDisponivel: boolean;
 }
 
 export function iniciarPartidaAoVivo(seed: number): EstadoPartidaAoVivo {
   // Streams independentes: offsets grandes produzem sequências sem relação
   // com a dos eventos, mantendo o determinismo por seed.
   const rngEstatisticas = criarRNGComSeed(seed + 202_777);
+  // Árbitro derivado da seed via hash — NÃO consome draw de nenhum stream, e
+  // por vir da mesma seed é idêntico no ao vivo e no simularPartida (paridade).
+  const arbitro = sortearArbitro(seed);
   return {
+    arbitro,
+    fatorRigor: fatorRigorArbitro(arbitro.rigor),
     rng: criarRNGComSeed(seed),
     rngPosse: criarRNGComSeed(seed + 101_159),
     placarCasa: 0,
@@ -554,6 +581,9 @@ export function calcularContextoMinuto(
     goleiroFora: encontrarGoleiro(emCampoFora),
     fatorVermelhoCasa: fatorVermelhoTatica(timeCasa),
     fatorVermelhoFora: fatorVermelhoTatica(timeFora),
+    // Divisão dos DOIS clubes decide a cabine de VAR — mesma derivação nos
+    // dois caminhos de simulação (ao vivo e headless), paridade garantida.
+    varDisponivel: varDisponivelPartida(timeCasa.divisao, timeFora.divisao),
   };
 }
 
@@ -859,6 +889,10 @@ export function simularMinuto(
       fracaoPosse: ehCasa ? fracaoControleCasa : 1 - fracaoControleCasa,
       rng,
       proximoSequencial,
+      // Arbitragem: rigor modula a prob de falta comum; sem VAR a prob de
+      // anulação vira 0 (o draw continua consumido — ordem intacta).
+      fatorRigor: estado.fatorRigor,
+      varDisponivel: ctx.varDisponivel,
     });
 
     const lado = ehCasa ? fatosCasa : fatosFora;
@@ -902,7 +936,11 @@ export function simularMinuto(
         chute.resultado !== 'gol' &&
         chute.resultado !== 'gol_anulado',
     );
-    if (!chanceRevisavel || rng() >= INCIDENTES_CAUSAL.probVarPenalti) {
+    // Sem VAR na divisão: prob ×0, mas o draw é consumido do MESMO jeito que
+    // hoje (só ocorre quando há chance revisável) — ordem dos sorteios intacta.
+    const probVarPenalti =
+      INCIDENTES_CAUSAL.probVarPenalti * (ctx.varDisponivel ? 1 : 0);
+    if (!chanceRevisavel || rng() >= probVarPenalti) {
       return;
     }
     const clube = ehCasa ? ctx.timeCasa : ctx.timeFora;
@@ -920,9 +958,13 @@ export function simularMinuto(
   processarVarPenalti(chancesCasa, true);
   processarVarPenalti(chancesFora, false);
 
-  // ETAPA 3 — CARTÕES (incidentes disciplinares).
+  // ETAPA 3 — CARTÕES (incidentes disciplinares). O rigor do árbitro entra
+  // como fator no LIMIAR dos draws já existentes (mesmos draws, ordem intacta).
   const fTempoCartao = 1 + Math.max(0, minuto - 60) / 120;
-  if (emCampoCasa.length > 0 && rng() < p.probCartaoCasaPorMinuto * fTempoCartao) {
+  if (
+    emCampoCasa.length > 0 &&
+    rng() < p.probCartaoCasaPorMinuto * fTempoCartao * estado.fatorRigor
+  ) {
     const ev = simularCartao(
       minuto,
       ctx.timeCasa,
@@ -930,6 +972,7 @@ export function simularMinuto(
       rng,
       estado.amarelosPartida,
       ctx.fatorVermelhoCasa,
+      estado.fatorRigor,
     );
     if (ev.tipo === 'cartao_vermelho') {
       estado.indisponiveis.add(ev.jogadorId);
@@ -937,7 +980,10 @@ export function simularMinuto(
     }
     adicionar(ev);
   }
-  if (emCampoFora.length > 0 && rng() < p.probCartaoForaPorMinuto * fTempoCartao) {
+  if (
+    emCampoFora.length > 0 &&
+    rng() < p.probCartaoForaPorMinuto * fTempoCartao * estado.fatorRigor
+  ) {
     const ev = simularCartao(
       minuto,
       ctx.timeFora,
@@ -945,6 +991,7 @@ export function simularMinuto(
       rng,
       estado.amarelosPartida,
       ctx.fatorVermelhoFora,
+      estado.fatorRigor,
     );
     if (ev.tipo === 'cartao_vermelho') {
       estado.indisponiveis.add(ev.jogadorId);
@@ -1178,5 +1225,8 @@ export function simularPartida(input: SimularPartidaInput): Partida {
     engineVersion: 2,
     qualidadeDados: 'causal_full',
     chutes: [...estado.chutes].sort((a, b) => a.minuto - b.minuto),
+    // Derivado da MESMA seed em iniciarPartidaAoVivo — paridade automática
+    // entre este caminho headless e o modo ao vivo.
+    arbitro: estado.arbitro,
   };
 }

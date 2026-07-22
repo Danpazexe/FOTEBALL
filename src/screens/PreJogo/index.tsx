@@ -33,6 +33,11 @@ import {
   espacamento,
   type CorTexto,
 } from '../../design-system';
+import {
+  arbitroDoJogo,
+  rotuloRigorArbitro,
+  varDisponivelPartida,
+} from '../../engine/simulation/arbitro';
 import {taticaProvavelIA} from '../../engine/tactics/preview';
 import {sugerirRodizio} from '../../engine/tactics/rodizio';
 import {validarFormacao} from '../../engine/tactics/formationValidation';
@@ -396,6 +401,17 @@ function PreJogo(): React.JSX.Element {
   const adversario = mandoCasa ? confronto.fora : confronto.casa;
   const chave = jogadorChave(adversario.id, jogadores);
 
+  // ARBITRAGEM — mesmo sorteio do ao vivo (seed derivada do id da partida),
+  // então o árbitro exibido aqui é exatamente o que apita quando a bola rola.
+  const arbitro = arbitroDoJogo(proximo.id);
+  const rotuloRigorBruto = rotuloRigorArbitro(arbitro.rigor);
+  const rotuloRigor =
+    rotuloRigorBruto.charAt(0).toUpperCase() + rotuloRigorBruto.slice(1);
+  const temVar = varDisponivelPartida(
+    confronto.casa.divisao,
+    confronto.fora.divisao,
+  );
+
   // Nome curto para as linhas do rodízio (ids vêm da formação do usuário).
   const nomeJogador = (id: string): string => {
     const j = jogadoresUsuario.find(x => x.id === id);
@@ -584,6 +600,25 @@ function PreJogo(): React.JSX.Element {
         </View>
       ) : null}
 
+      {/* ARBITRAGEM — quem apita e com qual infraestrutura; só leitura,
+          derivado da mesma seed do ao vivo (nunca inventado) */}
+      <View style={styles.bloco}>
+        <TituloBloco texto="Arbitragem" />
+        <Card variante="outlined" padding={3}>
+          <View style={styles.arbitroRow}>
+            <Icon nome="apito" size="md" color="textSecondary" />
+            <View style={styles.arbitroInfo}>
+              <Text variant="bodyM" weight="700" numberOfLines={1}>
+                {arbitro.nome}
+              </Text>
+              <Text variant="caption" color="textSecondary">
+                {rotuloRigor} · {temVar ? 'Com VAR' : 'Sem VAR'}
+              </Text>
+            </View>
+          </View>
+        </Card>
+      </View>
+
       {/* AVISOS da escalação — o que corrigir antes do jogo (erros em vermelho
           desabilitam Simular/Jogar; avisos em amarelo são só alerta) */}
       {avisos.length > 0 ? (
@@ -765,6 +800,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: espacamento[2],
   },
+  // ARBITRAGEM
+  arbitroRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espacamento[2],
+  },
+  arbitroInfo: {flex: 1, gap: espacamento[1]},
   // RODÍZIO SUGERIDO
   rodizioRow: {
     alignItems: 'center',
