@@ -7,7 +7,8 @@
  *     compromisso (liga OU copa, o que vier primeiro);
  *  3. "Agenda do dia": o que o avanço processa hoje — a sessão do plano de
  *     treino, recuperação, análise do adversário e descanso (dados reais);
- *  4. "Pipeline diário": os passos que o motor roda a cada dia avançado;
+ *  4. "Pipeline diário": os passos que o motor roda a cada dia avançado — o
+ *     passo Treino abre o plano de treino da semana (tela Semana);
  *  5. AVANÇAR ATÉ O PRÓXIMO JOGO (ação principal) → processa os dias e abre o
  *     pré-jogo (ou o confronto da Copa);
  *  6. abaixo, o calendário completo (Resultados / Próximos), preservado.
@@ -26,6 +27,7 @@ import {
   Icon,
   IconButton,
   MatchCard,
+  Pressable,
   Screen,
   SegmentedTabs,
   Text,
@@ -86,9 +88,10 @@ type ItemAgenda = {
   icone: IconeNome;
 };
 
-/** Passos que o motor processa por dia avançado (informativo). */
-const PIPELINE: {icone: IconeNome; rotulo: string}[] = [
-  {icone: 'tendencia', rotulo: 'Treino'},
+/** Passos que o motor processa por dia avançado. O passo "Treino" abre o
+ * plano de treino da semana (tela Semana); os demais são informativos. */
+const PIPELINE: {icone: IconeNome; rotulo: string; abrePlano?: boolean}[] = [
+  {icone: 'tendencia', rotulo: 'Treino', abrePlano: true},
   {icone: 'lesao', rotulo: 'Recuperação'},
   {icone: 'estrela', rotulo: 'Moral'},
   {icone: 'mercado', rotulo: 'Mercado'},
@@ -470,16 +473,33 @@ function Calendario(): React.JSX.Element {
           Pipeline diário
         </Text>
         <View style={estilos.pipeline}>
-          {PIPELINE.map(passo => (
-            <View key={passo.rotulo} style={estilos.pipelineItem}>
-              <View style={[estilos.pipelineIcone, {borderColor: cores.border}]}>
-                <Icon nome={passo.icone} size={18} color="textSecondary" />
+          {PIPELINE.map(passo =>
+            passo.abrePlano ? (
+              <Pressable
+                key={passo.rotulo}
+                style={estilos.pipelineItem}
+                onPress={() => nav.navigate('Semana')}
+                accessibilityLabel="Treino — abrir plano de treino">
+                <View
+                  style={[estilos.pipelineIcone, {borderColor: cores.brand}]}>
+                  <Icon nome={passo.icone} size={18} color="brand" />
+                </View>
+                <Text variant="caption" color="textSecondary">
+                  {passo.rotulo}
+                </Text>
+              </Pressable>
+            ) : (
+              <View key={passo.rotulo} style={estilos.pipelineItem}>
+                <View
+                  style={[estilos.pipelineIcone, {borderColor: cores.border}]}>
+                  <Icon nome={passo.icone} size={18} color="textSecondary" />
+                </View>
+                <Text variant="caption" color="textSecondary">
+                  {passo.rotulo}
+                </Text>
               </View>
-              <Text variant="caption" color="textSecondary">
-                {passo.rotulo}
-              </Text>
-            </View>
-          ))}
+            ),
+          )}
         </View>
       </View>
 

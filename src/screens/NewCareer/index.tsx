@@ -26,6 +26,7 @@ import {useGameStore} from '../../store/useGameStore';
 import {classificarCenario} from '../../engine/carreira/cenarios';
 import type {Clube} from '../../types';
 import {agruparClubesPorDivisao} from '../../utils/clubes';
+import {nomeCompeticao} from '../../utils/formatters';
 
 const ORDEM_DIVISOES = [
   'Série A',
@@ -39,10 +40,7 @@ const ORDEM_DIVISOES = [
 
 /** Título do cabeçalho: "Brasileirão Série A" ou o nome da liga internacional. */
 function tituloDaDivisao(divisao?: string): string {
-  if (!divisao) {
-    return 'Nova carreira';
-  }
-  return divisao.startsWith('Série') ? `Brasileirão ${divisao}` : divisao;
+  return divisao ? nomeCompeticao(divisao) : 'Nova carreira';
 }
 
 /** Desafio de carreira do clube (reputação + caixa + divisão). */

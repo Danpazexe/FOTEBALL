@@ -32,6 +32,18 @@ export function siglaClube(clubes: Clube[], clubeId: string): string {
   return clube?.sigla ?? clube?.nome ?? clubeId;
 }
 
+/**
+ * Nome de exibição da liga a partir da `divisao` do clube. As Séries
+ * brasileiras ("Série A"…"Série D") ganham o prefixo "Brasileirão"; ligas
+ * internacionais guardam o próprio nome na divisão ("Premier League",
+ * "Primera División") e são exibidas como chegam, SEM prefixo. Fallback
+ * (divisão ausente): "Brasileirão Série A".
+ */
+export function nomeCompeticao(divisao?: string): string {
+  const nome = divisao ?? 'Série A';
+  return nome.startsWith('Série') ? `Brasileirão ${nome}` : nome;
+}
+
 /** Nome de exibição curto do jogador: apelido quando houver, senão o nome. */
 export function nomeCurto(jogador: Player): string {
   return jogador.apelido ?? jogador.nome;

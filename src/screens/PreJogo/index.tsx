@@ -44,6 +44,7 @@ import {
   useJogadoresUsuario,
 } from '../../store/useGameStore';
 import {forcaDoClube} from '../../utils/forca';
+import {nomeCompeticao} from '../../utils/formatters';
 import type {Partida, Player} from '../../types';
 
 // ─── Derivações puras (só partidas/elenco, nunca inventadas) ─────────────────
@@ -414,8 +415,7 @@ function PreJogo(): React.JSX.Element {
           color="textSecondary"
           align="center"
           style={styles.caps}>
-          Brasileirão {clubeUsuario.divisao ?? 'Série A'} · Rodada{' '}
-          {proximo.rodada}
+          {nomeCompeticao(clubeUsuario.divisao)} · Rodada {proximo.rodada}
         </Text>
         <View style={styles.metaLinha}>
           <Icon nome="estadio" size="sm" color="textMuted" />
