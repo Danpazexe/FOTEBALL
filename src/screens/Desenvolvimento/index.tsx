@@ -3,15 +3,22 @@
  * margem de potencial, jogadores em regressão e os atributos que mais subiram no
  * ledger. Cards derivados do ELENCO (jovens/estagnados) aparecem mesmo sem
  * histórico; cards do LEDGER só quando há registros. Nada é inventado. DS v2.
+ *
+ * TREINO COLETIVO: aqui também mora a gestão em lote dos planos de função —
+ * sugestão do staff em 1 toque e plano por grupo posicional. O ajuste fino
+ * individual continua no PlayerDetail.
  */
-import React, {useMemo} from 'react';
-import {StyleSheet, View} from 'react-native';
+import React, {useMemo, useState} from 'react';
+import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {
   AppHeader,
   Badge,
   Box,
+  Button,
   Card,
+  Chip,
+  Divider,
   EmptyState,
   Icon,
   ProgressBar,
@@ -22,8 +29,16 @@ import {
   useTheme,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
+import {useToast} from '../../components/feedback';
 import {nomeCurto} from '../../utils/formatters';
 import GraficoEvolucao from '../../components/GraficoEvolucao';
+import {
+  planosParaGrupo,
+} from '../../engine/progression/treinoIndividual';
+import {
+  grupoDaPosicao,
+  type GrupoPosicao,
+} from '../../engine/tactics/posicoes';
 import {useElencoNavigation} from '../../navigation/types';
 import {useGameStore, useJogadoresUsuario} from '../../store/useGameStore';
 import type {AtributoChave, Player, RegistroDesenvolvimento} from '../../types';
@@ -58,6 +73,132 @@ const ATRIBUTOS_PT: Record<AtributoChave, string> = {
   cabeceio: 'Cabeceio',
   cruzamento: 'Cruzamento',
 };
+
+// ─── Treino coletivo (grupo + staff 1 toque) ─────────────────────────────────
+const ORDEM_GRUPOS: ReadonlyArray<GrupoPosicao> = [
+  'GOL',
+  'ZAGUEIRO',
+  'LATERAL',
+  'VOLANTE',
+  'MEIA_CENTRAL',
+  'MEIA_OFENSIVO',
+  'PONTA',
+  'ATACANTE',
+];
+
+const GRUPOS_PT: Record<GrupoPosicao, string> = {
+  GOL: 'Goleiros',
+  ZAGUEIRO: 'Zagueiros',
+  LATERAL: 'Laterais',
+  VOLANTE: 'Volantes',
+  MEIA_CENTRAL: 'Meias centrais',
+  MEIA_OFENSIVO: 'Meias ofensivos',
+  PONTA: 'Pontas',
+  ATACANTE: 'Atacantes',
+};
+
+function TreinoColetivo({elenco}: {elenco: Player[]}): React.JSX.Element | null {
+  const toast = useToast();
+  const definirPlanoDoGrupo = useGameStore(s => s.definirPlanoDoGrupo);
+  const aplicarPlanosSugeridos = useGameStore(s => s.aplicarPlanosSugeridos);
+
+  // Só grupos com jogadores no elenco (ordem canônica GOL → ATACANTE).
+  const grupos = useMemo(
+    () =>
+      ORDEM_GRUPOS.filter(g =>
+        elenco.some(j => grupoDaPosicao(j.posicaoPrincipal) === g),
+      ),
+    [elenco],
+  );
+  const [grupoSel, setGrupoSel] = useState<GrupoPosicao | null>(null);
+  const grupoAtivo = grupoSel && grupos.includes(grupoSel) ? grupoSel : grupos[0];
+
+  if (!grupoAtivo) {
+    return null;
+  }
+
+  const jogadoresDoGrupo = elenco.filter(
+    j => grupoDaPosicao(j.posicaoPrincipal) === grupoAtivo,
+  );
+  // Plano "comum": selecionado só quando TODO o grupo já segue o mesmo papel.
+  const planoComum =
+    jogadoresDoGrupo.length > 0 &&
+    jogadoresDoGrupo.every(
+      j => j.planoDesenvolvimento === jogadoresDoGrupo[0].planoDesenvolvimento,
+    )
+      ? jogadoresDoGrupo[0].planoDesenvolvimento
+      : undefined;
+
+  const aoSugerir = (): void => {
+    const aplicados = aplicarPlanosSugeridos();
+    toast(
+      aplicados > 0
+        ? `Staff definiu o plano de ${aplicados} jogador(es).`
+        : 'Ninguém com margem de evolução para sugerir.',
+      aplicados > 0 ? 'sucesso' : 'info',
+    );
+  };
+
+  const aoTocarPlano = (planoId: string, nome: string): void => {
+    const novo = planoComum === planoId ? null : planoId;
+    const afetados = definirPlanoDoGrupo(grupoAtivo, novo);
+    toast(
+      novo
+        ? `${nome} aplicado a ${afetados} jogador(es).`
+        : `Plano removido de ${afetados} jogador(es).`,
+      'sucesso',
+    );
+  };
+
+  return (
+    <View style={styles.secao}>
+      <SectionHeader titulo="Treino coletivo" />
+      <Card variante="outlined">
+        <Box gap={3}>
+          <Text variant="caption" color="textSecondary">
+            O staff escolhe o papel ideal para cada jogador com margem de
+            evolução. O ajuste fino continua no perfil do jogador.
+          </Text>
+          <Button
+            titulo="Aplicar sugestão do staff"
+            icone="estrela"
+            onPress={aoSugerir}
+            fullWidth
+          />
+          <Divider />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipsRow}>
+            {grupos.map(g => (
+              <Chip
+                key={g}
+                label={GRUPOS_PT[g]}
+                selected={g === grupoAtivo}
+                onPress={() => setGrupoSel(g)}
+              />
+            ))}
+          </ScrollView>
+          <View style={styles.planosGrid}>
+            {planosParaGrupo(grupoAtivo).map(plano => (
+              <Chip
+                key={plano.id}
+                label={plano.nome}
+                tom="accent"
+                selected={plano.id === planoComum}
+                onPress={() => aoTocarPlano(plano.id, plano.nome)}
+              />
+            ))}
+          </View>
+          <Text variant="caption" color="textMuted">
+            Tocar num papel aplica o plano a todos os{' '}
+            {GRUPOS_PT[grupoAtivo].toLowerCase()} ({jogadoresDoGrupo.length}).
+          </Text>
+        </Box>
+      </Card>
+    </View>
+  );
+}
 
 // ─── Linha de jogador (do elenco) ────────────────────────────────────────────
 function LinhaJogador({
@@ -212,6 +353,9 @@ export default function Desenvolvimento(): React.JSX.Element {
           onBack={() => nav.goBack()}
         />
       }>
+      {/* AÇÃO da tela: treino coletivo (sugestão do staff + plano por grupo). */}
+      <TreinoColetivo elenco={elenco} />
+
       {/* Carreira nova: ledger vazio. Explica, mas mantém os cards do elenco. */}
       {!temLedger ? (
         <EmptyState
@@ -351,4 +495,6 @@ export default function Desenvolvimento(): React.JSX.Element {
 const styles = StyleSheet.create({
   secao: {gap: espacamento[2]},
   trailing: {alignItems: 'flex-end', gap: espacamento[1], minWidth: 64},
+  chipsRow: {flexDirection: 'row', gap: espacamento[2]},
+  planosGrid: {flexDirection: 'row', flexWrap: 'wrap', gap: espacamento[2]},
 });
