@@ -9,6 +9,8 @@ import type {ChutePartida, EventoPartida, Position} from '../../../types';
 import {
   coordenadaBasePosicao,
   paraCampoHorizontal,
+  posicaoJogadorNoMinuto,
+  posicionarElencosMinuto,
   reconstruirLanceMinuto,
   type EntradaLanceMinuto,
   type JogadorEmCampoLance,
@@ -184,6 +186,11 @@ describe('reconstruirLanceMinuto — âncora no evento real', () => {
       expect(toque.timeId).toBe(CASA);
       expect(toque.jogadorId.startsWith('c_')).toBe(true);
     }
+    // A falta acontece ONDE o punido (f_2, ZAG) está no radar neste minuto.
+    const punido = lado('f')[2];
+    const esperado = posicaoJogadorNoMinuto(123_456, 10, 0, punido, false);
+    expect(final?.x).toBeCloseTo(esperado.x, 10);
+    expect(final?.y).toBeCloseTo(esperado.y, 10);
   });
 });
 
@@ -212,6 +219,69 @@ describe('reconstruirLanceMinuto — posse pelo momento real', () => {
   it('minuto sem evento termina em recepção (reciclagem neutra de posse)', () => {
     const lance = reconstruirLanceMinuto(entradaBase({momentoMinuto: 0.3}));
     expect(lance?.toques[lance.toques.length - 1].tipo).toBe('recepcao');
+  });
+});
+
+describe('posicionarElencosMinuto — os 22 pontos do radar', () => {
+  it('posiciona os dois elencos inteiros, com goleiro sinalizado', () => {
+    const elencos = posicionarElencosMinuto(entradaBase());
+    expect(elencos.casa).toHaveLength(11);
+    expect(elencos.fora).toHaveLength(11);
+    expect(elencos.casa.filter(p => p.goleiro).map(p => p.id)).toEqual(['c_0']);
+    expect(elencos.fora.filter(p => p.goleiro).map(p => p.id)).toEqual(['f_0']);
+    // Goleiros perto do gol que defendem: casa à esquerda, visitante à direita.
+    expect(elencos.casa[0].x).toBeLessThan(0.15);
+    expect(elencos.fora[0].x).toBeGreaterThan(0.85);
+  });
+
+  it('é determinístico e muda com o minuto (micro-drift por seed+minuto)', () => {
+    const a = posicionarElencosMinuto(entradaBase({minuto: 10}));
+    const b = posicionarElencosMinuto(entradaBase({minuto: 10}));
+    const c = posicionarElencosMinuto(entradaBase({minuto: 11}));
+    expect(a).toEqual(b);
+    expect(JSON.stringify(a)).not.toEqual(JSON.stringify(c));
+  });
+
+  it('ancora no slot REAL da formação quando ele existe', () => {
+    // Atacante da casa escalado bem adiantado (y=0.9 na convenção da tática):
+    // o ponto dele no radar fica colado no gol adversário (direita).
+    const casa = lado('c').map((j, i) =>
+      i === 10 ? {...j, ancora: {x: 0.5, y: 0.9}} : j,
+    );
+    const elencos = posicionarElencosMinuto(
+      entradaBase({emCampoCasa: casa, momentoMinuto: 0}),
+    );
+    expect(elencos.casa[10].x).toBeGreaterThan(0.84);
+  });
+
+  it('o bloco desliza com o momento: quem pressiona sobe, quem apanha recua', () => {
+    const neutro = posicionarElencosMinuto(entradaBase({momentoMinuto: 0}));
+    const pressao = posicionarElencosMinuto(entradaBase({momentoMinuto: 0.9}));
+    // Linha da casa sobe (x maior) e a do visitante recua (x maior também —
+    // empurrada para o próprio gol, à direita). Drift idêntico (mesma seed).
+    const zagueiroCasa = 2;
+    const zagueiroFora = 2;
+    expect(pressao.casa[zagueiroCasa].x).toBeGreaterThan(
+      neutro.casa[zagueiroCasa].x,
+    );
+    expect(pressao.fora[zagueiroFora].x).toBeGreaterThan(
+      neutro.fora[zagueiroFora].x,
+    );
+  });
+
+  it('os toques de construção do lance caem SOBRE os pontos visíveis', () => {
+    const entrada = entradaBase({momentoMinuto: 0.4});
+    const lance = reconstruirLanceMinuto(entrada);
+    const elencos = posicionarElencosMinuto(entrada);
+    const pontos = new Map(
+      [...elencos.casa, ...elencos.fora].map(p => [p.id, p]),
+    );
+    for (const toque of lance?.toques ?? []) {
+      const ponto = pontos.get(toque.jogadorId);
+      expect(ponto).toBeDefined();
+      expect(toque.x).toBeCloseTo(ponto?.x ?? -1, 10);
+      expect(toque.y).toBeCloseTo(ponto?.y ?? -1, 10);
+    }
   });
 });
 

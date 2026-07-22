@@ -5,6 +5,7 @@
  * coordenada). Nada de dado inventado: os testes fixam esse contrato.
  */
 import {
+  contornoPorContraste,
   pontoChuteNoRadar,
   pontoEventoNoRadar,
   pontoPassoNoRadar,
@@ -164,6 +165,35 @@ describe('pontoEventoNoRadar', () => {
       [0.9],
     );
     expect(ponto).toEqual({x: 0.5, y: 0.5});
+  });
+});
+
+describe('contornoPorContraste (pontos de jogador)', () => {
+  it('cores distintas e distantes do gramado: ninguém precisa de contorno', () => {
+    expect(contornoPorContraste('#C1272D', '#FFCF00')).toEqual({
+      casa: false,
+      fora: false,
+    });
+  });
+
+  it('times com a MESMA cor: o visitante ganha contorno (determinístico)', () => {
+    expect(contornoPorContraste('#C1272D', '#C1272D')).toEqual({
+      casa: false,
+      fora: true,
+    });
+  });
+
+  it('cor colada no verde do gramado ganha contorno', () => {
+    expect(contornoPorContraste('#2E9E58', '#FFCF00').casa).toBe(true);
+    expect(contornoPorContraste('#FFCF00', '#31A55C').fora).toBe(true);
+  });
+
+  it('aceita hex curto e degrada seguro com cor não-hex', () => {
+    expect(contornoPorContraste('#F00', '#F00').fora).toBe(true);
+    expect(contornoPorContraste('red', 'blue')).toEqual({
+      casa: false,
+      fora: false,
+    });
   });
 });
 

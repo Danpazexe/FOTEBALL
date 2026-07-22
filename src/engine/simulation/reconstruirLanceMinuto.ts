@@ -1,21 +1,23 @@
 /**
- * reconstruirLanceMinuto — lance de UM minuto para o radar ao vivo.
+ * reconstruirLanceMinuto — o jogo VIVO do radar, minuto a minuto.
  *
  * Mesmo padrão do replay de gol ("reconstrução DERIVADA, nunca persistida"):
- * uma função PURA e DETERMINÍSTICA que lê o que a engine JÁ produziu no minuto
- * e deriva uma sequência curta de TOQUES entre jogadores REAIS — a bola sempre
- * "pega" em alguém que está em campo naquele minuto.
+ * funções PURAS e DETERMINÍSTICAS que leem o que a engine JÁ produziu e
+ * derivam (1) a posição dos 22 jogadores no campo e (2) uma sequência curta de
+ * TOQUES entre jogadores reais — a bola sempre "pega" em alguém visível.
  *
  * O que é FATO (vem da engine, nunca inventado):
  *  • quem está em campo (titulares vigentes, com substituições/expulsões);
+ *  • a ÂNCORA de formação de cada jogador (slot REAL da escalação —
+ *    `coordenadaDoTitular`, a mesma fonte da tela de tática);
  *  • o momento do minuto (amostra real de `momentumPorMinuto`) — decide quem
- *    fica com a bola e a profundidade do lance;
- *  • o evento âncora do minuto: chute nas coordenadas REAIS do ledger causal
- *    (mesmo ponto do mapa de finalizações), cartão/lesão sobre o jogador real;
- *  • autor/assistente reais do lance (quem chuta é quem chutou de verdade).
+ *    fica com a bola e desliza o BLOCO dos times (linha alta/baixa);
+ *  • o evento âncora do minuto: chute nas coordenadas REAIS do ledger causal,
+ *    cartão/lesão sobre o jogador real, autor/assistente reais.
  *
- * O que é DERIVADO (plausível, determinístico por seed real + minuto): a ordem
- * dos toques de construção e o jitter de posição — mesma partida ⇒ mesmo lance.
+ * O que é DERIVADO (determinístico por seed real + minuto + jogador): o
+ * micro-drift de cada ponto e a ordem dos toques de construção — mesma
+ * partida ⇒ mesmo quadro.
  *
  * COORDENADAS DE SAÍDA: campo INTEIRO HORIZONTAL compartilhado — a casa
  * defende a ESQUERDA e ataca para a DIREITA; x 0 = linha do gol da casa …
@@ -38,6 +40,11 @@ import {
 const TERCO_ATAQUE = 0.33;
 /** Largura da boca do gol no eixo lateral (fração do campo), centrada. */
 const BOCA_GOL = 0.3;
+/** Quanto o BLOCO do time desliza com momento ±1 (linha alta/baixa). */
+const DESLIZE_BLOCO = 0.09;
+/** Amplitude do micro-drift por jogador (goleiro drifta menos). */
+const DRIFT_JOGADOR = 0.035;
+const DRIFT_GOLEIRO = 0.012;
 
 /** Ponto normalizado 0..1 × 0..1. */
 export interface PontoCampo {
@@ -45,10 +52,16 @@ export interface PontoCampo {
   y: number;
 }
 
-/** Jogador em campo NO MINUTO (id real + posição natural). */
+/**
+ * Jogador em campo NO MINUTO. `ancora` é o slot REAL da formação vigente na
+ * convenção da tática (`coordenadaDoTitular`: x 0=lateral esquerda…1=direita;
+ * y 0=própria defesa…1=ataque). Sem âncora (save antigo sem coordenadas), cai
+ * na posição-base da função.
+ */
 export interface JogadorEmCampoLance {
   id: string;
   posicao: Position;
+  ancora?: PontoCampo;
 }
 
 export interface EntradaLanceMinuto {
@@ -84,10 +97,24 @@ export interface LanceMinuto {
   toques: ToqueLance[];
 }
 
+/** Ponto de UM jogador no radar (frame horizontal), com flag de goleiro. */
+export interface PontoJogadorRadar {
+  id: string;
+  x: number;
+  y: number;
+  goleiro: boolean;
+}
+
+/** Os dois elencos posicionados no minuto (frame horizontal). */
+export interface ElencosPosicionados {
+  casa: PontoJogadorRadar[];
+  fora: PontoJogadorRadar[];
+}
+
 /**
  * Posição-base de cada função no frame "ataque para cima" (x 0=esq…1=dir,
- * y 0=gol adversário…1=próprio gol). Fonte única do radar para "onde um
- * jogador daquela posição naturalmente está".
+ * y 0=gol adversário…1=próprio gol). Fallback quando a formação não traz o
+ * slot real (save antigo sem coordenadas).
  */
 const BASE_POSICAO: Record<Position, PontoCampo> = {
   GOL: {x: 0.5, y: 0.94},
@@ -121,9 +148,82 @@ export function paraCampoHorizontal(
   return ehCasa ? {x: 1 - y, y: x} : {x: y, y: 1 - x};
 }
 
-/** Espelha um ponto do frame do ADVERSÁRIO para o frame do time com a posse. */
-function espelharFrameAdversario(ponto: PontoCampo): PontoCampo {
-  return {x: 1 - ponto.x, y: 1 - ponto.y};
+/** Âncora do jogador no frame ataque-para-cima (slot real ou base da função). */
+function ancoraAtaqueAcima(jogador: JogadorEmCampoLance): PontoCampo {
+  if (jogador.ancora) {
+    // Convenção da tática (y 0=defesa…1=ataque) → ataque-para-cima.
+    return {
+      x: limitar(jogador.ancora.x, 0, 1),
+      y: 1 - limitar(jogador.ancora.y, 0, 1),
+    };
+  }
+  return BASE_POSICAO[jogador.posicao];
+}
+
+/**
+ * Posição de UM jogador no minuto, no frame HORIZONTAL: âncora real da
+ * formação + deslize do BLOCO pelo momento (linha alta/baixa) + micro-drift
+ * determinístico por (seed, minuto, jogador). É a MESMA função usada pelos 22
+ * pontos do radar e pelos toques do lance — a bola viaja até o ponto visível.
+ */
+export function posicaoJogadorNoMinuto(
+  seedPartida: number,
+  minuto: number,
+  momentoMinuto: number,
+  jogador: JogadorEmCampoLance,
+  ehCasa: boolean,
+): PontoCampo {
+  const base = ancoraAtaqueAcima(jogador);
+  const goleiro = jogador.posicao === 'GOL';
+  // Momento do PRÓPRIO time: positivo empurra o bloco para o ataque (y menor
+  // no frame ataque-para-cima); o time pressionado recua. Goleiro acompanha
+  // pouco (sai da linha só um passo).
+  const momentoDoTime = ehCasa ? momentoMinuto : -momentoMinuto;
+  const deslize =
+    (goleiro ? DESLIZE_BLOCO * 0.3 : DESLIZE_BLOCO) * momentoDoTime;
+  // Drift por JOGADOR (seed própria por id): idêntico aqui e nos toques do
+  // lance, em qualquer ordem de chamada — determinístico, sem Math.random.
+  const rngDrift = criarRNGComSeed(
+    hashString(`${seedPartida}:${minuto}:${jogador.id}:drift`),
+  );
+  const amplitude = goleiro ? DRIFT_GOLEIRO : DRIFT_JOGADOR;
+  const x = limitar(base.x + (rngDrift() - 0.5) * amplitude, 0.02, 0.98);
+  const y = limitar(
+    base.y - deslize + (rngDrift() - 0.5) * amplitude,
+    0.02,
+    0.98,
+  );
+  return paraCampoHorizontal({x, y}, ehCasa);
+}
+
+/** Posiciona os DOIS elencos do minuto — os 22 pontos vivos do radar. */
+export function posicionarElencosMinuto(
+  entrada: Pick<
+    EntradaLanceMinuto,
+    'seedPartida' | 'minuto' | 'momentoMinuto' | 'emCampoCasa' | 'emCampoFora'
+  >,
+): ElencosPosicionados {
+  const {seedPartida, minuto, momentoMinuto, emCampoCasa, emCampoFora} =
+    entrada;
+  const posicionar = (
+    jogadores: JogadorEmCampoLance[],
+    ehCasa: boolean,
+  ): PontoJogadorRadar[] =>
+    jogadores.map(jogador => ({
+      id: jogador.id,
+      goleiro: jogador.posicao === 'GOL',
+      ...posicaoJogadorNoMinuto(
+        seedPartida,
+        minuto,
+        momentoMinuto,
+        jogador,
+        ehCasa,
+      ),
+    }));
+  return {
+    casa: posicionar(emCampoCasa, true),
+    fora: posicionar(emCampoFora, false),
+  };
 }
 
 /** Pools de preferência para a construção (meio primeiro, depois frente). */
@@ -151,61 +251,18 @@ function retirarPonderado(
   return candidatos.pop();
 }
 
-/** Jitter determinístico curto em torno de um valor. */
-function jitter(rng: RandomGenerator, valor: number, amplitude: number): number {
-  return limitar(valor + (rng() - 0.5) * amplitude, 0.02, 0.98);
-}
-
 /** Escolhe o chute âncora do minuto: gol primeiro; senão, o último chute. */
 function chuteAncora(chutes: ChutePartida[]): ChutePartida | undefined {
   return chutes.find(c => c.resultado === 'gol') ?? chutes[chutes.length - 1];
 }
 
 /**
- * Toques de CONSTRUÇÃO (frame ataque-para-cima da posse): 1..n jogadores reais
- * saindo das posições-base e progredindo em direção ao ponto-alvo.
- */
-function toquesConstrucao(
-  rng: RandomGenerator,
-  emCampo: JogadorEmCampoLance[],
-  excluirIds: Array<string | undefined>,
-  alvo: PontoCampo,
-  quantos: number,
-  timeId: string,
-): ToqueLance[] {
-  const candidatos = emCampo.filter(
-    j => !excluirIds.includes(j.id) && j.posicao !== 'GOL',
-  );
-  const toques: ToqueLance[] = [];
-  for (let i = 0; i < quantos; i += 1) {
-    const escolhido = retirarPonderado(
-      rng,
-      candidatos,
-      i === 0 ? POOL_MEIO : POOL_FRENTE,
-    );
-    if (!escolhido) {
-      break;
-    }
-    const base = BASE_POSICAO[escolhido.posicao];
-    // Progressão: cada toque puxa mais em direção ao alvo do lance.
-    const avanco = ((i + 1) / (quantos + 1)) * 0.6;
-    toques.push({
-      tipo: rng() < 0.7 ? 'passe' : 'conducao',
-      jogadorId: escolhido.id,
-      timeId,
-      x: jitter(rng, base.x + (alvo.x - base.x) * avanco, 0.1),
-      y: jitter(rng, base.y + (alvo.y - base.y) * avanco, 0.08),
-    });
-  }
-  return toques;
-}
-
-/**
- * Reconstrói o lance de um minuto simulado. Devolve null quando não há
- * jogadores em campo para o lado com a posse (estado degenerado).
+ * Reconstrói o lance de um minuto simulado. Cada toque de CONSTRUÇÃO acontece
+ * SOBRE o ponto visível do jogador (`posicaoJogadorNoMinuto` — o mesmo dos 22
+ * pontos); só os desfechos reais (chute/gol/falta) ancoram no ponto do FATO.
+ * Devolve null quando não há jogadores em campo para o lado com a posse.
  *
- * Determinístico: a MESMA entrada (seed real da partida + minuto + fatos do
- * minuto) produz SEMPRE o mesmo lance.
+ * Determinístico: a MESMA entrada produz SEMPRE o mesmo lance.
  */
 export function reconstruirLanceMinuto(
   entrada: EntradaLanceMinuto,
@@ -228,38 +285,79 @@ export function reconstruirLanceMinuto(
   const ladoDe = (timeId: string): JogadorEmCampoLance[] =>
     timeId === timeCasaId ? emCampoCasa : emCampoFora;
 
+  /** Ponto VISÍVEL do jogador neste minuto (mesmo dos 22 pontos do radar). */
+  const pontoDe = (jogador: JogadorEmCampoLance, ehCasa: boolean): PontoCampo =>
+    posicaoJogadorNoMinuto(seedPartida, minuto, momentoMinuto, jogador, ehCasa);
+
+  /** Construção: 1..n jogadores reais tocando SOBRE seus pontos do radar. */
+  const toquesConstrucao = (
+    emCampo: JogadorEmCampoLance[],
+    excluirIds: Array<string | undefined>,
+    quantos: number,
+    timeId: string,
+    ehCasa: boolean,
+  ): ToqueLance[] => {
+    const candidatos = emCampo.filter(
+      j => !excluirIds.includes(j.id) && j.posicao !== 'GOL',
+    );
+    const toques: ToqueLance[] = [];
+    for (let i = 0; i < quantos; i += 1) {
+      const escolhido = retirarPonderado(
+        rng,
+        candidatos,
+        i === 0 ? POOL_MEIO : POOL_FRENTE,
+      );
+      if (!escolhido) {
+        break;
+      }
+      toques.push({
+        tipo: rng() < 0.7 ? 'passe' : 'conducao',
+        jogadorId: escolhido.id,
+        timeId,
+        ...pontoDe(escolhido, ehCasa),
+      });
+    }
+    return toques;
+  };
+
   // ── ÂNCORA 1: chute REAL do minuto (coordenada do ledger causal) ───────────
   const chute = chuteAncora(chutesDoMinuto);
   if (chute) {
     const posseId = chute.timeId;
     const posseEhCasa = posseId === timeCasaId;
-    const emCampo = [...ladoDe(posseId)];
+    const emCampo = ladoDe(posseId);
     if (emCampo.length === 0) {
       return null;
     }
-    // Ponto REAL do chute no frame ataque-para-cima do time que chutou.
-    const ancora: PontoCampo = {x: chute.x, y: chute.y * TERCO_ATAQUE};
+    // Ponto REAL do chute (terço de ataque → campo inteiro → horizontal).
+    const ancora = paraCampoHorizontal(
+      {x: chute.x, y: chute.y * TERCO_ATAQUE},
+      posseEhCasa,
+    );
     const golContra = chute.golContra === true;
     const autorId = chute.jogadorId;
     const assistenteId = golContra ? undefined : chute.assistenciaId;
 
-    const construcao = toquesConstrucao(
-      rng,
+    const toques: ToqueLance[] = toquesConstrucao(
       emCampo,
       [autorId, assistenteId],
-      ancora,
       1 + (rng() < 0.6 ? 1 : 0),
       posseId,
+      posseEhCasa,
     );
-
-    const toques: ToqueLance[] = [...construcao];
     if (assistenteId !== undefined) {
+      const assistente = emCampo.find(j => j.id === assistenteId);
       toques.push({
         tipo: 'assistencia',
         jogadorId: assistenteId,
         timeId: posseId,
-        x: jitter(rng, ancora.x, 0.24),
-        y: limitar(ancora.y + 0.06 + rng() * 0.08, 0.02, 0.98),
+        // Garçom real toca do SEU ponto visível; sem slot (raro), perto do chute.
+        ...(assistente
+          ? pontoDe(assistente, posseEhCasa)
+          : {
+              x: limitar(ancora.x + (rng() - 0.5) * 0.2, 0.02, 0.98),
+              y: limitar(ancora.y + (rng() - 0.5) * 0.2, 0.02, 0.98),
+            }),
       });
     }
     if (golContra) {
@@ -283,6 +381,10 @@ export function reconstruirLanceMinuto(
     }
     if (chute.resultado === 'gol') {
       // Bola na rede: lateral REAL da baliza (golX do ledger, quando houver).
+      const rede = paraCampoHorizontal(
+        {x: 0.5 - BOCA_GOL / 2 + (chute.golX ?? 0.5) * BOCA_GOL, y: 0},
+        posseEhCasa,
+      );
       toques.push({
         tipo: golContra ? 'gol_contra' : 'gol',
         jogadorId: autorId,
@@ -291,18 +393,11 @@ export function reconstruirLanceMinuto(
             ? timeForaId
             : timeCasaId
           : posseId,
-        x: 0.5 - BOCA_GOL / 2 + (chute.golX ?? 0.5) * BOCA_GOL,
-        y: 0,
+        x: rede.x,
+        y: rede.y,
       });
     }
-    return {
-      minuto,
-      timeId: posseId,
-      toques: toques.map(t => ({
-        ...t,
-        ...paraCampoHorizontal({x: t.x, y: t.y}, posseEhCasa),
-      })),
-    };
+    return {minuto, timeId: posseId, toques};
   }
 
   // ── ÂNCORA 2: cartão/lesão — jogada em cima do jogador REAL punido ─────────
@@ -315,29 +410,18 @@ export function reconstruirLanceMinuto(
   if (disciplinar) {
     const punidoEhCasa = disciplinar.timeId === timeCasaId;
     const posseId = punidoEhCasa ? timeForaId : timeCasaId;
-    const emCampo = [...ladoDe(posseId)];
+    const posseEhCasa = !punidoEhCasa;
+    const emCampo = ladoDe(posseId);
     if (emCampo.length === 0) {
       return null;
     }
-    // Onde o lance parou: a posição natural do jogador punido/lesionado,
-    // espelhada para o frame de quem tinha a bola.
-    const punido = ladoDe(disciplinar.timeId).find(
+    // O lance para ONDE o punido/lesionado está no radar neste minuto.
+    const punido: JogadorEmCampoLance = ladoDe(disciplinar.timeId).find(
       j => j.id === disciplinar.jogadorId,
-    );
-    const basePunido = BASE_POSICAO[punido?.posicao ?? 'MC'];
-    const ancora = espelharFrameAdversario({
-      x: jitter(rng, basePunido.x, 0.12),
-      y: jitter(rng, basePunido.y, 0.1),
-    });
+    ) ?? {id: disciplinar.jogadorId, posicao: 'MC'};
+    const ancora = pontoDe(punido, punidoEhCasa);
 
-    const construcao = toquesConstrucao(
-      rng,
-      emCampo,
-      [],
-      ancora,
-      2,
-      posseId,
-    );
+    const construcao = toquesConstrucao(emCampo, [], 2, posseId, posseEhCasa);
     const sofredorId =
       construcao.length > 0
         ? construcao[construcao.length - 1].jogadorId
@@ -352,15 +436,7 @@ export function reconstruirLanceMinuto(
         y: ancora.y,
       },
     ];
-    const posseEhCasa = posseId === timeCasaId;
-    return {
-      minuto,
-      timeId: posseId,
-      toques: toques.map(t => ({
-        ...t,
-        ...paraCampoHorizontal({x: t.x, y: t.y}, posseEhCasa),
-      })),
-    };
+    return {minuto, timeId: posseId, toques};
   }
 
   // ── SEM EVENTO: reciclagem de posse guiada pelo momento REAL ───────────────
@@ -371,17 +447,13 @@ export function reconstruirLanceMinuto(
         ? false
         : rng() < 0.5;
   const posseId = posseEhCasa ? timeCasaId : timeForaId;
-  const emCampo = [...ladoDe(posseId)];
+  const emCampo = ladoDe(posseId);
   if (emCampo.length === 0) {
     return null;
   }
-  // Quanto maior o momento, mais fundo no campo adversário o lance circula.
-  const intensidade = limitar(Math.abs(momentoMinuto), 0, 1);
-  const alvo: PontoCampo = {
-    x: 0.3 + rng() * 0.4,
-    y: 0.62 - 0.42 * intensidade,
-  };
-  const construcao = toquesConstrucao(rng, emCampo, [], alvo, 3, posseId);
+  // Profundidade emerge do próprio bloco: com momento alto o time inteiro
+  // (e portanto os toques) já deslizou para o campo adversário.
+  const construcao = toquesConstrucao(emCampo, [], 3, posseId, posseEhCasa);
   if (construcao.length === 0) {
     return null;
   }
@@ -390,12 +462,5 @@ export function reconstruirLanceMinuto(
     ...construcao.slice(0, -1),
     {...ultimo, tipo: 'recepcao'},
   ];
-  return {
-    minuto,
-    timeId: posseId,
-    toques: toques.map(t => ({
-      ...t,
-      ...paraCampoHorizontal({x: t.x, y: t.y}, posseEhCasa),
-    })),
-  };
+  return {minuto, timeId: posseId, toques};
 }

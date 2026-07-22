@@ -3,11 +3,12 @@
  * cartaz: moldura 2px de tinta + sombra dura). Fica em cena a partida inteira,
  * acima do feed, e é colapsável para não roubar espaço do feed/CTA.
  *
- * O radar é FIEL AOS LANCES: a cada minuto simulado, o lance derivado pela
- * engine (`reconstruirLanceMinuto` — reconstrução DERIVADA, nunca persistida)
- * coloca em campo os JOGADORES REAIS envolvidos e a bola viaja de jogador a
- * jogador — nunca flutua sozinha. "Onde o jogo está" emerge de onde os toques
- * acontecem.
+ * O JOGO ACONTECE NO RADAR (estilo EA FC/eFootball): os 22 jogadores em campo
+ * aparecem como pontos na cor de cada time, ancorados na FORMAÇÃO REAL vigente
+ * (slot por `coordenadaDoTitular` — a mesma fonte da tela de tática), o bloco
+ * desliza para o lado que ataca conforme o momento do minuto e a bola viaja de
+ * jogador REAL a jogador REAL (`reconstruirLanceMinuto` — reconstrução
+ * DERIVADA, nunca persistida), acendendo quem toca. Nunca flutua sozinha.
  *
  * REGRA DE OURO (nada inventado — só o que a engine produz):
  *  • LANCE DO MINUTO: posse/profundidade pelo momento REAL do minuto;
@@ -32,10 +33,6 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   Pressable,
   StyleSheet,
-  // RN Text cru só para a sigla sobre a bolinha do jogador — "mobília de
-  // campo" (branco/cal sobre a cor do clube), fora dos tokens do DS de UI,
-  // mesmo precedente do MapaFinalizacoes.
-  Text as RNText,
   View,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -67,7 +64,11 @@ import {
 } from '../../design-system';
 import {reconstruirLancesGol} from '../../engine/simulation/lanceReplay';
 import type {LanceGol, PosicoesElenco} from '../../engine/simulation/lances';
-import type {LanceMinuto} from '../../engine/simulation/reconstruirLanceMinuto';
+import type {
+  ElencosPosicionados,
+  LanceMinuto,
+  PontoJogadorRadar,
+} from '../../engine/simulation/reconstruirLanceMinuto';
 import {
   ehEventoGol,
   type ChutePartida,
@@ -76,6 +77,7 @@ import {
   type ResultadoChute,
 } from '../../types';
 import {
+  contornoPorContraste,
   pontoChuteNoRadar,
   pontoEventoNoRadar,
   pontoPassoNoRadar,
@@ -108,8 +110,10 @@ const RADAR_SEGMENTO_MS = 550;
 const RADAR_POS_REPLAY_MS = 1600;
 /** Só reproduz o replay de gol se ele saiu "agora" (pulo de tempo não vira rajada). */
 const REPLAY_JANELA_MIN = 2;
-/** Diâmetro da bolinha de jogador do lance. */
-const JOGADOR_D = 18;
+/** Diâmetro do ponto de jogador (os 22 em campo). */
+const PONTO_D = 9;
+/** Diâmetro do anel de destaque do toque do lance. */
+const ANEL_D = 19;
 
 type Props = {
   partidaId: string;
@@ -132,6 +136,8 @@ type Props = {
   eventos: EventoPartida[];
   /** Lance derivado do último minuto simulado (engine, pura). */
   lanceMinuto: LanceMinuto | null;
+  /** Os 22 pontos do minuto (formação real + deslize + drift; engine, pura). */
+  elencos: ElencosPosicionados | null;
   /** Snapshot dos titulares no apito (p/ a construção do replay de gol). */
   titularesCasa: string[];
   titularesFora: string[];
@@ -204,6 +210,7 @@ function RadarPartida({
   chutes,
   eventos,
   lanceMinuto,
+  elencos,
   titularesCasa,
   titularesFora,
   posicoes,
@@ -397,6 +404,9 @@ function RadarPartida({
   )}.`;
 
   const mostrarLance = replay === null && lanceMinuto !== null;
+  // Contraste dos pontos: se as cores dos times colidem (ou colam no verde do
+  // gramado), o contorno de tinta entra — regra determinística, sem sorteio.
+  const contorno = contornoPorContraste(corCasa, corFora);
 
   return (
     <View
@@ -483,19 +493,47 @@ function RadarPartida({
             </Svg>
           </View>
 
-          {/* LANCE DO MINUTO: jogadores reais + bola tocando entre eles. */}
+          {/* OS 22 EM CAMPO: pontos na cor de cada time, ancorados na
+              formação REAL e deslizando com o momento (o campo inteiro vive). */}
+          {elencos !== null ? (
+            <>
+              {elencos.casa.map(ponto => (
+                <PontoJogador
+                  key={ponto.id}
+                  ponto={ponto}
+                  x={px(ponto.x)}
+                  y={py(ponto.y)}
+                  cor={corCasa}
+                  contorno={contorno.casa}
+                  corContorno={cores.borderStrong}
+                />
+              ))}
+              {elencos.fora.map(ponto => (
+                <PontoJogador
+                  key={ponto.id}
+                  ponto={ponto}
+                  x={px(ponto.x)}
+                  y={py(ponto.y)}
+                  cor={corFora}
+                  contorno={contorno.fora}
+                  corContorno={cores.borderStrong}
+                />
+              ))}
+            </>
+          ) : null}
+
+          {/* LANCE DO MINUTO: a bola toca de jogador REAL a jogador REAL —
+              cada toque "acende" (anel) o ponto do jogador envolvido. */}
           {mostrarLance && lanceMinuto.toques.length > 0 ? (
             <>
               {lanceMinuto.toques.map((toque, i) =>
                 toque.tipo === 'gol' ? null : (
-                  <JogadorLance
+                  <AnelToque
                     key={`${lanceMinuto.minuto}_${i}_${toque.jogadorId}`}
                     avanco={avancoLanceSv}
                     indice={i}
                     x={px(toque.x)}
                     y={py(toque.y)}
-                    cor={toque.timeId === timeCasaId ? corCasa : corFora}
-                    sigla={posicoes[toque.jogadorId] ?? '?'}
                   />
                 ),
               )}
@@ -543,14 +581,12 @@ function RadarPartida({
               </View>
               {replay.passos.map((passo, i) =>
                 passo.tipo === 'gol' ? null : (
-                  <JogadorLance
+                  <AnelToque
                     key={`${replay.id}_j_${i}`}
                     avanco={avancoSv}
                     indice={i}
                     x={px(pontosReplay[i].x)}
                     y={py(pontosReplay[i].y)}
-                    cor={replay.timeId === timeCasaId ? corCasa : corFora}
-                    sigla={posicoes[passo.jogadorId] ?? '?'}
                   />
                 ),
               )}
@@ -664,21 +700,64 @@ function CampoHorizontal({
   );
 }
 
-/** Bolinha de jogador do lance: cor do time + sigla da posição, com pop. */
-function JogadorLance({
+/**
+ * Ponto de UM jogador em campo (sem texto — só a cor do time; goleiro ganha
+ * miolo de cal). A POSIÇÃO nova chega por prop a cada minuto simulado
+ * (condução por estado); o withTiming apenas suaviza o deslocamento.
+ */
+function PontoJogador({
+  ponto,
+  x,
+  y,
+  cor,
+  contorno,
+  corContorno,
+}: {
+  ponto: PontoJogadorRadar;
+  x: number;
+  y: number;
+  cor: string;
+  contorno: boolean;
+  corContorno: string;
+}): React.JSX.Element {
+  const sx = useSharedValue(x);
+  const sy = useSharedValue(y);
+  useEffect(() => {
+    const cfg = {duration: 550, easing: Easing.out(Easing.quad)};
+    sx.value = withTiming(x, cfg);
+    sy.value = withTiming(y, cfg);
+  }, [x, y, sx, sy]);
+  const estilo = useAnimatedStyle(() => ({
+    transform: [
+      {translateX: sx.value - PONTO_D / 2},
+      {translateY: sy.value - PONTO_D / 2},
+    ],
+  }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.pontoJogador,
+        contorno ? styles.pontoContornoForte : null,
+        {backgroundColor: cor, borderColor: contorno ? corContorno : CAL_FRACA},
+        estilo,
+      ]}>
+      {ponto.goleiro ? <View style={styles.pontoGoleiro} /> : null}
+    </Animated.View>
+  );
+}
+
+/** Anel de destaque: "acende" o ponto do jogador quando a bola chega nele. */
+function AnelToque({
   avanco,
   indice,
   x,
   y,
-  cor,
-  sigla,
 }: {
   avanco: SharedValue<number>;
   indice: number;
   x: number;
   y: number;
-  cor: string;
-  sigla: string;
 }): React.JSX.Element {
   const estilo = useAnimatedStyle(() => ({
     opacity: interpolate(
@@ -691,15 +770,8 @@ function JogadorLance({
   return (
     <Animated.View
       pointerEvents="none"
-      style={[
-        styles.jogadorLance,
-        {left: x - JOGADOR_D / 2, top: y - JOGADOR_D / 2, backgroundColor: cor},
-        estilo,
-      ]}>
-      <RNText style={styles.jogadorSigla} numberOfLines={1} allowFontScaling={false}>
-        {sigla}
-      </RNText>
-    </Animated.View>
+      style={[styles.anelToque, {left: x - ANEL_D / 2, top: y - ANEL_D / 2}, estilo]}
+    />
   );
 }
 
@@ -861,25 +933,36 @@ const styles = StyleSheet.create({
     borderRadius: raios.sm,
     position: 'absolute',
   },
-  // Bolinha de jogador: cor do time + sigla curta em "cal" (mobília do campo,
-  // legível sobre qualquer cor de clube pela borda escura).
-  jogadorLance: {
+  // Ponto de jogador: só cor do time (sem texto); a identidade fica no lado
+  // do campo + formação. `left/top` fixos em 0 — a posição anda por transform.
+  pontoJogador: {
     alignItems: 'center',
-    borderColor: CAL,
-    borderRadius: JOGADOR_D / 2,
-    borderWidth: 1.2,
-    height: JOGADOR_D,
+    borderRadius: PONTO_D / 2,
+    borderWidth: 1,
+    height: PONTO_D,
     justifyContent: 'center',
+    left: 0,
     position: 'absolute',
-    width: JOGADOR_D,
+    top: 0,
+    width: PONTO_D,
   },
-  jogadorSigla: {
-    color: BOLA_COR,
-    fontSize: 7,
-    fontWeight: '800',
-    textShadowColor: BOLA_BORDA,
-    textShadowOffset: {width: 0, height: 1},
-    textShadowRadius: 1,
+  // Contorno de tinta quando as cores dos times/gramado colidem.
+  pontoContornoForte: {borderWidth: 1.5},
+  // Goleiro levemente distinto: miolo de cal dentro do ponto.
+  pontoGoleiro: {
+    backgroundColor: CAL,
+    borderRadius: 1.5,
+    height: 3,
+    width: 3,
+  },
+  // Anel que acende o jogador quando a bola chega nele.
+  anelToque: {
+    borderColor: CAL,
+    borderRadius: ANEL_D / 2,
+    borderWidth: 2,
+    height: ANEL_D,
+    position: 'absolute',
+    width: ANEL_D,
   },
   marcador: {
     alignItems: 'center',

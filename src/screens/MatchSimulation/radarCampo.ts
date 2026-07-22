@@ -147,6 +147,61 @@ export function pontoEventoNoRadar(
   return {ponto: {x: zona.x, y: 0.5}, coordenadaReal: false};
 }
 
+/** Verde do gramado do radar (mobília de campo — mesmo do MapaFinalizacoes). */
+const VERDE_CAMPO_RADAR = '#2E9E58';
+/** Abaixo desta distância RGB, duas cores "colidem" no mini-campo. */
+const LIMIAR_COLISAO = 110;
+
+/** Distância euclidiana RGB entre duas cores hex (#RGB/#RRGGBB). */
+function distanciaRgb(a: string, b: string): number {
+  const rgb = (hex: string): [number, number, number] | null => {
+    const puro = hex.replace('#', '').trim();
+    const cheio =
+      puro.length === 3
+        ? puro
+            .split('')
+            .map(c => c + c)
+            .join('')
+        : puro;
+    if (!/^[0-9a-fA-F]{6}$/.test(cheio)) {
+      return null;
+    }
+    return [
+      parseInt(cheio.slice(0, 2), 16),
+      parseInt(cheio.slice(2, 4), 16),
+      parseInt(cheio.slice(4, 6), 16),
+    ];
+  };
+  const ca = rgb(a);
+  const cb = rgb(b);
+  if (ca === null || cb === null) {
+    // Cor não-hex (nome/rgba): não dá para medir — trata como distante.
+    return Number.POSITIVE_INFINITY;
+  }
+  return Math.sqrt(
+    (ca[0] - cb[0]) ** 2 + (ca[1] - cb[1]) ** 2 + (ca[2] - cb[2]) ** 2,
+  );
+}
+
+/**
+ * Regra DETERMINÍSTICA de contorno dos pontos de jogador no radar:
+ *  • se as cores dos DOIS times colidem entre si, o VISITANTE ganha contorno
+ *    de tinta (sempre ele — sem sorteio);
+ *  • se a cor de um time colide com o verde do gramado, esse time ganha
+ *    contorno.
+ */
+export function contornoPorContraste(
+  corCasa: string,
+  corFora: string,
+  corCampo: string = VERDE_CAMPO_RADAR,
+): {casa: boolean; fora: boolean} {
+  const colisaoTimes = distanciaRgb(corCasa, corFora) < LIMIAR_COLISAO;
+  return {
+    casa: distanciaRgb(corCasa, corCampo) < LIMIAR_COLISAO,
+    fora: colisaoTimes || distanciaRgb(corFora, corCampo) < LIMIAR_COLISAO,
+  };
+}
+
 /**
  * Resumo falado do radar (accessibilityLabel): quem pressiona + posse do time
  * que pressiona. Deixa explícito que é leitura de pressão, não bola.
