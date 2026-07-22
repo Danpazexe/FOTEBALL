@@ -54,6 +54,7 @@ import {
   TeamCrest,
   Text,
   corDoTime,
+  elevacao,
   espacamento,
   raios,
   useTheme,
@@ -98,6 +99,11 @@ import type {
 import {ehEventoGol} from '../../types';
 import {useAppNavigation, useAppRoute} from '../../navigation/types';
 import {useFocusEffect} from '@react-navigation/native';
+import {
+  BannerGol,
+  dadosBannerDeEvento,
+  type DadosBannerGol,
+} from './BannerGol';
 import {LinhaStatDupla, MomentoChart} from './EstatisticasPlacar';
 import {
   DURACAO,
@@ -235,6 +241,12 @@ function MatchSimulation(): React.JSX.Element | null {
   const [ajustesVisivel, setAjustesVisivel] = useState(false);
   // Jogadores que já saíram não podem voltar (regra oficial).
   const [jaSairam, setJaSairam] = useState<Set<string>>(() => new Set());
+  // Cartaz "GOOOL!" (North Star GERAL): o gol mais recente da PARTIDA DO
+  // USUÁRIO fica em cena por ~2,5s sobre o feed. O sequencial remonta o
+  // cartaz quando sai outro gol com o anterior ainda em cena.
+  const bannerGolSeqRef = useRef(0);
+  const [bannerGol, setBannerGol] = useState<DadosBannerGol | null>(null);
+  const fecharBannerGol = useCallback(() => setBannerGol(null), []);
 
   // Prepara a partida do usuário (sem simular nada ainda).
   useEffect(() => {
@@ -476,6 +488,9 @@ function MatchSimulation(): React.JSX.Element | null {
     };
 
     const novosItens: ItemTimeline[] = [];
+    // Cartaz de gol do lote: só eventos que mudam o placar viram banner; se o
+    // lote tiver mais de um gol (pulo de tempo), o último é o que fica.
+    let bannerNovo: DadosBannerGol | null = null;
     const criarItem = (ev: EventoPartida): ItemTimeline => {
       const ehCasa = ev.timeId === fixture.timeCasa;
       const nomeAutor = nomesRef.current[ev.jogadorId] ?? 'Jogador';
@@ -598,6 +613,20 @@ function MatchSimulation(): React.JSX.Element | null {
         const doUsuario =
           (ev.timeId === fixture.timeCasa) ===
           (ladoUsuarioRef.current === 'casa');
+        // Cartaz "GOOOL!": engate na detecção existente (timeId do evento de
+        // gol/gol contra é o time BENEFICIADO — mesma régua do placar).
+        const dadosBanner = dadosBannerDeEvento({
+          chave: bannerGolSeqRef.current + 1,
+          tipo: ev.tipo,
+          doUsuario,
+          nomeAutor: nomesRef.current[ev.jogadorId] ?? 'Jogador',
+          placarCasa: estado.placarCasa,
+          placarFora: estado.placarFora,
+        });
+        if (dadosBanner) {
+          bannerGolSeqRef.current = dadosBanner.chave;
+          bannerNovo = dadosBanner;
+        }
         // Flags estruturadas da engine V2 primeiro; texto só como fallback de
         // compatibilidade (RF-17: nenhuma decisão depende de parsing).
         const varFlagrou = ev.varFlagra === true || ev.descricao.includes('VAR flagra');
@@ -698,6 +727,9 @@ function MatchSimulation(): React.JSX.Element | null {
 
     if (novosItens.length > 0) {
       setEventos(prev => [...prev, ...novosItens]);
+    }
+    if (bannerNovo) {
+      setBannerGol(bannerNovo);
     }
     setPlacar({casa: estado.placarCasa, fora: estado.placarFora});
     setPosse(calcularPossePartida(estado));
@@ -1027,7 +1059,14 @@ function MatchSimulation(): React.JSX.Element | null {
         </View>
 
         <Animated.View style={{transform: [{scale: pulsePlacar}]}}>
-          <Box bg="scoreboard" radius="lg" padding={4} gap={3}>
+          {/* Placar permanente com tratamento de cartaz: moldura 2px na tinta
+              + sombra dura (mesma linguagem do banner de gol). */}
+          <Box
+            bg="scoreboard"
+            radius="lg"
+            padding={4}
+            gap={3}
+            style={[styles.placarCartaz, {borderColor: cores.borderStrong}]}>
             <View style={styles.placarLinha}>
               <View style={styles.placarTime}>
                 <TeamCrest clubeId={clubeCasaId} sigla={siglaCasa} size={44} />
@@ -1149,10 +1188,11 @@ function MatchSimulation(): React.JSX.Element | null {
           <SectionHeader titulo="Eventos da partida" />
         )}
 
-        <ScrollView
-          style={styles.feed}
-          contentContainerStyle={styles.feedConteudo}
-          showsVerticalScrollIndicator={false}>
+        <View style={styles.feedWrap}>
+          <ScrollView
+            style={styles.feed}
+            contentContainerStyle={styles.feedConteudo}
+            showsVerticalScrollIndicator={false}>
 
           {abaFeed === 'rodada' && temOutrosJogos ? (
             placaresRodada.length === 0 ? (
@@ -1206,7 +1246,19 @@ function MatchSimulation(): React.JSX.Element | null {
               ))}
             </Card>
           )}
-        </ScrollView>
+          </ScrollView>
+
+          {/* GOOOL! físico de cartaz: flutua SOBRE o feed (nunca sobre o
+              placar permanente) e não bloqueia toques. */}
+          {bannerGol ? (
+            <BannerGol
+              key={bannerGol.chave}
+              dados={bannerGol}
+              onExpirar={fecharBannerGol}
+              style={styles.bannerGol}
+            />
+          ) : null}
+        </View>
 
         <View style={styles.controles}>
           {terminou ? (
@@ -1339,6 +1391,9 @@ const styles = StyleSheet.create({
   placarCentro: {alignItems: 'center', gap: espacamento[2]},
   placarNums: {flexDirection: 'row', alignItems: 'center'},
   placarTraco: {opacity: 0.5, marginHorizontal: espacamento[2]},
+  // Tratamento de cartaz do placar: moldura 2px (cor da tinta via tema no
+  // render) + sombra dura de serigrafia.
+  placarCartaz: {borderWidth: 2, ...elevacao.dura},
   minutoPill: {
     borderRadius: raios.sm,
     paddingHorizontal: espacamento[2],
@@ -1356,8 +1411,11 @@ const styles = StyleSheet.create({
   condItem: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
 
   // Feed + controles
+  feedWrap: {flex: 1},
   feed: {flex: 1},
   feedConteudo: {paddingBottom: espacamento[2]},
+  // Cartaz de gol: toma a largura da área do feed, colado no topo dela.
+  bannerGol: {position: 'absolute', top: espacamento[2], left: 0, right: 0},
   controles: {gap: espacamento[2]},
   linhaBotoes: {flexDirection: 'row', gap: espacamento[2]},
   flex: {flex: 1},
