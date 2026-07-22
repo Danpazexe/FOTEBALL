@@ -1,7 +1,10 @@
 /**
- * Button — CTA do design system. Variantes primary/secondary/ghost/danger,
- * tamanhos sm/md/lg, estados default/pressed/disabled/loading. Alvo de toque
- * sempre ≥44 (via primitivo Pressable). Cor por token.
+ * Button — CTA do design system, estilo cartaz (v3): primary em verde-bandeira
+ * com rótulo 900 em caixa alta, borda dura 2px na tinta e sombra deslocada
+ * sólida (`elevacao.dura`; ghost e disabled ficam planos). Variantes
+ * primary/secondary/ghost/danger, tamanhos sm/md/lg, estados default/pressed/
+ * disabled/loading. Alvo de toque sempre ≥44 (via primitivo Pressable).
+ * Cor por token.
  */
 import React from 'react';
 import {
@@ -16,7 +19,7 @@ import type {IconeNome} from '../../../components/Icone';
 import {Icon} from '../../primitives/Icon';
 import {Pressable} from '../../primitives/Pressable';
 import {Text, type CorTexto} from '../../primitives/Text';
-import {espacamento, raios} from '../../tokens';
+import {elevacao, espacamento, raios} from '../../tokens';
 import {useTheme} from '../../themes/useTheme';
 
 type Variante = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -62,13 +65,17 @@ export function Button({
       : variante === 'secondary'
       ? cores.surface
       : 'transparent';
+  // Ghost usa brandStrong (verde com contraste AA de texto sobre papel/tinta).
   const corConteudo: CorTexto =
     variante === 'primary' || variante === 'danger'
       ? 'onBrand'
       : variante === 'ghost'
-      ? 'brand'
+      ? 'brandStrong'
       : 'textPrimary';
-  const borda = variante === 'secondary' ? cores.border : 'transparent';
+  // Cartaz: borda dura na tinta em todo botão sólido; ghost fica sem moldura.
+  const borda = variante === 'ghost' ? 'transparent' : cores.borderStrong;
+  const sombra =
+    variante === 'ghost' || bloqueado ? elevacao.nivel0 : elevacao.dura;
 
   return (
     <Pressable
@@ -77,6 +84,7 @@ export function Button({
       accessibilityState={{disabled: !!bloqueado, busy: !!loading}}
       style={[
         estilos.base,
+        sombra,
         {
           backgroundColor: fundo,
           borderColor: borda,
@@ -93,7 +101,11 @@ export function Button({
           {icone ? (
             <Icon nome={icone} size={iconeSize} color={corConteudo} />
           ) : null}
-          <Text variant="labelL" color={corConteudo}>
+          <Text
+            variant="labelL"
+            color={corConteudo}
+            weight="900"
+            style={estilos.rotulo}>
             {titulo}
           </Text>
         </View>
@@ -104,7 +116,7 @@ export function Button({
 
 const estilos = StyleSheet.create({
   base: {
-    borderWidth: 1,
+    borderWidth: 2,
     paddingHorizontal: espacamento[4],
     alignItems: 'center',
     justifyContent: 'center',
@@ -115,4 +127,6 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     gap: espacamento[2],
   },
+  /** Grito de cartaz: caixa alta com respiro entre letras. */
+  rotulo: {textTransform: 'uppercase', letterSpacing: 0.8},
 });

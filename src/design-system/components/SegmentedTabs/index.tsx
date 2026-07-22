@@ -1,7 +1,8 @@
 /**
- * SegmentedTabs — abas em PÍLULA segmentada (Todos · Titulares · Reservas). A aba
- * ativa é TINTA na marca (fundo brand + texto onBrand); as inativas ficam neutras
- * com borda. Segmentos de largura igual. Cor sempre por token.
+ * SegmentedTabs — abas em PÍLULA segmentada (Todos · Titulares · Reservas),
+ * estilo cartaz (v3): a aba ativa é verde-bandeira sólido (`brandStrong`, AA
+ * com `onBrand`) com moldura dura 2px na tinta; inativas ficam neutras. Rótulo
+ * em caixa alta, peso 800. Segmentos de largura igual. Cor sempre por token.
  *
  * Diferente de `Tabs` (sublinhado) — usar quando o mockup pede o controle em
  * pílula (Elenco, Mercado).
@@ -40,14 +41,16 @@ export function SegmentedTabs({
             style={[
               estilos.pilula,
               {
-                backgroundColor: sel ? cores.brand : cores.surface,
-                borderColor: sel ? cores.brand : cores.border,
+                backgroundColor: sel ? cores.brandStrong : cores.surface,
+                borderColor: sel ? cores.borderStrong : cores.border,
               },
             ]}>
             <Text
               variant="labelL"
               color={sel ? 'onBrand' : 'textSecondary'}
-              numberOfLines={1}>
+              weight="800"
+              numberOfLines={1}
+              style={estilos.rotulo}>
               {aba.rotulo}
             </Text>
           </Pressable>
@@ -66,6 +69,8 @@ const estilos = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: espacamento[2],
     borderRadius: raios.full,
-    borderWidth: 1,
+    borderWidth: 2,
   },
+  /** Caixa alta de cartaz no rótulo da aba. */
+  rotulo: {textTransform: 'uppercase', letterSpacing: 0.5},
 });

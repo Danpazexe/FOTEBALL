@@ -1,7 +1,9 @@
 /**
- * Chip — pílula de seleção/filtro. Seleção TINTA (fundo suave + borda/texto na
- * cor do tom) para evitar problemas de contraste; não-selecionado é neutro.
- * Compacto com `hitSlop` (alvo de toque preservado). Cor por token.
+ * Chip — pílula de seleção/filtro, estilo cartaz (v3): selecionado ganha fundo
+ * suave do tom + moldura dura 2px na tinta (`borderStrong`) e texto na tinta
+ * (`textPrimary`), garantindo AA em qualquer tom (inclusive amarelo);
+ * não-selecionado é neutro. Compacto com `hitSlop` (alvo de toque preservado).
+ * Cor por token.
  */
 import React from 'react';
 import {StyleSheet, View, type StyleProp, type ViewStyle} from 'react-native';
@@ -24,14 +26,6 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-const COR_TOM: Record<Tom, CorTexto> = {
-  neutral: 'textPrimary',
-  brand: 'brand',
-  accent: 'accent',
-  info: 'info',
-  danger: 'danger',
-};
-
 export function Chip({
   label,
   selected,
@@ -48,16 +42,15 @@ export function Chip({
     info: cores.infoSoft,
     danger: cores.dangerSoft,
   };
-  const corTom = COR_TOM[tom];
   const st: StyleProp<ViewStyle> = [
     estilos.chip,
     {
       backgroundColor: selected ? soft[tom] : cores.surface,
-      borderColor: selected ? cores[corTom] : cores.border,
+      borderColor: selected ? cores.borderStrong : cores.border,
     },
     style,
   ];
-  const txt: CorTexto = selected ? corTom : 'textSecondary';
+  const txt: CorTexto = selected ? 'textPrimary' : 'textSecondary';
   const filhos = (
     <>
       {icone ? <Icon nome={icone} size={16} color={txt} /> : null}
@@ -90,6 +83,6 @@ const estilos = StyleSheet.create({
     paddingHorizontal: espacamento[3],
     minHeight: 34,
     borderRadius: raios.full,
-    borderWidth: 1,
+    borderWidth: 2,
   },
 });

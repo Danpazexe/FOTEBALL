@@ -1,6 +1,8 @@
 /**
- * Card — superfície do design system. Variantes plain/outlined/elevated/
- * interactive/status. Sem card-dentro-de-card nem glow. Cor por token.
+ * Card — superfície do design system, estilo cartaz (v3): moldura dura 2px na
+ * tinta (`borderStrong`) nas variantes com borda e sombra deslocada sólida na
+ * variante elevated. Variantes plain/outlined/elevated/interactive/status.
+ * Sem card-dentro-de-card nem glow. Cor por token.
  */
 import React from 'react';
 import {View, type StyleProp, type ViewStyle} from 'react-native';
@@ -43,12 +45,13 @@ export function Card({
     },
     variante === 'outlined' ||
     variante === 'interactive' ||
-    variante === 'status'
-      ? {borderWidth: 1, borderColor: cores.border}
+    variante === 'status' ||
+    variante === 'elevated'
+      ? {borderWidth: 2, borderColor: cores.borderStrong}
       : null,
-    variante === 'elevated' ? elevacao.nivel1 : null,
+    variante === 'elevated' ? elevacao.dura : null,
     variante === 'status'
-      ? {borderLeftWidth: 3, borderLeftColor: cores[status]}
+      ? {borderLeftWidth: 4, borderLeftColor: cores[status]}
       : null,
     style,
   ];
