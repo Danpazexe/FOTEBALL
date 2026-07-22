@@ -19,6 +19,13 @@
  * micro-drift de cada ponto e a ordem dos toques de construção — mesma
  * partida ⇒ mesmo quadro.
  *
+ * VOCABULÁRIO e CONTINUIDADE (estilo EA FC): o lance de um minuto COMEÇA onde
+ * o anterior terminou (`lanceAnterior`/`fimDoLance`) — mesma posse, o portador
+ * segue; posse trocada, um jogador real do outro time TOMA a bola (desarme/
+ * interceptação/recuperação). Escanteio cobra do canto real, cabeçada em jogo
+ * corrido chega por cruzamento, portador às vezes dribla antes do passe e o
+ * chute vai reto ao ponto real. Único "reset": saída de bola após gol.
+ *
  * COORDENADAS DE SAÍDA: campo INTEIRO HORIZONTAL compartilhado — a casa
  * defende a ESQUERDA e ataca para a DIREITA; x 0 = linha do gol da casa …
  * 1 = linha do gol do visitante; y 0 = topo … 1 = base.
@@ -64,6 +71,19 @@ export interface JogadorEmCampoLance {
   ancora?: PontoCampo;
 }
 
+/**
+ * Onde e com quem o lance ANTERIOR terminou — o elo de continuidade entre
+ * minutos: o lance seguinte parte deste ponto (mesma posse ⇒ o portador segue;
+ * posse trocou ⇒ desarme/interceptação visível). Obtido via `fimDoLance`.
+ */
+export interface FimLanceMinuto {
+  timeId: string;
+  jogadorId: string;
+  tipoUltimoToque: TipoPassoLance;
+  x: number;
+  y: number;
+}
+
 export interface EntradaLanceMinuto {
   /** Seed REAL da partida (a mesma de `iniciarPartidaAoVivo`). */
   seedPartida: number;
@@ -78,6 +98,11 @@ export interface EntradaLanceMinuto {
   eventosDoMinuto: EventoPartida[];
   /** Chutes REAIS do ledger causal neste minuto. */
   chutesDoMinuto: ChutePartida[];
+  /**
+   * Fim do lance do minuto ANTERIOR (continuidade). Ausente/null = começo de
+   * jogo ou recomeço após gol (saída de bola) — único caso de "reset".
+   */
+  lanceAnterior?: FimLanceMinuto | null;
 }
 
 /** Um toque do lance: a bola SEMPRE está com um jogador real. */
@@ -256,6 +281,27 @@ function chuteAncora(chutes: ChutePartida[]): ChutePartida | undefined {
   return chutes.find(c => c.resultado === 'gol') ?? chutes[chutes.length - 1];
 }
 
+/** Pool de quem cobra escanteio/cruza (alas e armador). */
+const POOL_ALAS: readonly Position[] = ['PE', 'PD', 'LE', 'LD', 'MEI'];
+
+/**
+ * Fim de um lance para encadear o próximo minuto. Gol devolve null: o jogo
+ * recomeça com saída de bola (reset legítimo — não é teleporte).
+ */
+export function fimDoLance(lance: LanceMinuto): FimLanceMinuto | null {
+  const ultimo = lance.toques[lance.toques.length - 1];
+  if (!ultimo || ultimo.tipo === 'gol' || ultimo.tipo === 'gol_contra') {
+    return null;
+  }
+  return {
+    timeId: ultimo.timeId,
+    jogadorId: ultimo.jogadorId,
+    tipoUltimoToque: ultimo.tipo,
+    x: ultimo.x,
+    y: ultimo.y,
+  };
+}
+
 /**
  * Reconstrói o lance de um minuto simulado. Cada toque de CONSTRUÇÃO acontece
  * SOBRE o ponto visível do jogador (`posicaoJogadorNoMinuto` — o mesmo dos 22
@@ -277,6 +323,7 @@ export function reconstruirLanceMinuto(
     emCampoFora,
     eventosDoMinuto,
     chutesDoMinuto,
+    lanceAnterior,
   } = entrada;
   const rng = criarRNGComSeed(
     hashString(`${seedPartida}:${minuto}:lance-minuto`),
@@ -289,7 +336,81 @@ export function reconstruirLanceMinuto(
   const pontoDe = (jogador: JogadorEmCampoLance, ehCasa: boolean): PontoCampo =>
     posicaoJogadorNoMinuto(seedPartida, minuto, momentoMinuto, jogador, ehCasa);
 
-  /** Construção: 1..n jogadores reais tocando SOBRE seus pontos do radar. */
+  /** Jogador do lado cujo ponto visível está mais perto de um ponto do campo. */
+  const maisProximoDe = (
+    emCampo: JogadorEmCampoLance[],
+    ponto: PontoCampo,
+    ehCasa: boolean,
+  ): JogadorEmCampoLance => {
+    let melhor = emCampo[0];
+    let melhorDist = Number.POSITIVE_INFINITY;
+    for (const jogador of emCampo) {
+      const p = pontoDe(jogador, ehCasa);
+      const dist = (p.x - ponto.x) ** 2 + (p.y - ponto.y) ** 2;
+      if (dist < melhorDist) {
+        melhorDist = dist;
+        melhor = jogador;
+      }
+    }
+    return melhor;
+  };
+
+  /**
+   * CONTINUIDADE: o lance começa onde o anterior terminou. Mesma posse ⇒ o
+   * portador anterior abre o lance do ponto em que parou (conduz, se ele mesmo
+   * segue; passa, se a bola vai a outro). Posse trocou ⇒ um jogador REAL do
+   * novo time TOMA a bola ali (desarme/interceptação; após finalização, a
+   * defesa recupera) — a bola nunca "aparece" com o outro time.
+   */
+  const comTransicao = (
+    posseId: string,
+    posseEhCasa: boolean,
+    toques: ToqueLance[],
+  ): ToqueLance[] => {
+    if (!lanceAnterior || toques.length === 0) {
+      return toques;
+    }
+    if (lanceAnterior.timeId === posseId) {
+      const mesmoJogador = toques[0].jogadorId === lanceAnterior.jogadorId;
+      return [
+        {
+          tipo: mesmoJogador ? 'conducao' : 'passe',
+          jogadorId: lanceAnterior.jogadorId,
+          timeId: posseId,
+          x: lanceAnterior.x,
+          y: lanceAnterior.y,
+        },
+        ...toques,
+      ];
+    }
+    const tomador = maisProximoDe(
+      ladoDe(posseId),
+      {x: lanceAnterior.x, y: lanceAnterior.y},
+      posseEhCasa,
+    );
+    const tipo: TipoPassoLance =
+      lanceAnterior.tipoUltimoToque === 'finalizacao'
+        ? 'recuperacao'
+        : rng() < 0.6
+          ? 'desarme'
+          : 'interceptacao';
+    return [
+      {
+        tipo,
+        jogadorId: tomador.id,
+        timeId: posseId,
+        x: lanceAnterior.x,
+        y: lanceAnterior.y,
+      },
+      ...toques,
+    ];
+  };
+
+  /**
+   * Construção: 1..n jogadores reais tocando SOBRE seus pontos do radar; de
+   * vez em quando o portador DRIBLA (avança alguns passos sem passe) antes do
+   * próximo toque.
+   */
   const toquesConstrucao = (
     emCampo: JogadorEmCampoLance[],
     excluirIds: Array<string | undefined>,
@@ -310,12 +431,24 @@ export function reconstruirLanceMinuto(
       if (!escolhido) {
         break;
       }
+      const ponto = pontoDe(escolhido, ehCasa);
       toques.push({
         tipo: rng() < 0.7 ? 'passe' : 'conducao',
         jogadorId: escolhido.id,
         timeId,
-        ...pontoDe(escolhido, ehCasa),
+        ...ponto,
       });
+      if (rng() < 0.22) {
+        // DRIBLE: o mesmo jogador avança rumo ao ataque antes do próximo passe.
+        const direcao = ehCasa ? 1 : -1;
+        toques.push({
+          tipo: 'drible',
+          jogadorId: escolhido.id,
+          timeId,
+          x: limitar(ponto.x + direcao * 0.08, 0.02, 0.98),
+          y: limitar(ponto.y + (0.5 - ponto.y) * 0.25, 0.02, 0.98),
+        });
+      }
     }
     return toques;
   };
@@ -337,28 +470,75 @@ export function reconstruirLanceMinuto(
     const golContra = chute.golContra === true;
     const autorId = chute.jogadorId;
     const assistenteId = golContra ? undefined : chute.assistenciaId;
+    const ehEscanteio = chute.situacao === 'escanteio';
+    const ehBolaParada =
+      ehEscanteio || chute.situacao === 'penalti' || chute.situacao === 'falta';
 
-    const toques: ToqueLance[] = toquesConstrucao(
-      emCampo,
-      [autorId, assistenteId],
-      1 + (rng() < 0.6 ? 1 : 0),
-      posseId,
-      posseEhCasa,
-    );
-    if (assistenteId !== undefined) {
-      const assistente = emCampo.find(j => j.id === assistenteId);
-      toques.push({
-        tipo: 'assistencia',
-        jogadorId: assistenteId,
-        timeId: posseId,
-        // Garçom real toca do SEU ponto visível; sem slot (raro), perto do chute.
-        ...(assistente
-          ? pontoDe(assistente, posseEhCasa)
-          : {
-              x: limitar(ancora.x + (rng() - 0.5) * 0.2, 0.02, 0.98),
-              y: limitar(ancora.y + (rng() - 0.5) * 0.2, 0.02, 0.98),
-            }),
-      });
+    let toques: ToqueLance[];
+    if (ehEscanteio) {
+      // ESCANTEIO REAL (situacao do ledger): cobrado do canto do lado do
+      // chute, cruzando em arco até o ponto real da finalização. Bola parada —
+      // o recomeço no canto é legítimo (sem desarme de transição).
+      const canto = paraCampoHorizontal(
+        {x: chute.x < 0.5 ? 0.02 : 0.98, y: 0.02},
+        posseEhCasa,
+      );
+      const candidatos = emCampo.filter(
+        j => j.id !== autorId && j.posicao !== 'GOL',
+      );
+      // Cobrador: o garçom REAL do lance; sem ele, um ala/armador (fallback
+      // extremo em elenco degenerado: o próprio autor).
+      const cobrador =
+        (assistenteId !== undefined
+          ? emCampo.find(j => j.id === assistenteId)
+          : undefined) ?? retirarPonderado(rng, candidatos, POOL_ALAS);
+      toques = [
+        {
+          tipo: 'escanteio',
+          jogadorId: cobrador?.id ?? autorId,
+          timeId: posseId,
+          x: canto.x,
+          y: canto.y,
+        },
+      ];
+    } else {
+      toques = toquesConstrucao(
+        emCampo,
+        [autorId, assistenteId],
+        1 + (rng() < 0.6 ? 1 : 0),
+        posseId,
+        posseEhCasa,
+      );
+      if (assistenteId !== undefined) {
+        const assistente = emCampo.find(j => j.id === assistenteId);
+        if (chute.corpo === 'cabeca' && !ehBolaParada) {
+          // Chute de CABEÇA em jogo corrido = a bola chegou por CRUZAMENTO:
+          // o garçom real cruza da faixa lateral ofensiva (arco no radar).
+          const origem = assistente ? pontoDe(assistente, posseEhCasa) : ancora;
+          toques.push({
+            tipo: 'cruzamento',
+            jogadorId: assistenteId,
+            timeId: posseId,
+            x: posseEhCasa
+              ? Math.max(0.62, ancora.x - 0.06)
+              : Math.min(0.38, ancora.x + 0.06),
+            y: origem.y < 0.5 ? 0.08 : 0.92,
+          });
+        } else {
+          toques.push({
+            tipo: 'assistencia',
+            jogadorId: assistenteId,
+            timeId: posseId,
+            // Garçom real toca do SEU ponto visível; sem slot (raro), perto do chute.
+            ...(assistente
+              ? pontoDe(assistente, posseEhCasa)
+              : {
+                  x: limitar(ancora.x + (rng() - 0.5) * 0.2, 0.02, 0.98),
+                  y: limitar(ancora.y + (rng() - 0.5) * 0.2, 0.02, 0.98),
+                }),
+          });
+        }
+      }
     }
     if (golContra) {
       // O toque final é do DEFENSOR adversário no ponto real do desvio (mesma
@@ -397,7 +577,11 @@ export function reconstruirLanceMinuto(
         y: rede.y,
       });
     }
-    return {minuto, timeId: posseId, toques};
+    return {
+      minuto,
+      timeId: posseId,
+      toques: ehEscanteio ? toques : comTransicao(posseId, posseEhCasa, toques),
+    };
   }
 
   // ── ÂNCORA 2: cartão/lesão — jogada em cima do jogador REAL punido ─────────
@@ -436,16 +620,24 @@ export function reconstruirLanceMinuto(
         y: ancora.y,
       },
     ];
-    return {minuto, timeId: posseId, toques};
+    return {
+      minuto,
+      timeId: posseId,
+      toques: comTransicao(posseId, posseEhCasa, toques),
+    };
   }
 
   // ── SEM EVENTO: reciclagem de posse guiada pelo momento REAL ───────────────
+  // Momento equilibrado: quem TINHA a bola segue com ela (continuidade); sem
+  // lance anterior, sorteio determinístico.
   const posseEhCasa =
     momentoMinuto > 0.08
       ? true
       : momentoMinuto < -0.08
         ? false
-        : rng() < 0.5;
+        : lanceAnterior
+          ? lanceAnterior.timeId === timeCasaId
+          : rng() < 0.5;
   const posseId = posseEhCasa ? timeCasaId : timeForaId;
   const emCampo = ladoDe(posseId);
   if (emCampo.length === 0) {
@@ -460,7 +652,11 @@ export function reconstruirLanceMinuto(
   const ultimo = construcao[construcao.length - 1];
   const toques: ToqueLance[] = [
     ...construcao.slice(0, -1),
-    {...ultimo, tipo: 'recepcao'},
+    {...ultimo, tipo: ultimo.tipo === 'drible' ? 'drible' : 'recepcao'},
   ];
-  return {minuto, timeId: posseId, toques};
+  return {
+    minuto,
+    timeId: posseId,
+    toques: comTransicao(posseId, posseEhCasa, toques),
+  };
 }

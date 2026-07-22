@@ -44,6 +44,23 @@ describe('planoReplay', () => {
     expect(planoReplay(0, 700)).toEqual([]);
     expect(planoReplay(-2, 700)).toEqual([]);
     expect(planoReplay(3, 0)).toEqual([]);
+    expect(planoReplay(2, [300, 0])).toEqual([]);
+  });
+
+  it('aceita duração POR SEGMENTO (radar: chute rápido, cruzamento lento)', () => {
+    expect(planoReplay(3, [300, 450, 150])).toEqual([
+      {tipo: 'avanco', indice: 1, emMs: 0},
+      {tipo: 'avanco', indice: 2, emMs: 300},
+      {tipo: 'avanco', indice: 3, emMs: 750},
+      {tipo: 'conclusao', emMs: 900},
+    ]);
+    // Array curto reutiliza a última duração para os segmentos restantes.
+    expect(planoReplay(3, [200])).toEqual([
+      {tipo: 'avanco', indice: 1, emMs: 0},
+      {tipo: 'avanco', indice: 2, emMs: 200},
+      {tipo: 'avanco', indice: 3, emMs: 400},
+      {tipo: 'conclusao', emMs: 600},
+    ]);
   });
 });
 

@@ -81,9 +81,11 @@ import {
 } from '../../engine/simulation/matchSimulator';
 import type {PosicoesElenco} from '../../engine/simulation/lances';
 import {
+  fimDoLance,
   posicionarElencosMinuto,
   reconstruirLanceMinuto,
   type ElencosPosicionados,
+  type FimLanceMinuto,
   type JogadorEmCampoLance,
   type LanceMinuto,
 } from '../../engine/simulation/reconstruirLanceMinuto';
@@ -284,6 +286,10 @@ function MatchSimulation(): React.JSX.Element | null {
   const [elencosRadar, setElencosRadar] = useState<ElencosPosicionados | null>(
     null,
   );
+  // RADAR: fim do lance anterior — continuidade minuto a minuto (mesma posse
+  // segue com o portador; posse trocada vira desarme visível; gol reseta
+  // para a saída de bola).
+  const fimLanceRef = useRef<FimLanceMinuto | null>(null);
 
   // Prepara a partida do usuário (sem simular nada ainda).
   useEffect(() => {
@@ -729,9 +735,12 @@ function MatchSimulation(): React.JSX.Element | null {
         timeForaId: fixture.timeFora,
         eventosDoMinuto: novos,
         chutesDoMinuto: estado.chutes.slice(chutesAntesDoMinuto),
+        lanceAnterior: fimLanceRef.current,
       });
       if (lanceDoMinuto) {
         lanceUltimo = lanceDoMinuto;
+        // Continuidade: o próximo minuto parte de onde este lance terminou.
+        fimLanceRef.current = fimDoLance(lanceDoMinuto);
       }
       for (const ev of novos) {
         novosItens.push(criarItem(ev));

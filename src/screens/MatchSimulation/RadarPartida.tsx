@@ -46,7 +46,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, {Circle, ClipPath, Defs, G, Line, Rect} from 'react-native-svg';
+import Svg, {Circle, ClipPath, Defs, G, Line, Path, Rect} from 'react-native-svg';
 
 import type {IconeNome} from '../../components/Icone';
 import {
@@ -63,7 +63,11 @@ import {
   type CorTexto,
 } from '../../design-system';
 import {reconstruirLancesGol} from '../../engine/simulation/lanceReplay';
-import type {LanceGol, PosicoesElenco} from '../../engine/simulation/lances';
+import type {
+  LanceGol,
+  PosicoesElenco,
+  TipoPassoLance,
+} from '../../engine/simulation/lances';
 import type {
   ElencosPosicionados,
   LanceMinuto,
@@ -100,10 +104,28 @@ const LISTRAS = 8;
 const M = 8;
 /** Proporção altura/largura do mini-campo (mais achatado que o real p/ caber). */
 const PROPORCAO = 0.5;
-/** Eventos sem coordenada ficam em cena por esta janela de MINUTOS de jogo. */
-const JANELA_EVENTOS_MIN = 5;
-/** Duração de cada toque do lance do minuto (sequência curta e viva). */
-const LANCE_SEGMENTO_MS = 260;
+/**
+ * Ícones de evento (cartão/lesão/sub/etc.) ficam em cena por esta janela de
+ * MINUTOS de jogo e então expiram — só os ícones; os dots de CHUTE persistem a
+ * partida INTEIRA (shotmap vivo), e a timeline completa segue no feed.
+ */
+const JANELA_EVENTOS_MIN = 12;
+/**
+ * Duração da viagem da bola até cada tipo de toque: chute é RÁPIDO e reto,
+ * cruzamento/escanteio voam mais alto (arco, mais lentos), desarme é seco.
+ */
+const DURACAO_TOQUE_MS: Partial<Record<TipoPassoLance, number>> = {
+  finalizacao: 150,
+  gol: 160,
+  gol_contra: 160,
+  cruzamento: 460,
+  escanteio: 460,
+  drible: 380,
+  desarme: 240,
+  interceptacao: 240,
+  recuperacao: 260,
+};
+const LANCE_SEGMENTO_MS = 300;
 /** Duração de cada segmento do replay de GOL no radar. */
 const RADAR_SEGMENTO_MS = 550;
 /** Pausa (ms) com o lance completo em cena antes de limpar o replay de gol. */
@@ -218,15 +240,22 @@ function RadarPartida({
   const {cores, esporte} = useTheme();
   const [aberto, setAberto] = useState(true);
 
-  // Largura fluida por onLayout (mesmo padrão do ReplayGol).
+  // Largura do CONTÊINER medido (onLayout no wrapper do campo) — NUNCA da
+  // janela e NUNCA um fallback fixo: o campo só desenha depois de medido
+  // (antes disso o wrapper fica vazio), então nada estoura o card em nenhuma
+  // largura de tela (iPhone SE ao Pro Max/Android).
   const [larguraMedida, setLarguraMedida] = useState(0);
   const aoMedir = useCallback((e: LayoutChangeEvent) => {
     setLarguraMedida(Math.round(e.nativeEvent.layout.width));
   }, []);
-  const W = larguraMedida > 0 ? larguraMedida : 320;
-  const H = Math.round(W * PROPORCAO);
-  const utilW = W - 2 * M;
-  const utilH = H - 2 * M;
+  const W = larguraMedida;
+  const campoPronto = W > 0;
+  // Altura proporcional com teto: em telas largas o campo não cresce além de
+  // 168px — o card expandido continua deixando feed + CTA visíveis em
+  // aparelhos baixos.
+  const H = campoPronto ? Math.round(Math.min(W * PROPORCAO, 168)) : 0;
+  const utilW = Math.max(0, W - 2 * M);
+  const utilH = Math.max(0, H - 2 * M);
   const px = (x: number): number => M + x * utilW;
   const py = (y: number): number => M + y * utilH;
 
@@ -271,13 +300,17 @@ function RadarPartida({
     sequenciadorLanceRef.current?.parar();
     cancelAnimation(avancoLanceSv);
     avancoLanceSv.value = 0;
+    // Ritmo POR AÇÃO: passe cadenciado, chute seco, cruzamento no ar.
+    const duracoes = lanceMinuto.toques
+      .slice(1)
+      .map(t => DURACAO_TOQUE_MS[t.tipo] ?? LANCE_SEGMENTO_MS);
     // PROGRESSÃO por sequenciador JS (informação); withTiming só suaviza.
     sequenciadorLanceRef.current = criarSequenciadorReplay({
       totalSegmentos: lanceMinuto.toques.length - 1,
-      duracaoSegmentoMs: LANCE_SEGMENTO_MS,
+      duracaoSegmentoMs: duracoes,
       aoAvancar: indice => {
         avancoLanceSv.value = withTiming(indice, {
-          duration: LANCE_SEGMENTO_MS,
+          duration: duracoes[indice - 1] ?? LANCE_SEGMENTO_MS,
           easing: Easing.inOut(Easing.quad),
         });
       },
@@ -439,8 +472,10 @@ function RadarPartida({
           accessible
           accessibilityRole="image"
           accessibilityLabel={rotuloA11y}
-          style={styles.campoWrap}
+          style={[styles.campoWrap, campoPronto ? {height: H} : null]}
           pointerEvents="none">
+          {campoPronto ? (
+            <>
           <CampoHorizontal largura={W} altura={H} />
 
           {/* Faixa de pressão SUTIL de fundo (casa=verde, visitante=vermelho —
@@ -468,6 +503,16 @@ function RadarPartida({
                 .map(chute => {
                   const ponto = pontoChuteNoRadar(chute, timeCasaId);
                   const ehGol = chute.resultado === 'gol';
+                  // Shotmap legível a partida inteira: chute antigo esmaece
+                  // (determinístico pela idade em minutos); gol fica forte.
+                  const idade = minuto - chute.minuto;
+                  const opacidade = ehGol
+                    ? 0.95
+                    : idade <= 10
+                      ? 0.9
+                      : idade <= 25
+                        ? 0.6
+                        : 0.4;
                   return (
                     <G key={chute.id}>
                       {ehGol ? (
@@ -485,7 +530,7 @@ function RadarPartida({
                         cy={py(ponto.y)}
                         r={ehGol ? 4 : 2.8}
                         fill={corDoChute(chute.resultado, cores, esporte.match.goal)}
-                        opacity={0.95}
+                        opacity={opacidade}
                       />
                     </G>
                   );
@@ -522,10 +567,31 @@ function RadarPartida({
             </>
           ) : null}
 
-          {/* LANCE DO MINUTO: a bola toca de jogador REAL a jogador REAL —
-              cada toque "acende" (anel) o ponto do jogador envolvido. */}
+          {/* LANCE DO MINUTO: a bola toca de jogador REAL a jogador REAL, com
+              vocabulário visual — passe tracejado, cruzamento/escanteio em
+              arco, chute reto e rápido, desarme trocando o lado (anel na cor
+              do time de quem toca). */}
           {mostrarLance && lanceMinuto.toques.length > 0 ? (
             <>
+              <View style={StyleSheet.absoluteFill}>
+                {lanceMinuto.toques.slice(0, -1).map((toque, i) => {
+                  const destino = lanceMinuto.toques[i + 1];
+                  return (
+                    <SegmentoLance
+                      key={`${lanceMinuto.minuto}_seg_${i}`}
+                      avanco={avancoLanceSv}
+                      indice={i}
+                      largura={W}
+                      altura={H}
+                      x1={px(toque.x)}
+                      y1={py(toque.y)}
+                      x2={px(destino.x)}
+                      y2={py(destino.y)}
+                      tipoDestino={destino.tipo}
+                    />
+                  );
+                })}
+              </View>
               {lanceMinuto.toques.map((toque, i) =>
                 toque.tipo === 'gol' ? null : (
                   <AnelToque
@@ -534,6 +600,7 @@ function RadarPartida({
                     indice={i}
                     x={px(toque.x)}
                     y={py(toque.y)}
+                    cor={toque.timeId === timeCasaId ? corCasa : corFora}
                   />
                 ),
               )}
@@ -587,6 +654,7 @@ function RadarPartida({
                     indice={i}
                     x={px(pontosReplay[i].x)}
                     y={py(pontosReplay[i].y)}
+                    cor={replay.timeId === timeCasaId ? corCasa : corFora}
                   />
                 ),
               )}
@@ -594,6 +662,8 @@ function RadarPartida({
                 avanco={avancoSv}
                 pontos={pontosReplay.map(p => ({x: px(p.x), y: py(p.y)}))}
               />
+            </>
+          ) : null}
             </>
           ) : null}
         </View>
@@ -747,17 +817,23 @@ function PontoJogador({
   );
 }
 
-/** Anel de destaque: "acende" o ponto do jogador quando a bola chega nele. */
+/**
+ * Anel de destaque: "acende" o jogador quando a bola chega nele, na COR do
+ * time de quem toca — no desarme o anel muda de cor, mostrando a bola
+ * trocando de lado.
+ */
 function AnelToque({
   avanco,
   indice,
   x,
   y,
+  cor,
 }: {
   avanco: SharedValue<number>;
   indice: number;
   x: number;
   y: number;
+  cor: string;
 }): React.JSX.Element {
   const estilo = useAnimatedStyle(() => ({
     opacity: interpolate(
@@ -770,8 +846,84 @@ function AnelToque({
   return (
     <Animated.View
       pointerEvents="none"
-      style={[styles.anelToque, {left: x - ANEL_D / 2, top: y - ANEL_D / 2}, estilo]}
+      style={[
+        styles.anelToque,
+        {borderColor: cor, left: x - ANEL_D / 2, top: y - ANEL_D / 2},
+        estilo,
+      ]}
     />
+  );
+}
+
+/**
+ * Traço do lance do minuto, com vocabulário visual por ação: passe/condução
+ * tracejado fino; CRUZAMENTO/ESCANTEIO em ARCO; CHUTE reto, sólido e grosso.
+ * Aparece conforme a bola percorre o trecho.
+ */
+function SegmentoLance({
+  avanco,
+  indice,
+  largura,
+  altura,
+  x1,
+  y1,
+  x2,
+  y2,
+  tipoDestino,
+}: {
+  avanco: SharedValue<number>;
+  indice: number;
+  largura: number;
+  altura: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  tipoDestino: TipoPassoLance;
+}): React.JSX.Element {
+  const estilo = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      avanco.value,
+      [indice + 0.3, indice + 0.9],
+      [0, 0.9],
+      Extrapolation.CLAMP,
+    ),
+  }));
+  const ehChute =
+    tipoDestino === 'finalizacao' ||
+    tipoDestino === 'gol' ||
+    tipoDestino === 'gol_contra';
+  const ehArco = tipoDestino === 'cruzamento' || tipoDestino === 'escanteio';
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+  const distancia = Math.hypot(x2 - x1, y2 - y1);
+  const flecha = Math.min(28, distancia * 0.35);
+  // O arco boja em direção ao centro do campo (bola alçada, vista de cima).
+  const controleY = my > altura / 2 ? my - flecha : my + flecha;
+  return (
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, estilo]}>
+      <Svg width={largura} height={altura}>
+        {ehArco ? (
+          <Path
+            d={`M ${x1} ${y1} Q ${mx} ${controleY} ${x2} ${y2}`}
+            fill="none"
+            stroke={CAL}
+            strokeWidth={1.6}
+            strokeDasharray="6 4"
+          />
+        ) : (
+          <Line
+            x1={x1}
+            y1={y1}
+            x2={x2}
+            y2={y2}
+            stroke={CAL}
+            strokeWidth={ehChute ? 2.4 : 1.3}
+            strokeDasharray={ehChute ? undefined : '4 4'}
+          />
+        )}
+      </Svg>
+    </Animated.View>
   );
 }
 
@@ -925,9 +1077,14 @@ const styles = StyleSheet.create({
     paddingVertical: espacamento[2],
   },
   headerTitulo: {flex: 1},
+  // Wrapper do campo: altura explícita quando medido + clipping próprio
+  // (cinto de segurança — NADA do radar extrapola o card, com qualquer
+  // largura de tela).
   campoWrap: {
+    borderRadius: 10,
     marginBottom: espacamento[2],
     marginHorizontal: espacamento[2],
+    overflow: 'hidden',
   },
   banda: {
     borderRadius: raios.sm,

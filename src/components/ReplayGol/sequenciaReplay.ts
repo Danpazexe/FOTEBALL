@@ -39,27 +39,45 @@ export type EventoReplay =
  * Plano do replay: um avanço por segmento, em ordem (1..N, o primeiro no
  * instante 0), e a conclusão ao fim do último segmento. Sem segmentos ou com
  * duração inválida, não há nada a percorrer.
+ *
+ * `duracaoSegmentoMs` aceita um número (todos os segmentos iguais — replay de
+ * gol) ou um array com a duração de CADA segmento (radar: chute é mais rápido
+ * que passe; cruzamento, mais lento). Array curto reutiliza a última duração;
+ * qualquer duração ≤ 0 invalida o plano.
  */
 export function planoReplay(
   totalSegmentos: number,
-  duracaoSegmentoMs: number,
+  duracaoSegmentoMs: number | readonly number[],
 ): EventoReplay[] {
-  if (totalSegmentos <= 0 || duracaoSegmentoMs <= 0) {
+  const duracaoDe = (segmento: number): number =>
+    typeof duracaoSegmentoMs === 'number'
+      ? duracaoSegmentoMs
+      : duracaoSegmentoMs[
+          Math.min(segmento, duracaoSegmentoMs.length - 1)
+        ] ?? 0;
+  if (totalSegmentos <= 0) {
     return [];
   }
-  const eventos: EventoReplay[] = [];
-  for (let i = 1; i <= totalSegmentos; i += 1) {
-    eventos.push({tipo: 'avanco', indice: i, emMs: (i - 1) * duracaoSegmentoMs});
+  for (let i = 0; i < totalSegmentos; i += 1) {
+    if (!(duracaoDe(i) > 0)) {
+      return [];
+    }
   }
-  eventos.push({tipo: 'conclusao', emMs: totalSegmentos * duracaoSegmentoMs});
+  const eventos: EventoReplay[] = [];
+  let instante = 0;
+  for (let i = 1; i <= totalSegmentos; i += 1) {
+    eventos.push({tipo: 'avanco', indice: i, emMs: instante});
+    instante += duracaoDe(i - 1);
+  }
+  eventos.push({tipo: 'conclusao', emMs: instante});
   return eventos;
 }
 
 export type OpcoesSequenciadorReplay = {
   /** Nº de segmentos do lance (pontos − 1). */
   totalSegmentos: number;
-  /** Duração de cada segmento, em ms. */
-  duracaoSegmentoMs: number;
+  /** Duração de cada segmento, em ms (número único ou uma por segmento). */
+  duracaoSegmentoMs: number | readonly number[];
   /** Chamado em ordem com o índice-alvo 1..totalSegmentos (o 1º imediatamente). */
   aoAvancar: (indice: number) => void;
   /** Chamado quando a bola chega ao último ponto (hora do pulso do "GOL"). */

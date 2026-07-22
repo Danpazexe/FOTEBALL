@@ -8,11 +8,13 @@ import type {ChutePartida, EventoPartida, Position} from '../../../types';
 
 import {
   coordenadaBasePosicao,
+  fimDoLance,
   paraCampoHorizontal,
   posicaoJogadorNoMinuto,
   posicionarElencosMinuto,
   reconstruirLanceMinuto,
   type EntradaLanceMinuto,
+  type FimLanceMinuto,
   type JogadorEmCampoLance,
 } from '../reconstruirLanceMinuto';
 
@@ -216,9 +218,11 @@ describe('reconstruirLanceMinuto — posse pelo momento real', () => {
     );
   });
 
-  it('minuto sem evento termina em recepção (reciclagem neutra de posse)', () => {
+  it('minuto sem evento termina em recepção ou drible (posse viva, nunca no ar)', () => {
     const lance = reconstruirLanceMinuto(entradaBase({momentoMinuto: 0.3}));
-    expect(lance?.toques[lance.toques.length - 1].tipo).toBe('recepcao');
+    expect(['recepcao', 'drible']).toContain(
+      lance?.toques[lance.toques.length - 1].tipo,
+    );
   });
 });
 
@@ -276,12 +280,153 @@ describe('posicionarElencosMinuto — os 22 pontos do radar', () => {
     const pontos = new Map(
       [...elencos.casa, ...elencos.fora].map(p => [p.id, p]),
     );
-    for (const toque of lance?.toques ?? []) {
+    // Só a CONSTRUÇÃO fica presa aos pontos; drible/desfechos/transições
+    // ancoram na bola/no fato (drible avança, chute vai ao ponto real).
+    const construcao = (lance?.toques ?? []).filter(t =>
+      ['passe', 'conducao', 'recepcao'].includes(t.tipo),
+    );
+    expect(construcao.length).toBeGreaterThan(0);
+    for (const toque of construcao) {
       const ponto = pontos.get(toque.jogadorId);
       expect(ponto).toBeDefined();
       expect(toque.x).toBeCloseTo(ponto?.x ?? -1, 10);
       expect(toque.y).toBeCloseTo(ponto?.y ?? -1, 10);
     }
+  });
+});
+
+describe('reconstruirLanceMinuto — continuidade entre minutos', () => {
+  const fimCasa: FimLanceMinuto = {
+    timeId: CASA,
+    jogadorId: 'c_7',
+    tipoUltimoToque: 'recepcao',
+    x: 0.61,
+    y: 0.42,
+  };
+
+  it('mesma posse: o portador anterior abre o lance de ONDE parou (sem teleporte)', () => {
+    const lance = reconstruirLanceMinuto(
+      entradaBase({momentoMinuto: 0.5, lanceAnterior: fimCasa}),
+    );
+    expect(lance?.timeId).toBe(CASA);
+    const primeiro = lance?.toques[0];
+    expect(primeiro?.jogadorId).toBe('c_7');
+    expect(primeiro?.x).toBe(0.61);
+    expect(primeiro?.y).toBe(0.42);
+    expect(['passe', 'conducao']).toContain(primeiro?.tipo);
+  });
+
+  it('posse TROCOU: jogador real do novo time toma a bola ali (desarme visível)', () => {
+    const lance = reconstruirLanceMinuto(
+      entradaBase({momentoMinuto: -0.5, lanceAnterior: fimCasa}),
+    );
+    expect(lance?.timeId).toBe(FORA);
+    const primeiro = lance?.toques[0];
+    expect(['desarme', 'interceptacao']).toContain(primeiro?.tipo);
+    expect(primeiro?.timeId).toBe(FORA);
+    expect(primeiro?.jogadorId.startsWith('f_')).toBe(true);
+    expect(primeiro?.x).toBe(0.61);
+    expect(primeiro?.y).toBe(0.42);
+  });
+
+  it('após finalização, a defesa RECUPERA (não "desarma" um chute)', () => {
+    const fimChute: FimLanceMinuto = {
+      ...fimCasa,
+      tipoUltimoToque: 'finalizacao',
+      x: 0.9,
+      y: 0.5,
+    };
+    const lance = reconstruirLanceMinuto(
+      entradaBase({momentoMinuto: -0.5, lanceAnterior: fimChute}),
+    );
+    expect(lance?.toques[0]?.tipo).toBe('recuperacao');
+    expect(lance?.toques[0]?.timeId).toBe(FORA);
+  });
+
+  it('momento equilibrado: quem TINHA a bola segue com ela', () => {
+    const lance = reconstruirLanceMinuto(
+      entradaBase({momentoMinuto: 0, lanceAnterior: fimCasa}),
+    );
+    expect(lance?.timeId).toBe(CASA);
+  });
+
+  it('fimDoLance encadeia o próximo minuto; gol devolve null (saída de bola)', () => {
+    const lance = reconstruirLanceMinuto(entradaBase({momentoMinuto: 0.5}));
+    const fim = lance ? fimDoLance(lance) : null;
+    expect(fim?.timeId).toBe(CASA);
+    expect(fim?.jogadorId).toBe(
+      lance?.toques[lance.toques.length - 1].jogadorId,
+    );
+    const golLance = reconstruirLanceMinuto(
+      entradaBase({chutesDoMinuto: [chuteFixture({resultado: 'gol'})]}),
+    );
+    expect(golLance ? fimDoLance(golLance) : undefined).toBeNull();
+  });
+});
+
+describe('reconstruirLanceMinuto — vocabulário de ações', () => {
+  it('escanteio real: cobrado do CANTO pelo garçom real, chute no ponto real', () => {
+    const chute = chuteFixture({
+      situacao: 'escanteio',
+      corpo: 'cabeca',
+      assistenciaId: 'c_8',
+      x: 0.7,
+      y: 0.1,
+    });
+    const lance = reconstruirLanceMinuto(
+      entradaBase({chutesDoMinuto: [chute]}),
+    );
+    const escanteio = lance?.toques[0];
+    expect(escanteio?.tipo).toBe('escanteio');
+    expect(escanteio?.jogadorId).toBe('c_8');
+    // Canto do ataque da casa: quina direita do radar.
+    expect(escanteio?.x).toBeGreaterThan(0.95);
+    expect(Math.min(escanteio?.y ?? 0.5, 1 - (escanteio?.y ?? 0.5))).toBeLessThan(
+      0.05,
+    );
+    const final = lance?.toques.find(t => t.tipo === 'finalizacao');
+    const esperado = paraCampoHorizontal({x: 0.7, y: 0.1 * 0.33}, true);
+    expect(final?.x).toBeCloseTo(esperado.x, 10);
+    expect(final?.y).toBeCloseTo(esperado.y, 10);
+  });
+
+  it('cabeçada em jogo corrido chega por CRUZAMENTO da faixa lateral', () => {
+    const chute = chuteFixture({
+      corpo: 'cabeca',
+      situacao: 'jogo_aberto',
+      assistenciaId: 'c_8',
+    });
+    const lance = reconstruirLanceMinuto(
+      entradaBase({chutesDoMinuto: [chute]}),
+    );
+    const cruzamento = lance?.toques.find(t => t.tipo === 'cruzamento');
+    expect(cruzamento?.jogadorId).toBe('c_8');
+    // Faixa ofensiva da casa, colado numa das laterais.
+    expect(cruzamento?.x).toBeGreaterThanOrEqual(0.62);
+    expect(
+      Math.min(cruzamento?.y ?? 0.5, 1 - (cruzamento?.y ?? 0.5)),
+    ).toBeLessThanOrEqual(0.08);
+  });
+
+  it('chute termina no ponto real MESMO com transição de desarme no início', () => {
+    const chute = chuteFixture();
+    const lance = reconstruirLanceMinuto(
+      entradaBase({
+        chutesDoMinuto: [chute],
+        lanceAnterior: {
+          timeId: FORA,
+          jogadorId: 'f_6',
+          tipoUltimoToque: 'recepcao',
+          x: 0.4,
+          y: 0.5,
+        },
+      }),
+    );
+    expect(['desarme', 'interceptacao']).toContain(lance?.toques[0]?.tipo);
+    const final = lance?.toques.find(t => t.tipo === 'finalizacao');
+    const esperado = paraCampoHorizontal({x: chute.x, y: chute.y * 0.33}, true);
+    expect(final?.x).toBeCloseTo(esperado.x, 10);
+    expect(final?.y).toBeCloseTo(esperado.y, 10);
   });
 });
 
