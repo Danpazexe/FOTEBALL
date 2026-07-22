@@ -5,17 +5,11 @@ import {
   CONDICAO_MAX,
   FORMA_MIN,
   FORMA_MAX,
-  buscarTreino,
   type IntensidadeTreino,
   type TreinoTipo,
 } from './treinoTipos';
 import {grupoDaPosicao} from '../tactics/posicoes';
-import {
-  criarRNGComSeed,
-  inteiroEntre,
-  hashString,
-  type RandomGenerator,
-} from '../simulation/rng';
+import {inteiroEntre, type RandomGenerator} from '../simulation/rng';
 import {aplicarMoral} from './moralEngine';
 import type {
   AtributoChave,
@@ -35,8 +29,8 @@ import type {
  * saída. Lesionados não treinam de verdade — fazem reabilitação leve.
  *
  * Funções puras: `calcularEfeitoTreino` apenas descreve o que aconteceria;
- * `aplicarEfeitoTreino` produz o novo `Player`; `treinarElenco` orquestra o
- * elenco derivando um RNG estável por jogador a partir do seed base.
+ * `aplicarEfeitoTreino` produz o novo `Player`. A orquestração do elenco vive
+ * na store (`aplicarSessaoAoClube`), que deriva um RNG estável por jogador.
  */
 
 /** Ganho de progresso base (em "pontos de 100%") antes dos fatores e da intensidade. */
@@ -244,7 +238,9 @@ export function calcularEfeitoTreino(
     // calendário (Onda 3: rodadas distam 3-4 dias) — ~1 a 3 jogos fora.
     const diasLesao = inteiroEntre(rng, 3, 10);
     const condicaoBruta =
-      intensidade === 'leve' || intensidade === 'normal'
+      intensidade === 'descanso' ||
+      intensidade === 'leve' ||
+      intensidade === 'normal'
         ? -5
         : config.deltaCondicao;
     const deltaCondicao = clampDelta(
@@ -340,35 +336,4 @@ export function aplicarEfeitoTreino(
   }
 
   return novo;
-}
-
-/**
- * Treina um elenco inteiro com o mesmo treino/intensidade. Cada jogador recebe
- * um RNG estável derivado de `baseSeed + hashString(id)`, garantindo
- * determinismo (mesma entrada => mesma saída) e independência entre jogadores.
- * Se o treino não existir, o elenco é retornado inalterado.
- */
-export function treinarElenco(
-  jogadores: Player[],
-  treinoId: string,
-  intensidade: IntensidadeTreino,
-  contexto: ContextoTreino,
-  baseSeed: number,
-): Player[] {
-  const treino = buscarTreino(treinoId);
-  if (!treino) {
-    return jogadores;
-  }
-
-  return jogadores.map(jogador => {
-    const rng = criarRNGComSeed(baseSeed + hashString(jogador.id));
-    const efeito = calcularEfeitoTreino(
-      jogador,
-      treino,
-      intensidade,
-      contexto,
-      rng,
-    );
-    return aplicarEfeitoTreino(jogador, efeito);
-  });
 }

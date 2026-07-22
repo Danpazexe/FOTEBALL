@@ -4,7 +4,7 @@
  */
 
 import React, {useMemo, useState} from 'react';
-import {Modal, StyleSheet, TextInput, View} from 'react-native';
+import {Modal, StyleSheet, View} from 'react-native';
 
 import OverallBadge from '../../components/OverallBadge';
 import {
@@ -14,6 +14,7 @@ import {
   Chip,
   Screen,
   Text,
+  TextField,
   espacamento,
   raios,
   useTheme,
@@ -21,14 +22,11 @@ import {
 import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore, useJogadoresUsuario} from '../../store/useGameStore';
+import {anoContrato, contratoVenceNaTemporada} from '../../utils/contratos';
 import {moeda} from '../../utils/formatters';
 import type {Player} from '../../types';
 
 const ANOS_OPCOES = [1, 2, 3];
-
-function anoContrato(contratoAte: string): number {
-  return Number(contratoAte.slice(0, 4));
-}
 
 function Contratos(): React.JSX.Element {
   const nav = useAppNavigation();
@@ -90,7 +88,7 @@ function Contratos(): React.JSX.Element {
         <View style={styles.lista}>
           {aRenovar.map(jogador => {
             const ano = anoContrato(jogador.contratoAte);
-            const urgente = ano <= anoAtual;
+            const urgente = contratoVenceNaTemporada(jogador.contratoAte, anoAtual);
             return (
               <Card key={jogador.id} variante="outlined" style={styles.card}>
                 <OverallBadge overall={jogador.overall} />
@@ -132,21 +130,13 @@ function Contratos(): React.JSX.Element {
             <Text variant="labelM" color="textSecondary">
               Salário mensal proposto
             </Text>
-            <TextInput
+            <TextField
+              variante="valor"
               keyboardType="numeric"
               value={salario}
               onChangeText={setSalario}
               accessibilityLabel="Salário mensal proposto"
-              style={[
-                styles.input,
-                {
-                  backgroundColor: cores.surfaceSubtle,
-                  borderColor: cores.border,
-                  color: cores.textPrimary,
-                },
-              ]}
               placeholder="Salário"
-              placeholderTextColor={cores.textMuted}
             />
             <Text variant="labelM" color="textSecondary">
               Duração
@@ -200,14 +190,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: espacamento[2],
     padding: espacamento[5],
-  },
-  input: {
-    borderRadius: raios.sm,
-    borderWidth: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    paddingHorizontal: espacamento[3],
-    paddingVertical: espacamento[2],
   },
   anosRow: {flexDirection: 'row', gap: espacamento[2]},
   modalAcoes: {

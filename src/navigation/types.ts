@@ -1,10 +1,15 @@
+import {useCallback} from 'react';
 import type {
   CompositeNavigationProp,
+  NavigationProp,
   NavigatorScreenParams,
+  ParamListBase,
   RouteProp,
 } from '@react-navigation/native';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import {useNavigation, useRoute} from '@react-navigation/native';
+
+import type {DisputaPenaltisCopa} from '../store/useGameStore';
 
 // ─── Stacks internos de cada aba ────────────────────────────────────────────
 // Cada área da tab bar tem seu próprio Stack Navigator; as telas internas rolam
@@ -23,7 +28,6 @@ export type ElencoStackParamList = {
   Semana: undefined;
   Academia: undefined;
   DepartamentoMedico: undefined;
-  Performance: undefined;
   Desenvolvimento: undefined;
 };
 
@@ -71,14 +75,13 @@ export type RootStackParamList = {
   PlayerDetail: {jogadorId: string};
   /** Ficha de elenco de um clube qualquer (ex.: tocar um time na Classificação). */
   ElencoClube: {clubeId: string};
-  /** Hub de atalhos/notificações — saiu da tab bar, agora é tela de stack. */
-  Central: undefined;
-  PendenciasClube: undefined;
   /** `copa: true` joga o confronto da Copa do usuário (em vez do jogo da liga). */
   MatchSimulation: {copa?: boolean} | undefined;
   MatchResult: {partidaId: string};
   PreJogo: undefined;
   Copa: undefined;
+  /** Acompanhamento ao vivo da disputa de pênaltis da Copa (resultado já commitado). */
+  DisputaPenaltis: {disputa: DisputaPenaltisCopa};
   /** Chaveamento da Série D (carreira na D): grupos → mata-mata. */
   SerieD: undefined;
   Semana: undefined;
@@ -88,7 +91,7 @@ export type RootStackParamList = {
   Contratos: undefined;
   Tactics: undefined;
   Demissao: undefined;
-  /** Ajustes saiu da tab bar; agora é tela de stack (acessível pela Central). */
+  /** Ajustes saiu da tab bar; agora é tela de stack (acessível pela Home). */
   Settings: undefined;
 };
 
@@ -153,6 +156,43 @@ export function useInicioNavigation(): InicioNavigation {
 /** Hook de navegação da aba Elenco (ElencoStack + RootStack). */
 export function useElencoNavigation(): ElencoNavigation {
   return useNavigation<ElencoNavigation>();
+}
+
+// ─── Voltar com fallback ────────────────────────────────────────────────────
+
+/** Interseção dos param lists dos stacks (chaves repetidas têm o MESMO tipo).
+ * Exclui MainTabsParamList, cujas chaves colidem com tipos diferentes. */
+type IntersecaoStacks = RootStackParamList &
+  InicioStackParamList &
+  ElencoStackParamList &
+  PartidasStackParamList &
+  MercadoStackParamList &
+  ClubeStackParamList;
+
+/** Achata a interseção num objeto único para valer como ParamList. */
+type ParamListApp = {[K in keyof IntersecaoStacks]: IntersecaoStacks[K]};
+
+/** Rotas SEM parâmetros — as únicas aceitas como fallback do voltar. */
+type RotaVoltarFallback = {
+  [R in keyof ParamListApp]: ParamListApp[R] extends undefined ? R : never;
+}[keyof ParamListApp];
+
+/** Voltar com fallback: volta na pilha se houver histórico; senão navega para
+ * `rotaFallback` (tela aberta como raiz do stack, ex.: por atalho/reset).
+ * O parâmetro trava nas rotas reais SEM params; por baixo o navigate é por
+ * nome e sobe até o navigator dono da rota (mesmo runtime do padrão inline). */
+export function useVoltarOu(rotaFallback: RotaVoltarFallback): () => void {
+  const nav = useNavigation<NavigationProp<ParamListBase>>();
+  return useCallback(() => {
+    if (nav.canGoBack()) {
+      nav.goBack();
+      return;
+    }
+    // Alarga a união de literais para string: o navigate do v7 não aceita
+    // união no nome; a validade da rota já foi garantida pelo tipo acima.
+    const rota: string = rotaFallback;
+    nav.navigate(rota);
+  }, [nav, rotaFallback]);
 }
 
 /** Hook de rota tipado (acessa `route.params` da tela atual). */

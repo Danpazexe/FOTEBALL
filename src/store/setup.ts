@@ -205,3 +205,33 @@ export function gerarCopaParaTemporada(
     datasFases,
   );
 }
+
+/**
+ * Monta a LIGA ativa + a Copa do Brasil de uma carreira para a divisão do clube
+ * do usuário. Série D roda o GRUPO de 6 (não a divisão inteira de 96) e não tem
+ * Copa; carreiras fora do Brasil também ficam sem Copa. Pura — reusada ao iniciar
+ * uma carreira nova e ao assumir um clube após demissão.
+ */
+export function montarLigaECopaDaCarreira(
+  clubes: Clube[],
+  jogadores: Player[],
+  divisao: string,
+  clubeId: string,
+  temporada: string,
+) {
+  const liga =
+    divisao === 'Série D'
+      ? gerarLigaSerieDGrupo(clubes, jogadores, clubeId, temporada)
+      : gerarLiga(clubes, jogadores, divisao, temporada);
+  const copa: EstadoCopa | null =
+    divisao === 'Série D' || !ehDivisaoBrasileira(divisao)
+      ? null
+      : gerarCopaParaTemporada(
+          clubes,
+          jogadores,
+          temporada,
+          clubeId,
+          calcularDatasFasesCopa(liga.partidas),
+        );
+  return {liga, copa};
+}

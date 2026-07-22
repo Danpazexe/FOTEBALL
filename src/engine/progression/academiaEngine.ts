@@ -1,5 +1,5 @@
 import {PRIMEIROS_NOMES, SOBRENOMES} from '../../data/nomesBase';
-import type {Player, Position} from '../../types';
+import {ORDEM_POSICOES, type Player, type Position} from '../../types';
 import {inteiroEntre, type RandomGenerator} from '../simulation/rng';
 import {calibrarAtributosParaOverall} from './calibracaoAtributos';
 import {CATEGORIA_POR_ATRIBUTO} from './categoriasAtributos';
@@ -26,10 +26,6 @@ export interface JovemTalento {
 
 export type FaixaPotencial = 'B' | 'A' | 'S';
 
-const TODAS_POSICOES: Position[] = [
-  'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-];
-
 /** Faixa de potencial oculto: B (72-78), A (79-85), S (86-90). */
 export function faixaPotencial(potencial: number): FaixaPotencial {
   if (potencial >= 86) {
@@ -50,7 +46,7 @@ function montarPoolPosicoes(
   necessidades: Partial<Record<Position, number>>,
 ): Position[] {
   const pool: Position[] = [];
-  for (const posicao of TODAS_POSICOES) {
+  for (const posicao of ORDEM_POSICOES) {
     // Toda posição entra ao menos 1x; necessidades aumentam o peso.
     const peso = Math.max(1, necessidades[posicao] ?? 0);
     for (let i = 0; i < peso; i += 1) {
@@ -97,6 +93,7 @@ export function gerarJovensTemporada(
 function jitterAtributo(id: string, chave: string): number {
   let hash = 0;
   for (const caractere of `${id}|${chave}`) {
+    // eslint-disable-next-line no-bitwise -- hash intencional (determinismo)
     hash = (hash * 31 + caractere.charCodeAt(0)) >>> 0;
   }
   return (hash % 7) - 3;

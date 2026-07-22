@@ -26,9 +26,10 @@ import {
   useTheme,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
+import {nomeCurto} from '../../utils/formatters';
 import {useAppNavigation} from '../../navigation/types';
 import {useGameStore} from '../../store/useGameStore';
-import type {Clube, Player, Position} from '../../types';
+import {ORDEM_POSICOES, type Clube, type Player, type Position} from '../../types';
 
 type Aba = 'relatorios' | 'observados' | 'missoes';
 type Conhecimento = 'Completo' | 'Parcial' | 'Inicial';
@@ -62,20 +63,11 @@ const ROTULO_POSICAO: Record<Position, string> = {
   CA: 'Centroavante',
 };
 
-/** Ordem determinística para desempate (menos jogadores no elenco → prioridade). */
-const ORDEM_POSICOES: Position[] = [
-  'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-];
-
 const TOM_CONHECIMENTO: Record<Conhecimento, TomBadge> = {
   Completo: 'success',
   Parcial: 'accent',
   Inicial: 'neutral',
 };
-
-function nomeCurto(jogador: Player): string {
-  return jogador.apelido ?? jogador.nome;
-}
 
 /**
  * Conhecimento derivado de sinal REAL: reputação do clube do alvo (0–100) pesa

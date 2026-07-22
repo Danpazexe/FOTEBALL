@@ -2,13 +2,49 @@ import type {Clube, Player, Transacao} from '../../types';
 
 /** Juros anuais cobrados sobre saldo negativo (custo de operar no vermelho). */
 export const TAXA_JUROS_ANUAL = 0.12;
-/** Patrocínio anual derivado da reputação quando não há patrocinador no seed. */
+/** Patrocínio anual derivado da reputação (clubes sem contrato de patrocínio). */
 export const PATROCINIO_POR_REPUTACAO = 80_000;
 /** Custo anual de manutenção do estádio por lugar de capacidade. */
 export const MANUTENCAO_POR_LUGAR = 35;
 
 export function calcularFolhaSalarial(jogadores: Player[]): number {
   return jogadores.reduce((total, jogador) => total + jogador.salario, 0);
+}
+
+/** Peso da folha salarial sobre a receita acumulada (0–100; sem receita → 0). */
+export function pctFolhaSobreReceita(
+  folha: number,
+  receitaTotal: number,
+): number {
+  return receitaTotal > 0 ? Math.min(100, (folha / receitaTotal) * 100) : 0;
+}
+
+export type FaixaFolha = 'saudavel' | 'atencao' | 'critica';
+
+/** Faixa de alerta do peso da folha: >80 crítica, >60 atenção, senão saudável. */
+export function faixaPctFolha(pct: number): FaixaFolha {
+  if (pct > 80) {
+    return 'critica';
+  }
+  if (pct > 60) {
+    return 'atencao';
+  }
+  return 'saudavel';
+}
+
+/**
+ * Registra a transação só quando `valor > 0` — guarda única dos pontos de
+ * crédito/débito condicionais (patrocínio, manutenção, juros, taxas de
+ * transferência), evitando lançamentos zerados/negativos no histórico.
+ */
+export function registrarTransacaoSePositiva(
+  clube: Clube,
+  transacao: Transacao,
+): Clube {
+  if (transacao.valor <= 0) {
+    return clube;
+  }
+  return registrarTransacao(clube, transacao);
 }
 
 export function registrarTransacao(
@@ -179,20 +215,14 @@ export function aplicarFolhaMensal(
   });
 }
 
-/** Patrocínio anual: usa os patrocinadores do clube ou deriva da reputação. */
+/**
+ * Patrocínio anual derivado da reputação. CONTRATOS de patrocínio são
+ * exclusivos do clube do usuário e vivem em `engine/patrocinio` — se um dia a
+ * IA ganhar contratos, a renda por contrato deve ser modelada lá, não aqui.
+ */
 export function aplicarPatrocinioAnual(clube: Clube, data: string): Clube {
-  const dosContratos = clube.financas.patrocinadores.reduce(
-    (total, patrocinio) => total + patrocinio.valorMensal * 12,
-    0,
-  );
-  const valor =
-    dosContratos > 0
-      ? dosContratos
-      : Math.round(clube.reputacao * PATROCINIO_POR_REPUTACAO);
-  if (valor <= 0) {
-    return clube;
-  }
-  return registrarTransacao(clube, {
+  const valor = Math.round(clube.reputacao * PATROCINIO_POR_REPUTACAO);
+  return registrarTransacaoSePositiva(clube, {
     data,
     tipo: 'receita',
     categoria: 'patrocinio',
@@ -208,10 +238,7 @@ export function aplicarManutencaoEstadio(clube: Clube, data: string): Clube {
     doSeed > 0
       ? doSeed
       : Math.round(clube.estadio.capacidade * MANUTENCAO_POR_LUGAR);
-  if (valor <= 0) {
-    return clube;
-  }
-  return registrarTransacao(clube, {
+  return registrarTransacaoSePositiva(clube, {
     data,
     tipo: 'despesa',
     categoria: 'manutencao',
@@ -226,10 +253,7 @@ export function aplicarJurosSaldoNegativo(clube: Clube, data: string): Clube {
     return clube;
   }
   const valor = Math.round(-clube.financas.saldo * TAXA_JUROS_ANUAL);
-  if (valor <= 0) {
-    return clube;
-  }
-  return registrarTransacao(clube, {
+  return registrarTransacaoSePositiva(clube, {
     data,
     tipo: 'despesa',
     categoria: 'juros',

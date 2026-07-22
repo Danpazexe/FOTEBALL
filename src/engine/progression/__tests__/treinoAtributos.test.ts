@@ -2,11 +2,10 @@ import {criarPlayer} from '../../../testing/fixtures';
 import {buscarTreino} from '../treinoTipos';
 import {
   calcularEfeitoTreino,
-  treinarElenco,
   aplicarEfeitoTreino,
   type ContextoTreino,
 } from '../treinoAtributos';
-import type {RandomGenerator} from '../../simulation/rng';
+import {criarRNGComSeed, type RandomGenerator} from '../../simulation/rng';
 
 /**
  * Testes do motor de treino por acúmulo de progresso. RNG sempre injetado para
@@ -75,17 +74,28 @@ describe('treinoAtributos', () => {
     expect(jogador.atributos.finalizacao).toBeGreaterThan(finalizacaoInicial);
   });
 
-  it('é determinístico: mesmo baseSeed produz resultado idêntico', () => {
+  it('é determinístico: mesma seed produz efeito idêntico por jogador', () => {
     const elenco = [
       criarPlayer({id: 'a', idade: 19, posicaoPrincipal: 'CA'}),
       criarPlayer({id: 'b', idade: 24, posicaoPrincipal: 'MEI'}),
       criarPlayer({id: 'c', idade: 31, posicaoPrincipal: 'ZAG'}),
     ];
 
-    const r1 = treinarElenco(elenco, 'hab_finalizacao', 'forte', contexto, 42);
-    const r2 = treinarElenco(elenco, 'hab_finalizacao', 'forte', contexto, 42);
+    const treinar = (seed: number) =>
+      elenco.map(jogador =>
+        aplicarEfeitoTreino(
+          jogador,
+          calcularEfeitoTreino(
+            jogador,
+            treinoFinalizacao,
+            'forte',
+            contexto,
+            criarRNGComSeed(seed),
+          ),
+        ),
+      );
 
-    expect(r1).toEqual(r2);
+    expect(treinar(42)).toEqual(treinar(42));
   });
 
   it('lesionado recebe efeito leve sem ganho de atributo', () => {
@@ -113,6 +123,38 @@ describe('treinoAtributos', () => {
     expect(efeito.novoOverall).toBe(lesionado.overall);
     // Reabilitação leve recupera condição (+8 bruto da intensidade leve).
     expect(efeito.deltaCondicao).toBeGreaterThan(0);
+  });
+
+  it('descanso: recupera condição e NÃO treina atributo (ganho zero)', () => {
+    const jogador = criarPlayer({
+      id: 'cansado',
+      idade: 22,
+      posicaoPrincipal: 'CA',
+      condicaoFisica: 60,
+    });
+
+    const descanso = calcularEfeitoTreino(
+      jogador,
+      treinoFinalizacao,
+      'descanso',
+      contexto,
+      semLesao,
+    );
+    const leve = calcularEfeitoTreino(
+      jogador,
+      treinoFinalizacao,
+      'leve',
+      contexto,
+      semLesao,
+    );
+
+    // Recuperação pura: sem progresso/ganho de atributo.
+    expect(descanso.progressoAtributos.finalizacao ?? 0).toBe(0);
+    expect(descanso.ganhoAtributos).toEqual({});
+    expect(descanso.atributosFinais.finalizacao).toBe(jogador.atributos.finalizacao);
+    // Recupera condição — e mais que o treino leve.
+    expect(descanso.deltaCondicao).toBeGreaterThan(0);
+    expect(descanso.deltaCondicao).toBeGreaterThan(leve.deltaCondicao);
   });
 
   it('veterano ganha bem menos progresso que jovem no mesmo treino', () => {
@@ -190,9 +232,63 @@ describe('treinoAtributos', () => {
     }
   });
 
-  it('treino inexistente retorna elenco inalterado', () => {
-    const elenco = [criarPlayer({id: 'a', posicaoPrincipal: 'CA'})];
-    const resultado = treinarElenco(elenco, 'nao_existe', 'normal', contexto, 1);
-    expect(resultado).toBe(elenco);
+  it('treino inexistente não resolve no catálogo (guarda dos orquestradores)', () => {
+    // A store (aplicarSessaoAoClube) devolve o elenco inalterado quando o
+    // treinoId não existe — a guarda é o buscarTreino retornar undefined.
+    expect(buscarTreino('nao_existe')).toBeUndefined();
+  });
+
+  it('lesão em treino de jogador SAUDÁVEL interrompe a sessão: sem ganho e com dias reais', () => {
+    const jogador = criarPlayer({id: 'azarado', posicaoPrincipal: 'CA'});
+    expect(jogador.lesionado).toBe(false);
+    // rng sempre 0: dispara o sorteio de lesão (0 < risco) e puxa a duração mínima.
+    const rngLesiona: RandomGenerator = () => 0;
+
+    const efeito = calcularEfeitoTreino(
+      jogador,
+      treinoFinalizacao,
+      'forte',
+      contexto,
+      rngLesiona,
+    );
+
+    expect(efeito.lesionou).toBe(true);
+    expect(efeito.diasLesao).toBeGreaterThanOrEqual(3);
+    expect(efeito.diasLesao).toBeLessThanOrEqual(10);
+    // Sessão interrompida: nenhum ganho/progresso de atributo.
+    expect(efeito.ganhoAtributos).toEqual({});
+    expect(efeito.progressoAtributos).toEqual({});
+    // E o Player resultante fica marcado como lesionado.
+    const machucado = aplicarEfeitoTreino(jogador, efeito);
+    expect(machucado.lesionado).toBe(true);
+    expect(machucado.diasLesao).toBe(efeito.diasLesao);
+  });
+
+  it('fAfinidade: treino do grupo ideal rende ~15% mais progresso', () => {
+    // Fixture com atributos uniformes: a ÚNICA diferença é a posição (CA está
+    // em gruposIdeais do hab_finalizacao; MC não).
+    const atacante = criarPlayer({id: 'afim', posicaoPrincipal: 'CA'});
+    const meia = criarPlayer({id: 'neutro', posicaoPrincipal: 'MC'});
+
+    const efAfim = calcularEfeitoTreino(
+      atacante,
+      treinoFinalizacao,
+      'normal',
+      contexto,
+      semLesao,
+    );
+    const efNeutro = calcularEfeitoTreino(
+      meia,
+      treinoFinalizacao,
+      'normal',
+      contexto,
+      semLesao,
+    );
+
+    const pAfim = efAfim.progressoAtributos.finalizacao ?? 0;
+    const pNeutro = efNeutro.progressoAtributos.finalizacao ?? 0;
+    expect(pNeutro).toBeGreaterThan(0);
+    expect(pAfim).toBeGreaterThan(pNeutro);
+    expect(pAfim / pNeutro).toBeCloseTo(1.15, 1);
   });
 });

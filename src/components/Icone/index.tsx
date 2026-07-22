@@ -8,7 +8,7 @@
  *  • `IconeGlifo` — por nome-string DINÂMICO, para ícones que vêm de dados
  *    (conquistas, status), com fallback seguro quando o nome é desconhecido.
  *
- * Uso: <Icone nome="inicio" tamanho={20} cor={cores.primaria} />
+ * Uso: <Icone nome="inicio" tamanho={20} cor={cores.brand} />
  */
 
 import React from 'react';
@@ -78,7 +78,12 @@ import {
   Zap,
 } from 'lucide-react-native';
 
-import {cores} from '../../theme';
+// Import direto do arquivo de tokens (não do barrel do design system): o
+// primitive Icon do DS envolve este Icone — o barrel criaria ciclo. Fallback
+// ESTÁTICO de propósito: todos os call-sites passam `cor` explícita hoje.
+import {coresEscuras} from '../../design-system/tokens/colors';
+
+const COR_FALLBACK = coresEscuras.textPrimary;
 
 export type IconeNome =
   | 'inicio'
@@ -225,7 +230,7 @@ type IconeProps = {
 };
 
 function Icone({nome, tamanho = 20, cor}: IconeProps): React.JSX.Element {
-  const color = cor ?? cores.texto;
+  const color = cor ?? COR_FALLBACK;
   // Cartão: carta SÓLIDA (retângulo arredondado preenchido, proporção de cartão)
   // em vez de um ícone de contorno — muito mais parecido com o cartão real.
   if (nome === 'cartao') {
@@ -273,5 +278,5 @@ export function IconeGlifo({
   cor,
 }: IconeGlifoProps): React.JSX.Element {
   const Componente = ICONES_GLIFO[nome] ?? CircleHelp;
-  return <Componente size={tamanho} color={cor ?? cores.texto} />;
+  return <Componente size={tamanho} color={cor ?? COR_FALLBACK} />;
 }

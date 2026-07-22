@@ -115,4 +115,34 @@ describe('treino recorrente (Onda 4)', () => {
     );
     expect(overallDepois).toBeGreaterThanOrEqual(overallAntes);
   });
+
+  it('foco de treino individual rende no ciclo RECORRENTE (não só no manual)', () => {
+    // A/B determinístico: mesma carreira/seeds; a ÚNICA diferença é o foco.
+    const rodadas = 8;
+    const rodar = (comFoco: boolean): number => {
+      estado().reiniciarCarreira();
+      const usuario = estado().clubes[3];
+      estado().iniciarNovaCarreira(usuario.id);
+      estado().aceitarPlanoRecomendado();
+      // Alvo: jogador com margem real de potencial e atributo longe do teto.
+      const alvo = elencoDoUsuario(usuario.id).find(
+        j => j.potencial >= j.overall + 3 && j.atributos.cruzamento <= 80,
+      )!;
+      expect(alvo).toBeTruthy();
+      if (comFoco) {
+        estado().definirFocoTreino(alvo.id, 'cruzamento');
+      }
+      for (let i = 0; i < rodadas; i += 1) {
+        estado().avancarRodada();
+      }
+      return estado().jogadores.find(j => j.id === alvo.id)!.atributos
+        .cruzamento;
+    };
+
+    const semFoco = rodar(false);
+    const comFoco = rodar(true);
+    // Com foco, o atributo focado termina ESTRITAMENTE acima do cenário sem
+    // foco — prova de que o desenvolverFoco está ligado ao ciclo recorrente.
+    expect(comFoco).toBeGreaterThan(semFoco);
+  });
 });

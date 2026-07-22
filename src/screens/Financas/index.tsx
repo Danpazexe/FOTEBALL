@@ -24,8 +24,12 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
-import {useClubeNavigation} from '../../navigation/types';
+import {
+  calcularFolhaSalarial,
+  faixaPctFolha,
+  pctFolhaSobreReceita,
+} from '../../engine/finance/financeEngine';
+import {useVoltarOu} from '../../navigation/types';
 import {moeda, moedaCompacta} from '../../utils/formatters';
 import type {Transacao} from '../../types';
 
@@ -78,13 +82,11 @@ function evolucaoMensal(transacoes: Transacao[]): {mes: string; net: number}[] {
 }
 
 function Financas(): React.JSX.Element {
-  const nav = useClubeNavigation();
   const {cores} = useTheme();
   const clube = useGameStore(selecionarClubeUsuario);
   const elenco = useJogadoresUsuario();
 
-  const voltar = () =>
-    nav.canGoBack() ? nav.goBack() : nav.navigate('CentralClube');
+  const voltar = useVoltarOu('CentralClube');
 
   const dados = useMemo(() => {
     if (!clube) {
@@ -98,8 +100,7 @@ function Financas(): React.JSX.Element {
     const totalReceita = receitas.reduce((s, x) => s + x.valor, 0);
     const totalDespesa = despesas.reduce((s, x) => s + x.valor, 0);
     const folha = calcularFolhaSalarial(elenco);
-    const pctFolha =
-      totalReceita > 0 ? Math.min(100, (folha / totalReceita) * 100) : 0;
+    const pctFolha = pctFolhaSobreReceita(folha, totalReceita);
     return {
       saldo: financas.saldo,
       resultado: totalReceita - totalDespesa,
@@ -180,11 +181,11 @@ function Financas(): React.JSX.Element {
           <ProgressBar
             valor={dados.pctFolha}
             cor={
-              dados.pctFolha > 80
-                ? cores.danger
-                : dados.pctFolha > 60
-                ? cores.warning
-                : cores.brand
+              {
+                critica: cores.danger,
+                atencao: cores.warning,
+                saudavel: cores.brand,
+              }[faixaPctFolha(dados.pctFolha)]
             }
           />
           <Text variant="caption" color="textMuted">

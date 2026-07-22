@@ -31,7 +31,7 @@ import type {
   PropostaPatrocinio,
 } from '../../types/patrocinio';
 import {useGameStore} from '../../store/useGameStore';
-import {useClubeNavigation} from '../../navigation/types';
+import {useVoltarOu} from '../../navigation/types';
 import {moeda} from '../../utils/formatters';
 
 type AbaPatrocinio = 'propostas' | 'contrato' | 'historico';
@@ -43,7 +43,6 @@ const ROTULO_ALCANCE: Record<string, string> = {
 };
 
 function Patrocinios(): React.JSX.Element {
-  const nav = useClubeNavigation();
   const patrocinio = useGameStore(state => state.patrocinio);
   const aceitar = useGameStore(state => state.aceitarPropostaPatrocinioUsuario);
   const recusar = useGameStore(state => state.recusarPropostaPatrocinioUsuario);
@@ -54,8 +53,7 @@ function Patrocinios(): React.JSX.Element {
   // Confirma o aceite antes de trocar o estado (aceitar substitui o contrato).
   const [aceitando, setAceitando] = useState<PropostaPatrocinio | null>(null);
 
-  const voltar = () =>
-    nav.canGoBack() ? nav.goBack() : nav.navigate('CentralClube');
+  const voltar = useVoltarOu('CentralClube');
 
   const propostas = useMemo(
     () => patrocinio.propostas.filter(p => p.status === 'PENDENTE'),

@@ -5,7 +5,7 @@
  * (fazerPropostaCompra), tratando contraproposta/aceite/recusa. DS v2.
  */
 import React, {useMemo, useState} from 'react';
-import {StyleSheet, TextInput, View} from 'react-native';
+import {StyleSheet, View} from 'react-native';
 import {useRoute, type RouteProp} from '@react-navigation/native';
 
 import {
@@ -17,9 +17,8 @@ import {
   PositionBadge,
   Screen,
   Text,
+  TextField,
   espacamento,
-  raios,
-  useTheme,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
 import {useToast} from '../../components/feedback';
@@ -29,15 +28,19 @@ import {
   useGameStore,
 } from '../../store/useGameStore';
 import {
-  useMercadoNavigation,
+  useVoltarOu,
   type MercadoStackParamList,
 } from '../../navigation/types';
-import {moeda, moedaCompacta, nomeClube} from '../../utils/formatters';
+import {
+  faixaOverall,
+  moeda,
+  moedaCompacta,
+  nomeClube,
+  nomeCurto,
+} from '../../utils/formatters';
 import {simboloMoeda} from '../../engine/competitions/registry/competitionRegistry';
 
 function Negociacao(): React.JSX.Element {
-  const nav = useMercadoNavigation();
-  const {cores} = useTheme();
   const toast = useToast();
   const route = useRoute<RouteProp<MercadoStackParamList, 'Negociacao'>>();
   const {jogadorId} = route.params;
@@ -66,8 +69,7 @@ function Negociacao(): React.JSX.Element {
   );
   const [contra, setContra] = useState<number | null>(null);
 
-  const voltar = () =>
-    nav.canGoBack() ? nav.goBack() : nav.navigate('TransferMarket');
+  const voltar = useVoltarOu('TransferMarket');
 
   if (!jogador) {
     return (
@@ -83,11 +85,7 @@ function Negociacao(): React.JSX.Element {
     );
   }
 
-  const nome = jogador.apelido ?? jogador.nome;
-  const faixaOverall =
-    jogador.potencial > jogador.overall
-      ? `${jogador.overall}–${jogador.potencial}`
-      : `${jogador.overall}`;
+  const nome = nomeCurto(jogador);
   const valor = Number(valorInput) || precoCompra(jogador);
   const saldo = clube?.financas.saldo ?? 0;
   const orcamentoApos = saldo - valor;
@@ -120,7 +118,7 @@ function Negociacao(): React.JSX.Element {
           <View style={styles.metaLinha}>
             <PositionBadge posicao={jogador.posicaoPrincipal} tamanho="sm" />
             <Text variant="labelM" color="textSecondary">
-              {jogador.idade} anos · OVR {faixaOverall}
+              {jogador.idade} anos · OVR {faixaOverall(jogador)}
             </Text>
           </View>
         </View>
@@ -149,21 +147,13 @@ function Negociacao(): React.JSX.Element {
         <Text variant="labelM" color="textSecondary" style={styles.caps}>
           Valor da proposta
         </Text>
-        <TextInput
+        <TextField
+          variante="valorDestaque"
           keyboardType="numeric"
           value={valorInput}
           onChangeText={setValorInput}
           accessibilityLabel="Valor da proposta"
           placeholder="Valor da proposta"
-          placeholderTextColor={cores.textMuted}
-          style={[
-            styles.input,
-            {
-              backgroundColor: cores.surfaceSubtle,
-              borderColor: cores.border,
-              color: cores.textPrimary,
-            },
-          ]}
         />
         {contra !== null ? (
           <Text variant="labelM" color="warning">
@@ -235,14 +225,6 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   secao: {gap: espacamento[2]},
-  input: {
-    borderRadius: raios.md,
-    borderWidth: 1,
-    fontSize: 18,
-    fontWeight: '800',
-    paddingHorizontal: espacamento[3],
-    paddingVertical: espacamento[3],
-  },
   orcamentoLinha: {
     flexDirection: 'row',
     alignItems: 'center',

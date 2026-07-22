@@ -256,4 +256,44 @@ describe('finalizarTemporada — acesso e rebaixamento', () => {
     );
     expect(temCotaTV).toBe(true);
   });
+
+  it('patrocínio na virada: IA recebe a cota por reputação; usuário com contrato ativo não', () => {
+    const usuario = estado().clubes[7];
+    estado().iniciarNovaCarreira(usuario.id);
+    const ligaAntes = estado().clubes.map(clube => clube.id);
+
+    // Contrato real pelo fluxo de produção: gera as propostas e aceita a 1ª.
+    estado().gerarPropostasPatrocinioUsuario();
+    const proposta = estado().patrocinio.propostas[0];
+    expect(proposta).toBeDefined();
+    estado().aceitarPropostaPatrocinioUsuario(proposta.id);
+    expect(estado().patrocinio.contratoAtivo?.status).toBe('ATIVO');
+
+    useGameStore.setState({rodadaAtual: 39});
+    estado().finalizarTemporada();
+
+    const ehCotaPorReputacao = (transacao: {
+      categoria: string;
+      descricao: string;
+    }) =>
+      transacao.categoria === 'patrocinio' &&
+      transacao.descricao === 'Cota anual de patrocínio';
+    const porId = new Map(estado().todosClubes.map(clube => [clube.id, clube]));
+
+    // A renda do usuário vem do CONTRATO — a cota por reputação é pulada para
+    // não pagar duas vezes (flag pularPatrocinioReputacao na virada).
+    expect(
+      porId
+        .get(usuario.id)!
+        .financas.historicoTransacoes.some(ehCotaPorReputacao),
+    ).toBe(false);
+
+    // Clubes de IA nunca têm contrato: todos recebem a cota por reputação.
+    const clubesIA = ligaAntes.filter(id => id !== usuario.id);
+    expect(
+      clubesIA.every(id =>
+        porId.get(id)!.financas.historicoTransacoes.some(ehCotaPorReputacao),
+      ),
+    ).toBe(true);
+  });
 });

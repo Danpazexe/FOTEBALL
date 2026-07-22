@@ -16,6 +16,7 @@ import {
   Badge,
   Button,
   Card,
+  Chip,
   Icon,
   OverallRing,
   PositionBadge,
@@ -24,13 +25,18 @@ import {
   StatValue,
   Text,
   espacamento,
+  faixaCorOverall,
   raios,
   useTheme,
   type CorTexto,
 } from '../../design-system';
+import {grupoDaPosicao} from '../../engine/tactics/posicoes';
+import {
+  planoFuncaoPorId,
+  planosParaGrupo,
+} from '../../engine/progression/treinoIndividual';
 import type {IconeNome} from '../../components/Icone';
 import {useConfirm, useToast} from '../../components/feedback';
-import {corOverall} from '../../theme';
 import {moeda, nomeClube} from '../../utils/formatters';
 import {simboloMoeda} from '../../engine/competitions/registry/competitionRegistry';
 import {HABILIDADES} from '../../engine/progression/habilidades';
@@ -105,6 +111,7 @@ function PlayerDetail(): React.JSX.Element {
   const nav = useAppNavigation();
   const route = useRoute<RouteProp<RootStackParamList, 'PlayerDetail'>>();
   const {jogadorId} = route.params;
+  const {cores} = useTheme();
 
   // Mercado universal: o jogador pode ser de outra liga (liga ativa vence).
   const jogador = useGameStore(
@@ -125,6 +132,9 @@ function PlayerDetail(): React.JSX.Element {
   const emprestarJogador = useGameStore(state => state.emprestarJogador);
   const definirCapitao = useGameStore(state => state.definirCapitao);
   const definirFocoTreino = useGameStore(state => state.definirFocoTreino);
+  const definirPlanoDesenvolvimento = useGameStore(
+    state => state.definirPlanoDesenvolvimento,
+  );
   const confirmarAcoes = useGameStore(state => state.config.confirmarAcoes);
   const confirm = useConfirm();
   const toast = useToast();
@@ -156,15 +166,35 @@ function PlayerDetail(): React.JSX.Element {
   );
 
   // Foco de treino individual: tocar num atributo o coloca (ou tira) em foco —
-  // ele desenvolve mais rápido no treino. Só faz sentido no elenco do usuário.
+  // ele desenvolve mais rápido no treino. Colocar foco individual limpa o plano
+  // por função (um único condutor de desenvolvimento por vez). Só no elenco do usuário.
   const alternarFoco = (chave: AtributoChave) => {
     const novo = jogador.focoTreino === chave ? null : chave;
     definirFocoTreino(jogador.id, novo);
+    if (novo) {
+      definirPlanoDesenvolvimento(jogador.id, null);
+    }
     const label = ATRIBUTOS.find(a => a.chave === chave)?.label ?? chave;
     toast(
       novo ? `Foco de treino: ${label}.` : 'Foco de treino removido.',
       'sucesso',
     );
+  };
+
+  // Plano de desenvolvimento por FUNÇÃO (Camada 3): desenvolve o conjunto de
+  // atributos do papel. Ativar um plano limpa o foco de atributo único.
+  const planosFuncao = planosParaGrupo(grupoDaPosicao(jogador.posicaoPrincipal));
+  const planoAtivo = jogador.planoDesenvolvimento
+    ? planoFuncaoPorId(jogador.planoDesenvolvimento)
+    : undefined;
+  const alternarPlano = (planoId: string) => {
+    const novo = jogador.planoDesenvolvimento === planoId ? null : planoId;
+    definirPlanoDesenvolvimento(jogador.id, novo);
+    if (novo) {
+      definirFocoTreino(jogador.id, null);
+    }
+    const nome = planoFuncaoPorId(planoId)?.nome ?? 'Plano';
+    toast(novo ? `Plano: ${nome}.` : 'Plano removido.', 'sucesso');
   };
 
   const handleVender = async () => {
@@ -282,7 +312,7 @@ function PlayerDetail(): React.JSX.Element {
           <StatBar
             valor={jogador.overall}
             max={jogador.potencial}
-            cor={corOverall(jogador.overall)}
+            cor={cores[faixaCorOverall(jogador.overall)]}
             mostrarValor={false}
           />
           <Text variant="caption" color="textSecondary">
@@ -354,6 +384,30 @@ function PlayerDetail(): React.JSX.Element {
           <AttributeRadar jogador={jogador} />
         </Card>
       </Secao>
+
+      {doClubeUsuario && planosFuncao.length > 0 ? (
+        <Secao titulo="Plano de desenvolvimento">
+          <Card variante="outlined">
+            <View style={styles.planosGrid}>
+              {planosFuncao.map(plano => (
+                <Chip
+                  key={plano.id}
+                  label={plano.nome}
+                  selected={jogador.planoDesenvolvimento === plano.id}
+                  onPress={() => alternarPlano(plano.id)}
+                />
+              ))}
+            </View>
+            <Text variant="caption" color="textSecondary" style={styles.nota}>
+              {planoAtivo
+                ? `${planoAtivo.descricao} — desenvolve ${planoAtivo.atributos
+                    .map(a => ATRIBUTOS.find(x => x.chave === a)?.label ?? a)
+                    .join(', ')}.`
+                : 'Escolha um papel: o jogador desenvolve o conjunto de atributos dessa função no treino (tem prioridade sobre o foco de um atributo).'}
+            </Text>
+          </Card>
+        </Secao>
+      ) : null}
 
       <Secao titulo="Atributos">
         <Card variante="outlined">
@@ -481,7 +535,7 @@ function AtributoLinha({
   onPress?: () => void;
 }): React.JSX.Element {
   const {cores} = useTheme();
-  const cor = corOverall(valor);
+  const cor = cores[faixaCorOverall(valor)];
   const pctProgresso = Math.max(0, Math.min(100, progresso));
   const Container = onPress ? Pressable : View;
   return (
@@ -568,6 +622,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
+  },
+  planosGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: espacamento[2],
   },
   atributoItem: {width: '48%', gap: espacamento[1], marginBottom: espacamento[2]},
   atributoLabelWrap: {

@@ -1,0 +1,5 @@
+# Configuração do workspace Maestro (E2E de UI dirigindo o app de verdade).
+# Rodar no simulador iOS booted (ou emulador Android) com o app instalado.
+appId: com.pazconcept.foteball
+flows:
+  - "flows/*.yaml"

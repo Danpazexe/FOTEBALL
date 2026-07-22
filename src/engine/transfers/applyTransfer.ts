@@ -7,7 +7,7 @@
  */
 import type {Clube, Player} from '../../types';
 import type {TipoTransferencia, TransferRecord} from '../../types/world';
-import {registrarTransacao} from '../finance/financeEngine';
+import {registrarTransacaoSePositiva} from '../finance/financeEngine';
 import {competicaoPorDivisaoLegada} from '../competitions/registry/competitionRegistry';
 import {janelaAberta} from './transferWindow';
 import {repararFormacao} from './formationRepair';
@@ -57,10 +57,13 @@ function moverDinheiro(
   descricao: string,
   date: string,
 ): Clube {
-  if (valor <= 0) {
-    return clube;
-  }
-  return registrarTransacao(clube, {data: date, tipo, categoria, valor, descricao});
+  return registrarTransacaoSePositiva(clube, {
+    data: date,
+    tipo,
+    categoria,
+    valor,
+    descricao,
+  });
 }
 
 export function applyTransfer(input: ApplyTransferInput): ApplyTransferResult {

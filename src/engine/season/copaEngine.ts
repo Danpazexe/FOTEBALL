@@ -8,7 +8,7 @@
  */
 
 import type {Clube, Player} from '../../types';
-import {type RandomGenerator} from '../simulation/rng';
+import {embaralhar, type RandomGenerator} from '../simulation/rng';
 
 export interface ConfrontoCopa {
   id: string;
@@ -71,16 +71,6 @@ function forcaClube(clubeId: string, jogadores: Player[]): number {
     return 0;
   }
   return top11.reduce((soma, j) => soma + j.overall, 0) / top11.length;
-}
-
-/** Fisher-Yates determinístico (usa o RNG semeado). */
-function embaralhar<T>(itens: T[], rng: RandomGenerator): T[] {
-  const copia = [...itens];
-  for (let i = copia.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [copia[i], copia[j]] = [copia[j], copia[i]];
-  }
-  return copia;
 }
 
 /**

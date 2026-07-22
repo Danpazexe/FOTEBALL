@@ -15,6 +15,7 @@ import {
   OverallRing,
   ProgressBar,
   Screen,
+  StatValue,
   TeamCrest,
   Text,
   espacamento,
@@ -23,10 +24,9 @@ import {
 import {calcularJornada} from '../../engine/carreira/jornada';
 import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
 import {useAchievementsStore} from '../../store/useAchievementsStore';
-import {useClubeNavigation} from '../../navigation/types';
+import {useVoltarOu} from '../../navigation/types';
 
 function Carreira(): React.JSX.Element {
-  const nav = useClubeNavigation();
   const {cores} = useTheme();
   const clube = useGameStore(selecionarClubeUsuario);
   const clubeUsuarioId = useGameStore(state => state.clubeUsuarioId);
@@ -34,8 +34,7 @@ function Carreira(): React.JSX.Element {
   const reputacaoTecnico = useGameStore(state => state.reputacaoTecnico);
   const conquistas = useAchievementsStore(state => state.conquistas);
 
-  const voltar = () =>
-    nav.canGoBack() ? nav.goBack() : nav.navigate('CentralClube');
+  const voltar = useVoltarOu('CentralClube');
 
   const campanha = useMemo(() => {
     let jogos = 0;
@@ -119,13 +118,35 @@ function Carreira(): React.JSX.Element {
         Desempenho geral
       </Text>
       <Card variante="outlined" style={styles.statsRow}>
-        <CelulaStat valor={campanha.jogos} rotulo="Jogos" />
+        <StatValue
+          value={String(campanha.jogos)}
+          label="Jogos"
+          align="center"
+          style={styles.flex}
+        />
         <Divider vertical />
-        <CelulaStat valor={campanha.vitorias} rotulo="Vitórias" tom="success" />
+        <StatValue
+          value={String(campanha.vitorias)}
+          label="Vitórias"
+          tom="success"
+          align="center"
+          style={styles.flex}
+        />
         <Divider vertical />
-        <CelulaStat valor={campanha.empates} rotulo="Empates" />
+        <StatValue
+          value={String(campanha.empates)}
+          label="Empates"
+          align="center"
+          style={styles.flex}
+        />
         <Divider vertical />
-        <CelulaStat valor={campanha.derrotas} rotulo="Derrotas" tom="danger" />
+        <StatValue
+          value={String(campanha.derrotas)}
+          label="Derrotas"
+          tom="danger"
+          align="center"
+          style={styles.flex}
+        />
       </Card>
 
       {/* Aproveitamento + Confiança (anéis) */}
@@ -175,27 +196,6 @@ function Carreira(): React.JSX.Element {
   );
 }
 
-function CelulaStat({
-  valor,
-  rotulo,
-  tom = 'textPrimary',
-}: {
-  valor: number;
-  rotulo: string;
-  tom?: 'textPrimary' | 'success' | 'danger';
-}): React.JSX.Element {
-  return (
-    <View style={styles.celula}>
-      <Text variant="titleL" color={tom} tabular>
-        {valor}
-      </Text>
-      <Text variant="caption" color="textSecondary">
-        {rotulo}
-      </Text>
-    </View>
-  );
-}
-
 export default Carreira;
 
 const styles = StyleSheet.create({
@@ -205,7 +205,6 @@ const styles = StyleSheet.create({
   jornadaCard: {gap: espacamento[2]},
   jornadaTopo: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
   statsRow: {flexDirection: 'row', alignItems: 'center'},
-  celula: {flex: 1, alignItems: 'center', gap: 2},
   aneisRow: {flexDirection: 'row', alignItems: 'center'},
   anel: {flex: 1, alignItems: 'center'},
   divisorV: {width: StyleSheet.hairlineWidth, alignSelf: 'stretch'},

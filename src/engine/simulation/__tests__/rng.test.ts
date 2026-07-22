@@ -1,4 +1,10 @@
-import {criarRNGComSeed, hashString, inteiroEntre, limitar} from '../rng';
+import {
+  criarRNGComSeed,
+  embaralhar,
+  hashString,
+  inteiroEntre,
+  limitar,
+} from '../rng';
 
 /**
  * A RNG é a base de TODO o determinismo do jogo (partida, mercado IA, peneiras,
@@ -97,5 +103,22 @@ describe('hashString', () => {
     expect(Number.isInteger(h)).toBe(true);
     expect(h).toBeGreaterThanOrEqual(0);
     expect(h).toBeLessThanOrEqual(0xffffffff);
+  });
+});
+
+describe('embaralhar (Fisher-Yates)', () => {
+  it('é uma permutação e NÃO muta a entrada', () => {
+    const original = [1, 2, 3, 4, 5, 6, 7, 8];
+    const copia = [...original];
+    const saida = embaralhar(original, criarRNGComSeed(42));
+    expect(original).toEqual(copia); // entrada intacta
+    expect([...saida].sort((a, b) => a - b)).toEqual(original); // mesmos elementos
+  });
+
+  it('é determinístico por seed', () => {
+    const itens = ['a', 'b', 'c', 'd', 'e'];
+    expect(embaralhar(itens, criarRNGComSeed(7))).toEqual(
+      embaralhar(itens, criarRNGComSeed(7)),
+    );
   });
 });

@@ -87,13 +87,6 @@ export interface DespesaDetalhada {
   contratacoes: number;
 }
 
-export interface Patrocinio {
-  nome: string;
-  valorMensal: number;
-  bonusPorVitoria: number;
-  ativoAte: string;
-}
-
 export interface Transacao {
   data: string;
   tipo: 'receita' | 'despesa';
@@ -106,7 +99,6 @@ export interface FinancasClube {
   saldo: number;
   receitaMensal: ReceitaDetalhada;
   despesaMensal: DespesaDetalhada;
-  patrocinadores: Patrocinio[];
   historicoTransacoes: Transacao[];
 }
 

@@ -5,6 +5,7 @@ import {
   calcularContextoMinuto,
   calcularPossePartida,
   disputarPenaltis,
+  fatorUrgenciaPlacar,
   iniciarPartidaAoVivo,
   simularMinuto,
   simularPartida,
@@ -117,7 +118,6 @@ function criarClube(id: string, jogadores: Player[]): Clube {
         comissoes: 0,
         contratacoes: 0,
       },
-      patrocinadores: [],
       historicoTransacoes: [],
     },
     estadio: {
@@ -790,5 +790,37 @@ describe('resiliência: lado sem XI não derruba o motor', () => {
     const partida = simularPartida(input);
     expect(partida.placarCasa).toBe(0);
     expect(partida.placarFora).toBe(0);
+  });
+});
+
+describe('fatorUrgenciaPlacar', () => {
+  it('empate é neutro (1.0) em qualquer minuto', () => {
+    expect(fatorUrgenciaPlacar(0, 1)).toBe(1);
+    expect(fatorUrgenciaPlacar(0, 90)).toBe(1);
+  });
+
+  it('quem perde se lança: cresce com o tempo e com o prejuízo', () => {
+    // Perdendo por 1: a intensidade sobe do início ao fim.
+    const cedo = fatorUrgenciaPlacar(-1, 10);
+    const tarde = fatorUrgenciaPlacar(-1, 90);
+    expect(cedo).toBeGreaterThan(1);
+    expect(tarde).toBeGreaterThan(cedo);
+    // Prejuízo maior = mais urgência no MESMO minuto.
+    expect(fatorUrgenciaPlacar(-2, 60)).toBeGreaterThan(
+      fatorUrgenciaPlacar(-1, 60),
+    );
+    // Valores exatos da fórmula: 1 + min(3, déficit)·0.05·(0.5 + min/180).
+    expect(fatorUrgenciaPlacar(-1, 90)).toBeCloseTo(1.05, 10);
+    expect(fatorUrgenciaPlacar(-3, 90)).toBeCloseTo(1.15, 10);
+  });
+
+  it('o déficit satura em 3 gols (goleada não vira urgência infinita)', () => {
+    expect(fatorUrgenciaPlacar(-5, 60)).toBe(fatorUrgenciaPlacar(-3, 60));
+  });
+
+  it('quem vence administra só na reta final (≥70’); antes é neutro', () => {
+    expect(fatorUrgenciaPlacar(1, 69)).toBe(1);
+    expect(fatorUrgenciaPlacar(1, 70)).toBe(0.93);
+    expect(fatorUrgenciaPlacar(3, 90)).toBe(0.93);
   });
 });

@@ -1,7 +1,7 @@
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
-import {useTheme, type CorTexto} from '../../design-system';
+import {faixaCorOverall, useTheme} from '../../design-system';
 
 type OverallBadgeProps = {
   overall: number;
@@ -10,20 +10,9 @@ type OverallBadgeProps = {
   glow?: boolean;
 };
 
-/** Faixa de cor por overall — mesma lógica do anel (alto/verde, médio/âmbar). */
-function faixaCor(overall: number): CorTexto {
-  if (overall >= 75) {
-    return 'success';
-  }
-  if (overall >= 60) {
-    return 'warning';
-  }
-  return 'danger';
-}
-
 function OverallBadge({overall, size = 36}: OverallBadgeProps) {
   const {cores} = useTheme();
-  const cor = cores[faixaCor(overall)];
+  const cor = cores[faixaCorOverall(overall)];
   return (
     <View
       style={[

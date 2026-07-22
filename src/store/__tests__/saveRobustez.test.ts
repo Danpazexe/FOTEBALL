@@ -3,7 +3,7 @@
  * limpo (nunca herda elencos/temporada de uma carreira anterior em memória) e as
  * substituições feitas durante a partida ao vivo não viram a escalação oficial.
  */
-import {trocarTitular} from '../../api/database/seed/defaults';
+import {trocarTitular} from '../../engine/tactics/escalacao';
 import {selecionarProximoJogo, useGameStore} from '../useGameStore';
 import {useAchievementsStore} from '../useAchievementsStore';
 

@@ -1,5 +1,5 @@
 import type {Clube, Player} from '../../types';
-import {criarRNGComSeed, type RandomGenerator} from '../simulation/rng';
+import {criarRNGComSeed, embaralhar} from '../simulation/rng';
 
 /**
  * Mercado IA↔IA (BRASFOOT_MASTER §9.4): os clubes controlados pela IA negociam
@@ -22,15 +22,6 @@ const OVERALL_MAX = 82;
 const MARKUP = 1.1;
 /** Saldo mínimo para um clube da IA entrar como comprador. */
 const SALDO_MINIMO_COMPRADOR = 1_000_000;
-
-function embaralhar<T>(itens: T[], rng: RandomGenerator): T[] {
-  const copia = [...itens];
-  for (let i = copia.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [copia[i], copia[j]] = [copia[j], copia[i]];
-  }
-  return copia;
-}
 
 function mediaTop11(jogadores: Player[]): number {
   if (jogadores.length === 0) {

@@ -14,14 +14,14 @@ import {
   Chip,
   Divider,
   EmptyState,
-  Icon,
   Screen,
+  StatValue,
   TeamCrest,
   Text,
   espacamento,
 } from '../../design-system';
 import {useToast} from '../../components/feedback';
-import {useClubeNavigation} from '../../navigation/types';
+import {useClubeNavigation, useVoltarOu} from '../../navigation/types';
 import {
   CAPACIDADE_MAX_ESTADIO,
   INFRA_MAX_ESTADIO,
@@ -58,8 +58,7 @@ function Club(): React.JSX.Element {
     [elenco],
   );
 
-  const voltar = () =>
-    nav.canGoBack() ? nav.goBack() : nav.navigate('CentralClube');
+  const voltar = useVoltarOu('CentralClube');
 
   if (!clube) {
     return (
@@ -116,14 +115,28 @@ function Club(): React.JSX.Element {
 
       {/* Reputação · Capacidade · Moral */}
       <Card variante="outlined" style={styles.statsRow}>
-        <CelulaStat valor={String(clube.reputacao)} rotulo="Reputação" icone="medalha" />
+        <StatValue
+          value={String(clube.reputacao)}
+          label="Reputação"
+          icone="medalha"
+          align="center"
+          style={styles.flex}
+        />
         <Divider vertical />
-        <CelulaStat valor={String(elenco.length)} rotulo="Elenco" icone="elenco" />
+        <StatValue
+          value={String(elenco.length)}
+          label="Elenco"
+          icone="elenco"
+          align="center"
+          style={styles.flex}
+        />
         <Divider vertical />
-        <CelulaStat
-          valor={moral.toFixed(1).replace('.', ',')}
-          rotulo="Moral"
+        <StatValue
+          value={moral.toFixed(1).replace('.', ',')}
+          label="Moral"
           icone="humor-bom"
+          align="center"
+          style={styles.flex}
         />
       </Card>
 
@@ -205,28 +218,6 @@ function Club(): React.JSX.Element {
   );
 }
 
-function CelulaStat({
-  valor,
-  rotulo,
-  icone,
-}: {
-  valor: string;
-  rotulo: string;
-  icone: import('../../components/Icone').IconeNome;
-}): React.JSX.Element {
-  return (
-    <View style={styles.celula}>
-      <Icon nome={icone} size={16} color="textSecondary" />
-      <Text variant="titleM" tabular>
-        {valor}
-      </Text>
-      <Text variant="caption" color="textSecondary">
-        {rotulo}
-      </Text>
-    </View>
-  );
-}
-
 function Linha({label, valor}: {label: string; valor: string}): React.JSX.Element {
   return (
     <View style={styles.rowBetween}>
@@ -248,7 +239,6 @@ const styles = StyleSheet.create({
   caps: {textTransform: 'uppercase', letterSpacing: 1},
   identidade: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
   statsRow: {flexDirection: 'row', alignItems: 'center'},
-  celula: {flex: 1, alignItems: 'center', gap: 2},
   secao: {gap: espacamento[2]},
   cardGap: {gap: espacamento[2]},
   rowBetween: {

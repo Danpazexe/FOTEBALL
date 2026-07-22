@@ -6,7 +6,10 @@
  * física · humor — com destaque para lesão/suspensão. Tocar abre o detalhe.
  */
 import React, {useMemo, useState} from 'react';
-import {ScrollView, StyleSheet, TextInput, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
+
+import {nomeCurto} from '../../utils/formatters';
+import {normalizarTexto} from '../../utils/texto';
 
 import {
   AppBar,
@@ -23,8 +26,11 @@ import {
   Screen,
   SegmentedTabs,
   Text,
+  TextField,
+  LIMIAR_CONDICAO_ALTA,
+  LIMIAR_CONDICAO_MEDIA,
+  corCondicao,
   espacamento,
-  raios,
   useTheme,
   type CorTexto,
 } from '../../design-system';
@@ -36,7 +42,7 @@ import {
   useGameStore,
   useJogadoresUsuario,
 } from '../../store/useGameStore';
-import type {Player, Position} from '../../types';
+import {ORDEM_POSICOES, type Player, type Position} from '../../types';
 
 type Aba = 'todos' | 'titulares' | 'reservas';
 type FiltroPosicao = 'Todos' | Position;
@@ -47,40 +53,25 @@ const ABAS: Array<{chave: Aba; rotulo: string}> = [
   {chave: 'reservas', rotulo: 'Reservas'},
 ];
 
-const FILTROS: FiltroPosicao[] = [
-  'Todos', 'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-];
+const FILTROS: FiltroPosicao[] = ['Todos', ...ORDEM_POSICOES];
 
 /**
  * Emote de condição — SEGUE A MESMA REGRA DA BARRA de condição física (limiares
- * 75/50), então barra e emote ficam SEMPRE da mesma cor no mesmo momento. Os
- * tokens success/warning/danger são idênticos a esporte.fitness.high/medium/low.
+ * canônicos de `corCondicao` no design system), então barra e emote ficam
+ * SEMPRE da mesma cor no mesmo momento. Os tokens success/warning/danger são
+ * idênticos a esporte.fitness.high/medium/low.
  * (Antes o emote olhava a moral — quase uniforme no jogo — e ficava sempre verde.)
  */
-const LIMIAR_COND_ALTA = 75;
-const LIMIAR_COND_MEDIA = 50;
-
 function humorJogador(
   condicao: number,
 ): {icone: IconeNome; cor: CorTexto; rotulo: string} {
-  if (condicao >= LIMIAR_COND_ALTA) {
+  if (condicao >= LIMIAR_CONDICAO_ALTA) {
     return {icone: 'humor-bom', cor: 'success', rotulo: 'Descansado'};
   }
-  if (condicao >= LIMIAR_COND_MEDIA) {
+  if (condicao >= LIMIAR_CONDICAO_MEDIA) {
     return {icone: 'humor-cansado', cor: 'warning', rotulo: 'Cansado'};
   }
   return {icone: 'humor-ruim', cor: 'danger', rotulo: 'Exausto'};
-}
-
-function nomeCurto(jogador: Player): string {
-  return jogador.apelido ?? jogador.nome;
-}
-
-function normalizar(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
 }
 
 function Squad(): React.JSX.Element {
@@ -103,7 +94,7 @@ function Squad(): React.JSX.Element {
   );
 
   const jogadoresFiltrados = useMemo(() => {
-    const alvo = normalizar(busca.trim());
+    const alvo = normalizarTexto(busca.trim());
     return jogadores
       .filter(j => {
         if (aba === 'titulares') {
@@ -115,7 +106,7 @@ function Squad(): React.JSX.Element {
         return true;
       })
       .filter(j => filtro === 'Todos' || j.posicaoPrincipal === filtro)
-      .filter(j => alvo === '' || normalizar(nomeCurto(j)).includes(alvo));
+      .filter(j => alvo === '' || normalizarTexto(nomeCurto(j)).includes(alvo));
   }, [jogadores, aba, filtro, busca, titularesIds]);
 
   // Jogador em destaque: o capitão, ou o de maior overall.
@@ -150,6 +141,11 @@ function Squad(): React.JSX.Element {
                 tom={filtroAberto || filtro !== 'Todos' ? 'brand' : 'textPrimary'}
               />
               <IconButton
+                icone="tendencia"
+                onPress={() => nav.navigate('Desenvolvimento')}
+                accessibilityLabel="Desenvolvimento do elenco"
+              />
+              <IconButton
                 icone="lesao"
                 onPress={() => nav.navigate('DepartamentoMedico')}
                 accessibilityLabel="Departamento médico"
@@ -165,21 +161,12 @@ function Squad(): React.JSX.Element {
       />
 
       {buscaAberta ? (
-        <TextInput
+        <TextField
           value={busca}
           onChangeText={setBusca}
           autoFocus
           placeholder="Buscar por nome"
-          placeholderTextColor={cores.textMuted}
           accessibilityLabel="Buscar por nome"
-          style={[
-            styles.busca,
-            {
-              backgroundColor: cores.surfaceSubtle,
-              borderColor: cores.border,
-              color: cores.textPrimary,
-            },
-          ]}
         />
       ) : null}
 
@@ -300,14 +287,8 @@ function LinhaJogador({
   onPress: () => void;
 }): React.JSX.Element {
   const {esporte} = useTheme();
-  const cf = jogador.condicaoFisica;
   // Mesmos limiares do emote (humorJogador) → barra e emote na mesma cor.
-  const corCf =
-    cf >= LIMIAR_COND_ALTA
-      ? esporte.fitness.high
-      : cf >= LIMIAR_COND_MEDIA
-      ? esporte.fitness.medium
-      : esporte.fitness.low;
+  const corCf = corCondicao(jogador.condicaoFisica, esporte);
   const indisponivel = jogador.lesionado || jogador.suspenso;
   // "Amarelado": tem amarelo acumulado rumo ao gancho (limiar 2) — mas ainda apto.
   const amarelado = !indisponivel && (jogador.amarelosParaSuspensao ?? 0) > 0;
@@ -358,14 +339,6 @@ export default Squad;
 
 const styles = StyleSheet.create({
   headerAcoes: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
-  busca: {
-    borderRadius: raios.md,
-    borderWidth: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingHorizontal: espacamento[3],
-    paddingVertical: espacamento[2],
-  },
   chipsRow: {flexDirection: 'row', gap: espacamento[2], paddingRight: espacamento[4]},
   // Destaque
   destaque: {gap: espacamento[3]},

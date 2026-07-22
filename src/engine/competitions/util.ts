@@ -3,17 +3,8 @@
  * Math.random (o embaralhamento recebe o RNG semeado do chamador).
  */
 import type {Player} from '../../types';
-import {type RandomGenerator} from '../simulation/rng';
 
-/** Fisher-Yates determinístico (não muta o array original). */
-export function embaralhar<T>(itens: T[], rng: RandomGenerator): T[] {
-  const copia = [...itens];
-  for (let i = copia.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rng() * (i + 1));
-    [copia[i], copia[j]] = [copia[j], copia[i]];
-  }
-  return copia;
-}
+export {embaralhar} from '../simulation/rng';
 
 /** Letra do grupo por índice: 0→'A', 1→'B', … (até 'Z'). */
 export function letraGrupo(indice: number): string {

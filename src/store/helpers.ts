@@ -5,15 +5,18 @@
  * testáveis isoladamente. A store apenas as importa e orquestra.
  */
 import {LIMITE_DERROTAS_DEMISSAO} from '../engine/carreira/carreiraEngine';
-import {hashString, inteiroEntre, type RandomGenerator} from '../engine/simulation/rng';
+import {hashString} from '../engine/simulation/rng';
+import {instantaneoDoElenco} from '../engine/progression/instantaneoDesenvolvimento';
 import type {
   Clube,
+  InstantaneoDesenvolvimento,
   MotivoDemissao,
   Partida,
   Player,
   ResultadoCarreira,
   TabelaClassificacao,
 } from '../types';
+import {ORDEM_POSICOES} from '../types';
 import {adicionarDias} from '../utils/datas';
 
 /**
@@ -37,10 +40,7 @@ export function necessidadesPorPosicao(
     );
   }
   const necessidades: Partial<Record<Player['posicaoPrincipal'], number>> = {};
-  const posicoes: Player['posicaoPrincipal'][] = [
-    'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-  ];
-  for (const posicao of posicoes) {
+  for (const posicao of ORDEM_POSICOES) {
     necessidades[posicao] = Math.max(0, 2 - (contagem.get(posicao) ?? 0));
   }
   return necessidades;
@@ -102,26 +102,6 @@ export function posicaoClube(
   return index === -1 ? tabela.length : index + 1;
 }
 
-/**
- * Dias de afastamento por gravidade da lesão (7 dias ≈ 1 jogo/rodada).
- * Determinístico: usa o RNG derivado da partida (mesma partida => mesma lesão).
- */
-/**
- * Duração da lesão em DIAS REAIS de calendário (Onda 3: o pipeline diário
- * decrementa 1/dia e as rodadas distam 3-4 dias — antes a escala era "7 dias
- * = 1 rodada"). Faixas reescalonadas para preservar o impacto em JOGOS.
- */
-export function sortearDuracaoLesao(rng: RandomGenerator): number {
-  const r = rng();
-  if (r < 0.5) {
-    return inteiroEntre(rng, 4, 8); // leve: 1-2 jogos
-  }
-  if (r < 0.85) {
-    return inteiroEntre(rng, 10, 18); // média: 3-5 jogos
-  }
-  return inteiroEntre(rng, 21, 35); // grave: 6-10 jogos
-}
-
 export function limiteDerrotasPorDivisao(divisao: string): number {
   if (divisao === 'Série B') {
     return LIMITE_DERROTAS_DEMISSAO.B;
@@ -140,6 +120,20 @@ export function mensagemDemissao(motivo: MotivoDemissao): string {
     return 'A diretoria te demitiu após o rebaixamento.';
   }
   return 'A diretoria te demitiu após a sequência de derrotas.';
+}
+
+/**
+ * Ponto inicial da série de desenvolvimento: a média do elenco no começo (0 ou
+ * 1 instantâneo). Cada virada de temporada acrescenta mais um ponto real.
+ */
+export function instantaneoInicial(
+  jogadores: Player[],
+  clubeId: string,
+  data: string,
+  temporada: string,
+): InstantaneoDesenvolvimento[] {
+  const snap = instantaneoDoElenco(jogadores, clubeId, data, temporada);
+  return snap ? [snap] : [];
 }
 
 /** Resultado da rodada para o clube do usuário (null se não jogou). */

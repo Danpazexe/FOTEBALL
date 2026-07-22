@@ -50,4 +50,23 @@ describe('negociacaoEngine', () => {
       expect(resposta.contraPropostaValor ?? 0).toBeGreaterThan(0);
     }
   });
+
+  it('clube ENDIVIDADO aceita mais fácil (limiar de aceite cai 4 p.p.)', () => {
+    // 0.89× do mercado: clube saudável NÃO aceita (contraproposta)…
+    const saudavel = respostaIAProposta(
+      {...base, valorProposto: 890_000},
+      jogador,
+      clube,
+      criarRNGComSeed(1),
+    );
+    expect(saudavel).not.toBe('aceita');
+    // …mas o clube no vermelho (saldo < 0) aceita: 0.89 ≥ 0.92 − 0.04.
+    const endividado = respostaIAProposta(
+      {...base, valorProposto: 890_000},
+      jogador,
+      {...clube, financas: {...clube.financas, saldo: -500_000}},
+      criarRNGComSeed(1),
+    );
+    expect(endividado).toBe('aceita');
+  });
 });

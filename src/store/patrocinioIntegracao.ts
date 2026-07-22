@@ -11,10 +11,11 @@
 import type {Clube, Partida, TabelaClassificacao} from '../types';
 import type {EstadoPatrocinio} from '../types/patrocinio';
 
-import {registrarTransacao} from '../engine/finance/financeEngine';
+import {registrarTransacaoSePositiva} from '../engine/finance/financeEngine';
 import {nomePatrocinador} from '../engine/patrocinio/catalogo';
 import {
   atualizarMetasPatrocinio,
+  bonusVitoriaPatrocinio,
   gerarPropostasPatrocinio,
   pagarTemporadaPatrocinio,
   processarFimContratoPatrocinio,
@@ -124,10 +125,7 @@ export interface ResultadoPatrocinio {
 
 /** Credita um valor de patrocínio no clube (transação categoria 'patrocinio'). */
 function creditar(clube: Clube, valor: number, descricao: string, data: string): Clube {
-  if (valor <= 0) {
-    return clube;
-  }
-  return registrarTransacao(clube, {
+  return registrarTransacaoSePositiva(clube, {
     data,
     tipo: 'receita',
     categoria: 'patrocinio',
@@ -204,10 +202,12 @@ export function processarPatrocinioRodada(
 
   if (estado.contratoAtivo?.status === 'ATIVO') {
     const patrocinadorId = estado.contratoAtivo.patrocinadorId;
-    if (venceuNaRodada && estado.contratoAtivo.bonusPorVitoria > 0) {
+    // Accessor do engine encapsula "só paga com contrato ATIVO" (fonte única).
+    const bonusVitoria = bonusVitoriaPatrocinio(estado);
+    if (venceuNaRodada && bonusVitoria > 0) {
       clube = creditar(
         clube,
-        estado.contratoAtivo.bonusPorVitoria,
+        bonusVitoria,
         `Bônus por vitória — ${nomePatrocinador(patrocinadorId)}`,
         data,
       );

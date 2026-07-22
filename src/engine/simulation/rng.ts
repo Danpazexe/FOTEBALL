@@ -28,6 +28,20 @@ export function limitar(valor: number, minimo: number, maximo: number): number {
 }
 
 /**
+ * Fisher-Yates determinístico: devolve uma NOVA permutação de `itens` sem mutar
+ * a entrada. Consome exatamente `itens.length - 1` números do `rng`. Helper
+ * único do engine (competições, patrocínio, mercado IA e Copa).
+ */
+export function embaralhar<T>(itens: readonly T[], rng: RandomGenerator): T[] {
+  const copia = [...itens];
+  for (let i = copia.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(rng() * (i + 1));
+    [copia[i], copia[j]] = [copia[j], copia[i]];
+  }
+  return copia;
+}
+
+/**
  * Hash determinístico (FNV-1a 32 bits) de uma string para uso como seed.
  * Permite derivar um RNG estável a partir do `id` de uma partida, mantendo o
  * determinismo da pós-partida (mesma partida => mesmos sorteios de lesão).

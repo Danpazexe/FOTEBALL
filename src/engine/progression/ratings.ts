@@ -84,6 +84,7 @@ export function postoPercentual(ordenado: number[], valor: number): number {
   let baixo = 0;
   let alto = ordenado.length;
   while (baixo < alto) {
+    // eslint-disable-next-line no-bitwise -- divisão inteira da busca binária
     const meio = (baixo + alto) >> 1;
     if (ordenado[meio] <= valor) {
       baixo = meio + 1;

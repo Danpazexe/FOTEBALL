@@ -6,7 +6,7 @@
  * o jogo conhece (overall + potencial); nada é inventado.
  */
 import React, {useMemo, useState} from 'react';
-import {ScrollView, StyleSheet, TextInput, View} from 'react-native';
+import {ScrollView, StyleSheet, View} from 'react-native';
 
 import {
   AppBar,
@@ -23,13 +23,17 @@ import {
   SegmentedTabs,
   TeamCrest,
   Text,
+  TextField,
   espacamento,
-  raios,
   useTheme,
 } from '../../design-system';
 import PlayerAvatar from '../../components/PlayerAvatar';
 import {useToast} from '../../components/feedback';
-import {calcularFolhaSalarial} from '../../engine/finance/financeEngine';
+import {
+  calcularFolhaSalarial,
+  faixaPctFolha,
+  pctFolhaSobreReceita,
+} from '../../engine/finance/financeEngine';
 import {
   custoEmprestimo,
   ehEmprestado,
@@ -42,33 +46,21 @@ import {
   listarPaises,
   simboloMoeda,
 } from '../../engine/competitions/registry/competitionRegistry';
-import {moeda, moedaCompacta, nomeClube, siglaClube} from '../../utils/formatters';
-import type {Player, Position} from '../../types';
+import {
+  faixaOverall,
+  moeda,
+  moedaCompacta,
+  nomeClube,
+  nomeCurto,
+  siglaClube,
+} from '../../utils/formatters';
+import {normalizarTexto} from '../../utils/texto';
+import {ORDEM_POSICOES, type Player, type Position} from '../../types';
 
 const LIMITE = 30;
-const POSICOES: Array<Position | 'Todos'> = [
-  'Todos', 'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
-];
+const POSICOES: Array<Position | 'Todos'> = ['Todos', ...ORDEM_POSICOES];
 
 type Aba = 'disponiveis' | 'emprestar' | 'propostas';
-
-function nomeCurto(jogador: Player): string {
-  return jogador.apelido ?? jogador.nome;
-}
-
-function normalizar(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
-}
-
-/** Faixa overall→potencial (ambos conhecidos); só o número se não há margem. */
-function faixaOverall(jogador: Player): string {
-  return jogador.potencial > jogador.overall
-    ? `${jogador.overall}–${jogador.potencial}`
-    : `${jogador.overall}`;
-}
 
 function TransferMarket(): React.JSX.Element {
   const nav = useMercadoNavigation();
@@ -103,18 +95,17 @@ function TransferMarket(): React.JSX.Element {
     const receita = (clubeUsuario?.financas.historicoTransacoes ?? [])
       .filter(t => t.tipo === 'receita')
       .reduce((s, t) => s + Math.abs(t.valor), 0);
-    const pctFolha = receita > 0 ? Math.min(100, (folha / receita) * 100) : 0;
+    const pctFolha = pctFolhaSobreReceita(folha, receita);
     return {saldo, folha, pctFolha};
   }, [clubeUsuario, jogadores, clubeUsuarioId]);
 
-  const corFolha =
-    orcamento.pctFolha > 80
-      ? cores.danger
-      : orcamento.pctFolha > 60
-      ? cores.warning
-      : cores.brand;
+  const corFolha = {
+    critica: cores.danger,
+    atencao: cores.warning,
+    saudavel: cores.brand,
+  }[faixaPctFolha(orcamento.pctFolha)];
 
-  const alvoBusca = normalizar(busca.trim());
+  const alvoBusca = normalizarTexto(busca.trim());
 
   // Mercado UNIVERSAL: enxerga TODAS as ligas carregadas (não só a divisão
   // jogada). A liga ativa vence para o elenco do usuário (estado vivo).
@@ -162,7 +153,9 @@ function TransferMarket(): React.JSX.Element {
             filtroPais === 'Todos' ||
             paisPorClube.get(j.clubeId ?? '') === filtroPais,
         )
-        .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
+        .filter(
+          j => alvoBusca === '' || normalizarTexto(nomeCurto(j)).includes(alvoBusca),
+        )
         .sort((a, b) => b.overall - a.overall)
         .slice(0, LIMITE),
     [jogadoresMundo, clubeUsuarioId, filtro, filtroPais, paisPorClube, alvoBusca],
@@ -181,7 +174,9 @@ function TransferMarket(): React.JSX.Element {
             filtroPais === 'Todos' ||
             paisPorClube.get(j.clubeId ?? '') === filtroPais,
         )
-        .filter(j => alvoBusca === '' || normalizar(nomeCurto(j)).includes(alvoBusca))
+        .filter(
+          j => alvoBusca === '' || normalizarTexto(nomeCurto(j)).includes(alvoBusca),
+        )
         .sort((a, b) => a.idade - b.idade || b.overall - a.overall)
         .slice(0, LIMITE),
     [jogadoresMundo, clubeUsuarioId, filtro, filtroPais, paisPorClube, alvoBusca],
@@ -283,21 +278,12 @@ function TransferMarket(): React.JSX.Element {
       <SegmentedTabs abas={abas} ativa={aba} onSelect={c => setAba(c as Aba)} />
 
       {buscaAberta ? (
-        <TextInput
+        <TextField
           value={busca}
           onChangeText={setBusca}
           autoFocus
           placeholder="Buscar por nome"
-          placeholderTextColor={cores.textMuted}
           accessibilityLabel="Buscar por nome"
-          style={[
-            styles.busca,
-            {
-              backgroundColor: cores.surfaceSubtle,
-              borderColor: cores.border,
-              color: cores.textPrimary,
-            },
-          ]}
         />
       ) : null}
 
@@ -510,14 +496,6 @@ export default TransferMarket;
 const styles = StyleSheet.create({
   flex: {flex: 1},
   headerAcoes: {flexDirection: 'row', alignItems: 'center', gap: espacamento[1]},
-  busca: {
-    borderRadius: raios.md,
-    borderWidth: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    paddingHorizontal: espacamento[3],
-    paddingVertical: espacamento[2],
-  },
   orcamento: {gap: espacamento[3]},
   orcamentoLinha: {flexDirection: 'row', gap: espacamento[3]},
   filtros: {flexDirection: 'row', gap: espacamento[2], paddingRight: espacamento[4]},
@@ -534,25 +512,4 @@ const styles = StyleSheet.create({
   rowNums: {alignItems: 'flex-end', gap: 2},
   proposta: {flexDirection: 'row', alignItems: 'center', gap: espacamento[3]},
   propostaAcoes: {gap: espacamento[1]},
-  modalBackdrop: {flex: 1, justifyContent: 'flex-end'},
-  modalCard: {
-    borderTopLeftRadius: raios.xl,
-    borderTopRightRadius: raios.xl,
-    borderWidth: 1,
-    gap: espacamento[2],
-    padding: espacamento[5],
-  },
-  input: {
-    borderRadius: raios.sm,
-    borderWidth: 1,
-    fontSize: 16,
-    fontWeight: '700',
-    paddingHorizontal: espacamento[3],
-    paddingVertical: espacamento[2],
-  },
-  modalAcoes: {
-    flexDirection: 'row',
-    gap: espacamento[2],
-    marginTop: espacamento[2],
-  },
 });

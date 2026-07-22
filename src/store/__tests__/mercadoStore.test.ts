@@ -48,6 +48,59 @@ describe('mercado no store', () => {
     ).toBe(true);
   });
 
+  it('responderPropostaVenda aceita passa pela PORTA ÚNICA: caixa simétrico, formação reparada e histórico', () => {
+    const usuario = estado().clubes[7];
+    estado().iniciarNovaCarreira(usuario.id);
+    // Alvo: um TITULAR do usuário (para provar o reparo de formação na venda).
+    const titularId =
+      clubeDe(usuario.id).formacaoAtual!.titulares[10].jogadorId;
+    const comprador = estado().clubes.find(c => c.id !== usuario.id)!;
+    darCaixa(comprador.id); // comprador da IA com caixa para a porta validar
+    const valor = 5_000_000;
+    useGameStore.setState({
+      propostasRecebidas: [
+        {
+          id: 'oferta_teste',
+          jogadorId: titularId,
+          clubeOfertante: comprador.id,
+          valorProposto: valor,
+          status: 'pendente',
+          expiracaoRodada: estado().rodadaAtual + 2,
+        },
+      ],
+    });
+    const saldoUsuarioAntes = clubeDe(usuario.id).financas.saldo;
+    const saldoCompradorAntes = clubeDe(comprador.id).financas.saldo;
+    const historicoAntes = estado().transferHistory.length;
+
+    estado().responderPropostaVenda('oferta_teste', true);
+
+    // Conservação de dinheiro: usuário recebe EXATAMENTE o que o comprador paga.
+    expect(clubeDe(usuario.id).financas.saldo).toBe(saldoUsuarioAntes + valor);
+    expect(clubeDe(comprador.id).financas.saldo).toBe(
+      saldoCompradorAntes - valor,
+    );
+    // Posse: o jogador agora é do comprador (liga ativa e mundo mestre).
+    expect(estado().jogadores.find(j => j.id === titularId)?.clubeId).toBe(
+      comprador.id,
+    );
+    expect(
+      estado().todosJogadores.find(j => j.id === titularId)?.clubeId,
+    ).toBe(comprador.id);
+    // Formação REPARADA: o vendido saiu do XI e o time segue com 11 titulares.
+    const titulares = clubeDe(usuario.id).formacaoAtual!.titulares;
+    expect(titulares.some(t => t.jogadorId === titularId)).toBe(false);
+    expect(titulares).toHaveLength(11);
+    // Registro no histórico de transferências (porta única, não caixa manual).
+    expect(estado().transferHistory.length).toBe(historicoAntes + 1);
+    const registro = estado().transferHistory.at(-1)!;
+    expect(registro.playerId).toBe(titularId);
+    expect(registro.fee).toBe(valor);
+    expect(registro.source).toBe('ai');
+    // Inbox limpo.
+    expect(estado().propostasRecebidas).toHaveLength(0);
+  });
+
   it('fazerPropostaCompra sem saldo é recusada e não move nada', () => {
     const usuario = estado().clubes[7];
     estado().iniciarNovaCarreira(usuario.id);

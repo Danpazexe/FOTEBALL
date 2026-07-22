@@ -9,6 +9,7 @@ const VAZIO: EntradaPendencias = {
   indisponiveis: 0,
   propostas: 0,
   jovens: 0,
+  contratosVencendo: 0,
   saldoNegativo: false,
   saldoTexto: '',
   metaForaDoRumo: false,
@@ -41,23 +42,36 @@ describe('derivarPendencias', () => {
       indisponiveis: 1,
       propostas: 2,
       jovens: 1,
+      contratosVencendo: 2,
       saldoNegativo: true,
       saldoTexto: '-R$ 2,0 mi',
       metaForaDoRumo: true,
     });
     // Ordem: indisponiveis(danger), saldo(danger), propostas(warning),
-    // meta(warning), jovens(info).
+    // meta(warning), contratos(warning), jovens(info).
     expect(lista.map(p => p.id)).toEqual([
       'indisponiveis',
       'saldo',
       'propostas',
       'meta',
+      'contratos',
       'jovens',
     ]);
     expect(lista[0].titulo).toBe('1 jogador indisponível');
     expect(lista[0].tom).toBe('danger');
     expect(lista[2].titulo).toBe('2 propostas recebidas');
-    expect(lista[4].titulo).toBe('1 jovem para avaliar');
+    expect(lista[4].titulo).toBe('2 contratos vencem nesta temporada');
+    expect(lista[5].titulo).toBe('1 jovem para avaliar');
+  });
+
+  it('contratos vencendo geram pendência de atenção rumo à tela Contratos', () => {
+    const [unico] = derivarPendencias({...VAZIO, contratosVencendo: 1});
+    expect(unico.id).toBe('contratos');
+    expect(unico.titulo).toBe('1 contrato vence nesta temporada');
+    expect(unico.tom).toBe('warning');
+    expect(unico.destino).toBe('contratos');
+
+    expect(derivarPendencias(VAZIO)).toEqual([]);
   });
 
   it('cada pendência aponta para o destino correto', () => {

@@ -1,0 +1,27 @@
+# Dependabot — mantém os pins por SHA das GitHub Actions atualizados e os
+# security updates do npm ativos, sem spam de PR de versão.
+version: 2
+updates:
+  # Actions dos workflows: PR semanal, agrupado num único PR.
+  # O Dependabot entende pin por SHA + comentário `# vX.Y.Z` e atualiza os dois.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # npm: SOMENTE segurança. `open-pull-requests-limit: 0` desativa os PRs de
+  # atualização de versão (não existe modo "security-only" declarativo), mas os
+  # Dependabot security updates continuam ativos e abrem PR quando houver CVE.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "fix(deps)"

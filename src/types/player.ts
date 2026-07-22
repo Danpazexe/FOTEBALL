@@ -11,6 +11,14 @@ export type Position =
   | 'SA'
   | 'CA';
 
+/**
+ * Ordem canônica das posições (gol → ataque) — fonte única para filtros,
+ * ordenação de elenco e sorteios por posição. Espelha a união `Position`.
+ */
+export const ORDEM_POSICOES: Position[] = [
+  'GOL', 'ZAG', 'LD', 'LE', 'VOL', 'MC', 'MEI', 'PD', 'PE', 'SA', 'CA',
+];
+
 export type PernaDominante = 'D' | 'E' | 'Ambidestro';
 
 export interface PlayerAttributes {
@@ -115,6 +123,12 @@ export interface Player {
    * compatibilidade com saves antigos (undefined = sem foco).
    */
   focoTreino?: AtributoChave;
+  /**
+   * Plano de desenvolvimento por FUNÇÃO (Camada 3): id de `PLANOS_FUNCAO`. Quando
+   * definido, o treino individual desenvolve o CONJUNTO de atributos do papel (tem
+   * prioridade sobre `focoTreino`). Opcional (undefined = sem plano).
+   */
+  planoDesenvolvimento?: string;
   overall: number;
   potencial: number;
   condicaoFisica: number;

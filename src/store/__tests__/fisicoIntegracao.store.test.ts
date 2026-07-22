@@ -92,7 +92,7 @@ describe('engine física no store (Onda 5)', () => {
     expect(estado().descansarElencoUsuario()).toBe(0);
   });
 
-  it('prontidão e fadiga são consultáveis para o elenco (Departamento/Performance)', () => {
+  it('prontidão e fadiga são consultáveis para o elenco (Departamento Médico)', () => {
     const usuario = estado().clubes[3];
     estado().iniciarNovaCarreira(usuario.id);
     const jogador = estado().jogadores.find(j => j.clubeId === usuario.id)!;

@@ -25,6 +25,7 @@ import {
 } from './causal/momentumEngine';
 import {disputarPosseMinutoCausal} from './causal/posseEngine';
 import {escolherJogadorPonderado, pesoGolPosicao} from './causal/selecaoJogadores';
+import {balizaDoPenalti} from './geometriaCampo';
 import {
   calcularMando,
   calcularProbabilidades,
@@ -44,6 +45,7 @@ import {
   limitar,
   type RandomGenerator,
 } from './rng';
+import {simularDisputaPenaltis} from './penaltis';
 import {processarSubstituicoesIA} from './substituicoesIA';
 import {calcularForcaTime, type ForcaTime} from './teamStrength';
 
@@ -75,6 +77,8 @@ function mediaOverall(jogadores: Player[]): number {
  * Disputa de pênaltis determinística (usa o RNG semeado da partida). Cinco
  * cobranças para cada lado e, persistindo o empate, morte súbita. A habilidade
  * dá uma leve vantagem na conversão. Retorna o id do clube vencedor.
+ * Delegada a `simularDisputaPenaltis` (fonte única da regra — mesma sequência
+ * de RNG), que também devolve a disputa cobrança a cobrança quando necessário.
  */
 export function disputarPenaltis(
   rng: RandomGenerator,
@@ -83,34 +87,13 @@ export function disputarPenaltis(
   casaId: string,
   foraId: string,
 ): string {
-  const probDe = (hab: number) => limitar(0.55 + hab / 300, 0.6, 0.85);
-  const probCasa = probDe(habilidadeCasa);
-  const probFora = probDe(habilidadeFora);
-  let golsCasa = 0;
-  let golsFora = 0;
-  for (let i = 0; i < 5; i += 1) {
-    if (rng() < probCasa) {
-      golsCasa += 1;
-    }
-    if (rng() < probFora) {
-      golsFora += 1;
-    }
-  }
-  // Morte súbita: rodadas extras até alguém abrir vantagem na mesma rodada.
-  while (golsCasa === golsFora) {
-    const fezCasa = rng() < probCasa;
-    const fezFora = rng() < probFora;
-    if (fezCasa) {
-      golsCasa += 1;
-    }
-    if (fezFora) {
-      golsFora += 1;
-    }
-    if (fezCasa !== fezFora) {
-      break;
-    }
-  }
-  return golsCasa > golsFora ? casaId : foraId;
+  return simularDisputaPenaltis(
+    rng,
+    habilidadeCasa,
+    habilidadeFora,
+    casaId,
+    foraId,
+  ).vencedor;
 }
 
 function criarEvento(
@@ -129,6 +112,18 @@ function criarEvento(
   };
 }
 
+/**
+ * Peso do FALTOSO: defensores (zaga/laterais/volante) que desarmam muito tendem
+ * a cometer a falta/levar o cartão. Fonte única — usada no cartão de jogo e na
+ * falta que origina o pênalti.
+ */
+function pesoFaltosoDefensivo(atleta: Player): number {
+  const base = ['ZAG', 'LD', 'LE', 'VOL'].includes(atleta.posicaoPrincipal)
+    ? 2
+    : 1;
+  return base * (0.6 + atleta.atributos.desarme / 100);
+}
+
 function simularCartao(
   minuto: number,
   clube: Clube,
@@ -141,11 +136,8 @@ function simularCartao(
   // amarelo joga com cautela (pisa no freio) → bem menos propenso a um 2º → mantém
   // os vermelhos raros mesmo com muitos amarelos (2º amarelo era ~toda expulsão).
   const jogador = escolherJogadorPonderado(jogadores, rng, atleta => {
-    const base = ['ZAG', 'LD', 'LE', 'VOL'].includes(atleta.posicaoPrincipal)
-      ? 2
-      : 1;
     const cautela = (amarelosPartida.get(atleta.id) ?? 0) >= 1 ? 0.3 : 1;
-    return base * (0.6 + atleta.atributos.desarme / 100) * cautela;
+    return pesoFaltosoDefensivo(atleta) * cautela;
   });
 
   const jaTinhaAmarelo = (amarelosPartida.get(jogador.id) ?? 0) >= 1;
@@ -269,12 +261,11 @@ function simularFaltaDoPenalti(
   rng: RandomGenerator,
   amarelosPartida: Map<string, number>,
 ): {ofensor: Player; eventoCartao?: EventoPartida} {
-  const ofensor = escolherJogadorPonderado(jogadoresInfratores, rng, atleta => {
-    const base = ['ZAG', 'LD', 'LE', 'VOL'].includes(atleta.posicaoPrincipal)
-      ? 2
-      : 1;
-    return base * (0.6 + atleta.atributos.desarme / 100);
-  });
+  const ofensor = escolherJogadorPonderado(
+    jogadoresInfratores,
+    rng,
+    pesoFaltosoDefensivo,
+  );
 
   const sorteio = rng();
   if (sorteio >= 0.45) {
@@ -755,21 +746,6 @@ function eventosDosChutes(
 }
 
 /** Baliza do pênalti a partir da direção/altura REAIS da cobrança. */
-function balizaDoPenalti(penaltiData: {
-  direcaoChute: 'E' | 'C' | 'D';
-  alturaChute: 'A' | 'B';
-}): {golX: number; golY: number} {
-  return {
-    golX:
-      penaltiData.direcaoChute === 'E'
-        ? 0.24
-        : penaltiData.direcaoChute === 'D'
-          ? 0.76
-          : 0.5,
-    golY: penaltiData.alturaChute === 'A' ? 0.68 : 0.24,
-  };
-}
-
 export function simularMinuto(
   estado: EstadoPartidaAoVivo,
   ctx: ContextoMinuto,
@@ -820,6 +796,44 @@ export function simularMinuto(
   const proximoSequencial = () => {
     estado.contadorChutes += 1;
     return estado.contadorChutes;
+  };
+
+  // Converte a cobrança RESOLVIDA num chute do ledger + crédito de gol + evento
+  // (dedup entre o pênalti de VAR e o de lance). NÃO consome RNG — a extração
+  // não altera a ordem dos sorteios.
+  const registrarCobrancaPenalti = (
+    penalti: {evento: EventoPartida; gol: boolean; batedor: Player},
+    ehCasa: boolean,
+    timeId: string,
+    goleiroId: string | undefined,
+  ) => {
+    const dados = penalti.evento.penaltiData;
+    const defendido =
+      dados !== undefined &&
+      !dados.convertido &&
+      dados.direcaoGoleiro === dados.direcaoChute;
+    const baliza = dados ? balizaDoPenalti(dados) : {golX: 0.5, golY: 0.4};
+    const chute = criarChutePenalti({
+      minuto,
+      timeId,
+      batedor: penalti.batedor,
+      goleiroId,
+      convertido: penalti.gol,
+      defendido,
+      sequencial: proximoSequencial(),
+      golX: baliza.golX,
+      golY: baliza.golY,
+    });
+    registrarChute(chute, ehCasa);
+    penalti.evento.chuteId = chute.id;
+    if (penalti.gol) {
+      if (ehCasa) {
+        estado.placarCasa += 1;
+      } else {
+        estado.placarFora += 1;
+      }
+    }
+    adicionar(penalti.evento);
   };
 
   // ETAPA 2 — CHANCES → CHUTES → RESOLUÇÃO (o gol SÓ nasce aqui).
@@ -901,34 +915,7 @@ export function simularMinuto(
     }
     penalti.evento.descricao = `VAR flagra pênalti! ${penalti.evento.descricao}`;
     penalti.evento.varFlagra = true;
-
-    const dados = penalti.evento.penaltiData;
-    const defendido =
-      dados !== undefined && !dados.convertido && dados.direcaoGoleiro === dados.direcaoChute;
-    const baliza = dados ? balizaDoPenalti(dados) : {golX: 0.5, golY: 0.4};
-    const chute = criarChutePenalti({
-      minuto,
-      timeId: clube.id,
-      batedor: penalti.batedor,
-      goleiroId: goleiroAdv?.id,
-      convertido: penalti.gol,
-      defendido,
-      sequencial: proximoSequencial(),
-      golX: baliza.golX,
-      golY: baliza.golY,
-    });
-    registrarChute(chute, ehCasa);
-    penalti.evento.chuteId = chute.id;
-    if (ehCasa) {
-      if (penalti.gol) {
-        estado.placarCasa += 1;
-      }
-    } else {
-      if (penalti.gol) {
-        estado.placarFora += 1;
-      }
-    }
-    adicionar(penalti.evento);
+    registrarCobrancaPenalti(penalti, ehCasa, clube.id, goleiroAdv?.id);
   };
   processarVarPenalti(chancesCasa, true);
   processarVarPenalti(chancesFora, false);
@@ -997,34 +984,7 @@ export function simularMinuto(
     const goleiroAdv = ehCasa ? ctx.goleiroFora : ctx.goleiroCasa;
     const penalti = simularPenalti(minuto, clubeAtaque, emCampoAtaque, goleiroAdv, rng);
     penalti.evento.jogadorFaltaId = falta.ofensor.id;
-
-    const dados = penalti.evento.penaltiData;
-    const defendido =
-      dados !== undefined && !dados.convertido && dados.direcaoGoleiro === dados.direcaoChute;
-    const baliza = dados ? balizaDoPenalti(dados) : {golX: 0.5, golY: 0.4};
-    const chute = criarChutePenalti({
-      minuto,
-      timeId: clubeAtaque.id,
-      batedor: penalti.batedor,
-      goleiroId: goleiroAdv?.id,
-      convertido: penalti.gol,
-      defendido,
-      sequencial: proximoSequencial(),
-      golX: baliza.golX,
-      golY: baliza.golY,
-    });
-    registrarChute(chute, ehCasa);
-    penalti.evento.chuteId = chute.id;
-    if (ehCasa) {
-      if (penalti.gol) {
-        estado.placarCasa += 1;
-      }
-    } else {
-      if (penalti.gol) {
-        estado.placarFora += 1;
-      }
-    }
-    adicionar(penalti.evento);
+    registrarCobrancaPenalti(penalti, ehCasa, clubeAtaque.id, goleiroAdv?.id);
   };
   processarPenaltiLance(true);
   processarPenaltiLance(false);

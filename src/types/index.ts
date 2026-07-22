@@ -10,6 +10,7 @@ export type {
   ProgressoAtributos,
   TipoJogador,
 } from './player';
+export {ORDEM_POSICOES} from './player';
 export type {
   Clube,
   DespesaDetalhada,
@@ -18,7 +19,6 @@ export type {
   Formacao,
   FormacaoPreset,
   FormacaoTipo,
-  Patrocinio,
   ReceitaDetalhada,
   Tatica,
   TitularFormacao,
@@ -40,12 +40,7 @@ export type {
   VersaoEnginePartida,
 } from './match';
 export {ehEventoGol} from './match';
-export type {
-  Competicao,
-  Confronto,
-  PremiacaoCompeticao,
-  TabelaClassificacao,
-} from './competition';
+export type {TabelaClassificacao} from './competition';
 export type {Federacao, Regiao} from './federacao';
 export type {
   EstadoFinanceiro,
@@ -64,8 +59,15 @@ export type {
 export type {
   DisciplinaPorCompeticao,
   DisponibilidadeJogador,
+  RegraDisciplina,
 } from './disciplina';
-export {COMPETICAO_LEGADO, LIMIAR_AMARELOS_SUSPENSAO} from './disciplina';
+export {
+  COMPETICAO_LEGADO,
+  LIMIAR_AMARELOS_SUSPENSAO,
+  REGRAS_DISCIPLINA,
+  REGRA_DISCIPLINA_PADRAO,
+  regraDisciplina,
+} from './disciplina';
 export type {
   IntensidadeTreino,
   PlanoTreino,
