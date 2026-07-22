@@ -15,8 +15,33 @@ import {CONDICAO_MAX, CONDICAO_MIN} from './treinoTipos';
 export const DELTA_CONDICAO_TITULAR = -11;
 /** Reserva que entrou em campo: queda leve. */
 export const DELTA_CONDICAO_RESERVA = -2;
-/** Ficou de fora (banco sem entrar / não relacionado): recupera. */
-export const DELTA_CONDICAO_FORA = 25;
+/**
+ * Ficou de fora (banco sem entrar / não relacionado): salto pós-rodada.
+ *
+ * REBALANCEADO junto com a recuperação DIÁRIA (`RECUPERACAO_CONDICAO_DIA`):
+ * antes toda a recuperação era um salto único de +25 no pós-jogo; agora ela é
+ * distribuída pelos dias. A conta (rodadas distam 3-4 dias no
+ * calendarGenerator): +2/dia × 3-4 dias = +6..+8 de drift, + salto de +12
+ * = +18..+20 por rodada — soma semanal próxima da antiga (+25), mas sentida
+ * dia a dia em vez de teleportada no apito final.
+ */
+export const DELTA_CONDICAO_FORA = 12;
+
+/**
+ * Recuperação DIÁRIA de condição (aplicada pelo pipeline diário do calendário
+ * a TODO jogador NÃO lesionado, de todos os clubes — simétrico usuário/IA).
+ * Determinística, sem RNG; ver a conta do rebalanceamento em
+ * `DELTA_CONDICAO_FORA`.
+ */
+export const RECUPERACAO_CONDICAO_DIA = 2;
+
+/**
+ * Aplica a recuperação de UM dia de calendário, capada no teto. Quem decide
+ * se o jogador recupera (não lesionado) é o chamador — o pipeline diário.
+ */
+export function recuperarCondicaoDia(condicaoAtual: number): number {
+  return Math.min(CONDICAO_MAX, condicaoAtual + RECUPERACAO_CONDICAO_DIA);
+}
 
 export interface ParticipacaoPartida {
   /** Começou jogando (estava em campo no apito inicial). */

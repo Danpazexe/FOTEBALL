@@ -8,9 +8,12 @@
  * recebem RNG por parâmetro).
  *
  * Passos por dia (P0 desta onda):
- *   1. lesões: `diasLesao` anda em DIAS REAIS de calendário (fim da escala
+ *   1. físico: carga aguda dissipa e ritmo decai (`recuperarDiaFisico`) e a
+ *      CONDIÇÃO recupera por dia para quem NÃO está lesionado
+ *      (`recuperarCondicaoDia` — drift diário, simétrico usuário/IA);
+ *   2. lesões: `diasLesao` anda em DIAS REAIS de calendário (fim da escala
  *      dupla "7 dias = 1 rodada" apontada pela auditoria);
- *   2. pendências: recuperações concluídas viram pendência informativa de
+ *   3. pendências: recuperações concluídas viram pendência informativa de
  *      retorno (Central de Pendências).
  * Treino recorrente (Onda 4) e recuperação fisiológica (Onda 5) entram aqui
  * como novos passos — a ordem é o contrato.
@@ -20,6 +23,7 @@ import {
   aoRetornarDeLesao,
   recuperarDiaFisico,
 } from '../physical/fisicoEngine';
+import {recuperarCondicaoDia} from '../progression/condicao';
 import {adicionarDias, diferencaEmDias} from '../../utils/datas';
 
 export interface ResultadoDia {
@@ -44,9 +48,22 @@ export function processarDia(
   const atualizados = jogadores.map(jogador => {
     // Recuperação física do dia (carga aguda dissipa, ritmo cai devagar) —
     // vale para TODO jogador, todo dia (auditoria: recuperação por dia real).
-    const comFisico = jogador.fisico
+    let comFisico = jogador.fisico
       ? {...jogador, fisico: recuperarDiaFisico(jogador.fisico)}
       : jogador;
+
+    // Drift diário de CONDIÇÃO: quem NÃO está lesionado recupera um pouco por
+    // dia real (todos os clubes, determinístico). Lesionado não recupera —
+    // quem cuida do retorno é `aoRetornarDeLesao` (volta com condição parcial).
+    if (!jogador.lesionado) {
+      const condicaoFisica = recuperarCondicaoDia(jogador.condicaoFisica);
+      if (condicaoFisica !== jogador.condicaoFisica) {
+        comFisico =
+          comFisico === jogador
+            ? {...jogador, condicaoFisica}
+            : {...comFisico, condicaoFisica};
+      }
+    }
 
     if (!comFisico.lesionado || comFisico.diasLesao <= 0) {
       return comFisico;
