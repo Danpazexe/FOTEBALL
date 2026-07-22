@@ -1,18 +1,18 @@
 /**
- * Raios de canto (briefing §7.2). PURO. Mais fechado que o tema antigo — em
- * listas densas nem tudo precisa parecer sabonete.
+ * Raios de canto — cartaz de arquibancada (v3): cantos QUASE RETOS. O cartaz é
+ * papel cortado, não sabonete; a curva existe só para não serrilhar. PURO.
  */
 export const raios = {
   /** Badge pequeno. */
-  xs: 6,
+  xs: 2,
   /** Chip, item compacto. */
-  sm: 8,
+  sm: 3,
   /** Input, botão, card padrão. */
-  md: 12,
+  md: 5,
   /** Card de destaque e sheet. */
-  lg: 16,
+  lg: 8,
   /** Hero ou modal especial. */
-  xl: 24,
+  xl: 12,
   /** Pill / avatar. */
   full: 999,
 } as const;

@@ -19,7 +19,11 @@ import {
   aplicarEfeitoTreino,
 } from '../engine/progression/treinoAtributos';
 import {aplicarDisciplinaPartida} from '../engine/disciplina';
-import {desenvolverFoco} from '../engine/progression/treinoIndividual';
+import {
+  desenvolverFoco,
+  planosParaGrupo,
+  sugerirPlanosElenco,
+} from '../engine/progression/treinoIndividual';
 import {
   buscarTreino,
   INTENSIDADES,
@@ -70,6 +74,10 @@ import {
   inteiroEntre,
 } from '../engine/simulation/rng';
 import {mesmaTatica} from '../engine/tactics/estrategias';
+import {
+  grupoDaPosicao,
+  type GrupoPosicao,
+} from '../engine/tactics/posicoes';
 import {validarFormacao} from '../engine/tactics/formationValidation';
 import {removerJogadorDaFormacao} from '../engine/tactics/formacaoOps';
 import {
@@ -406,6 +414,19 @@ export interface GameState {
   definirFocoTreino: (jogadorId: string, foco: AtributoChave | null) => void;
   /** Define (ou limpa, com null) o PLANO por função (Camada 3) de um jogador. */
   definirPlanoDesenvolvimento: (jogadorId: string, planoId: string | null) => void;
+  /**
+   * TREINO COLETIVO por grupo: aplica um plano de função (ou limpa, com null)
+   * a TODOS os jogadores do grupo posicional no elenco do usuário — mesmo
+   * efeito por jogador do fluxo individual (ativar plano limpa o foco único).
+   * Plano de outro grupo é recusado (no-op). Retorna quantos foram afetados.
+   */
+  definirPlanoDoGrupo: (grupo: GrupoPosicao, planoId: string | null) => number;
+  /**
+   * SUGESTÃO DO STAFF (1 toque): aplica ao elenco inteiro o plano ideal por
+   * jogador (`sugerirPlanosElenco`) — só quem tem margem de potencial recebe;
+   * os demais ficam intocados. Retorna quantos receberam plano.
+   */
+  aplicarPlanosSugeridos: () => number;
   /** Recomendação do staff para o plano de treino (mockup) — não muta o estado. */
   recomendarPlanoTreino: () => RecomendacaoTreino | null;
   /** Ativa um plano de treino recorrente do usuário (resolve a pendência). */
@@ -489,6 +510,18 @@ function montarContextoAssistente(state: GameState): ContextoAssistente {
 }
 
 /** Pendência-padrão de carreira sem plano de treino configurado (mockup). */
+/**
+ * Aplica (ou limpa) um plano de função a UM jogador com o mesmo efeito do
+ * fluxo individual do PlayerDetail: ativar um plano limpa o foco de atributo
+ * único (um condutor de desenvolvimento por vez); limpar o plano não mexe no
+ * foco. Base do treino coletivo (grupo e sugestão do staff).
+ */
+function comPlanoDeFuncao(jogador: Player, planoId: string | null): Player {
+  return planoId
+    ? {...jogador, planoDesenvolvimento: planoId, focoTreino: undefined}
+    : {...jogador, planoDesenvolvimento: undefined};
+}
+
 function pendenciaPlanoTreino(data: string): PendenciaCarreira {
   return {
     id: 'pend_plano_treino',
@@ -1634,6 +1667,53 @@ export const useGameStore = create<GameState>((set, get) => ({
           : jogador,
       ),
     }));
+  },
+
+  definirPlanoDoGrupo: (grupo, planoId) => {
+    const {clubeUsuarioId} = get();
+    if (!clubeUsuarioId) {
+      return 0;
+    }
+    // Mesma oferta da UI individual: o plano precisa valer para o grupo.
+    if (planoId && !planosParaGrupo(grupo).some(p => p.id === planoId)) {
+      return 0;
+    }
+    let afetados = 0;
+    const jogadores = get().jogadores.map(jogador => {
+      if (
+        jogador.clubeId !== clubeUsuarioId ||
+        grupoDaPosicao(jogador.posicaoPrincipal) !== grupo
+      ) {
+        return jogador;
+      }
+      afetados += 1;
+      return comPlanoDeFuncao(jogador, planoId);
+    });
+    if (afetados > 0) {
+      set({jogadores});
+    }
+    return afetados;
+  },
+
+  aplicarPlanosSugeridos: () => {
+    const state = get();
+    if (!state.clubeUsuarioId) {
+      return 0;
+    }
+    const elenco = state.jogadores.filter(
+      j => j.clubeId === state.clubeUsuarioId,
+    );
+    const sugestoes = sugerirPlanosElenco(elenco);
+    if (sugestoes.size === 0) {
+      return 0;
+    }
+    set(atual => ({
+      jogadores: atual.jogadores.map(jogador => {
+        const planoId = sugestoes.get(jogador.id);
+        return planoId ? comPlanoDeFuncao(jogador, planoId) : jogador;
+      }),
+    }));
+    return sugestoes.size;
   },
 
   recomendarPlanoTreino: () => {

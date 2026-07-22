@@ -8,7 +8,7 @@
  */
 
 import type {AtributoChave, Player} from '../../types';
-import type {GrupoPosicao} from '../tactics/posicoes';
+import {grupoDaPosicao, type GrupoPosicao} from '../tactics/posicoes';
 import {calcularOverall} from './overall';
 
 export type AtributoFoco = AtributoChave;
@@ -66,6 +66,51 @@ export function planosParaGrupo(grupo: GrupoPosicao): PlanoFuncao[] {
 
 export function planoFuncaoPorId(id: string): PlanoFuncao | undefined {
   return PLANOS_FUNCAO.find(p => p.id === id);
+}
+
+/**
+ * Afinidade do jogador com um plano: média dos atributos ATUAIS do conjunto.
+ * Mede o quanto o jogador já executa esse papel hoje.
+ */
+function afinidadeComPlano(jogador: Player, plano: PlanoFuncao): number {
+  const soma = plano.atributos.reduce(
+    (total, chave) => total + jogador.atributos[chave],
+    0,
+  );
+  return soma / plano.atributos.length;
+}
+
+/**
+ * SUGESTÃO DO STAFF (1 toque): mapeia jogadorId → planoId ideal para o elenco.
+ * Heurística de SELEÇÃO pura (não altera o cálculo de ganho do treino):
+ * - só sugere para quem tem MARGEM de potencial (overall < potencial) — sem
+ *   margem, o treino individual não rende (ver `desenvolverFoco`);
+ * - entre os planos do grupo posicional (`planosParaGrupo`), escolhe o de maior
+ *   afinidade — o papel que o jogador melhor executa hoje;
+ * - empate mantém a ordem de `PLANOS_FUNCAO` (determinístico).
+ */
+export function sugerirPlanosElenco(
+  jogadores: ReadonlyArray<Player>,
+): Map<string, string> {
+  const sugestoes = new Map<string, string>();
+  for (const jogador of jogadores) {
+    if (jogador.overall >= jogador.potencial) {
+      continue;
+    }
+    const candidatos = planosParaGrupo(
+      grupoDaPosicao(jogador.posicaoPrincipal),
+    );
+    if (candidatos.length === 0) {
+      continue;
+    }
+    const ideal = candidatos.reduce((melhor, plano) =>
+      afinidadeComPlano(jogador, plano) > afinidadeComPlano(jogador, melhor)
+        ? plano
+        : melhor,
+    );
+    sugestoes.set(jogador.id, ideal.id);
+  }
+  return sugestoes;
 }
 
 /** Atributos treináveis + rótulo pt-BR para a UI. */

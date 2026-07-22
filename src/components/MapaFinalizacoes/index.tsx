@@ -581,7 +581,8 @@ const criarEstilos = (t: TemaDS) =>
       width: 34,
     },
     avatarTexto: {
-      color: t.cores.brand,
+      // Iniciais pequenas: no claro o brand puro fica ~3:1 sobre o brandSoft.
+      color: t.esquema === 'claro' ? t.cores.brandStrong : t.cores.brand,
       fontSize: 12,
       fontWeight: '900',
     },
@@ -596,7 +597,9 @@ const criarEstilos = (t: TemaDS) =>
       fontWeight: '600',
     },
     painelMinuto: {
-      backgroundColor: t.cores.brand,
+      // Texto pequeno sobre preenchimento de ação: brandStrong garante AA
+      // (branco sobre o verde-bandeira puro fica 3.6:1 no claro).
+      backgroundColor: t.cores.brandStrong,
       borderRadius: raios.sm,
       paddingHorizontal: espacamento[2],
       paddingVertical: 3,

@@ -21,9 +21,11 @@ type Props = {
   solido?: boolean;
 };
 
+// `brand` usa brandStrong: é o verde-bandeira com contraste de TEXTO (AA)
+// sobre papel/soft; o verde puro (#009C3B) fica para preenchimentos e ícones.
 const COR_TOM: Record<Tom, CorTexto> = {
   neutral: 'textSecondary',
-  brand: 'brand',
+  brand: 'brandStrong',
   accent: 'accent',
   info: 'info',
   success: 'success',
@@ -60,6 +62,9 @@ export function Badge({
   };
   const texto =
     count !== undefined ? (count > 99 ? '99+' : String(count)) : label ?? '';
+  // Sólido amarelo (accent) pede tinta por cima nos DOIS temas; `scoreboard`
+  // é o token sempre-tinta da paleta cartaz (onBrand claro é branco).
+  const corSolido: CorTexto = tom === 'accent' ? 'scoreboard' : 'onBrand';
 
   return (
     <View
@@ -69,7 +74,7 @@ export function Badge({
       ]}>
       <Text
         variant="labelM"
-        color={solido ? 'onBrand' : corTom}
+        color={solido ? corSolido : corTom}
         tabular={count !== undefined}>
         {texto}
       </Text>

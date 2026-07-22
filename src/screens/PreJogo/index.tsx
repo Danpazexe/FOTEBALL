@@ -34,6 +34,7 @@ import {
   type CorTexto,
 } from '../../design-system';
 import {taticaProvavelIA} from '../../engine/tactics/preview';
+import {sugerirRodizio} from '../../engine/tactics/rodizio';
 import {validarFormacao} from '../../engine/tactics/formationValidation';
 import {useToast} from '../../components/feedback';
 import {useAppNavigation} from '../../navigation/types';
@@ -44,6 +45,7 @@ import {
   useJogadoresUsuario,
 } from '../../store/useGameStore';
 import {forcaDoClube} from '../../utils/forca';
+import {nomeCompeticao} from '../../utils/formatters';
 import type {Partida, Player} from '../../types';
 
 // ─── Derivações puras (só partidas/elenco, nunca inventadas) ─────────────────
@@ -332,6 +334,20 @@ function PreJogo(): React.JSX.Element {
 
   const formacao = clubeUsuario?.formacaoAtual ?? null;
 
+  // RODÍZIO SUGERIDO — o staff físico aponta titulares em risco de lesão ou
+  // cansados (derivações reais da engine física) e a melhor opção do banco.
+  // Só leitura: a troca NUNCA é aplicada daqui — o CTA leva ao editor.
+  const sugestoesRodizio = useMemo(() => {
+    if (!formacao) {
+      return [];
+    }
+    return sugerirRodizio(
+      formacao.titulares,
+      formacao.reservas,
+      jogadoresUsuario,
+    ).slice(0, 3);
+  }, [formacao, jogadoresUsuario]);
+
   // Avisos da escalação para ESTA partida. Erros (inclusive titular/reserva
   // inelegível NA competição do jogo) viram 'danger' e BLOQUEIAM o início
   // (podeJogar). Avisos (improviso, condição baixa) só alertam.
@@ -380,6 +396,12 @@ function PreJogo(): React.JSX.Element {
   const adversario = mandoCasa ? confronto.fora : confronto.casa;
   const chave = jogadorChave(adversario.id, jogadores);
 
+  // Nome curto para as linhas do rodízio (ids vêm da formação do usuário).
+  const nomeJogador = (id: string): string => {
+    const j = jogadoresUsuario.find(x => x.id === id);
+    return j ? j.apelido ?? j.nome : '';
+  };
+
   // Favoritismo pela força + bônus de mando, na perspectiva do usuário.
   const forcaMinha = mandoCasa
     ? confronto.forcaCasa.overall
@@ -414,8 +436,7 @@ function PreJogo(): React.JSX.Element {
           color="textSecondary"
           align="center"
           style={styles.caps}>
-          Brasileirão {clubeUsuario.divisao ?? 'Série A'} · Rodada{' '}
-          {proximo.rodada}
+          {nomeCompeticao(clubeUsuario.divisao)} · Rodada {proximo.rodada}
         </Text>
         <View style={styles.metaLinha}>
           <Icon nome="estadio" size="sm" color="textMuted" />
@@ -578,6 +599,55 @@ function PreJogo(): React.JSX.Element {
         </Card>
       ) : null}
 
+      {/* RODÍZIO SUGERIDO — card discreto, só quando o staff tem o que apontar.
+          Nada é aplicado automaticamente; o único CTA leva ao editor (Tactics)
+          e é ghost/sm para não competir com o principal "Jogar ao vivo". */}
+      {sugestoesRodizio.length > 0 ? (
+        <View style={styles.bloco}>
+          <TituloBloco texto="Rodízio sugerido" />
+          <Card variante="outlined" padding={3}>
+            {sugestoesRodizio.map(sugestao => (
+              <View key={sugestao.titularId} style={styles.rodizioRow}>
+                <PlayerAvatar id={sugestao.titularId} tamanho={36} />
+                <View style={styles.rodizioInfo}>
+                  <Text variant="bodyM" weight="700" numberOfLines={1}>
+                    {nomeJogador(sugestao.titularId)}
+                  </Text>
+                  <View style={styles.rodizioBadge}>
+                    <Badge
+                      label={
+                        sugestao.motivo === 'risco' ? 'Risco de lesão' : 'Cansado'
+                      }
+                      tom={sugestao.motivo === 'risco' ? 'danger' : 'accent'}
+                    />
+                  </View>
+                </View>
+                <Icon nome="avancar" size="sm" color="textMuted" />
+                <View style={styles.rodizioSub}>
+                  {sugestao.substitutoId ? (
+                    <Text variant="bodyM" numberOfLines={1} align="right">
+                      {nomeJogador(sugestao.substitutoId)}
+                    </Text>
+                  ) : (
+                    <Text variant="caption" color="textMuted" align="right">
+                      Sem opção no banco
+                    </Text>
+                  )}
+                </View>
+              </View>
+            ))}
+            <Divider />
+            <Button
+              titulo="Ajustar escalação"
+              variante="ghost"
+              tamanho="sm"
+              icone="tatica"
+              onPress={() => nav.navigate('Tactics')}
+            />
+          </Card>
+        </View>
+      ) : null}
+
       {/* AÇÕES — iniciar a partida (simular ou ao vivo) + ajustar escalação */}
       {(() => {
         const podeJogar = !avisos.some(a => a.cor === 'danger');
@@ -695,6 +765,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: espacamento[2],
   },
+  // RODÍZIO SUGERIDO
+  rodizioRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: espacamento[2],
+    paddingVertical: espacamento[2],
+  },
+  rodizioInfo: {flex: 1, gap: espacamento[1]},
+  rodizioBadge: {alignSelf: 'flex-start'},
+  rodizioSub: {alignItems: 'flex-end', flex: 1},
   // AVISOS
   avisoRow: {
     alignItems: 'center',

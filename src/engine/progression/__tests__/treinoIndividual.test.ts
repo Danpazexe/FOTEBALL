@@ -1,4 +1,4 @@
-import {desenvolverFoco} from '../treinoIndividual';
+import {desenvolverFoco, sugerirPlanosElenco} from '../treinoIndividual';
 import {criarPlayer} from '../../../testing/fixtures';
 import type {Player} from '../../../types';
 
@@ -92,5 +92,54 @@ describe('desenvolverFoco', () => {
     const ev = desenvolverFoco(j, passa);
     expect(ev.atributos.finalizacao).toBe(71);
     expect(ev.atributos.velocidade).toBe(j.atributos.velocidade);
+  });
+});
+
+describe('sugerirPlanosElenco', () => {
+  it('escolhe o plano de MAIOR afinidade dentro do grupo posicional', () => {
+    // Atacante do fixture: finalização 70 · posicionamento 72 · drible 74 →
+    // "Finalizador de ponta" (pon_finalizador, média 72) vence ata_finalizador
+    // (71), ata_falso9 (69.7), ata_homem_alvo (69.3) e ata_pressionante (61.7).
+    const sugestoes = sugerirPlanosElenco([atacante()]);
+    expect(sugestoes.get('p')).toBe('pon_finalizador');
+  });
+
+  it('a seleção segue o PERFIL do jogador (mesmo grupo, planos diferentes)', () => {
+    const base = atacante().atributos;
+    const goleiroReativo = atacante({
+      id: 'g1',
+      posicaoPrincipal: 'GOL',
+      atributos: {...base, reflexos: 80, posicionamento: 75, passe: 60},
+    });
+    const goleiroLibero = atacante({
+      id: 'g2',
+      posicaoPrincipal: 'GOL',
+      atributos: {...base, reflexos: 60, posicionamento: 70, passe: 85},
+    });
+    const sugestoes = sugerirPlanosElenco([goleiroReativo, goleiroLibero]);
+    expect(sugestoes.get('g1')).toBe('gol_reativo');
+    expect(sugestoes.get('g2')).toBe('gol_libero');
+  });
+
+  it('não sugere para quem está SEM margem de potencial', () => {
+    const noTeto = atacante({id: 'teto', overall: 90, potencial: 90});
+    const comMargem = atacante({id: 'margem'});
+    const sugestoes = sugerirPlanosElenco([noTeto, comMargem]);
+    expect(sugestoes.has('teto')).toBe(false);
+    expect(sugestoes.has('margem')).toBe(true);
+  });
+
+  it('empate de afinidade mantém a ordem de PLANOS_FUNCAO (determinístico)', () => {
+    // criarPlayer padrão: todos os atributos 70 e posição MC → mc_box e
+    // mc_maestro empatam em 70; vence o primeiro da lista (mc_box).
+    const meia = criarPlayer({id: 'mc'});
+    expect(sugerirPlanosElenco([meia]).get('mc')).toBe('mc_box');
+  });
+
+  it('é pura e determinística para a mesma entrada', () => {
+    const elenco = [atacante(), criarPlayer({id: 'mc'})];
+    expect(sugerirPlanosElenco(elenco)).toEqual(sugerirPlanosElenco(elenco));
+    // Não muta os jogadores.
+    expect(elenco[0]).toEqual(atacante());
   });
 });

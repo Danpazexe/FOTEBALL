@@ -19,7 +19,7 @@ import {
 import {calcularArtilheiros} from '../../engine/season/artilheiros';
 import {selecionarClubeUsuario, useGameStore} from '../../store/useGameStore';
 import {useAppNavigation} from '../../navigation/types';
-import {siglaClube} from '../../utils/formatters';
+import {nomeCompeticao, siglaClube} from '../../utils/formatters';
 
 const DIVISAO_PADRAO = 'Série A';
 const ULTIMA_DIVISAO = 'Série D';
@@ -53,7 +53,7 @@ function Competition(): React.JSX.Element {
         <AppHeader title="Classificação" onBack={() => nav.goBack()} />
       }>
       <Text variant="labelM" color="textSecondary" align="center">
-        Brasileirão {divisao} · {temporadaAtual}
+        {nomeCompeticao(divisao)} · {temporadaAtual}
       </Text>
 
       <ClassificationTable

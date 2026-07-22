@@ -1,7 +1,8 @@
 /**
- * Elevação (briefing §7.3). No claro, preferir borda/diferença de superfície
- * ANTES de sombra; sombra só em header fixo, bottom bar, menu, sheet e modal.
- * Glow NÃO é elevação comum (reservado a gol/conquista/CTA momentâneo).
+ * Elevação — cartaz de arquibancada (v3): sombra DURA de serigrafia (offset
+ * sólido na cor da tinta, SEM blur → `shadowOpacity: 1` + `shadowRadius: 0`).
+ * No Android `elevation` não faz sombra dura; fica baixa só para dar leve
+ * profundidade (limite aceito da plataforma). Glow NÃO é elevação comum.
  *
  * Import de TIPO apenas (apagado em build) — não puxa runtime de RN.
  */
@@ -12,29 +13,42 @@ type EstiloElevacao = Pick<
   'shadowColor' | 'shadowOffset' | 'shadowOpacity' | 'shadowRadius' | 'elevation'
 >;
 
-export const elevacao: Record<'nivel0' | 'nivel1' | 'nivel2', EstiloElevacao> = {
+const TINTA = '#141414';
+
+export const elevacao: Record<
+  'nivel0' | 'nivel1' | 'nivel2' | 'dura',
+  EstiloElevacao
+> = {
   /** Plano — sem sombra. */
   nivel0: {
-    shadowColor: '#000000',
+    shadowColor: TINTA,
     shadowOffset: {width: 0, height: 0},
     shadowOpacity: 0,
     shadowRadius: 0,
     elevation: 0,
   },
-  /** Sombra mínima — header fixo, bottom bar. */
+  /** Filete sólido sob header fixo e bottom bar (linha de cartaz). */
   nivel1: {
-    shadowColor: '#000000',
-    shadowOffset: {width: 0, height: 1},
-    shadowOpacity: 0.12,
-    shadowRadius: 3,
+    shadowColor: TINTA,
+    shadowOffset: {width: 0, height: 3},
+    shadowOpacity: 1,
+    shadowRadius: 0,
     elevation: 2,
   },
-  /** Menu, sheet, modal. */
+  /** Menu, sheet, modal — bloco deslocado. */
   nivel2: {
-    shadowColor: '#000000',
-    shadowOffset: {width: 0, height: 6},
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowColor: TINTA,
+    shadowOffset: {width: 4, height: 4},
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 6,
+  },
+  /** Sombra de cartaz de botão/card de destaque — offset diagonal sólido. */
+  dura: {
+    shadowColor: TINTA,
+    shadowOffset: {width: 3, height: 3},
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
   },
 };

@@ -1,8 +1,9 @@
 /**
  * AppHeader — cabeçalho FIXO das telas internas (fora da rolagem). Título
  * CENTRALIZADO, botão voltar à esquerda (ícone semântico Lucide 'voltar', alvo
- * 44×44, accessibilityLabel "Voltar") e ação opcional à direita. Divisor inferior
- * discreto. Cor por token. Renderizar no slot `header` do <Screen>.
+ * 44×44, accessibilityLabel "Voltar") e ação opcional à direita. Filete
+ * inferior duro na tinta (cartaz v3); título herda a caixa alta de `titleM`.
+ * Cor por token. Renderizar no slot `header` do <Screen>.
  *
  * O fallback de voltar (quando não há histórico) é responsabilidade do chamador
  * via `onBack`.
@@ -31,7 +32,7 @@ export function AppHeader({
 }: Props): React.JSX.Element {
   const {cores} = useTheme();
   return (
-    <View style={[estilos.header, {borderBottomColor: cores.border}]}>
+    <View style={[estilos.header, {borderBottomColor: cores.borderStrong}]}>
       <View style={estilos.lado}>
         {showBackButton && onBack ? (
           <Pressable
@@ -47,6 +48,10 @@ export function AppHeader({
         variant="titleM"
         align="center"
         numberOfLines={1}
+        // Caixa alta alarga títulos longos (ex.: nome de clube); encolhe um
+        // pouco em vez de truncar.
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
         style={estilos.titulo}>
         {title}
       </Text>
@@ -60,7 +65,8 @@ const estilos = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 44,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    // Filete de cartaz: linha dura na tinta sob o cabeçalho.
+    borderBottomWidth: 2,
     paddingBottom: espacamento[1],
   },
   lado: {minWidth: 44, justifyContent: 'center'},

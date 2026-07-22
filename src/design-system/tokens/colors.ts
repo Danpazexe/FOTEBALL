@@ -1,9 +1,13 @@
 /**
- * Tokens de cor SEMÂNTICOS do Design System v2 ("Sala de Análise").
+ * Tokens de cor SEMÂNTICOS do Design System v3 — North Star "GERAL (torcida/
+ * cartaz)": cartaz brasileiro de arquibancada.
  *
- * Neutros em 75-85% da interface; AZUL = ação/interativo (CTA, seleção, destaque);
- * verde = estado positivo (êxito, boa fase); âmbar = atenção/gol/conquista;
- * vermelho = risco/derrota/destrutivo; azul-info = informação/comparação.
+ * Papel #F2EFE6 (canvas claro), tinta #141414, VERDE-BANDEIRA #009C3B = ação/
+ * brand (CTA, seleção, destaque); amarelo #FFCF00 = accent (gol, craque,
+ * conquista); azul #2456D6 = info/comparação; vermelho tijolo = risco/derrota.
+ * Tema escuro = "cartaz à noite": canvas tinta, texto papel, mesmos verde/
+ * amarelo (tons ajustados para AA sobre surface escura).
+ *
  * Estas paletas são a FONTE DA VERDADE do tema novo — telas migradas consomem
  * daqui via `useTheme()`. O tema antigo (`src/theme`) segue como ponte para as
  * telas ainda não migradas (ADR-0002/0003).
@@ -100,88 +104,93 @@ export type CoresEsporte = {
 // ============================================================================
 
 export const coresClaras: CoresSemanticas = {
-  canvas: '#F4F6F8',
-  surface: '#FFFFFF',
-  surfaceSubtle: '#F8FAFB',
-  surfacePressed: '#EEF2F4',
-  border: '#E1E7EB',
-  borderStrong: '#C9D2D9',
-  textPrimary: '#101820',
-  textSecondary: '#5B6773',
-  textMuted: '#7E8A94',
-  brand: '#2878F0',
-  brandStrong: '#1B5FD9',
-  brandSoft: '#E9F1FF',
+  canvas: '#F2EFE6',
+  surface: '#FAF7EC',
+  surfaceSubtle: '#EAE6D8',
+  surfacePressed: '#E1DCC9',
+  border: '#D6D0BC',
+  borderStrong: '#141414',
+  textPrimary: '#141414',
+  textSecondary: '#524F45',
+  textMuted: '#6F6A5C',
+  brand: '#009C3B',
+  brandStrong: '#00742D',
+  brandSoft: '#DCEEDB',
   onBrand: '#FFFFFF',
-  accent: '#F2B43C',
-  accentSoft: '#FFF5D9',
-  info: '#2878F0',
-  infoSoft: '#EAF2FF',
-  success: '#158A4B',
-  warning: '#C98200',
-  danger: '#D64545',
-  dangerSoft: '#FDECEC',
-  overlay: 'rgba(10, 18, 24, 0.56)',
-  scoreboard: '#152238',
-  onScoreboard: '#F2F6F8',
+  accent: '#FFCF00',
+  accentSoft: '#F6E9B8',
+  info: '#2456D6',
+  infoSoft: '#DCE4F7',
+  success: '#0B7A33',
+  warning: '#8A5E00',
+  danger: '#C7362B',
+  dangerSoft: '#F7DCD4',
+  overlay: 'rgba(20, 20, 20, 0.55)',
+  scoreboard: '#141414',
+  onScoreboard: '#F2EFE6',
 };
 
 export const esporteClaro: CoresEsporte = {
   match: {
-    goal: '#13A65A',
+    goal: '#009C3B',
     cardYellow: '#F2B43C',
-    cardRed: '#D64545',
-    substitutionIn: '#158A4B',
+    cardRed: '#C7362B',
+    substitutionIn: '#0B7A33',
     substitutionOut: '#C98200',
-    var: '#2878F0',
-    injury: '#D64545',
+    var: '#2456D6',
+    injury: '#C7362B',
   },
-  form: {win: '#158A4B', draw: '#7E8A94', loss: '#D64545'},
+  form: {win: '#0B7A33', draw: '#6F6A5C', loss: '#C7362B'},
   zone: {
-    promotion: '#158A4B',
-    continental: '#2878F0',
+    promotion: '#0B7A33',
+    continental: '#2456D6',
     playoff: '#C98200',
-    relegation: '#D64545',
+    relegation: '#C7362B',
   },
-  fitness: {high: '#158A4B', medium: '#C98200', low: '#D64545'},
-  morale: {high: '#158A4B', medium: '#C98200', low: '#D64545'},
+  fitness: {high: '#0B7A33', medium: '#C98200', low: '#C7362B'},
+  morale: {high: '#0B7A33', medium: '#C98200', low: '#C7362B'},
   posicao: {
-    goleiro: {cor: '#7C4DFF', fundo: '#EEE9FF'},
-    defesa: {cor: '#2478E0', fundo: '#E6F0FD'},
-    meio: {cor: '#159A50', fundo: '#E4F6EC'},
-    ataque: {cor: '#D63B3B', fundo: '#FBE9E9'},
+    // Fundos na TEMPERATURA DO PAPEL (#F2EFE6): pastéis aquecidos (menos azul,
+    // teto de brilho no nível do papel) — a identidade fica na cor-texto.
+    goleiro: {cor: '#7C4DFF', fundo: '#ECE5F4'},
+    defesa: {cor: '#2456D6', fundo: '#DFE7F0'},
+    meio: {cor: '#0B7A33', fundo: '#E0EFD9'},
+    ataque: {cor: '#C7362B', fundo: '#FAE7DE'},
   },
 };
 
 // ============================================================================
-// TEMA ESCURO — alternativa completa (briefing §5.3).
+// TEMA ESCURO — "cartaz à noite": canvas tinta, texto papel, mesmos verde/
+// amarelo (tons clareados onde preciso para AA sobre surface escura). Sobre os
+// preenchimentos coloridos (brandStrong/accent/danger) o conteúdo é TINTA
+// (`onBrand` escuro), como serigrafia sobre cor chapada.
 // ============================================================================
 
 export const coresEscuras: CoresSemanticas = {
-  canvas: '#0B1115',
-  surface: '#121A20',
-  surfaceSubtle: '#172128',
-  surfacePressed: '#202C34',
-  border: '#27343D',
-  borderStrong: '#3B4A54',
-  textPrimary: '#F2F6F8',
-  textSecondary: '#A9B4BC',
-  textMuted: '#788690',
-  brand: '#4F9CFF',
-  brandStrong: '#2F6FD6',
-  brandSoft: '#14243D',
-  onBrand: '#FFFFFF',
-  accent: '#FFC857',
-  accentSoft: '#3A2D12',
-  info: '#62A0FF',
-  infoSoft: '#152A47',
-  success: '#31C776',
-  warning: '#F1B94B',
-  danger: '#FF6B63',
-  dangerSoft: '#3D2020',
+  canvas: '#141414',
+  surface: '#1D1D1B',
+  surfaceSubtle: '#242421',
+  surfacePressed: '#2C2C28',
+  border: '#34342F',
+  borderStrong: '#6C6B62',
+  textPrimary: '#F2EFE6',
+  textSecondary: '#C9C5B8',
+  textMuted: '#98948A',
+  brand: '#2EC167',
+  brandStrong: '#009C3B',
+  brandSoft: '#14301D',
+  onBrand: '#141414',
+  accent: '#FFCF00',
+  accentSoft: '#35300F',
+  info: '#7B9EF0',
+  infoSoft: '#1C2440',
+  success: '#3BCB74',
+  warning: '#FFB020',
+  danger: '#FF6B5E',
+  dangerSoft: '#3B211D',
   overlay: 'rgba(0, 0, 0, 0.72)',
-  scoreboard: '#101C2E',
-  onScoreboard: '#F2F6F8',
+  scoreboard: '#0B0B0A',
+  onScoreboard: '#F2EFE6',
 };
 
 export const esporteEscuro: CoresEsporte = {
@@ -191,23 +200,25 @@ export const esporteEscuro: CoresEsporte = {
     cardRed: '#FF6B63',
     substitutionIn: '#31C776',
     substitutionOut: '#F1B94B',
-    var: '#62A0FF',
+    var: '#7B9EF0',
     injury: '#FF6B63',
   },
   form: {win: '#31C776', draw: '#788690', loss: '#FF6B63'},
   zone: {
     promotion: '#31C776',
-    continental: '#62A0FF',
+    continental: '#7B9EF0',
     playoff: '#F1B94B',
     relegation: '#FF6B63',
   },
   fitness: {high: '#31C776', medium: '#F1B94B', low: '#FF6B63'},
   morale: {high: '#31C776', medium: '#F1B94B', low: '#FF6B63'},
   posicao: {
-    goleiro: {cor: '#B39BFF', fundo: '#2A2447'},
-    defesa: {cor: '#63A4FF', fundo: '#15263F'},
-    meio: {cor: '#43C77E', fundo: '#123626'},
-    ataque: {cor: '#FF6E66', fundo: '#3B1E1E'},
+    // Fundos puxados para a base TINTA (#141414) das superfícies escuras:
+    // menos saturação fria, mesmo matiz — identidade segue na cor-texto.
+    goleiro: {cor: '#B39BFF', fundo: '#2B2642'},
+    defesa: {cor: '#63A4FF', fundo: '#1C2735'},
+    meio: {cor: '#43C77E', fundo: '#1A2F21'},
+    ataque: {cor: '#FF6E66', fundo: '#38221E'},
   },
 };
 

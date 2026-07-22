@@ -29,6 +29,15 @@ function textos(r: Renderizado): {texto: string; cor: unknown}[] {
 }
 
 describe('componentes do design system', () => {
+  // As asserções comparam com `coresEscuras`; na paleta cartaz (v3) claro e
+  // escuro têm valores diferentes (ex.: onBrand), então o tema precisa estar
+  // fixado ANTES de cada render — não só restaurado depois.
+  beforeEach(() => {
+    act(() => {
+      useTemaStore.setState({modo: 'escuro', esquemaSistema: 'escuro'});
+    });
+  });
+
   afterEach(() => {
     act(() => {
       useTemaStore.setState({modo: 'escuro', esquemaSistema: 'escuro'});
@@ -44,7 +53,7 @@ describe('componentes do design system', () => {
     expect(t?.cor).toBe(coresEscuras.onBrand);
   });
 
-  it('Chip selecionado usa a cor do tom; não-selecionado é secundário', () => {
+  it('Chip selecionado usa tinta (textPrimary, cartaz v3); não-selecionado é secundário', () => {
     let sel!: Renderizado;
     let normal!: Renderizado;
     act(() => {
@@ -54,7 +63,7 @@ describe('componentes do design system', () => {
       normal = TestRenderer.create(<Chip label="ATA" onPress={() => {}} />);
     });
     expect(textos(sel).find(x => x.texto === 'Todos')?.cor).toBe(
-      coresEscuras.brand,
+      coresEscuras.textPrimary,
     );
     expect(textos(normal).find(x => x.texto === 'ATA')?.cor).toBe(
       coresEscuras.textSecondary,
