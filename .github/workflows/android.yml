@@ -58,7 +58,7 @@ jobs:
       contents: write
     steps:
       - name: 📥 Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # `gh release` usa a API REST com GH_TOKEN — nenhum passo faz push via git.
           persist-credentials: false
@@ -90,7 +90,7 @@ jobs:
           echo "::notice::Build $BUILD_TYPE (task assemble${BUILD_TYPE^}) — versão $VERSION (versionName ${VERSION_NAME:-n/d}, versionCode ${{ github.run_number }})"
 
       - name: ⚙️ Setup Node ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
@@ -99,16 +99,16 @@ jobs:
         run: npm ci
 
       - name: ⚙️ Setup JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
       - name: ⚙️ Setup Gradle (cache)
-        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
+        uses: gradle/actions/setup-gradle@3f131e8634966bd73d06cc69884922b02e6faf92 # v6.2.0
 
       - name: ⚙️ Setup Android SDK
-        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
 
       - name: 📦 Instalar pacotes do SDK (plataforma ${{ env.ANDROID_PLATFORM }}, NDK ${{ env.ANDROID_NDK }})
         run: |
@@ -153,7 +153,7 @@ jobs:
           echo "size=$(du -h "$DEST" | cut -f1)" >> "$GITHUB_OUTPUT"
 
       - name: 📤 Publicar APK (artifact)
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: foteball-apk-${{ steps.vars.outputs.build_type }}
           path: ${{ steps.apk.outputs.path }}
@@ -227,7 +227,7 @@ jobs:
       # Rastreabilidade de erro: em falha, sobe os relatórios do Gradle/AGP.
       - name: 🪵 Upload de logs/reports (em falha)
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: android-build-reports
           path: |
