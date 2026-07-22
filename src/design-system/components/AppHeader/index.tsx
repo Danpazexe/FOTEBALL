@@ -48,6 +48,10 @@ export function AppHeader({
         variant="titleM"
         align="center"
         numberOfLines={1}
+        // Caixa alta alarga títulos longos (ex.: nome de clube); encolhe um
+        // pouco em vez de truncar.
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
         style={estilos.titulo}>
         {title}
       </Text>

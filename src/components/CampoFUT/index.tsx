@@ -965,7 +965,9 @@ function AvatarBanco({
         <Pressable
           style={[
             styles.avatarChip,
-            {backgroundColor: noBanco ? cores.danger : cores.brand},
+            // brandStrong (não brand): o glifo pequeno sobre o verde-bandeira
+            // puro ficaria ~3.4:1 no tema claro.
+            {backgroundColor: noBanco ? cores.danger : cores.brandStrong},
             chipDesabilitado ? styles.bancoChipDesabilitado : null,
           ]}
           hitSlop={6}
@@ -1580,7 +1582,7 @@ const criarEstilos = (t: TemaDS) =>
       width: 18,
     },
     avatarChipTexto: {
-      color: '#fff',
+      color: t.cores.onBrand,
       fontSize: 13,
       fontWeight: '800',
       lineHeight: 15,

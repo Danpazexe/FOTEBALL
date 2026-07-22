@@ -150,10 +150,12 @@ export const esporteClaro: CoresEsporte = {
   fitness: {high: '#0B7A33', medium: '#C98200', low: '#C7362B'},
   morale: {high: '#0B7A33', medium: '#C98200', low: '#C7362B'},
   posicao: {
-    goleiro: {cor: '#7C4DFF', fundo: '#EEE9FF'},
-    defesa: {cor: '#2456D6', fundo: '#E6F0FD'},
-    meio: {cor: '#0B7A33', fundo: '#E4F6EC'},
-    ataque: {cor: '#C7362B', fundo: '#FBE9E9'},
+    // Fundos na TEMPERATURA DO PAPEL (#F2EFE6): pastéis aquecidos (menos azul,
+    // teto de brilho no nível do papel) — a identidade fica na cor-texto.
+    goleiro: {cor: '#7C4DFF', fundo: '#ECE5F4'},
+    defesa: {cor: '#2456D6', fundo: '#DFE7F0'},
+    meio: {cor: '#0B7A33', fundo: '#E0EFD9'},
+    ataque: {cor: '#C7362B', fundo: '#FAE7DE'},
   },
 };
 
@@ -211,10 +213,12 @@ export const esporteEscuro: CoresEsporte = {
   fitness: {high: '#31C776', medium: '#F1B94B', low: '#FF6B63'},
   morale: {high: '#31C776', medium: '#F1B94B', low: '#FF6B63'},
   posicao: {
-    goleiro: {cor: '#B39BFF', fundo: '#2A2447'},
-    defesa: {cor: '#63A4FF', fundo: '#15263F'},
-    meio: {cor: '#43C77E', fundo: '#123626'},
-    ataque: {cor: '#FF6E66', fundo: '#3B1E1E'},
+    // Fundos puxados para a base TINTA (#141414) das superfícies escuras:
+    // menos saturação fria, mesmo matiz — identidade segue na cor-texto.
+    goleiro: {cor: '#B39BFF', fundo: '#2B2642'},
+    defesa: {cor: '#63A4FF', fundo: '#1C2735'},
+    meio: {cor: '#43C77E', fundo: '#1A2F21'},
+    ataque: {cor: '#FF6E66', fundo: '#38221E'},
   },
 };
 

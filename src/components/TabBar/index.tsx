@@ -46,7 +46,7 @@ function TabItem({
   badge?: number | string;
   onPress: () => void;
 }): React.JSX.Element {
-  const {cores} = useTheme();
+  const {cores, esquema} = useTheme();
   const styles = useEstilosDS(criarEstilos);
   const p = useDerivedValue(() => withSpring(focado ? 1 : 0, MOLA), [focado]);
 
@@ -63,6 +63,13 @@ function TabItem({
   }));
 
   const cor = focado ? cores.brand : cores.textSecondary;
+  // Rótulo pequeno (10.5px): no tema claro o verde-bandeira puro fica ~3.4:1
+  // sobre a superfície — texto usa brandStrong (AA); o ícone mantém o brand.
+  const corRotulo = focado
+    ? esquema === 'claro'
+      ? cores.brandStrong
+      : cores.brand
+    : cores.textSecondary;
 
   return (
     <Pressable
@@ -83,7 +90,7 @@ function TabItem({
         ) : null}
       </View>
       <Animated.Text
-        style={[styles.rotulo, {color: cor}, rotuloStyle]}
+        style={[styles.rotulo, {color: corRotulo}, rotuloStyle]}
         numberOfLines={1}>
         {ROTULOS[nome] ?? nome}
       </Animated.Text>

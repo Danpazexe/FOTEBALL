@@ -93,7 +93,13 @@ function Contratos(): React.JSX.Element {
               <Card key={jogador.id} variante="outlined" style={styles.card}>
                 <OverallBadge overall={jogador.overall} />
                 <View style={styles.main}>
-                  <Text variant="titleM" numberOfLines={1}>
+                  <Text
+                    variant="titleM"
+                    numberOfLines={1}
+                    // Nome completo em caixa alta pode passar da coluna;
+                    // encolhe um pouco em vez de truncar.
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}>
                     {jogador.apelido ?? jogador.nome}
                   </Text>
                   <Text variant="caption" color="textSecondary">
